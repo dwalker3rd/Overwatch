@@ -1,0 +1,15 @@
+
+environ.ps1
+*.log
+*.cache
+*.csv
+*.secure
+secpol.cfg
+.VSCodeCounter
+*.hyper
+*.tds*
+Overwatch.code-workspace
+.vscode/settings.json
+*.lock
+*.vault
+/data/*.*
