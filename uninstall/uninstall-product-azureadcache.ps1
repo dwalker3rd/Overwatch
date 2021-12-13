@@ -1,3 +1,1 @@
-if ($(Get-PlatformTask -Id "AzureADCache")) {
-    Unregister-PlatformTask -Id "AzureADCache"
-}
+Uninstall-PlatformTask "AzureADCache"

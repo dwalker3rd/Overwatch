@@ -408,15 +408,18 @@
         [CmdletBinding()] 
         param (
             [Parameter(Mandatory=$false,Position=0)][string]$Id,
-            [Parameter(Mandatory=$false)][string]$Name
+            [Parameter(Mandatory=$false)][string]$Name,
+            [switch]$ResetCache
         )
 
         $definitionPath = "$($global:Location.Root)\definitions\definitions"
 
-        if ($(get-cache providers).Exists()) {
-            $providers = Read-Cache providers -MaxAge $(New-Timespan -Minutes 2)
+        if (!$ResetCache) {
+            if ($(get-cache providers).Exists()) {
+                $providers = Read-Cache providers -MaxAge $(New-Timespan -Minutes 2)
+            }
         }
-
+        
         if (!$providers) {
             $providers = @()
             $global:Environ.Provider | ForEach-Object {
@@ -1091,13 +1094,14 @@
         foreach ($node in $ComputerName) {
             $psSession = $null
             $nodeIsLocalhost = $node.ToLower() -eq "localhost" -or $node.ToLower() -eq $env:COMPUTERNAME.ToLower()
-            $psSessions = $nodeIsLocalhost ? (Get-PSSession | Sort-Object -Property Name | Where-Object {$_.ComputerName.ToLower() -eq "localhost"}) : (Get-PSSession -ComputerName $node)
+            $psSessions = $nodeIsLocalhost ? (Get-PSSession | Where-Object {$_.ComputerName.ToLower() -eq "localhost"}) : (Get-PSSession -ComputerName $node)
+            $psSessions = $psSessions | Sort-Object -Property @{Expression = "State"; Descending = $true}, @{Expression = "Availability"; Descending = $false}
             foreach ($nodePSSession in $psSessions) {
                 if ($null -ne $nodePSSession -and 
-                    ($nodePSSession.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::None -or 
-                        $nodePSSession.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::Available)) {
-                            $psSession = $nodePSSession
-                            break
+                    ($nodePSSession.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::Available)) {
+                    #   -or $nodePSSession.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::None)) {
+                        $psSession = $nodePSSession
+                        break
                 }
             }
             if ($null -eq $psSession) {
@@ -1106,9 +1110,9 @@
                     $psSession = New-PSSession -EnableNetworkAccess
                 }
             }
-            if ($psSession.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Disconnected) {
-                Connect-PSSession -Session $psSession | Out-Null
-            }
+            # if ($psSession.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Disconnected) {
+            #     Connect-PSSession -Session $psSession | Out-Null
+            # }
             $allSessions += $psSession
         }
 

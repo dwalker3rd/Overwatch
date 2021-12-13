@@ -1,3 +1,8 @@
+function global:New-ContactsDB {
+
+    '"Name","Email","Phone"' | Set-Content -Path $ContactsDB
+
+}
 function global:Get-Contact {
 
     [CmdletBinding()]

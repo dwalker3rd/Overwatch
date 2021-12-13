@@ -1,18 +1,16 @@
-﻿#region INSTANCE DEFINITIONS
-
 $global:Environ = 
 @{
-    OS = "WindowsServer"
-    Platform = "AlteryxServer"
-    Instance = "alteryx-acme-org"
-    Product = @("Monitor","Backup","DiskCheck","Cleanup","Command")
-    Provider = @("Vault","MicrosoftTeams","TwilioSMS","SMTP","Views")
+    OS = "<operatingSystemId>"
+    Platform = "<platformId>"
+    Instance = "<platformInstanceId>"
+    Product = @(<productIds>)
+    Provider = @(<providerIds>)
 }
 
-$global:Location = 
+$global:Location =
 @{
-    Root = "F:\Overwatch"
-    Images = "https://public.cdn.com/images"
+    Root = "<overwatchInstallLocation>"
+    Images = "<imagesURI>"
 }
 $global:Location += 
 @{
@@ -31,7 +29,5 @@ $global:Location +=
     Logs = "$($global:Location.Root)\logs"
     Temp = "$($global:Location.Root)\temp\$($global:Environ.Instance)"
 
-    Pip = 'F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Scripts'
+    Pip = "<pipLocation>"
 }
-
-#endregion INSTANCE DEFINITIONS

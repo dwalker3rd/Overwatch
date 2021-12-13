@@ -1,5 +1,11 @@
-# $global:Product = @{Id = "Watcher"}
-# . $PSScriptRoot\definitions.ps1
+$product = Get-Product "Watcher"
+$Name = $product.Name 
+$Vendor = $product.Vendor
+
+$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Vendor$($emptyString.PadLeft(20-$Vendor.Length," "))","PENDING$($emptyString.PadLeft(27," "))"
+Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+
+Copy-File $PSScriptRoot\templates\definitions\definitions-product-$($product.Id.ToLower())-template.ps1 -Quiet
 
 foreach ($node in (Get-PlatformTopology gallery.nodes -Online -Keys)) {
     New-Log -Name "Watcher" -ComputerName $node | Out-Null
@@ -31,3 +37,6 @@ Unregister-CimInstanceEvent -Class Win32_Process -Event __InstanceDeletionEvent 
     Format-Table
         
 Remove-CimSession $GalleryCimSession
+
+$message = "$($emptyString.PadLeft(8,"`b")) READY$($emptyString.PadLeft(8," "))"
+Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen

@@ -6,8 +6,11 @@
             [switch]$v,
             [switch]$d,
             [switch]$xw,
-            [switch]$p,
-            [switch]$xpf
+            [switch]$xprog,
+            [switch]$xprefl,
+            [switch]$xpostfl,
+            [switch]$xwh,
+            [switch]$q
         )
     
         
@@ -15,23 +18,31 @@
         $global:VerbosePreference = $v ? "Continue" : "SilentlyContinue"
         $global:DebugPreference = $d ? "Continue" : "SilentlyContinue"
         $global:WarningPreference = $xw ? "SilentlyContinue" : "Continue"
-        $global:ProgressPreference = $p ? "Continue" : "SilentlyContinue"
-        $global:PreflightPreference =  $xpf ? "SilentlyContinue" : "Continue"
+        $global:ProgressPreference = $xprog ? "SilentlyContinue" : "Continue"
+        $global:PreflightPreference =  $xprefl ? "SilentlyContinue" : "Continue"
+        $global:PostFlightPreference =  $xpostfl ? "SilentlyContinue" : "Continue"
+        $global:WriteHostPlusPreference =  $xwh ? "SilentlyContinue" : "Continue"
     
-        Write-Host+
-        $message = "InformationPreference = |$global:InformationPreference"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:InformationPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
-        $message = "VerbosePreference = |$global:VerbosePreference"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:VerbosePreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
-        $message = "DebugPreference = |$global:DebugPreference"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:DebugPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
-        $message = "WarningPreference = |$global:WarningPreference"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:WarningPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
-        $message = "ProgressPreference = |$global:ProgressPreference"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:ProgressPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
-        $message = "PreflightPreference = |$global:PreflightPreference"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PreflightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
-        Write-Host+
+        if (!$q) {
+            Write-Host+
+            $message = "InformationPreference = |$global:InformationPreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:InformationPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            $message = "VerbosePreference = |$global:VerbosePreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:VerbosePreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            $message = "DebugPreference = |$global:DebugPreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:DebugPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            $message = "WarningPreference = |$global:WarningPreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:WarningPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            $message = "ProgressPreference = |$global:ProgressPreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:ProgressPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            $message = "PreflightPreference = |$global:PreflightPreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PreflightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            $message = "PostFlightPreference = |$global:PostFlightPreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PostFlightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            $message = "WriteHostPlusPreference = |$global:WriteHostPlusPreference"
+            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:WriteHostPlusPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+            Write-Host+
+        }
     
     }
     Set-Alias -Name psPref -Value Set-PSPreferenceVariables -Scope Global

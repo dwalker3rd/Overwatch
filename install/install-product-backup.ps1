@@ -1,7 +1,11 @@
-# $global:Product = @{Id = "Backup"}
-# . $PSScriptRoot\definitions.ps1
+$product = Get-Product "Backup"
+$Name = $product.Name 
+$Vendor = $product.Vendor
 
-# New-Log -Name "Backup"
+$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Vendor$($emptyString.PadLeft(20-$Vendor.Length," "))","PENDING$($emptyString.PadLeft(27," "))"
+Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+
+Copy-File $PSScriptRoot\templates\definitions\definitions-product-$($product.Id.ToLower())-template.ps1 -Quiet
 
 if (!(Test-Path -Path $Backup.Path)) {New-Item -ItemType Directory -Path $Backup.Path}
 
@@ -14,3 +18,6 @@ $at = get-date -date "6:00Z"
 
 Register-PlatformTask -Id "Backup" -execute $pwsh -Argument "$($global:Location.Scripts)\$("Backup").ps1" -WorkingDirectory $global:Location.Scripts `
     -Daily -At $at -ExecutionTimeLimit $(New-TimeSpan -Minutes 60) -RunLevel Highest -SyncAcrossTimeZones
+
+$message = "$($emptyString.PadLeft(34,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","DISABLED"
+Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen, DarkRed

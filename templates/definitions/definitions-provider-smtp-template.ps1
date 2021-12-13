@@ -1,23 +1,6 @@
 #region PROVIDER DEFINITIONS
 
-<# 
-.Synopsis
-Template for SMTP provider
-.Description
-Definitions required by the SMTP provider
-
-.Parameter Server
-The SMTP server
-.Parameter Port
-The SMTP port
-.Parameter UseSSL
-Whether or not SSL should be used with SMTP
-.Parameter MessageType
-The message types for which messages should be sent.
-Supported options:  Information, Warning, Alert, Task, AllClear
-.Parameter Credentials
-Encrypted credentials file for the SMTP account 
-#>
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $definitionsPath = $global:Location.Definitions
     . $definitionsPath\classes.ps1
@@ -37,9 +20,9 @@ Encrypted credentials file for the SMTP account
     $SmtpCredentials = Get-Credentials smtp
     $SmtpConfig = 
         @{
-            Server = “smtp.office365.com”
-            Port = "587"
-            UseSsl = $true
+            Server = “<server>”
+            Port = "<port>"
+            UseSsl = "<useSsl>"
             MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear)
             Credentials = $SmtpCredentials
             From = $($SmtpCredentials).UserName

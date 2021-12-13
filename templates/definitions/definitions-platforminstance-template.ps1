@@ -52,10 +52,9 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #region PLATFORM-OBJECT
 
-        $global:Platform.Instance = "<platforminstance>-acme-org"
-        $global:Platform.Uri = [System.Uri]::new("https://<platforminstance>.acme.org:443/gallery")
-        $global:Platform.Domain = "acme.org"
-        $global:Platform.InstallPath = "F:\Program Files\<platform>"
+        $global:Platform.Instance = "<platformInstanceId>"
+        $global:Platform.Uri = [System.Uri]::new("<imagesUri>")
+        $global:Platform.InstallPath = "<platformInstallLocation>"
 
     #endregion PLATFORM-OBJECT
 
@@ -77,7 +76,7 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
         $global:Backup = $null
         $global:Backup += @{
-            Path = "F:\<platform>\Backups"
+            Path = "<backupArchiveLocation>"
             Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
             Extension = "bak"
             Keep = 3

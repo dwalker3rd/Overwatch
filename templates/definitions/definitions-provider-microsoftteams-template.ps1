@@ -1,23 +1,9 @@
 #region PROVIDER DEFINITIONS
 
-<# 
-.Synopsis
-Template for Microsoft Teams provider
-.Description
-Definitions required by the MicrosoftTeams provider
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-.Parameter Connector
-The Microsoft Teams webhook uri[s] for each message type.
-.Parameter MessageType
-The message types for which messages should be sent.
-Supported options:  Information, Warning, Alert, Task, AllClear
-
-.Link
-https://docs.microsoft.com/en-us/outlook/actionable-messages/message-card-reference
-#>
-
-$definitionsPath = $global:Location.Definitions
-. $definitionsPath\classes.ps1
+    $definitionsPath = $global:Location.Definitions
+    . $definitionsPath\classes.ps1
 
     $Provider = $null
     $Provider = [Provider]@{
@@ -32,7 +18,6 @@ $definitionsPath = $global:Location.Definitions
 
     if (!$global:MicrosoftTeamsConfig) {
         throw "Microsoft Teams Connectors have not been defined."
-        # Configure Microsoft Teams in platform instance definition file
     }
 
     $Provider.Config = $global:MicrosoftTeamsConfig

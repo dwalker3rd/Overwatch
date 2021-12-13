@@ -355,6 +355,9 @@ function global:Test-Log {
     Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
+
+    if (!(Test-Path $Path)) {return $false}
+
     $log = Get-Log -Name $Name -Path $Path -ComputerName $ComputerName
 
     Write-Host+ -NoTrace -IfDebug "Row Count: $(([LogObject]$log).Count())"

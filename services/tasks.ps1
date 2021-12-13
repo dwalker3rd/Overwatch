@@ -23,7 +23,8 @@
             [Parameter(Mandatory=$false)][string]$Subscription,
             [switch]$SyncAcrossTimeZones,
             [Parameter(Mandatory=$false)][string]$Description,
-            [Parameter(Mandatory=$false)][string]$RandomDelay
+            [Parameter(Mandatory=$false)][string]$RandomDelay,
+            [switch]$Disable
         )
 
         Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -85,7 +86,7 @@
         $action = New-ScheduledTaskAction @actionArgs
 
         $settings = Get-CimClass MSFT_TaskSettings Root/Microsoft/Windows/TaskScheduler | New-CimInstance -ClientOnly -Property @{
-            Enabled = $true
+            Enabled = !$Disable
             AllowDemandStart = $true 
             ExecutionTimeLimit = $([system.xml.xmlconvert]::tostring($ExecutionTimeLimit))
         }
@@ -350,9 +351,9 @@
         $task = Get-PlatformTask -Id $Id 
         Write-Verbose "$($Id) $($task.Status)"
 
-        # check if task is already running
+        # check if task is already stopped
         if ($task.Status -notin "Running","Queued") {
-            Write-Error "$($Id) is not running."
+            # Write-Error "$($Id) is not running."
             return $true
         }
 
@@ -447,7 +448,7 @@
 
         Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
         
-        Unregister-ScheduledTask -TaskName $TaskName
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
 
         return
     

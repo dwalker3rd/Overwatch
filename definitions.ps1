@@ -22,7 +22,7 @@ switch ($PSVersionTable.PSVersion.Major) {
 #endregion HELP 
 #region MISCELLANEOUS
 
-. $definitionsPath\definitions-regex.ps1
+    . $definitionsPath\definitions-regex.ps1
 
 #endregion MISCELLANEOUS  
 #region DEFINITIONS
@@ -42,7 +42,7 @@ switch ($PSVersionTable.PSVersion.Major) {
 #endregion LOADFIRST
 #region INTRO
 
-    Clear-Host
+    Write-Host+ -Clear
     $message = "$($Overwatch.DisplayName) $($Product.Id) : PENDING"
     Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
     Write-Host+
@@ -55,29 +55,26 @@ switch ($PSVersionTable.PSVersion.Major) {
     . $definitionsPath\definitions-services.ps1
 
 #endregion SERVICES
-#region POSTSERVICES
 
-    # $platformInstallProperties = Get-PlatformInstallProperties "$($global:Platform.Name)*"
-    # $global:Platform.DisplayName = $platformInstallProperties.DisplayName
-    # $global:Platform.Publisher = $platformInstallProperties.Publisher
-    # $global:Platform.InstallPath = $platformInstallProperties.InstallPath
-
-    Get-PlatformInfo
-    $global:Platform.DisplayName = "$($Platform.Name) $($Platform.Version)"
+if ($Product.Id -in ("Install","Uninstall")) {
 
     Write-Host+ "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
     Write-Host+ "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    Write-Host+ "  Version","$($global:Platform.Version) ($($Platform.Build))" -ForegroundColor Gray,DarkBlue -Separator ":    "
-
-#endregion POSTSERVICES
-
-if ($Product.Id -eq "Install") {
-
     Write-Host+ "  Products","$($global:Environ.Product -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "  
     Write-Host+ "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
-    
+
+    . $definitionsPath\definitions-initialize.ps1
+    Initialize-Environment
+
 }
 else {
+
+    # Get-PlatformInfo -ResetCache
+    # $global:Platform.DisplayName = "$($Platform.Name) $($Platform.Version)"
+
+    Write-Host+ "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
+    Write-Host+ "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
+    # Write-Host+ "  Version","$($global:Platform.Version) ($($Platform.Build))" -ForegroundColor Gray,DarkBlue -Separator ":    "
 
     #region PRODUCTS
 
