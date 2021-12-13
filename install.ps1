@@ -42,11 +42,12 @@ function Copy-File {
 function Remove-File {
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Path
+        [Parameter(Mandatory=$true,Position=0)][string]$Path,
+        [switch]$Quiet
     )
     if (Test-Path -Path $Path) {
         Remove-Item -Path $Path
-        Write-Host+ -NoTrace -NoTimestamp "  Deleted $Path" -ForegroundColor Red
+        if (!$Quiet) {Write-Host+ -NoTrace -NoTimestamp "  Deleted $Path" -ForegroundColor Red}
     }
 }
 
@@ -318,13 +319,15 @@ $overwatchInstallLocation = $PSScriptRoot
         Copy-File $PSScriptRoot\templates\definitions\definitions-os-$($operatingSystemId.ToLower())-template.ps1
         Copy-File $PSScriptRoot\templates\definitions\definitions-platform-$($platformId.ToLower())-template.ps1
 
-        $platformInstanceDefinitionsFile = Get-Content -Path $PSScriptRoot\templates\definitions\definitions-platforminstance-template.ps1
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformId>", ($platformId -replace " ","")
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstallLocation>", $platformInstallLocation
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<imagesUri>", $imagesUri
-        $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
-        Write-Host+ -NoTrace -NoTimestamp "  Created $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
+        if (Get-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1 | Select-String "<platformId>" -Quiet) {
+            $platformInstanceDefinitionsFile = Get-Content -Path $PSScriptRoot\templates\definitions\definitions-platforminstance-template.ps1
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformId>", ($platformId -replace " ","")
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstallLocation>", $platformInstallLocation
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<imagesUri>", $imagesUri
+            $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
+            Write-Host+ -NoTrace -NoTimestamp "  Created $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
+        }
 
     #endregion PLATFORM INSTANCE DEFINITIONS
     #region COPY
@@ -403,7 +406,7 @@ $overwatchInstallLocation = $PSScriptRoot
 #endregion MODULES-PACKAGES
 #region REMOVE CACHE
 
-    Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache"
+    Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache" -Quiet
 
 #endregion REMOVE CACHE
 #region START OVERWATCH
@@ -433,26 +436,28 @@ $overwatchInstallLocation = $PSScriptRoot
         while (!(Get-Contact)) {
             Write-Host+
             Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "  Contacts" -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoTimestamp "  --------" -ForegroundColor DarkGray
             do {
-                $contactName = Read-Host "Name"
-                if (Get-Contact -Name $contactName) {Write-Host+ -NoTrace -NoTimestamp "Contact $($contactName) already exists."}
+                $contactName = Read-Host "  Name"
+                if (Get-Contact -Name $contactName) {Write-Host+ -NoTrace -NoTimestamp "  Contact $($contactName) already exists." -ForegroundColor DarkYellow}
             } until (!(Get-Contact -Name $contactName))
             do {
-                $contactEmail = Read-Host "Email (SMTP)"
+                $contactEmail = Read-Host "  Email (SMTP)"
                 if (!$contactEmail) {
-                    Write-Host+ -NoTrace -NoTimestamp "Email is required for SMTP."
+                    Write-Host+ -NoTrace -NoTimestamp "    Email is required for SMTP." -ForegroundColor DarkYellow
                 }
                 elseif (Get-Contact -Email $contactEmail) {
-                    Write-Host+ -NoTrace -NoTimestamp "Email $($contactEmail) already exists."
+                    Write-Host+ -NoTrace -NoTimestamp "    Email $($contactEmail) already exists." -ForegroundColor DarkYellow
                 }
             } until ($contactEmail -and !(Get-Contact -Email $contactEmail) -and $(IsValidEmail $contactEmail))
             do {
-                $contactPhone = Read-Host "Phone (SMS)"
+                $contactPhone = Read-Host "  Phone (SMS)"
                 if (!$contactPhone) {
-                    Write-Host+ -NoTrace -NoTimestamp "Phone is required for SMS."
+                    Write-Host+ -NoTrace -NoTimestamp "    Phone is required for SMS." -ForegroundColor DarkYellow
                 }
                 elseif (Get-Contact -Phone $contactPhone) {
-                    Write-Host+ -NoTrace -NoTimestamp "Phone $($contactPhone) already exists."
+                    Write-Host+ -NoTrace -NoTimestamp "    Phone $($contactPhone) already exists." -ForegroundColor DarkYellow
                 }
             } until ($contactPhone -and !(Get-Contact -Phone $contactPhone) -and $(IsValidPhone $contactPhone))
             Add-Contact $contactName -Email $contactEmail -Phone $contactPhone
