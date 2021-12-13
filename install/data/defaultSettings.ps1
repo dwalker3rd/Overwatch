@@ -3,3 +3,5 @@ Param()
 
 $operatingSystemId = "WindowsServer"
 $platformId = "TableauServer"
+$productIds = @('Command', 'Monitor')
+$providerIds = @('Views', 'SMTP')
