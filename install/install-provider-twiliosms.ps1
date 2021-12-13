@@ -33,7 +33,7 @@ if (!$(Test-Credentials $Provider.Id -NoValidate)) {
         Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
     }
     $interaction = $true
-    Request-Credentials -Prompt1 "    Account SID" -Prompt2 "    Auth Token" | Set-Credentials $Provider.Id
+    Request-Credentials -Prompt1 "      Account SID" -Prompt2 "      Auth Token" | Set-Credentials $Provider.Id
 }
 
 if ($interaction) {

@@ -72,11 +72,6 @@ Write-Host+ -Clear
 
 $overwatchInstallLocation = $PSScriptRoot
 
-#region REMOVE CACHE
-
-    Remove-File "$($global:Location.Data)\*.cache"
-
-#endregion REMOVE CACHE
 #region INSTALLATIONS
 
     Write-Host+
@@ -221,6 +216,19 @@ $overwatchInstallLocation = $PSScriptRoot
     Write-Host+ -NoTrace -NoTimestamp "Public URI for images: $imagesUri" -IfDebug -ForegroundColor Yellow
 
 #endregion IMAGES
+#region DIRECTORIES
+
+    Write-Host+
+    Write-Host+ -NoTrace -NoTimestamp "Directories" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "-----------" -ForegroundColor DarkGray
+
+    if (!(Test-Path $PSScriptRoot\data\$platformInstanceId)) {New-Item -ItemType Directory -Path $PSScriptRoot\data\$platformInstanceId -Force}
+    if (!(Test-Path $PSScriptRoot\logs)) {New-Item -ItemType Directory -Path $PSScriptRoot\logs -Force}
+    if (!(Test-Path $PSScriptRoot\initialize)) {New-Item -ItemType Directory -Path $PSScriptRoot\initialize -Force}
+    if (!(Test-Path $PSScriptRoot\preflight)) {New-Item -ItemType Directory -Path $PSScriptRoot\preflight -Force}
+    if (!(Test-Path $PSScriptRoot\postflight)) {New-Item -ItemType Directory -Path $PSScriptRoot\postflight -Force}
+
+#endregion DIRECTORIES
 #region PRODUCTS
 
     Write-Host+
@@ -393,6 +401,11 @@ $overwatchInstallLocation = $PSScriptRoot
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
 #endregion MODULES-PACKAGES
+#region REMOVE CACHE
+
+    Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache"
+
+#endregion REMOVE CACHE
 #region START OVERWATCH
 
     $message = "Overwatch : INITIALIZING"
@@ -413,6 +426,8 @@ $overwatchInstallLocation = $PSScriptRoot
 
     $message = "Contacts : UPDATING"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+
+    if (!(Test-Path $ContactsDB)) {New-ContactsDB}
 
     if (!(Get-Contact)) {
         while (!(Get-Contact)) {
