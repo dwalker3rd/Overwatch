@@ -88,4 +88,4 @@ _Once the installation is complete, Overwatch will reinitialize the environ and 
 [PATH]: https://path.org
 [David Walker]: https://www.linkedin.com/in/dwalker3rd/
 [GNU GPLv3]: https://github.com/dwalker3rd/Overwatch/LICENSE
-[Installation Guide]: https://github.com/dwalker3rd/Overwatch/docs/install.md
+[Installation Guide]: https://github.com/dwalker3rd/Overwatch/blob/main/docs/install.md
