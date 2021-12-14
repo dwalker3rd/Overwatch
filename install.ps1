@@ -97,12 +97,16 @@ $overwatchInstallLocation = $PSScriptRoot
 #endregion INSTALLATIONS
 #region LOAD SETTINGS
 
+    Write-Host+
+    $settingsFileMissing = $false
+
     $defaultSettings = "$PSScriptRoot\install\data\defaultSettings.ps1"
     if (Test-Path -Path $defaultSettings) {
         . $defaultSettings
     }
     else {
-        Write-Host+ -NoTrace -NoTimestamp "[FILE NOT FOUND] $defaultSettings"
+        Write-Host+ -NoTrace -NoTimestamp "No default settings in $defaultSettings" -ForegroundColor DarkGray
+        $settingsFileMissing = $true
     }
 
     $installSettings = "$PSScriptRoot\install\data\installSettings.ps1"
@@ -110,33 +114,35 @@ $overwatchInstallLocation = $PSScriptRoot
         . $installSettings
     }
     else {
-        Write-Host+ -NoTrace -NoTimestamp "[FILE NOT FOUND] $installSettings"
-    }
+        Write-Host+ -NoTrace -NoTimestamp "No saved settings in $installSettings" -ForegroundColor DarkGray
+        $settingsFileMissing = $true
+    }    
+
+    if ($settingsFileMissing) {Write-Host+}
 
 #endregion LOAD SETTINGS
 #region PLATFORM ID
 
-    if ($installedPlatforms.count -eq 1) {
-        $platformId = $installedPlatforms[0]
-    }
-    else {
-        Write-Host+
+    # if ($installedPlatforms.count -eq 1) {
+        # $platformId = $installedPlatforms[0]
+    # }
+    # else {
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select ONE Platform ", "($($installedPlatforms -join ", "))", " : " -ForegroundColor Gray, DarkGray, Gray 
-            $platformId = Read-Host
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Platform ", "$($installedPlatforms ? "[$($installedPlatforms -join ", ")] " : $null)", ": " -ForegroundColor Gray, Blue, Gray 
+            $platformIdResponse = Read-Host
+            $platformId = $platformIdResponse ? $platformIdResponse : $platformId
             Write-Host+ -NoTrace -NoTimestamp "Platform ID: $platformId" -IfDebug -ForegroundColor Yellow
             if ($installedPlatforms -notcontains $platformId) {
                 Write-Host+ -NoTrace -NoTimestamp "Platform must be one of the following: $($installedPlatforms -join ", ")" -ForegroundColor Red
             }
-        } until ($installedPlatform -contains $platformId)
-    }
+        } until ($installedPlatforms -contains $platformId)
+    # }
 
 #endregion PLATFORM ID
 #region PLATFORM INSTALL LOCATION
 
-    Write-Host+
     do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform install location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
         $platformInstallLocationResponse = Read-Host
         $platformInstallLocation = $platformInstallLocationResponse ? $platformInstallLocationResponse : $platformInstallLocation
         Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
@@ -172,7 +178,7 @@ $overwatchInstallLocation = $PSScriptRoot
 #region PLATFORM INSTANCE ID
 
     do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? " [$platformInstanceId]" : $null)", " : " -ForegroundColor Gray, Blue, Gray
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
         $platformInstanceIdResponse = Read-Host
         $platformInstanceId = $platformInstanceIdResponse ? $platformInstanceIdResponse : $platformInstanceId
         if ([string]::IsNullOrEmpty($platformInstanceId)) {
@@ -191,7 +197,7 @@ $overwatchInstallLocation = $PSScriptRoot
 
     do {
         try {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Public URI for images ", "$($imagesUri ? " [$imagesUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Public URI for Images ", "$($imagesUri ? " [$imagesUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
             $imagesUriResponse = Read-Host
             $imagesUri = $imagesUriResponse ? $imagesUriResponse : $imagesUri
             $imagesUri = [System.Uri]::new($imagesUri)
@@ -277,7 +283,7 @@ $overwatchInstallLocation = $PSScriptRoot
 #endregion PROVIDERS
 #region SAVE SETTINGS
 
-    Clear-Content -Path $installSettings
+    if (Test-Path $installSettings) {Clear-Content -Path $installSettings}
     '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $installSettings
     "Param()" | Add-Content -Path $installSettings
     "`$operatingSystemId = ""$operatingSystemId""" | Add-Content -Path $installSettings
