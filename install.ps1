@@ -197,7 +197,7 @@ $overwatchInstallLocation = $PSScriptRoot
 
     do {
         try {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Public URI for Images ", "$($imagesUri ? " [$imagesUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Images URL ", "$($imagesUri ? " [$imagesUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
             $imagesUriResponse = Read-Host
             $imagesUri = $imagesUriResponse ? $imagesUriResponse : $imagesUri
             $imagesUri = [System.Uri]::new($imagesUri)
@@ -239,8 +239,8 @@ $overwatchInstallLocation = $PSScriptRoot
 #region PRODUCTS
 
     Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "Products" -ForegroundColor DarkGray
-    Write-Host+ -NoTrace -NoTimestamp "--------" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "Select Products" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
     $_productIds  = @("Command")
     $productList = @("Monitor","Backup","Cleanup","DiskCheck","AzureADSync")
     foreach ($product in $productList) {
@@ -263,8 +263,8 @@ $overwatchInstallLocation = $PSScriptRoot
 #region PROVIDERS
 
     Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "Providers" -ForegroundColor DarkGray
-    Write-Host+ -NoTrace -NoTimestamp "--------" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "Select Providers" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
     $_providerIds = @("Views")
     $providerList = @("SMTP","MicrosoftTeams","TwilioSMS")
     foreach ($provider in $providerList) {
