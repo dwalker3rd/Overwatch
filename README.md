@@ -10,9 +10,15 @@ Overwatch currently supports [Tableau Server][] and [Alteryx Server][] running o
 | Products | Monitor, Backup, Cleanup, DiskCheck, AzureADSync
 | Providers | MicrosoftTeams, TwilioSMS, SMTP
 
-The Overwatch is designed for extensibility.  Operating systems and software platforms can be added to the Overwatch service layer, and new functionality can be added with new products and providers.
+_Overwatch is designed for extensibility.  Operating systems and software platforms can be added to the Overwatch service layer, and new functionality can be added by creating new products and providers._
 
-Overwatch was developed by [David Walker][] with support from [PATH][], a global nonprofit working to improve public health and accelerate health equity so all people and communities can thrive.  Overwatch provides unattended operational support for PATH's Health Insight Platform, hosted in an Microsoft Azure AD B2C tenant, which gives PATH and other nonprofit organizations access to large-scale analytic platforms, including Tableau Server and Alteryx Server, as well as access to Azure services and infrastructure.
+## Contributions
+
+Overwatch was developed by [David Walker][] with support from [PATH][], a global nonprofit working to improve public health and accelerate health equity so all people and communities can thrive.  At PATH, Overwatch monitors and manages PATH's Health Insight Platform, hosted in an Microsoft Azure AD B2C tenant, which provides PATH and other nonprofit organizations with analytic platforms, including Tableau Server and Alteryx Server, as well as access to Azure services and infrastructure.
+
+## License
+
+This project is licensed under the terms of the [GNU GPLv3][] license.
 
 ## Requirements
 
@@ -22,22 +28,13 @@ Overwatch was developed by [David Walker][] with support from [PATH][], a global
 - Local/Domain account (with admin rights)
 - Admin account for each platform
 
-## Download
-
-* Download/Clone Overwatch from [Overwatch on Github][].
-    * For [Tableau Server][], Overwatch *must* be installed on the initial node.
-    * For [Alteryx Server][], Overwatch *must* be installed on the controller.
-
-## License
-
-This project is licensed under the terms of the [GNU GPLv3][] license.
-
 ## Installation
 
-To install Overwatch ...
-
+1. Clone Overwatch from [Overwatch on Github][].
 1. On the target machine, open PowerShell or Visual Studio Code with "Run As Administrator"
-1. Change directory to the location where you downloaded/cloned Overwatch
+1. Change directory to the location where you downloaded/cloned Overwatch.
+    * Tableau Server: Overwatch *must* be installed on the initial node.
+    * Alteryx Server: Overwatch *must* be installed on the controller.
 1. Execute [install.ps1][]
 
 _Note: Values in brackets are the default.  For most questions, the default values are populated first from seetings saved during the previous installation or, if there are no saved settings, from the installer's default settings file._
@@ -93,12 +90,6 @@ _Once the installation is complete, Overwatch will reinitialize the environ and 
 1. Publish the image files in the [\img][] folder to the publicly-accessible URL provided during installation.
 1. Note that it may take several hours before Microsoft Teams shows the images in messages sent by Overwatch.
 
-### Testing
-
-1. `overwatch.ps1` will initialize the Overwatch environment and run preflight tests and updates.
-2. `monitor.ps1` will run the Monitor product, display platform status and send notifications/alerts, if necessary.
-3. `Send-PlatformStatusMessage -MessageType $PlatformMessageType.Alert -NoThrottle` will send a platform status message through all installed providers.  If there are any issues with messaging provider configuration, such as invalid credentials for the SMTP account, you will see the error here.
-
 ### Platform Tasks
 
 1. Platform tasks associated with a product are disabled during installation and must be enabled manually.
@@ -108,8 +99,12 @@ _Once the installation is complete, Overwatch will reinitialize the environ and 
     - On Windows Server, use the Task Scheduler app to modify a task's configuration, or 
     - Use the Overwatch commands `Unregister-PlatformTask` and `Register-PlatformTask`.
 
-### Azure AD Sync for Tableau Server
-1. ...
+
+## Testing
+
+1. `overwatch.ps1` will initialize the Overwatch environment and run preflight tests and updates.
+2. `monitor.ps1` will run the Monitor product, display platform status and send notifications/alerts, if necessary.
+3. `Send-PlatformStatusMessage -MessageType $PlatformMessageType.Alert -NoThrottle` will send a platform status message through all installed providers.  If there are any issues with messaging provider configuration, such as invalid credentials for the SMTP account, you will see the error here.
     
 [Overwatch on Github]: https://github.com/dwalker3rd/Overwatch
 [Microsoft Teams webhook]: https://docs.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook
