@@ -35,7 +35,7 @@ $global:Product = @{Id="AzureADSync"}
 #endregion SERVER/PLATFORM CHECK
 
 $emptyString = ""
-$tenantKey = "pathseattle"
+$tenantKey = ""
 
 # $locked, $selfLocked, $lock = Test-IsProductLocked -Name @("AzureADSync","AzureADCache") -Silent
 # if ($locked) {return}

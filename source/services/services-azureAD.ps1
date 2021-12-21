@@ -5,57 +5,57 @@ function global:Initialize-AzureAD {
 
         Data = "$($global:Location.Root)\data\azureAD"
 
-        pathseattle = @{
-            Name = "pathseattle"
-            Prefix = "pathseattle"
-            DisplayName = "PATH Seattle"
-            Organization = "PATH"
+        myAzureADTenant = @{
+            Name = ""
+            Prefix = ""
+            DisplayName = " "
+            Organization = ""
             Subscription = @{
-                Id = "9c875ae4-9856-4e63-9694-eea08cd2f43c"
-                Name = "Global Infrastructure"
+                Id = ""
+                Name = ""
             }
             Tenant = @{
-                Type = "Azure AD"
-                Id = "29ca3f4f-6d67-49a5-a001-e1db48252717"
-                Name = "pathseattle.onmicrosoft.com"
-                Domain = @("pathseattle.onmicrosoft.com")
+                Type = ""
+                Id = ""
+                Name = ""
+                Domain = @("")
             }
             MsGraph = @{
                 Scope = "https://graph.microsoft.com/.default"
-                Credentials = "pathseattle-msgraph" # app id/secret
+                Credentials = "" # app id/secret
                 AccessToken = $null
             }
             Sync = @{
                 Enabled = $true
-                Source = "acme.org"
+                Source = ""
             }
         }
 
-        pathaiforhealth = @{
-            Name = "pathaiforhealth"
-            Prefix = "pathai"
-            DisplayName = "PATH AI for Health"
-            Organization = "PATH"
+        myAzureADB2CTenant = @{
+            Name = ""
+            Prefix = ""
+            DisplayName = ""
+            Organization = ""
             Subscription = @{
-                Id = "b102b6a8-f2ed-4096-83c7-a810539e7235"
-                Name = "PATH AI for Health"
+                Id = ""
+                Name = ""
             }
             Tenant = @{
                 Type = "Azure AD B2C"
-                Id = "16eb1c95-cf4a-4491-9a77-8e3c1effcd12"
-                Name = "pathaiforhealth.onmicrosoft.com"
-                Domain = @("pathaiforhealth.onmicrosoft.com")
+                Id = ""
+                Name = ""
+                Domain = @("")
             }
             MsGraph = @{
                 Scope = "https://graph.microsoft.com/.default"
-                Credentials = "pathaiforhealth-msgraph" # app id/secret
+                Credentials = "" # app id/secret
                 AccessToken = $null
             }
             Admin = @{
-                Credentials = "pathaiforhealth-admin"
+                Credentials = ""
             }
             Defaults = @{
-                Location = "uksouth"
+                Location = ""
                 Bastion = @{ Name = @{ Template = "<0><1>bastion" } }
                 ResourceGroup = @{Name = @{ Template = "<0>-<1>-rg" } }
                 StorageAccount = @{

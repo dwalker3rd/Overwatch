@@ -1218,7 +1218,8 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false,Position=0)][object]$PlatformLicenses=(Get-PlatformLicenses)
+            [Parameter(Mandatory=$false,Position=0)][object]$PlatformLicenses=(Get-PlatformLicenses),
+            [switch]$NoObfuscation
         )
 
         $now = Get-Date
@@ -1282,7 +1283,7 @@
             $productColumnColor = ($expirationColumnColor, $maintenanceColumnColor | Measure-Object -Maximum).Maximum
             
             $productColumnValue = $license.product + (Write-Dots -Character " " -Length $productColumnLength -Adjust (-($license.product.Length)))
-            $serialColumnValue = $license.serial + (Write-Dots -Character " " -Length $serialColumnLength -Adjust (-($license.serial.Length)))
+            $serialColumnValue = ($NoObfuscation ? $license.serial : ($license.serial -replace "(-$($RegexClass.HexDigit){4}){3}$", "-XXXX-XXXX-XXXX")) + (Write-Dots -Character " " -Length $serialColumnLength -Adjust (-($license.serial.Length)))
             $numCoresColumnValue = (Write-Dots -Character " " -Length $numCoresColumnLength -Adjust (-($license.numCores.ToString().Length))) + $license.numCores.ToString()
             $userCountColumnValue = (Write-Dots -Character " " -Length $userCountColumnLength -Adjust (-($license.userCount.ToString().Length))) + $license.userCount.ToString()
             $expirationColumnValue = $license.expiration.ToString('u').Substring(0,10) + (Write-Dots -Character " " -Length $expirationColumnLength -Adjust (-($license.expiration.ToString('u').Substring(0,10).Length)))

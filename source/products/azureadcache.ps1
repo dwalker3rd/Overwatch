@@ -35,7 +35,7 @@ $global:Product = @{Id="AzureADCache"}
 #endregion SERVER/PLATFORM CHECK
 
 $emptyString = ""
-$tenantKey = "pathseattle"
+$tenantKey = ""
 
 # $locked, $selfLocked = Test-IsProductLocked -Name @("AzureADCache", "AzureADSync") -Silent
 # if ($locked) {return}
@@ -86,7 +86,7 @@ try {
 
     $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $tenantKey -AsArray
     $azureADGroups | Sort-Object -property displayName | 
-        Select-Object -property @{name="Group Id";expression={$_.id}},@{name="Group Display Name";expression={$_.displayName}},@{name="Group Security Enabled";expression={$_.securityEnabled}},@{name="Group Type";expression={$_.groupType}},timestamp  | 
+        Select-Object -property @{name="Group Id";expression={$_.id}},@{name="Group Display Name";expression={$_.displayName}},@{name="Group Security Enabled";expression={$_.securityEnabled}},@{name="Group Type";expression={$_.groupTypes}},timestamp  | 
             Export-Csv  "$($azureAD.Data)\$tenantKey-groups.csv"
     ($azureADGroups | Foreach-Object {$groupId = $_.id; $_.members | Foreach-Object { @{groupId = $groupId; userId=$_} } }) | 
         Sort-Object -property groupId,userId -unique | 
