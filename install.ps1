@@ -28,12 +28,12 @@ function Copy-File {
         if ($overwrite) {
             Copy-Item -Path $Path -Destination $Destination
             if (!$Quiet) {
-                Get-Item $Path | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  Copied $_"  -ForegroundColor DarkGray}
+                Split-Path -Path $Path -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  Copied $_ to $Destination"  -ForegroundColor DarkGray}
             }
         }
         else {
             if (!$Quiet) {
-                Write-Host+ -NoTrace -NoTimestamp "  *NOT* copied $Destination"  -ForegroundColor DarkGray
+                Split-Path -Path $Path -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  [NOOVERWRITE] Not copying $_"  -ForegroundColor DarkGray}
             }
         }
     }
@@ -234,6 +234,7 @@ $overwatchInstallLocation = $PSScriptRoot
     if (!(Test-Path $PSScriptRoot\initialize)) {New-Item -ItemType Directory -Path $PSScriptRoot\initialize -Force}
     if (!(Test-Path $PSScriptRoot\preflight)) {New-Item -ItemType Directory -Path $PSScriptRoot\preflight -Force}
     if (!(Test-Path $PSScriptRoot\postflight)) {New-Item -ItemType Directory -Path $PSScriptRoot\postflight -Force}
+    if (!(Test-Path $PSScriptRoot\temp)) {New-Item -ItemType Directory -Path $PSScriptRoot\temp -Force}
 
 #endregion DIRECTORIES
 #region PRODUCTS
@@ -304,7 +305,10 @@ $overwatchInstallLocation = $PSScriptRoot
 
     #region ENVIRON
 
-        $environFile = Get-Content -Path $PSScriptRoot\templates\environ\environ-template.ps1
+        $sourceFile = "$PSScriptRoot\templates\environ\environ-template.ps1"
+        $targetFile = "$PSScriptRoot\environ.ps1"
+        $targetFileExists = Test-Path $targetFile
+        $environFile = Get-Content -Path $sourceFile
         $environFile = $environFile -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
         $environFile = $environFile -replace "<platformId>", ($platformId -replace " ","")
         $environFile = $environFile -replace "<overwatchInstallLocation>", $overwatchInstallLocation
@@ -313,8 +317,8 @@ $overwatchInstallLocation = $PSScriptRoot
         $environFile = ($environFile -replace "<providerIds>", "'$($providerIds -join "', '")'") -replace "'",'"'
         $environFile = $environFile -replace "<imagesUri>", $imagesUri
         $environFile = $environFile -replace "<pipLocation>", $pipLocation
-        $environFile | Set-Content -Path $PSScriptRoot\environ.ps1
-        Write-Host+ -NoTrace -NoTimestamp "  Created $PSScriptRoot\environ.ps1" -ForegroundColor DarkGreen
+        $environFile | Set-Content -Path $targetFile
+        Write-Host+ -NoTrace -NoTimestamp "  $($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
 
         . $PSScriptRoot\environ.ps1
 
@@ -325,15 +329,19 @@ $overwatchInstallLocation = $PSScriptRoot
         Copy-File $PSScriptRoot\templates\definitions\definitions-os-$($operatingSystemId.ToLower())-template.ps1
         Copy-File $PSScriptRoot\templates\definitions\definitions-platform-$($platformId.ToLower())-template.ps1
 
-        if (Get-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1 | Select-String "<platformId>" -Quiet) {
-            $platformInstanceDefinitionsFile = Get-Content -Path $PSScriptRoot\templates\definitions\definitions-platforminstance-template.ps1
-            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformId>", ($platformId -replace " ","")
-            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstallLocation>", $platformInstallLocation
-            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
-            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<imagesUri>", $imagesUri
-            $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
-            Write-Host+ -NoTrace -NoTimestamp "  Created $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
+        $isSourceFileTemplate = $false
+        $sourceFile = "$PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1"
+        if (!(Test-Path $sourceFile) -or (Get-Content -Path $sourceFile | Select-String "<platformId>" -Quiet)) {
+            $sourceFile = "$PSScriptRoot\templates\definitions\definitions-platforminstance-template.ps1"
+            $isSourceFileTemplate = $true
         }
+        $platformInstanceDefinitionsFile = Get-Content -Path $sourceFile
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformId>", ($platformId -replace " ","")
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstallLocation>", $platformInstallLocation
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<imagesUri>", $imagesUri
+        $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
+        Write-Host+ -NoTrace -NoTimestamp "  $($isSourceFileTemplate ? "Created" : "Updated") $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
 
     #endregion PLATFORM INSTANCE DEFINITIONS
     #region COPY
