@@ -4,7 +4,7 @@ $global:RegexClass = @{
 
 $global:RegexPattern = @{
     Guid = "^$($global:RegexClass.HexDigit){8}(-$($global:RegexClass.HexDigit){4}){3}-$($global:RegexClass.HexDigit){12}$"
-    Mail = "^(\w+)\@(\w+)(\.(\w+))+$"
+    Mail = "^(\w+)\@(\w+)(\.(\w+))+$"   
 }
 $global:RegexPattern += @{
     PhoneNumber = "\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}"
@@ -14,6 +14,10 @@ $global:RegexPattern += @{
     }
     AzureAD = @{
         UserPrincipalName = "^(([\w.]|#EXT#)+)\@(\w+)(\.(\w+))+$"
+        MailFromGuestUserUPN = @{
+            Match = "^(.*)_(.*)#EXT#\@.*$"
+            Substitution = $("$($Matches[1])@$($Matches[2])")
+        }
     }
     Windows = @{
         ShutdownEvent = @{
