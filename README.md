@@ -43,5 +43,5 @@ This project is licensed under the terms of the [GNU GPLv3][] license.
 [Windows Server]: https://www.microsoft.com/en-us/windows-server
 [PATH]: https://path.org
 [David Walker]: https://www.linkedin.com/in/dwalker3rd/
-[GNU GPLv3]: https://github.com/dwalker3rd/Overwatch/LICENSE
+[GNU GPLv3]: https://github.com/dwalker3rd/Overwatch/blob/main/LICENSE
 [Installation Guide]: https://github.com/dwalker3rd/Overwatch/blob/main/docs/install.md

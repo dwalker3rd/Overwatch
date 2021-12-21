@@ -1,10 +1,11 @@
 ## Installation
 
+1. Connect to the target host for Overwatch.
+    * [Tableau Server][]: Overwatch *must* be installed on the initial node.
+    * [Alteryx Server][]: Overwatch *must* be installed on the controller.
 1. Clone Overwatch from [Overwatch on Github][].
 1. On the target machine, open [PowerShell][] or [Visual Studio Code][] with "Run As Administrator"
 1. Change directory to the location to which you cloned Overwatch.
-    * [Tableau Server][]: Overwatch *must* be installed on the initial node.
-    * [Alteryx Server][]: Overwatch *must* be installed on the controller.
 1. Execute `.\install.ps1`
 
 _Note: Values in brackets are the default.  For most questions, the default values are populated first from seetings saved during the previous installation or, if there are no saved settings, from the installer's default settings file._
@@ -87,5 +88,5 @@ _Once the installation is complete, Overwatch will reinitialize the environ and 
 [Windows Server]: https://www.microsoft.com/en-us/windows-server
 [PATH]: https://path.org
 [David Walker]: https://www.linkedin.com/in/dwalker3rd/
-[GNU GPLv3]: https://github.com/dwalker3rd/Overwatch/LICENSE
+[GNU GPLv3]: https://github.com/dwalker3rd/Overwatch/blob/main/LICENSE
 [Installation Guide]: https://github.com/dwalker3rd/Overwatch/blob/main/docs/install.md
