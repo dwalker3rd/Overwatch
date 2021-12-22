@@ -4,6 +4,7 @@ function global:Initialize-AzureAD {
     $global:AzureAD += @{
 
         Data = "$($global:Location.Root)\data\azureAD"
+        SpecialGroups = @("All Users", "All Domain Users")
 
         myAzureADTenant = @{
             Name = ""
@@ -459,6 +460,26 @@ function global:Send-AzureADInvitation {
 
 }
 
+
+function global:Update-AzureADUserEmail {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,ValueFromPipeline)][object]$AzureADUser
+    )
+
+    if (!($AzureADUser | Get-Member -Name "mail" -Membertype Properties)) {
+        $AzureADUser | Add-Member -NotePropertyName "mail" -NotePropertyValue "."
+    }
+
+    if ($AzureADUser.mail -notmatch $global:RegexPattern.Mail) {
+        $AzureADUser.mail = $AzureADUser.userPrincipalName -match $global:RegexPattern.Mail -and $AzureADUser.userPrincipalName -notmatch $global:RegexPattern.AzureAD.MailFromGuestUserUPN ? $Matches[0] : ($AzureADUser.userPrincipalName -match $global:RegexPattern.AzureAD.MailFromGuestUserUPN ? "$($Matches[1])@$($Matches[2])" : $null)
+    }
+
+    return $AzureADUser
+
+}
+
 function global:Get-AzureADObjects {
 
     [CmdletBinding()]
@@ -597,12 +618,13 @@ function global:Get-AzureADObjects {
                     }
                     "Groups" {
 
-                        if (!$azureADObject.groupTypes -and $azureADObject.securityEnabled) { # TODO: define the type of group in definitions
+                        if ((!$azureADObject.groupTypes -and $azureADObject.securityEnabled) -or 
+                            ($azureADObject.groupTypes -eq "DynamicMembership")) {#} -and $azureADObject.displayName -notin $azureAD.SpecialGroups)) {
 
                             $newAzureADObject = @{
                                 id = $azureADObject.id
                                 displayName = $azureADObject.displayName
-                                groupType = $azureADObject.groupType
+                                groupTypes = $azureADObject.groupTypes
                                 securityEnabled = $azureADObject.securityEnabled
                                 timestamp = $azureADObject.timestamp
                                 # nestedGroups = @()
@@ -754,7 +776,7 @@ function global:Export-AzureADObjects {
             "Groups" {
                 $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $tenantKey -AsArray
                 $azureADGroups | Sort-Object -property displayName | 
-                    Select-Object -property @{name="Group Id";expression={$_.id}},@{name="Group Display Name";expression={$_.displayName}},@{name="Group Security Enabled";expression={$_.securityEnabled}},@{name="Group Type";expression={$_.groupType}},timestamp  | 
+                    Select-Object -property @{name="Group Id";expression={$_.id}},@{name="Group Display Name";expression={$_.displayName}},@{name="Group Security Enabled";expression={$_.securityEnabled}},@{name="Group Type";expression={$_.groupTypes}},timestamp  | 
                         Export-Csv  "$($azureAD.Data)\$tenantKey-groups.csv"
                 ($azureADGroups | Foreach-Object {$groupId = $_.id; $_.members | Foreach-Object { @{groupId = $groupId; userId=$_} } }) | 
                     Sort-Object -property groupId,userId -unique | 

@@ -790,23 +790,23 @@ function global:Add-TSUser {
     param(
         [Parameter(Mandatory=$true)][object]$Site,
         [Parameter(Mandatory=$true)][string]$Username,
-        [Parameter(Mandatory=$true)][string]$FullName,
-        [Parameter(Mandatory=$true)][string]$Email,
+        [Parameter(Mandatory=$false)][string]$FullName,
+        [Parameter(Mandatory=$false)][string]$Email,
         [Parameter(Mandatory=$false)][string]$SiteRole
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ([string]::IsNullOrEmpty($FullName)) {
-        $errorMessage = "$($Site.contentUrl)\$($tsSiteUser.name) : FullName is missing or invalid."
+        $errorMessage = "$($Site.contentUrl)\$Username : FullName is missing or invalid."
         Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
-        Write-Host+ "      $errorMessage" -ForegroundColor DarkRed
+        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor DarkRed
         return
     }
     if ([string]::IsNullOrEmpty($Email)) {
-        $errorMessage = "$($Site.contentUrl)\$($tsSiteUser.name) : Email is missing or invalid."
+        $errorMessage = "$($Site.contentUrl)\$Username : Email is missing or invalid."
         Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
-        Write-Host+ "      $errorMessage" -ForegroundColor DarkRed
+        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor DarkRed
         return
     }
 
@@ -2118,9 +2118,7 @@ function global:Sync-TSGroups {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $emptyString = ""
     $startTime = Get-Date -AsUTC
-
     $lastStartTime = (Read-Cache "AzureADSyncGroups").LastStartTime ?? [datetime]::MinValue
 
     $message = "Getting Azure AD groups and users"
@@ -2207,7 +2205,7 @@ function global:Sync-TSGroups {
 
             $azureADGroupToSync = $azureADGroups | Where-Object {$_.displayName -eq $tsGroup.name}
             $tsGroupMembership = Get-TSGroupMembership -Group $tsGroup
-            $azureADGroupMembership = $azureADUsers | Where-Object {$_.id -in $azureADGroupToSync.members -and $_.accountEnabled}
+            $azureADGroupMembership = $azureADUsers | Where-Object {$_.id -in $azureADGroupToSync.members -and $_.accountEnabled} | Foreach-Object {Update-AzureADUserEmail -AzureADUser $_} | Where-Object {![string]::IsNullOrEmpty($_.mail)}
 
             $tsUsersToAddToGroup = ($tsUsers | Where-Object {$_.name -in $azureADGroupMembership.userPrincipalName -and $_.id -notin $tsGroupMembership.id}) ?? @()
             $tsUsersToRemoveFromGroup = $tsGroupMembership | Where-object {$_.name -notin $azureADGroupMembership.userPrincipalName}
@@ -2216,15 +2214,11 @@ function global:Sync-TSGroups {
             $azureADUsersToAddToSite = $azureADGroupMembership | Where-Object {$_.userPrincipalName -notin $tsUsers.name} | Sort-Object -Property userPrincipalName
             foreach ($azureADUser in $azureADUsersToAddToSite) {
 
-                # validate Azure AD email address
-                # if Azure AD email address fails validation and user is an Azure AD guest, convert upn into email address
-                $azureADUserMail = $azureADUser.mail -match $global:RegexPattern.Mail ? $Matches[0] : $azureADUser.userPrincipalName -match $global:RegexPattern.Mail ? $Matches[0] : ($azureADUser.userPrincipalName -match $global:RegexPattern.AzureAD.MailFromGuestUserUPN.Match ? $global:RegexPattern.AzureAD.MailFromGuestUserUPN.Substitution : $null)
-
                 $params = @{
                     Site = $tsSite
                     Username = $azureADUser.userPrincipalName
                     FullName = $azureADUser.displayName
-                    Email = $azureADUserMail
+                    Email = $azureADUser.mail
                     SiteRole = $tsGroup.import.siteRole ?? "Explorer"
                 }
 
@@ -2234,15 +2228,23 @@ function global:Sync-TSGroups {
             }
 
             if ($azureADUsersToAddToSite) {
-                # force a reindex after creating users so group updates work
-                $reindexSearch = Invoke-TsmApiMethod -Method "ReindexSearch"
-                $reindexSearch,$timeout = Wait-Asyncjob -id $reindexSearch.id -IntervalSeconds 5 -TimeoutSeconds 60
-                if ($timeout) {
-                    Write-Log -Context "AzureADSync" -Action "ReindexSearch" -Target "$($tsSite.contentUrl)\$($tsGroup.name)" -Status "Timeout" -Force 
+
+                $rebuildSearchIndex = Get-AsyncJob -Type RebuildSearchIndex | Where-Object {$_.status -eq "Created"}
+
+                if ($rebuildSearchIndex) {
+                    $rebuildSearchIndex = $rebuildSearchIndex[0]
                 }
                 else {
-                    Write-Log -Context "AzureADSync" -Action "ReindexSearch" -Target "$($tsSite.contentUrl)\$($tsGroup.name)" -Message "TotalMilliSeconds = $($reindexSearch.completedAt -$reindexSearch.createdAt)" -Force
+                    # force a reindex after creating users to ensure that group updates work
+                    $rebuildSearchIndex = Invoke-TsmApiMethod -Method "RebuildSearchIndex"
                 }
+
+                $rebuildSearchIndex,$timeout = Wait-Asyncjob -id $rebuildSearchIndex.id -IntervalSeconds 5 -TimeoutSeconds 60
+                if ($timeout) {
+                    Watch-AsyncJob -Id $rebuildSearchIndex.id -Callback "Write-AsyncJobStatusToLog"
+                }
+                Write-AsyncJobStatusToLog -Id $rebuildSearchIndex.id
+
             }
 
             foreach ($newUser in $newUsers) {
@@ -2261,6 +2263,7 @@ function global:Sync-TSGroups {
             }
 
             Write-Host+
+
         }
 
     }
