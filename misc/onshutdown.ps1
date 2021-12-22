@@ -12,6 +12,6 @@ $global:PostflightPreference = "SilentlyContinue"
 $global:Product  = @{Id="Monitor"}
 . $PSScriptRoot\definitions.ps1
 
-Send-ServerStatusMessage -ComputerName $env:COMPUTERNAME -Event "Shutdown" -Status "In Progress" -Reason "Triggerd by Windows Server OnShutdown scripts" -Level $PlatformMessageType.Alert -TimeCreated [DateTime]::Now
+Send-ServerStatusMessage -ComputerName $env:COMPUTERNAME -Event "Shutdown" -Status "In Progress" -Reason "Triggered by Windows Server OnShutdown scripts" -Level $PlatformMessageType.Alert -TimeCreated [DateTime]::Now
 
-Write-Log -EntryType 'Warning' -Action 'Shutdown' -Status 'Shutdown' -Message "$($MyInvocation.MyCommand): Triggerd by Windows Server OnShutdown scripts"
+Write-Log -EntryType 'Warning' -Action 'Shutdown' -Status 'Shutdown' -Message "$($MyInvocation.MyCommand): Triggered by Windows Server OnShutdown scripts"
