@@ -471,6 +471,14 @@
             if ($NoCache) {$params += @{NoCache = $true}}
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
 
+            if ($platformStatus.RollUpStatus -in @("Stopping","Starting","Restarting") -and !$platformStatus.Event) {
+                $command = switch ($platformStatus.RollUpStatus) {
+                    "Stopping" {"Stop"}
+                    default {$platformStatus.RollUpStatus -replace "ing",""}
+                }
+                Set-PlatformEvent -Event $command -Context "Unknown" -EventReason "Unknown" -EventStatus $global:PlatformEventStatus.InProgress -PlatformStatus $platformStatus
+            }
+
             Write-Verbose "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)"
             # Write-Log -Context "$($MyInvocation.MyCommand)" -Action"Get-PlatformStatusRollup" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
 
@@ -562,25 +570,26 @@
                 [Parameter(Mandatory=$false)][string]$Context,
                 [Parameter(Mandatory=$false)][string]$EventReason,
                 [Parameter(Mandatory=$false)][ValidateSet('In Progress','Completed','Failed','Reset','Testing')][string]$EventStatus,
-                [Parameter(Mandatory=$false)][string]$EventStatusTarget
+                [Parameter(Mandatory=$false)][string]$EventStatusTarget,
+                [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus)
 
             )
 
             Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-            $platformStatus = Get-PlatformStatus
+            # $platformStatus = Get-PlatformStatus
             
-            $platformStatus.Event = $Event
-            $platformStatus.EventStatus = $EventStatus
-            $platformStatus.EventReason = $EventReason
-            $platformStatus.EventStatusTarget = $EventStatusTarget ? $EventStatusTarget : $PlatformEventStatusTarget.$($Event)
-            $platformStatus.EventCreatedAt = [datetime]::Now
-            $platformStatus.EventCreatedBy = $Context ?? $global:Product.Id
-            $platformStatus.EventHasCompleted = $false
+            $PlatformStatus.Event = $Event
+            $PlatformStatus.EventStatus = $EventStatus
+            $PlatformStatus.EventReason = $EventReason
+            $PlatformStatus.EventStatusTarget = $EventStatusTarget ? $EventStatusTarget : $PlatformEventStatusTarget.$($Event)
+            $PlatformStatus.EventCreatedAt = [datetime]::Now
+            $PlatformStatus.EventCreatedBy = $Context ?? $global:Product.Id
+            $PlatformStatus.EventHasCompleted = $false
 
-            $platformStatus | Write-Cache platformstatus
+            $PlatformStatus | Write-Cache platformstatus
 
-            Send-PlatformEventMessage -PlatformStatus $platformStatus
+            Send-PlatformEventMessage -PlatformStatus $PlatformStatus
 
             return
 

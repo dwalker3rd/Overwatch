@@ -10,9 +10,23 @@ function global:Get-TableauServerStatus {
         [switch]$NoCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $tableauServerStatus = $null
+    $tableauServerStatus = @{
+        rollupStatus = $null
+    }
+
+    # if Tableau Server is being stopped, started or restarted, modify rollupStatus
+    $asyncJobLatest = Get-AsyncJob -Latest
+    if ($asyncJobLatest.status -eq "Running" -and $asyncJobLatest.jobType -in @("StopServerJob","StartServerJob","RestartServerJob")) {
+        $tableauServerStatus.rollupStatus = switch ($asyncJobLatest.jobType) {
+            "StopServerJob" {"Stopping"}
+            "StartServerJob" {"Starting"}
+            "RestartServerJob" {"Restarting"}
+        }
+        $tableauServerStatus | Write-Cache "clusterstatus"
+        return $tableauServerStatus
+    }
 
     $action = "Read-Cache"
     $target = "clusterstatus"
@@ -20,21 +34,21 @@ function global:Get-TableauServerStatus {
 
     if ((get-cache clusterstatus).Exists() -and !$ResetCache -and !$NoCache) {
         
-        Write-Debug "$($action) $($target): Pending"
+        Write-Host+ -NoTrace -IfDebug "$($action) $($target): Pending"
 
         # need to cache for back-to-back calls, but ... MaxAge should be as short as possible
         $tableauServerStatus = Read-Cache clusterstatus -MaxAge $(New-TimeSpan -Seconds 5)
 
         if ($tableauServerStatus) {
             
-            Write-Debug "$($action) $($target): Success"
+            Write-Host+ -NoTrace -IfDebug "$($action) $($target): Success"
 
             return $tableauServerStatus
 
         }
         else {
 
-            Write-Debug "$($action) $($target): Cache empty or expired"
+            Write-Host+ -NoTrace -IfDebug "$($action) $($target): Cache empty or expired"
 
         }
     }
@@ -49,27 +63,27 @@ function global:Get-TableauServerStatus {
 
     do {
 
-        Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Pending"
+        Write-Host+ -NoTrace -IfDebug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Pending"
         
         try {
 
             # Invoke-TsmApiMethod (1st attempt)
             $tableauServerStatus = Invoke-TsmApiMethod -Method "ClusterStatus"
 
-            Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Success"
+            Write-Host+ -NoTrace -IfDebug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Success"
 
         }
         catch {
 
             if ($attempt -eq $maxAttempts) {
-                Write-Error -Message $_.Exception
-                Write-Error "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure"
+                Write-Host+ -NoTrace -IfDebug $_.Exception -ForegroundColor Red
+                Write-Host+ -NoTrace -IfDebug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure" -ForegroundColor Red
                 Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
                 Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
             }
 
             # give the TSM API a moment to think it over
-            Write-Debug "Waiting $($sleepSeconds) before retrying ... "
+            Write-Host+ -NoTrace -IfDebug "Waiting $($sleepSeconds) before retrying ... "
             Start-Sleep -Seconds $sleepSeconds
 
         }
@@ -107,7 +121,9 @@ function global:Get-TableauServerStatus {
             }
 
         }    
+
         $tableauServerStatus | Write-Cache "clusterstatus"
+
     }
 
     return $tableauServerStatus
@@ -121,7 +137,7 @@ function global:Get-PlatformStatusRollup {
         [switch]$NoCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $params = @{}
     if ($NoCache) {$params += @{NoCache = $true}}
@@ -218,10 +234,10 @@ function global:Get-PlatformService {
         [switch]$ResetCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($(get-cache platformservices).Exists() -and !$ResetCache) {
-        Write-Debug "Read-Cache platformservices"
+        Write-Host+ -NoTrace -IfDebug "Read-Cache platformservices"
         $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
         if ($platformServicesCache) {
             $platformServices = $platformServicesCache
@@ -232,7 +248,7 @@ function global:Get-PlatformService {
     $platformTopology = Get-PlatformTopology
     $tableauServerStatus = Get-TableauServerStatus
 
-    Write-Debug "Processing PlatformServices"
+    Write-Host+ -NoTrace -IfDebug "Processing PlatformServices"
     if ($tableauServerStatus) {
         $platformServices = 
             foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
@@ -257,7 +273,7 @@ function global:Get-PlatformService {
             }
     }      
 
-    Write-Debug "Write-Cache platformservices"
+    Write-Host+ -NoTrace -IfDebug "Write-Cache platformservices"
     $platformServices | Write-Cache platformservices
 
     return $platformServices | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
@@ -272,7 +288,7 @@ function global:Request-Platform {
         [Parameter(Mandatory=$false)][string]$Reason = "$Command requested."
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $verb = switch ($Command) {
         "Stop" {"Stopping"}
@@ -339,7 +355,7 @@ function global:Start-Platform {
         [Parameter(Mandatory=$false)][string]$Reason
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Request-Platform -Command Start -Context $Context -Reason $Reason
 }
@@ -350,7 +366,7 @@ function global:Stop-Platform {
         [Parameter(Mandatory=$false)][string]$Reason
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     Request-Platform -Command Stop -Context $Context -Reason $Reason
 }
@@ -358,7 +374,7 @@ function global:Restart-Platform {
 
     [CmdletBinding()] param ()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Stop-Platform
     Start-Platform
@@ -376,7 +392,7 @@ function global:Get-PlatformProcess {
         [switch]$ResetCache
     )
 
-    Write-Debug "$($MyInvocation.MyCommand) is a STUB"
+    Write-Host+ -NoTrace -IfDebug "$($MyInvocation.MyCommand) is a STUB"
     return
 
 }
@@ -392,7 +408,7 @@ function global:Cleanup-Platform {
         [Parameter(Mandatory=$false)][timespan]$LogFilesRetention = (New-TimeSpan -Days 7)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Send-TaskMessage -Id "Cleanup" -Status "Running"
 
@@ -452,7 +468,7 @@ function global:Backup-Platform {
 
     [CmdletBinding()] param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running"
     Write-Information "Running"
@@ -555,7 +571,7 @@ function global:Initialize-TsmApiConfiguration {
         [switch]$ResetCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $global:tsmApiConfig = @{
         Server = $Server ? $Server : "localhost"
@@ -745,7 +761,7 @@ function global:New-TsmApiSession {
     [CmdletBinding()]
     param ()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $creds = Get-Credentials $global:tsmApiConfig.Credentials
     $headers = $global:tsmApiConfig.Method.Login.Headers
@@ -766,7 +782,7 @@ function global:Remove-TsmApiSession {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     return Invoke-TsmApiMethod -Method "Logout"
 
@@ -781,7 +797,7 @@ function global:Invoke-TsmApiMethod {
         [Parameter(Mandatory=$false,Position=1)][string[]]$Params
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $path = $global:tsmApiConfig.Method.$Method.Path 
     $httpMethod = $global:tsmApiConfig.Method.$Method.HttpMethod
@@ -827,13 +843,13 @@ function global:Get-AsyncJob {
         [switch]$Latest
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($Id) {
         $asyncJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
     }
     else {
-        $asyncJob = Invoke-TsmApiMethod -Method "AsyncJobs"
+        $asyncJob = Invoke-TsmApiMethod -Method "AsyncJobs" | Sort-Object -Property updatedAt -Descending
         if ($Status) {
             $asyncJob = $asyncJob | Where-Object {$_.status -eq $Status}
         }
@@ -841,11 +857,11 @@ function global:Get-AsyncJob {
             $asyncJob = $asyncJob | Where-Object {$_.jobType -eq $Type}
         }
         if ($Latest) {
-            $asyncJob = $asyncJob | Sort-Object -Property updatedAt | Select-Object -Last 1
+            $asyncJob = $asyncJob | Select-Object -First 1
         }
     }
 
-    return $asyncJob # ? ($asyncJob | Select-Object -Property $($View ? $AsyncJobView.$($View) : $AsyncJobView.Default)) : $null
+    return $asyncJob
 }
 
 function global:Show-AsyncJob {
@@ -859,7 +875,7 @@ function global:Show-AsyncJob {
         [switch]$Latest
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     $asyncJobs = Get-AsyncJob -Id $Id -Status $Status -Type $Type
 
@@ -881,7 +897,7 @@ function global:Watch-AsyncJob {
     if ($Update) {$Command = "Update"}
     if ($Remove) {$Command = "Remove"}
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
         function Remove-AsyncJob {
             [CmdletBinding()]
@@ -1006,7 +1022,7 @@ function global:Show-Watchlist {
         [Parameter(Mandatory=$false)][string]$View="Watchlist"
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Update-AsyncJob
 
@@ -1072,7 +1088,7 @@ function global:Wait-AsyncJob {
         [Parameter(Mandatory=$false)][int]$ProgressSeconds
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $asyncJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
 
@@ -1106,7 +1122,7 @@ function global:Initialize-PlatformTopology {
         [switch]$ResetCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if (!$ResetCache) {
         if ($(get-cache platformtopology).Exists()) {
@@ -1217,7 +1233,7 @@ function global:Get-PlatformLicenses {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $response = Invoke-TsmApiMethod -Method "ProductKeys"
 
@@ -1325,7 +1341,7 @@ function global:Confirm-PlatformLicenses {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $indent = Write-Dots -Character " " -Length 6
 
@@ -1416,7 +1432,7 @@ function global:Test-TsmController {
     [CmdletBinding()]
     param ()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $dots = Write-Dots -Length 47 -Adjust (-(("  TSM Controller").Length))
     Write-Host+ -NoTrace "  TSM Controller",$dots,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
@@ -1464,7 +1480,7 @@ function global:Test-RepositoryAccess {
         [Parameter(Mandatory=$false)][string[]]$ComputerName
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $dots = Write-Dots -Length 47 -Adjust (-(("  Postgres Access").Length))
     Write-Host+ -NoNewline -NoTrace "  Postgres Access",$dots -ForegroundColor Gray,DarkGray

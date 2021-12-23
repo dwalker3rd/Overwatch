@@ -10,7 +10,7 @@ function global:Get-ServerInfo {
     return
 }
 
-function global:Confirm-ServerStatus {
+function global:Get-ServerStatus {
 
     [CmdletBinding()]
     param (
