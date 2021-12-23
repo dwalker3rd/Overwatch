@@ -510,7 +510,7 @@ function global:Get-TSServerInfo {
     }
 
     $response = Get-TSObjects -Method ServerInfo
-    Write-Host+ -NoTrace -Iff (!$response) "Unable to connect to Tableau Server REST API." -ForegroundColor Red
+    Write-Host+ -NoTrace -Iff (!$response) -IfDebug "Unable to connect to Tableau Server REST API." -ForegroundColor Red
 
     if ($response -and $Update) {
         $global:Platform.Api.TsRestApiVersion = $response.restApiVersion
