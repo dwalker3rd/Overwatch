@@ -53,7 +53,7 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
     #region PLATFORM-OBJECT
 
         $global:Platform.Instance = "<platformInstanceId>"
-        $global:Platform.Uri = [System.Uri]::new("<imagesUri>")
+        $global:Platform.Uri = [System.Uri]::new("<platformInstanceUrl>")
         $global:Platform.InstallPath = "<platformInstallLocation>"
 
     #endregion PLATFORM-OBJECT
