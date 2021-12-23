@@ -175,10 +175,38 @@ $overwatchInstallLocation = $PSScriptRoot
     }
 
 #region PIP
+#region PLATFORM INSTANCE URL
+
+do {
+    try {
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? " [$platformInstanceUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+        $platformInstanceUriResponse = Read-Host
+        $platformInstanceUri = $platformInstanceUriResponse ? $platformInstanceUriResponse : $platformInstanceUri
+        $platformInstanceUri = [System.Uri]::new($platformInstanceUri)
+    }
+    catch {
+        Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid URI format" -ForegroundColor Red
+        $platformInstanceUri = $null
+    }
+    if ($platformInstanceUri) {
+        try {
+            Invoke-WebRequest $platformInstanceUri -Method Head | Out-Null
+            Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] Response from '$platformInstanceUri'" -IfVerbose -ForegroundColor DarkGreen
+        }
+        catch
+        {
+            Write-Host+ -NoTrace -NoTimestamp "[ERROR] No response from '$platformInstanceUri'" -ForegroundColor Red
+            $platformInstanceUri = $null
+        }
+    }
+} until ($platformInstanceUri)
+Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
+
+#endregion PLATFORM INSTANCE URL
 #region PLATFORM INSTANCE ID
 
     do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId] " : "[$($platformInstanceUri.Host -replace "\.","-")]")", ": " -ForegroundColor Gray, Blue, Gray
         $platformInstanceIdResponse = Read-Host
         $platformInstanceId = $platformInstanceIdResponse ? $platformInstanceIdResponse : $platformInstanceId
         if ([string]::IsNullOrEmpty($platformInstanceId)) {
@@ -294,6 +322,7 @@ $overwatchInstallLocation = $PSScriptRoot
     "`$productIds = @('$($productIds -join "', '")')" | Add-Content -Path $installSettings
     "`$providerIds = @('$($providerIds -join "', '")')" | Add-Content -Path $installSettings
     "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $installSettings
+    "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $installSettings
 
 #endregion SAVE SETTINGS
 #region FILES
@@ -339,7 +368,7 @@ $overwatchInstallLocation = $PSScriptRoot
         $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformId>", ($platformId -replace " ","")
         $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstallLocation>", $platformInstallLocation
         $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<imagesUri>", $imagesUri
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceUri>", $platformInstanceUri
         $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
         Write-Host+ -NoTrace -NoTimestamp "  $($isSourceFileTemplate ? "Created" : "Updated") $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
 
