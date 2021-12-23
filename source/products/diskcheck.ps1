@@ -13,14 +13,22 @@ $global:PreflightPreference = "Continue"
 $global:Product = @{Id = "DiskCheck"}
 . $PSScriptRoot\definitions.ps1
 
-# check for server shutdown/startup events
-$serverStatus = Confirm-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
+#region SERVER
 
-switch ($serverStatus) {
-    "Startup.InProgress" {return}
-    "Shutdown.InProgress" {return}
-    default {}
-}
+    # check for server shutdown/startup events
+    $return = $false
+    $serverStatus = Get-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
+    $return = switch (($serverStatus -split ",")[1]) {
+        "InProgress" {$true}
+    }
+    if ($return) {
+        $message = "Exiting due to server status: $serverStatus"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
+        return
+    }
+
+#endregion SERVER
 
 $diskSpaceThresholds = @(-1,$diskSpaceLowThreshold,$diskSpaceCriticalThreshold)
 $diskSpaceState = @("","Low","Critical")

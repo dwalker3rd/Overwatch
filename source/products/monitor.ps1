@@ -29,19 +29,33 @@ Open-Monitor
 #region SERVER
 
     # check for server shutdown/startup events
-    $serverStatus = Confirm-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
-    
-    switch ($serverStatus) {
-        "Startup.InProgress" {return}
-        "Shutdown.InProgress" {return}
-        default {}
+    $return = $false
+    $serverStatus = Get-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
+    $return = switch (($serverStatus -split ",")[1]) {
+        "InProgress" {$true}
+    }
+    if ($return) {
+        $message = "Exiting due to server status: $serverStatus"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
+        return
     }
 
 #endregion SERVER
 #region PLATFORM
+
+    # check for platform stop/start/restart events
+    $return = $false
+    $platformStatus = Get-PlatformStatus 
+    $return = $platformStatus.RollupStatus -in @("Stopped","Stopping","Starting","Restarting") -or $platformStatus.Event
+    if ($return) {
+        $message = "Exiting due to platform status: $($platformStatus.RollUpStatus)"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
+        return
+    }
     
     $heartbeat = Get-Heartbeat
-    $platformStatus = Get-PlatformStatus 
     $entryType = $platformStatus.IsOK ? "Information" : "Error"
 
     $message = "  Current Status : $($platformStatus.IsOK ? "Running" : "Degraded")"
