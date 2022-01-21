@@ -161,19 +161,18 @@ Open-Monitor
             }
 
             if ((Get-Date)-$heartbeat.Last -lt $heartbeat.FlapDetectionPeriod) {
-                $message = "  State assertion : $(((Get-Date)-$heartbeat.Last -lt $heartbeat.FlapDetectionPeriod).Minutes)m $(((Get-Date)-$heartbeat.Last -lt $heartbeat.FlapDetectionPeriod).Seconds)s remaining"
+                $message = "  State assertion : $(((Get-Date)-$heartbeat.Last).Minutes)m $(((Get-Date)-$heartbeat.Last).Seconds)s remaining"
                 Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
                 Write-Log -EntryType $entryType -Action "Heartbeat" -Message $message
+                
+                Close-Monitor
+                return 
             }
             else {
                 $message = "  State assertion : NOT OK"
                 Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed -NoSeparator
                 Write-Log -EntryType $entryType -Action "Heartbeat" -Message $message
             }
-
-            # Set-Heartbeat | Out-Null
-            Close-Monitor
-            return 
 
         }          
     } 
