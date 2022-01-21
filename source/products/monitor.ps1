@@ -62,12 +62,6 @@ Open-Monitor
     Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($platformStatus.IsOK ? "DarkGreen" : "DarkRed" ) -NoSeparator
     $message = "  Previous Status : $($heartbeat.IsOK ? "Running" : "Degraded")"
     Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" ) -NoSeparator
-    
-    if (!$platformStatus.IsOK) {
-        # Write-Log -EntryType $entryType -Action "Heartbeat" -Message ($heartbeat | ConvertTo-Json -Depth 99 -Compress) -Force
-        # Write-Log -EntryType $entryType -Action "PlatformStatus" -Message ($platformStatus | Select-Object -ExcludeProperty ByCimInstance,StatusObject | ConvertTo-Json -Depth 99 -Compress) -Force
-        # Write-Log -EntryType $entryType -Action "CimInstance" -Message ($platformStatus.ByCimInstance | Where-Object {$_.Class -eq "Service" -and $_.Required -and !$_.IsOK} | Select-Object -Property Name,Status,Node,Required,Transient,IsOK,Instance | ConvertTo-Json -Depth 99 -Compress) -Force
-    }
 
     if ($platformStatus.IsOK) {
         Update-AsyncJob
@@ -134,21 +128,6 @@ Open-Monitor
             return
 
         }
-
-        # # current status OK, previous status NOT OK 
-        # if ($platformStatus.IsOK -and !$heartbeat.IsOK) { # -and $heartbeat.NotOKCount -le 1) {
-            
-        #     if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-        #         $message = "  State change : NOT OK => OK"
-        #         Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen -NoSeparator
-        #         Write-Log -EntryType $entryType -Action "Heartbeat" -Message $message
-        #     }
-
-        #     Set-Heartbeat | Out-Null
-        #     Close-Monitor
-        #     return 
-
-        # }   
 
         # current status NOT OK, previous status NOT OK 
         # check FlapDetectionPeriod
