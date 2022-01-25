@@ -1,3 +1,24 @@
+function global:Disable-Messaging {
+    ($global:DisableMessaging = $true) | Write-Cache disableAllMessaging
+    $global:DisableMessaging | Out-Null
+    Write-Host+ -NoTrace "Messaging ","DISABLED" -ForegroundColor DarkGray,DarkYellow -NoSeparator
+    Write-Host+
+    return
+}
+function global:Enable-Messaging {
+    ($global:DisableMessaging = $false) | Write-Cache disableAllMessaging
+    $global:DisableMessaging | Out-Null
+    Write-Host+ -NoTrace "Messaging ","ENABLED" -ForegroundColor DarkGray,DarkGreen -NoSeparator
+    Write-Host+
+    return
+}
+function global:IsMessagingDisabled {
+    return (Read-Cache disableAllMessaging) -eq $true
+}
+function global:IsMessagingEnabled {
+    return (Read-Cache disableAllMessaging) -eq $false
+}
+
 function global:Send-Message {
 
     [CmdletBinding()]
@@ -8,13 +29,24 @@ function global:Send-Message {
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $json = $Message | ConvertTo-Json -Depth 99
-    Write-Log -EntryType "Debug" -Action "Send-Message" -Target "Platform" -Message $json
+    Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
+
+    if (IsMessagingDisabled) {
+        Write-Host+
+        Write-Host+ "Messaging DISABLED" -ForegroundColor DarkYellow -NoSeparator
+        Write-Host+ "Message from $($Message.Source) not sent" -ForegroundColor Gray -NoSeparator
+        Write-Host+
+        Write-Log -EntryType "Warning" -Action "Send-Message" -Target $Message.Source -Message "Messaging disabled" -Force
+        return
+    }
 
     Get-Provider | Where-Object {$_.Category -eq 'Messaging'} | ForEach-Object {
         if ($_.Config.MessageType -contains $Message.Type) {
             Invoke-Expression "Send-$($_.Id)-Message -json '$($json)'"
         }
     }
+
+    return
     
 }
 
@@ -114,6 +146,7 @@ function global:Send-PlatformStatusMessage {
         Summary = "Current status for $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) is $($PlatformStatus.RollupStatus.ToUpper())"
         Subject = "Current status for $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) is $($PlatformStatus.RollupStatus.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-PlatformStatusMessage"
     }
 
     Send-Message -Message $msg
@@ -174,6 +207,7 @@ function global:Send-AsyncJobMessage {
         Summary = "Status of AsyncJob $($asyncJob.id) ($($asyncJob.jobType)) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($status.ToUpper())"
         Subject = "Status of AsyncJob $($asyncJob.id) ($($asyncJob.jobType)) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($status.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-AsyncJobMessage"
     }
 
     Send-Message -Message $msg
@@ -230,6 +264,7 @@ function global:Send-TaskMessage {
         Summary = "Status of $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($Status.ToUpper())"
         Subject = "Status of $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($Status.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-TaskMessage"
     }
 
     Send-Message -Message $msg
@@ -299,6 +334,7 @@ function global:Send-PlatformEventMessage {
         Summary = "$($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) $($PlatformStatus.Event.ToUpper()) $($be) $($PlatformStatus.EventStatus.ToUpper())"
         Subject = "$($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) $($PlatformStatus.Event.ToUpper()) $($be) $($PlatformStatus.EventStatus.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-PlatformEventMessage"
     }
 
     Send-Message -Message $msg
@@ -419,6 +455,7 @@ function global:Send-LicenseMessage {
         Summary = "$($Subject): $($Summary) on $($Platform.Name) ($($Platform.Instance))"
         Subject = $Subject
         Throttle = $throttle
+        Source = "Send-LicenseMessage"
     }
 
     Send-Message -Message $msg
@@ -477,6 +514,7 @@ function global:Send-ServerStatusMessage {
         Summary = "$($OS.DisplayName) $($Event) $($Status) on $($serverInfo.DisplayName)"
         Subject = "$($OS.DisplayName) $($Event) $($Status) on $($serverInfo.DisplayName)"
         Throttle = $NoThrottle ? [timespan]::Zero : [timespan]::Zero
+        Source = "Send-ServerStatusMessage"
     }
 
     Send-Message -Message $msg

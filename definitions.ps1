@@ -122,7 +122,15 @@ else {
     . $definitionsPath\definitions-postflight.ps1
 
     #endregion POSTFLIGHT
+    #region WARNINGS
 
+        if (IsMessagingDisabled) {
+            Write-Host+
+            Write-Host+ -NoTrace "Messaging DISABLED" -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace "Enable messaging with the 'Enable-Messaging' cmdlet" -ForegroundColor DarkYellow
+        }
+
+    #endregion WARNINGS
     #region CLOSE
 
         Write-Host+
