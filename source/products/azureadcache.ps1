@@ -14,46 +14,51 @@ $global:PostflightPreference = "SilentlyContinue"
 $global:Product = @{Id="AzureADCache"}
 . $PSScriptRoot\definitions.ps1
 
-#region SERVER
+#region SERVER/PLATFORM CHECK
+
+    # Do NOT continue if ...
+    #   1. the host server is starting up or shutting down
+    #   2. the platform is not running or is not ok
 
     # check for server shutdown/startup events
-    $return = $false
     $serverStatus = Get-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
-    $return = switch (($serverStatus -split ",")[1]) {
-        "InProgress" {$true}
-    }
-    if ($return) {
-        $message = "Exiting due to server status: $serverStatus"
+    
+    # abort if a server startup/reboot/shutdown is in progress
+    if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
+        $status = "Aborted"
+        $message = "$($Product.Id) $($status.ToLower()) because server $(($serverStatus -split ".")[0].ToUpper()) is $(($serverStatus -split ".")[1].ToUpper())"
+        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
+        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
-#endregion SERVER
-#region PLATFORM
-
-    # check for platform stop/start/restart events
-    $return = $false
     $platformStatus = Get-PlatformStatus 
-    $return = $platformStatus.RollupStatus -in @("Stopped","Stopping","Starting","Restarting") -or $platformStatus.Event
-    if ($return) {
-        $message = "Exiting due to platform status: $($platformStatus.RollUpStatus)"
+
+    # abort if platform is stopped or if a platform event is in progress
+    if ($platformStatus.IsStopped -or ($platformStatus.Event -and !$platformStatus.EventHasCompleted)) {
+        $status = "Aborted"
+        $message = "$($Product.Id) $($status.ToLower()) because platform $($Platform.Event.ToUpper()) is $($Platform.EventStatus.ToUpper()) on $($Platform.Name)"
+        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
+        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
-# endregion PLATFORM
+    # abort if platform status is not ok
+    If (!$platformStatus.IsOK) {
+        $status = "Aborted"
+        $message = "$($Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
+        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        return
+    }
+
+#endregion SERVER/PLATFORM CHECK
 
 $emptyString = ""
-$tenantKey = ""
-
-# $locked, $selfLocked = Test-IsProductLocked -Name @("AzureADCache", "AzureADSync") -Silent
-# if ($locked) {return}
-
-# Lock-Product "AzureADCache"
-
-# Write-Log -Context "AzureADCache" -Action "Heartbeat" -Status "Start" -Target "AzureAD\$tenantKey" -Force
+$tenantKey = "pathseattle"
 
 $action = $null; $target = $null; $status = $null
 try {
@@ -120,12 +125,4 @@ catch {
     Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
 }
-finally {
-
-    # Unlock-Product "AzureADCache" -Status ($status ?? "Aborted")
-
-    # $lock = Read-Cache "AzureADCache"
-    # $lockPeriod = $lock.EndTime - $lock.StartTime
-    # Write-Log -Context "AzureADCache" -Action "Heartbeat" -Status "Stop" -Target "AzureAD\$tenantKey" -Data $lockPeriod.TotalMilliseconds -Force
-
-}
+finally {}

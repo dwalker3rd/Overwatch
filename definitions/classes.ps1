@@ -59,7 +59,9 @@ class PlatformStatus {
 
     [bool]$IsStopped 
     [bool]$IsStoppedTimeout
+
     [bool]$Intervention
+    [string]$InterventionReason
 }
 
 class PlatformCim {

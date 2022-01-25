@@ -7,6 +7,7 @@ $global:VerbosePreference = "SilentlyContinue"
 $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
 $global:PreflightPreference = "Continue"
+$global:PostflightPreference = "Continue"
 
 # product id must be set before definitions
 $global:Product = @{Id="Monitor"}
@@ -29,43 +30,43 @@ Open-Monitor
 #region SERVER
 
     # check for server shutdown/startup events
-    $return = $false
     $serverStatus = Get-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
-    $return = switch (($serverStatus -split ",")[1]) {
-        "InProgress" {$true}
-    }
-    if ($return) {
-        $message = "Exiting due to server status: $serverStatus"
+
+    # abort if a server startup/reboot/shutdown is in progress
+    if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
+        $status = "Aborted"
+        $message = "$($Product.Id) $($status.ToLower()) because server $(($serverStatus -split ".")[0].ToUpper()) is $(($serverStatus -split ".")[1].ToUpper())"
+        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
+        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
 #endregion SERVER
 #region PLATFORM
-
-    # check for platform stop/start/restart events
-    $return = $false
-    $platformStatus = Get-PlatformStatus 
-    $return = $platformStatus.RollupStatus -in @("Stopped","Stopping","Starting","Restarting") -or $platformStatus.Event
-    if ($return) {
-        $message = "Exiting due to platform status: $($platformStatus.RollUpStatus)"
-        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
-        return
-    }
     
     $heartbeat = Get-Heartbeat
+    $platformStatus = Get-PlatformStatus 
     $entryType = $platformStatus.IsOK ? "Information" : "Error"
 
-    $message = "  Current Status : $($platformStatus.IsOK ? "Running" : "Degraded")"
+    Write-Host+ -NoTrace "  Platform Status" -ForegroundColor Gray
+    $message = "    Current : $($platformStatus.IsOK ? "Running" : "Degraded")"
     Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($platformStatus.IsOK ? "DarkGreen" : "DarkRed" ) -NoSeparator
-    $message = "  Previous Status : $($heartbeat.IsOK ? "Running" : "Degraded")"
+    $message = "    Previous : $($heartbeat.IsOK ? "Running" : "Degraded")"
     Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" ) -NoSeparator
+    Write-Host+
 
-    if ($platformStatus.IsOK) {
-        Update-AsyncJob
-    }
+    $platformEventStatusColor = $platformStatus.Event ? ($platformStatus.EventStatus -and $platformStatus.EventStatus -ne $PlatformEventStatus.Completed ? "DarkYellow" : "DarkGreen") : "DarkGray"
+    Write-Host+ -NoTrace "  Platform Event" -ForegroundColor Gray
+    $message = "    Event | $("$($platformStatus.Event ? $($platformStatus.Event.ToUpper()) : "None")")"
+    Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 25 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
+    $message = "    Status | $($($platformStatus.EventStatus ? $($platformStatus.EventStatus) : "None"))"
+    Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 25 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
+    $message = "    Update | $($platformStatus.EventHasCompleted ? $platformStatus.EventCompletedAt : ($platformStatus.Event ? $platformStatus.EventUpdatedAt : "None"))"
+    Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 25 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
+    Write-Host+
+
+    Update-AsyncJob
 
     # check if time to send heartbeat
     $reportHeartbeat = $false
@@ -163,11 +164,11 @@ Open-Monitor
 
     if ($platformStatus.IsStopped) {
 
-        $message = "  SHUTDOWN at : $($platformStatus.EventCreatedAt)" # split should specify max-strings=2
-        Write-Log -Action "Monitor" -EntryType "Warning" -Message $message
+        $message = "  $($platformStatus.Event.ToUpper()) requested at : $($platformStatus.EventCreatedAt)" # split should specify max-strings=2
+        Write-Log -Action $($Product.Id) -EntryType "Warning" -Message $message
         Write-Host+ -NoTrace $message.Split(":",2)[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":",2)[0]).Length)),$message.Split(":",2)[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
-        $message = "  SHUTDOWN by : $($platformStatus.EventCreatedBy)"
-        Write-Log -Action "Monitor" -EntryType "Warning" -Message $message
+        $message = "  $($platformStatus.Event.ToUpper()) requested by : $($platformStatus.EventCreatedBy)"
+        Write-Log -Action $($Product.Id) -EntryType "Warning" -Message $message
         Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
 
         if (!$platformStatus.IsStoppedTimeout) {
@@ -178,25 +179,23 @@ Open-Monitor
             $platformStatus.Intervention = $true
         }
 
-        $message = "  SHUTDOWN Time Limit Exceeded!"
-        Write-Log -Action "Monitor" -EntryType "Warning" -Message $Message
-        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed -NoSeparator
-
     }
 
     if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
 
-        $message = "  $($platformStatus.Event.ToUpper()) : completed"
-        Write-Log -Action "Monitor" -EntryType "Warning" -Message $message
-        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen -NoSeparator
+        $message = "  $($platformStatus.Event.ToUpper()) : $($platformStatus.EventStatus.ToUpper())"
+        Write-Log -Action $($Product.Id) -EntryType "Warning" -Message $message
+        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
 
     }
 
     if ($platformStatus.Intervention) {
 
-        $message = "  INTERVENTION is required!"
-        Write-Log -Action "Monitor" -EntryType "Warning" -Message $message
+        $status = "Intervention"
+        $message = "  $status : $($platformStatus.InterventionReason)"
+        Write-Log -Action $($Product.Id) -EntryType "Warning" -Message $message
         Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed -NoSeparator
+        Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
 
     }
 

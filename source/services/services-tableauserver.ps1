@@ -10,23 +10,9 @@ function global:Get-TableauServerStatus {
         [switch]$NoCache
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $tableauServerStatus = @{
-        rollupStatus = $null
-    }
-
-    # if Tableau Server is being stopped, started or restarted, modify rollupStatus
-    $asyncJobLatest = Get-AsyncJob -Latest
-    if ($asyncJobLatest.status -eq "Running" -and $asyncJobLatest.jobType -in @("StopServerJob","StartServerJob","RestartServerJob")) {
-        $tableauServerStatus.rollupStatus = switch ($asyncJobLatest.jobType) {
-            "StopServerJob" {"Stopping"}
-            "StartServerJob" {"Starting"}
-            "RestartServerJob" {"Restarting"}
-        }
-        $tableauServerStatus | Write-Cache "clusterstatus"
-        return $tableauServerStatus
-    }
+    $tableauServerStatus = $null
 
     $action = "Read-Cache"
     $target = "clusterstatus"
@@ -34,21 +20,21 @@ function global:Get-TableauServerStatus {
 
     if ((get-cache clusterstatus).Exists() -and !$ResetCache -and !$NoCache) {
         
-        Write-Host+ -NoTrace -IfDebug "$($action) $($target): Pending"
+        Write-Debug "$($action) $($target): Pending"
 
         # need to cache for back-to-back calls, but ... MaxAge should be as short as possible
         $tableauServerStatus = Read-Cache clusterstatus -MaxAge $(New-TimeSpan -Seconds 5)
 
         if ($tableauServerStatus) {
             
-            Write-Host+ -NoTrace -IfDebug "$($action) $($target): Success"
+            Write-Debug "$($action) $($target): Success"
 
             return $tableauServerStatus
 
         }
         else {
 
-            Write-Host+ -NoTrace -IfDebug "$($action) $($target): Cache empty or expired"
+            Write-Debug "$($action) $($target): Cache empty or expired"
 
         }
     }
@@ -63,27 +49,27 @@ function global:Get-TableauServerStatus {
 
     do {
 
-        Write-Host+ -NoTrace -IfDebug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Pending"
+        Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Pending"
         
         try {
 
             # Invoke-TsmApiMethod (1st attempt)
             $tableauServerStatus = Invoke-TsmApiMethod -Method "ClusterStatus"
 
-            Write-Host+ -NoTrace -IfDebug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Success"
+            Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Success"
 
         }
         catch {
 
             if ($attempt -eq $maxAttempts) {
-                Write-Host+ -NoTrace -IfDebug $_.Exception -ForegroundColor Red
-                Write-Host+ -NoTrace -IfDebug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure" -ForegroundColor Red
+                Write-Error -Message $_.Exception
+                Write-Error "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure"
                 Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
                 Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
             }
 
             # give the TSM API a moment to think it over
-            Write-Host+ -NoTrace -IfDebug "Waiting $($sleepSeconds) before retrying ... "
+            Write-Debug "Waiting $($sleepSeconds) before retrying ... "
             Start-Sleep -Seconds $sleepSeconds
 
         }
@@ -121,9 +107,7 @@ function global:Get-TableauServerStatus {
             }
 
         }    
-
         $tableauServerStatus | Write-Cache "clusterstatus"
-
     }
 
     return $tableauServerStatus
@@ -137,7 +121,7 @@ function global:Get-PlatformStatusRollup {
         [switch]$NoCache
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $params = @{}
     if ($NoCache) {$params += @{NoCache = $true}}
@@ -217,8 +201,9 @@ function global:Get-PlatformInfo {
         [switch][Alias("Update")]$ResetCache
     )
 
-    $params = @{ResetCache = $ResetCache.IsPresent}
-    return Get-TSServerInfo @params
+    $serverInfo = Get-TSServerInfo -Update
+    $global:Platform.DisplayName = $global:Platform.Name + " " + $serverInfo.productVersion.InnerText
+    return $serverInfo
 
 }
 
@@ -234,10 +219,10 @@ function global:Get-PlatformService {
         [switch]$ResetCache
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($(get-cache platformservices).Exists() -and !$ResetCache) {
-        Write-Host+ -NoTrace -IfDebug "Read-Cache platformservices"
+        Write-Debug "Read-Cache platformservices"
         $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
         if ($platformServicesCache) {
             $platformServices = $platformServicesCache
@@ -248,7 +233,7 @@ function global:Get-PlatformService {
     $platformTopology = Get-PlatformTopology
     $tableauServerStatus = Get-TableauServerStatus
 
-    Write-Host+ -NoTrace -IfDebug "Processing PlatformServices"
+    Write-Debug "Processing PlatformServices"
     if ($tableauServerStatus) {
         $platformServices = 
             foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
@@ -273,7 +258,7 @@ function global:Get-PlatformService {
             }
     }      
 
-    Write-Host+ -NoTrace -IfDebug "Write-Cache platformservices"
+    Write-Debug "Write-Cache platformservices"
     $platformServices | Write-Cache platformservices
 
     return $platformServices | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
@@ -288,14 +273,14 @@ function global:Request-Platform {
         [Parameter(Mandatory=$false)][string]$Reason = "$Command requested."
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $verb = switch ($Command) {
-        "Stop" {"Stopping"}
-        "Start" {"Starting"}
-    }
+    # $verb = switch ($Command) {
+    #     "Stop" {"Stopping"}
+    #     "Start" {"Starting"}
+    # }
 
-    $message = "$verb $($global:Platform.Name) : PENDING"
+    $message = "$($global:Platform.Name) $($Command.ToUpper()) : PENDING"
     Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray 
 
     Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
@@ -311,17 +296,24 @@ function global:Request-Platform {
     try {
 
         $asyncJob = Invoke-TsmApiMethod -Method $Command
-        # Watch-AsyncJob -Id $asyncJob.id -Context "Request-Platform" -Callback "Request-PlatformCallback -Id $($asyncJob.id) -Command $($Command)"
-        $asyncJob = Wait-AsyncJob -Id $asyncJob.id -TimeoutSeconds 1800 -ProgressSeconds -60
+        Watch-AsyncJob -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
+        $asyncJob = Wait-AsyncJob -Id $asyncJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
 
         if ($asyncJob.status -eq $global:tsmApiConfig.Status.Async.Failed) {
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
-            Write-Error "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessages)"
+            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
+            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
             throw
         } 
+        elseif ($asyncJob.status -eq $global:tsmApiConfig.Status.Async.Cancelled) {
+            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) was $($asyncJob.status). $($asyncJob.errorMessage)"
+            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
+        }
         elseif ($asyncJob.status -ne $global:tsmApiConfig.Status.Async.Succeeded) {
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
-            Write-Warning "Timeout waiting for Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
+            $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
+            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }
 
         $commandStatus = $PlatformEventStatus.Completed
@@ -335,13 +327,15 @@ function global:Request-Platform {
         $commandStatus = $PlatformEventStatus.Failed
     }
 
-    $message = "$verb $($global:Platform.Name) : $($commandStatus.ToUpper())"
+    Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
+
+    $message = "$($global:Platform.Name) $($Command.ToUpper()) : $($commandStatus.ToUpper())"
     Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
+    Write-Host+
 
     Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
     
     Write-Log -Context $Context -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
-    Write-Information  "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
     
     if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
 
@@ -351,22 +345,22 @@ function global:Request-Platform {
 function global:Start-Platform {
 
     [CmdletBinding()] param (
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Start Platform"
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Request-Platform -Command Start -Context $Context -Reason $Reason
 }
 function global:Stop-Platform {
 
     [CmdletBinding()] param (
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     Request-Platform -Command Stop -Context $Context -Reason $Reason
 }
@@ -374,7 +368,7 @@ function global:Restart-Platform {
 
     [CmdletBinding()] param ()
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Stop-Platform
     Start-Platform
@@ -392,7 +386,7 @@ function global:Get-PlatformProcess {
         [switch]$ResetCache
     )
 
-    Write-Host+ -NoTrace -IfDebug "$($MyInvocation.MyCommand) is a STUB"
+    Write-Debug "$($MyInvocation.MyCommand) is a STUB"
     return
 
 }
@@ -408,7 +402,7 @@ function global:Cleanup-Platform {
         [Parameter(Mandatory=$false)][timespan]$LogFilesRetention = (New-TimeSpan -Days 7)
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Send-TaskMessage -Id "Cleanup" -Status "Running"
 
@@ -468,7 +462,7 @@ function global:Backup-Platform {
 
     [CmdletBinding()] param()
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running"
     Write-Information "Running"
@@ -571,7 +565,7 @@ function global:Initialize-TsmApiConfiguration {
         [switch]$ResetCache
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $global:tsmApiConfig = @{
         Server = $Server ? $Server : "localhost"
@@ -761,7 +755,7 @@ function global:New-TsmApiSession {
     [CmdletBinding()]
     param ()
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $creds = Get-Credentials $global:tsmApiConfig.Credentials
     $headers = $global:tsmApiConfig.Method.Login.Headers
@@ -782,7 +776,7 @@ function global:Remove-TsmApiSession {
     [CmdletBinding()]
     param()
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     return Invoke-TsmApiMethod -Method "Logout"
 
@@ -797,7 +791,7 @@ function global:Invoke-TsmApiMethod {
         [Parameter(Mandatory=$false,Position=1)][string[]]$Params
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $path = $global:tsmApiConfig.Method.$Method.Path 
     $httpMethod = $global:tsmApiConfig.Method.$Method.HttpMethod
@@ -843,13 +837,13 @@ function global:Get-AsyncJob {
         [switch]$Latest
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($Id) {
         $asyncJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
     }
     else {
-        $asyncJob = Invoke-TsmApiMethod -Method "AsyncJobs" | Sort-Object -Property updatedAt -Descending
+        $asyncJob = Invoke-TsmApiMethod -Method "AsyncJobs"
         if ($Status) {
             $asyncJob = $asyncJob | Where-Object {$_.status -eq $Status}
         }
@@ -857,11 +851,11 @@ function global:Get-AsyncJob {
             $asyncJob = $asyncJob | Where-Object {$_.jobType -eq $Type}
         }
         if ($Latest) {
-            $asyncJob = $asyncJob | Select-Object -First 1
+            $asyncJob = $asyncJob | Sort-Object -Property updatedAt | Select-Object -Last 1
         }
     }
 
-    return $asyncJob
+    return $asyncJob # ? ($asyncJob | Select-Object -Property $($View ? $AsyncJobView.$($View) : $AsyncJobView.Default)) : $null
 }
 
 function global:Show-AsyncJob {
@@ -875,7 +869,7 @@ function global:Show-AsyncJob {
         [switch]$Latest
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     $asyncJobs = Get-AsyncJob -Id $Id -Status $Status -Type $Type
 
@@ -887,58 +881,64 @@ function global:Watch-AsyncJob {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$Context,
+        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
+        [Parameter(Mandatory=$false)][string]$Source,
         [Parameter(Mandatory=$false)][string]$Callback,
         [switch]$Add,
         [switch]$Update,
-        [switch]$Remove
+        [switch]$Remove,
+        [switch]$NoEventManagement,
+        [switch]$NoMessaging
     )
+
+    function Remove-AsyncJobFromWatchlist {
+        [CmdletBinding()]
+        param (
+            [Parameter(ValueFromPipeline)][Object]$InputObject,
+            [Parameter(Mandatory=$true,Position=0)][object]$AsyncJob,
+            [Parameter(Mandatory=$false,Position=1)][string]$Callback
+        )
+        begin {$outputObject = @()}
+        process {$outputObject += $InputObject}
+        end {return $outputObject | Where-Object {$_.id -ne $AsyncJob.id}}
+    }
+
+    function Add-AsyncJobToWatchlist {
+        [CmdletBinding()]
+        param (
+            [Parameter(ValueFromPipeline)][Object]$InputObject,
+            [Parameter(Mandatory=$true,Position=0)][object]$AsyncJob,
+            [Parameter(Mandatory=$false)][string]$Context,
+            [Parameter(Mandatory=$false)][string]$Source,
+            [Parameter(Mandatory=$false)][string]$Callback
+        )
+        begin {$outputObject = @()}
+        process {
+            if ($InputObject) {
+                $outputObject += $InputObject
+            }
+        }
+        end {
+            if ($AsyncJob.id -notin $InputObject.id) {       
+                $outputObject += [PSCustomObject]@{
+                    id = $AsyncJob.id
+                    status = $AsyncJob.status
+                    progress = $AsyncJob.progress
+                    updatedAt = $AsyncJob.updatedAt
+                    context = $Context
+                    source = $Source
+                    callback = $Callback
+                }
+            }
+            return $outputObject
+        }
+    }
+
     $Command = "Add"
     if ($Update) {$Command = "Update"}
     if ($Remove) {$Command = "Remove"}
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-        function Remove-AsyncJob {
-            [CmdletBinding()]
-            param (
-                [Parameter(ValueFromPipeline)][Object]$InputObject,
-                [Parameter(Mandatory=$true,Position=0)][object]$AsyncJob,
-                [Parameter(Mandatory=$false,Position=1)][string]$Callback
-            )
-            begin {$outputObject = @()}
-            process {$outputObject += $InputObject}
-            end {return $outputObject | Where-Object {$_.id -ne $AsyncJob.id}}
-        }
-
-        function Add-AsyncJob {
-            [CmdletBinding()]
-            param (
-                [Parameter(ValueFromPipeline)][Object]$InputObject,
-                [Parameter(Mandatory=$true,Position=0)][object]$AsyncJob,
-                [Parameter(Mandatory=$false)][string]$Context,
-                [Parameter(Mandatory=$false)][string]$Callback
-            )
-            begin {$outputObject = @()}
-            process {
-                if ($InputObject) {
-                    $outputObject += $InputObject
-                }
-            }
-            end {
-                if ($AsyncJob.id -notin $InputObject.id) {       
-                    $outputObject += [PSCustomObject]@{
-                        id = $AsyncJob.id
-                        status = $AsyncJob.status
-                        progress = $AsyncJob.progress
-                        updatedAt = $AsyncJob.updatedAt
-                        context = $Context
-                        callback = $Callback
-                    }
-                }
-                return $outputObject
-            }
-        }
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $asyncJob = Get-AsyncJob -Id $Id
     if (!$asyncJob) {return}
@@ -963,29 +963,35 @@ function global:Watch-AsyncJob {
 
     switch ($Command) {
         "Add" {
-            $watchlist = $watchlist | Add-AsyncJob -AsyncJob $asyncJob -Context $Context -Callback $Callback 
+            $watchlist = $watchlist | Add-AsyncJobToWatchlist -AsyncJob $asyncJob -Context $Context -Source $Source -Callback $Callback 
 
             # send alerts for new entries
             if (!$prevAsyncJob) {
-                Send-AsyncJobMessage $asyncJob.id -Context $Context
+                if (!$NoMessaging) {
+                    Send-AsyncJobMessage $asyncJob.id -Context $Context
+                }
             } 
 
             # set platform event 
             if ($platformEvent) {
-                Set-PlatformEvent -Event $platformEvent -EventStatus $PlatformEventStatus.InProgress -EventStatusTarget $platformEventStatusTarget
+                if (!$NoEventManagement) {
+                    Set-PlatformEvent -Event $platformEvent -EventStatus $PlatformEventStatus.InProgress -EventStatusTarget $platformEventStatusTarget -Context $Source
+                }
             }
         }
         "Update" {
             # remove previous entry and add updated entry
-            $watchlist = $watchlist | Remove-AsyncJob -AsyncJob $asyncJob 
+            $watchlist = $watchlist | Remove-AsyncJobFromWatchlist -AsyncJob $asyncJob 
             if (!$asyncJob.completedAt) {
-                $watchlist = $watchlist | Add-AsyncJob -AsyncJob $asyncJob -Context $prevAsyncJob.context -Callback $prevAsyncJob.callback
+                $watchlist = $watchlist | Add-AsyncJobToWatchlist -AsyncJob $asyncJob -Context $prevAsyncJob.context -Source $prevAsyncJob.source-Callback $prevAsyncJob.callback
             }
 
             # send alerts for updates
             if ($asyncJob.updatedAt -gt $prevAsyncJob.updatedAt) {
                 if ($asyncJob.status -ne $prevAsyncJob.status -or $asyncJob.progress -gt $prevAsyncJob.progress) {
-                    Send-AsyncJobMessage $asyncJob.id -Context ($Context ? $Context : $prevAsyncJob.context)
+                    if (!$NoMessaging) {
+                        Send-AsyncJobMessage $asyncJob.id -Context ($Context ? $Context : $prevAsyncJob.context)
+                    }
                 }
             }
             if ($asyncJob.completedAt) {
@@ -995,12 +1001,14 @@ function global:Watch-AsyncJob {
 
                 # set platform event (completed or failed)
                 if ($platformEvent) {
-                    Set-PlatformEvent -Event $platformEvent -EventStatus ($asyncJob.status -ne "Succeeded" ? $PlatformEventStatus.Failed : $PlatformEventStatus.Completed) -EventStatusTarget $platformEventStatusTarget
+                    if (!$NoEventManagement) {
+                        Set-PlatformEvent -Event $platformEvent -EventStatus ($asyncJob.status -ne "Succeeded" ? $PlatformEventStatus.Failed : $PlatformEventStatus.Completed) -EventStatusTarget $platformEventStatusTarget -Context $prevAsyncJob.source
+                    }
                 }
             }                
         }
         "Remove" {
-            $watchlist = $watchlist | Remove-AsyncJob $asyncJOb
+            $watchlist = $watchlist | Remove-AsyncJobFromWatchlist $asyncJob
         }
     }
 
@@ -1022,7 +1030,7 @@ function global:Show-Watchlist {
         [Parameter(Mandatory=$false)][string]$View="Watchlist"
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     Update-AsyncJob
 
@@ -1050,8 +1058,7 @@ function global:Update-AsyncJob {
     # this step returns all running jobs: dupes removed by Watch-AsyncJob
     $asyncJobs = Get-AsyncJob -Status "Running" | Where-Object {$_.id -notin $watchlist.id}
     foreach ($asyncJob in $asyncJobs) {
-        Watch-AsyncJob $asyncJob.Id -Add -Context "External Service/Person"
-
+        Watch-AsyncJob $asyncJob.Id -Add -Source "External Service/Person"
     }
 
     return
@@ -1083,12 +1090,13 @@ function global:Wait-AsyncJob {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$true)][string]$Context,
         [Parameter(Mandatory=$false)][int]$IntervalSeconds = 15,
         [Parameter(Mandatory=$false)][int]$TimeoutSeconds = 300,
         [Parameter(Mandatory=$false)][int]$ProgressSeconds
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $asyncJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
 
@@ -1122,7 +1130,7 @@ function global:Initialize-PlatformTopology {
         [switch]$ResetCache
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if (!$ResetCache) {
         if ($(get-cache platformtopology).Exists()) {
@@ -1233,7 +1241,7 @@ function global:Get-PlatformLicenses {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $response = Invoke-TsmApiMethod -Method "ProductKeys"
 
@@ -1302,6 +1310,8 @@ function global:Show-PlatformLicenses {
     Write-Host+ -NoTrace -NoTimestamp $indent,$productColumnHeaderUnderscore,$serialColumnHeaderUnderscore,$numCoresColumnHeaderUnderscore,$userCountColumnHeaderUnderscore,$expirationColumnHeaderUnderscore,$maintenanceColumnHeaderUnderscore,$validColumnHeaderUnderscore,$isActiveColumnHeaderUnderscore #,$expiredColumnHeaderUnderscore         
 
     foreach ($license in $PlatformLicenses) {
+
+        $license.serial = $license.serial -replace "(.{4}-){3}","XXXX-XXXX-XXXX-"
         
         $licenseExpiryDays = $license.expiration - $now
         $maintenanceExpiryDays = $license.maintenance - $now
@@ -1341,7 +1351,7 @@ function global:Confirm-PlatformLicenses {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $indent = Write-Dots -Character " " -Length 6
 
@@ -1432,7 +1442,7 @@ function global:Test-TsmController {
     [CmdletBinding()]
     param ()
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $dots = Write-Dots -Length 47 -Adjust (-(("  TSM Controller").Length))
     Write-Host+ -NoTrace "  TSM Controller",$dots,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
@@ -1480,7 +1490,7 @@ function global:Test-RepositoryAccess {
         [Parameter(Mandatory=$false)][string[]]$ComputerName
     )
 
-    Write-Host+ -NoTrace -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $dots = Write-Dots -Length 47 -Adjust (-(("  Postgres Access").Length))
     Write-Host+ -NoNewline -NoTrace "  Postgres Access",$dots -ForegroundColor Gray,DarkGray

@@ -43,12 +43,6 @@ function global:Initialize-TSRestApiConfiguration {
         }
     }
 
-    $serverInfo = Get-TsServerInfo -Update
-    $serverInfo | Out-Null
-
-    # $response = Invoke-TsLogin
-    # $response | Out-Null
-
     $creds = Get-Credentials $global:tsRestApiConfig.Credentials
 
     $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$ContentUrl)
@@ -58,6 +52,9 @@ function global:Initialize-TSRestApiConfiguration {
     $global:tsRestApiConfig.ContentUrl = $response.site.contentUrl
     $global:tsRestApiConfig.UserId = $response.user.id 
     $global:tsRestApiConfig.Headers = @{"Content-Type" = "application/xml;charset=utf-8"; "X-Tableau-Auth" = $global:tsRestApiConfig.Token}
+
+    $serverInfo = Get-TsServerInfo -Update
+    $serverInfo | Out-Null
 
     Update-TSRestApiMethods
 
@@ -510,7 +507,7 @@ function global:Get-TSServerInfo {
     }
 
     $response = Get-TSObjects -Method ServerInfo
-    Write-Host+ -NoTrace -Iff (!$response) -IfDebug "Unable to connect to Tableau Server REST API." -ForegroundColor Red
+    Write-Host+ -NoTrace -Iff (!$response) "Unable to connect to Tableau Server REST API." -ForegroundColor Red
 
     if ($response -and $Update) {
         $global:Platform.Api.TsRestApiVersion = $response.restApiVersion

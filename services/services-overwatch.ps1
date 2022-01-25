@@ -85,324 +85,6 @@
 
     $global:logLockObject = $false
 
-<#     
-    function global:Test-IsProductLocked {
-
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory=$true,Position=0)][ValidateCount(1,2)][string[]]$Name,
-            [switch]$Silent
-        )
-
-        $waitInterval = [timespan]::Zero
-        $writeLockMessages = $Silent ? $false : $true
-
-        [console]::CursorVisible = $false
-
-        $thisProduct = Read-Cache $Name[0]
-        if (!$thisProduct) {
-            $thisProduct = @{
-                Name=$Name[0]
-                Host = $HOST.Name
-                PID = $PID
-                Class = "Process"
-                LockState = "Unknown"
-                StartTime = $null
-                EndTime = $null
-                LastRunTime = $null
-            }
-        }
-        # $thisProductPropertiesAsString = $thisProduct | Select-Object -ExcludeProperty Task | ConvertTo-Json -Compress
-
-        $selfLocked = $thisProduct.LockState -eq "Locked" ? $thisProduct.PID -eq $PID : $false
-        $locked = $thisProduct.LockState -eq "Locked" ? !$selfLocked : $false
-
-        $lock = @{
-            Locked = $locked ? "Locked" : "Unlocked"
-            SelfLocked = $selfLocked ? "Locked" : "Unlocked"
-            Product = @()
-        }
-        $lock.Product += @{
-            Name = $thisProduct.Name
-            Locked = $locked ? "Locked" : "Unlocked"
-            SelfLocked = $selfLocked ? "Locked" : "Unlocked"
-        }
-
-        # Write-Log -Context $thisProduct.Name -Action "IsProductLocked" -Target $thisProduct.Name -Message ($global:logLockObject ? $thisProductPropertiesAsString : $null) -Status $thisProduct.LockState -EntryType "Warning" -Force
-
-        $message = "$($thisProduct.Name) : $($thisProduct.LockState)"
-        Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,$($thisProduct.LockState -eq "Locked" ? "DarkRed" : "DarkGreen") 
-        if ($locked) {   
-            $message = "  Host : $($thisProduct.Host)"
-            Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-            $message = "  PID .: $($thisProduct.PID)"
-            Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-        }
-
-        if ($Name.Count -gt 1) {
-
-            $thatProduct = Read-Cache $Name[1]
-            if (!$thatProduct) {
-                $thatProduct = @{
-                    Name = $Name[1]
-                    Host = $HOST.Name
-                    PID = $PID
-                    Class = "Process"
-                    LockState = "Unknown"
-                    StartTime = $null
-                    EndTime = $null
-                    LastRunTime = $null
-                }
-            }
-            # $thatProductPropertiesAsString = $thatProduct | Select-Object -ExcludeProperty Task | ConvertTo-Json -Compress
-            $thatProductInit = $thatProduct | Copy-Object
-
-            $thatProductSelfLocked = $thatProduct.LockState -eq "Locked" ? $thatProduct.PID -eq $PID : $false
-            $thatProductLocked = $thatProduct.LockState -eq "Locked" ? !$thatProductSelfLocked : $false
-
-            $locked = $locked -and $thatProductLocked
-            $selfLocked = $selfLocked -and $thatProductSelfLocked
-
-            $lock.Locked = $locked ? "Locked" : "Unlocked"
-            $lock.SelfLocked = $selfLocked ? "Locked" : "Unlocked"
-            $lock.Product += @{
-                Name =$thatProduct.Name
-                Locked = $thatProductLocked ? "Locked" : "Unlocked"
-                SelfLocked = $thatProductSelfLocked ? "Locked" : "Unlocked"
-            }
-
-            # Write-Log -Context $thisProduct.Name -Action "IsProductLocked" -Target $thatProduct.Name -Message ($global:logLockObject ? $thatProductPropertiesAsString : $null) -Status $thatProduct.LockState -EntryType "Warning" -Force
-
-            $message = "$($thatProduct.Name) : $($thatProduct.LockState)"
-            Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,$($thatProduct.LockState -eq "Locked" ? "DarkRed" : "DarkGreen")   
-            if ($thatProductLocked) { 
-                $message = "  Host : $($thatProduct.Host)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-                $message = "  PID .: $($thatProduct.PID)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-            }
-    
-            if ($thatProductLocked) {
-
-                if ($waitInterval -gt [timespan]::Zero) {
-
-                    Start-Sleep -Milliseconds $waitInterval.TotalMilliSeconds
-                            
-                    $thatProduct = Read-Cache $thatProduct.Name
-                    if (!$thatProduct) {$thatProduct = $thatProductInit | Copy-Object}
-                    # $thatProductPropertiesAsString = $thatProduct | Select-Object -ExcludeProperty Task | ConvertTo-Json -Compress
-
-                    # Write-Log -Context $thisProduct.Name -Action "IsProductLocked" -Target $thatProduct.Name -Message ($global:logLockObject ? $thatProductPropertiesAsString : $null) -Status $thatProduct.LockState -EntryType "Information" -Force
-                    $message = "  $($thatProduct.Name) : $($thatProduct.LockState)"
-                    Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$($thatProduct.LockState -eq "Locked" ? "DarkRed" : "DarkGreen")
-                
-                }
-
-            }
-
-        }
-
-        # Write-Log -Context $thisProduct.Name -Action "IsProductLocked" -Target ($Name | ConvertTo-Json -AsArray -Compress) -Status ($locked ? "Locked" : "Unlocked") -Message $($lock | ConvertTo-Json -Depth 5 -Compress) -EntryType "Information" -Force
-    
-        [console]::CursorVisible = $true
-    
-        return $locked, $selfLocked #, $lock
-    
-    }
-    
-    function global:Lock-Product {
-    
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory=$true,Position=0)][ValidateSet("AzureADCache","AzureADSync")][string[]]$Name,
-            [switch]$Silent
-        )
-
-        $writeLockMessages = $Silent ? $false : $true
-
-        $lockedProducts = @()
-
-        $Name | ForEach-Object {
-            
-            $lockProduct = Read-Cache $_
-    
-            $locked,$selfLocked = Test-IsProductLocked -Name $lockProduct.Name -Silent
-            
-            $message = "$($lockProduct.Name) : $($lockProduct.LockState)"
-            Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,$($lockProduct.LockState -eq "Locked" ? "DarkRed" : "DarkGreen")  
-            if ($locked -or $selfLocked) {
-                $message = "  Host : $($lockProduct.Host)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-                $message = "  PID .: $($lockProduct.PID)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-            }
-
-            if (!$locked) {
-
-                $lockProduct = @{
-                    Name = $_
-                    Host = $HOST.Name
-                    PID = $PID
-                    Class = $null
-                    LockState = "Locked"
-                    StartTime = Get-Date -AsUTC
-                    EndTime = $null
-                    LastRunTime = $lockProduct.LastRunTime
-                    EndStatus = $lockProduct.EndStatus
-                    Task = $null
-                }
-
-                $TaskService = New-Object -ComObject('Schedule.Service')
-                $TaskService.Connect()
-                $runningTasks = $TaskService.GetRunningTasks(0)
-                $lockProduct.Task = $runningTasks | Where-Object{$_.Name -like "*$($lockProduct.Name)*"}
-                $lockProduct.Host = $lockProduct.Task.Name ?? $HOST.Name
-                $lockProduct.Class = $lockProduct.Task.EnginePID -eq $lockProduct.PID ? "Task" : "Process"
-
-                # $message = "$($lockProduct.Name) : LOCKING"
-                # Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
-    
-                $lockProduct | Write-Cache $lockProduct.Name
-
-                $message = "$($lockProduct.Name) : $($lockProduct.LockState)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,$($lockProduct.LockState -eq "Locked" ? "DarkRed" : "DarkGreen")  
-                
-                if (!$selfLocked) {
-                    $message = "  Host : $($lockProduct.Host)"
-                    Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-                    $message = "  PID .: $($lockProduct.PID)"
-                    Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-                }
-                
-                # $lockProductPropertiesAsString = $lockProduct | Select-Object -ExcludeProperty Task | ConvertTo-Json -Compress
-                # Write-Log -Context $lockProduct.Name -Action "Mutex" -Target $lockProduct.Name -Status $lockProduct.LockState -Message ($global:logLockObject ? $lockProductPropertiesAsString : $null) -Force
-                # $lockProductTaskPropertiesAsString = ($lockProduct.Task | Select-Object -Property *) | ConvertTo-Json -Compress
-                # Write-Log -Context $lockProduct.Name -Action "Mutex" -Target $lockProduct.Name -Status $lockProduct.LockState -Message $lockProductTaskPropertiesAsString -Force
-
-                $lockedProducts += $lockProduct
-
-            }
-            else {
-                
-                Write-Log -Context "Mutex" -Action "Lock" -Target $lockProduct.Name -Status "Contention" -Message "Unable to acquire lock" -EntryType "Warning" -Force
-                
-                $message = "$($lockProduct.Name) : Contention"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkYellow 
-                
-                $message = "  Lock contention:  Unable to acquire lock"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                Write-Host+ -Iff $writeLockMessages
-
-                if ($lockedProducts) {
-                    Unlock-Product $lockedProducts.Name -Silent
-                }
-
-                break
-
-            }
-
-            Write-Host+ -Iff $writeLockMessages
-
-        }
-        
-        return
-    }
-    
-    function global:Unlock-Product {
-    
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory=$true,Position=0)][ValidateSet("AzureADCache","AzureADSync")][string[]]$Name,
-            [Parameter(Mandatory=$false,Position=1)][ValidateSet("Success","Error","Aborted")][string]$Status = "Success",
-            [switch]$Silent,
-            [switch]$Force
-        )
-
-        $writeLockMessages = $Silent ? $false : $true
-
-        $Name | ForEach-Object {
-
-            $lockProduct = Read-Cache $_
-    
-            $locked,$selfLocked = Test-IsProductLocked -Name $lockProduct.Name -Silent
-            
-            $message = "$($lockProduct.Name) : $($lockProduct.LockState)"
-            Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,$($lockProduct.LockState -eq "Locked" ? "DarkRed" : "DarkGreen")  
-            if ($locked -or $selfLocked) {
-                $message = "  Host : $($lockProduct.Host)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-                $message = "  PID .: $($lockProduct.PID)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-            }
-
-            if ($selfLocked -or $Force) {
-
-                if ($Force) {
-                    $message = "  Override : w/FORCE"
-                    Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 8),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DArkYellow
-                }
-
-                $lockProduct = @{
-                    Name = $_
-                    Host = $HOST.Name
-                    PID = $PID
-                    Class = $null
-                    LockState = "Unlocked"
-                    StartTime = $lockProduct.StartTime # Get-Date -AsUTC
-                    EndTime = Get-Date -AsUTC
-                    LastRunTime = $Status -eq "Success" ? $lockProduct.StartTime : $lockProduct.LastRunTime
-                    EndStatus = $Status
-                    Task = $null
-                }
-                
-                $TaskService = New-Object -ComObject('Schedule.Service')
-                $TaskService.Connect()
-                $runningTasks = $TaskService.GetRunningTasks(0)
-                $lockProduct.Task = $runningTasks | Where-Object{$_.Name -like "*$($lockProduct.Name)*"}
-                $lockProduct.Host = $lockProduct.Task.Name ?? $HOST.Name
-                $lockProduct.Class = $lockProduct.Task.EnginePID -eq $lockProduct.PID ? "Task" : "Process"
-
-                # $message = "$($lockProduct.Name) : UNLOCKING"
-                # Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
-                
-                $lockProduct | Write-Cache $_
-
-                # $lockProductPropertiesAsString = $lockProduct | Select-Object -ExcludeProperty Task | ConvertTo-Json -Compress
-                # Write-Log -Context $lockProduct.Name -Action "UNLOCK" -Target $lockProduct.Name -Status $lockProduct.LockState -Message ($global:logLockObject ? $lockProductPropertiesAsString : $null) -Force
-                
-                $message = "$($lockProduct.Name) : $($lockProduct.LockState)"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,$($lockProduct.LockState -eq "Locked" ? "DarkRed" : "DarkGreen")
-
-                if (!$selfLocked -and !$Force) {
-                    $message = "  Host : $($lockProduct.Host)"
-                    Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-                    $message = "  PID .: $($lockProduct.PID)"
-                    Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 12),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
-                }
-
-            }
-            else {
-
-                Write-Log -Context "Mutex" -Action "Unlock" -Target $lockProduct.Name -Status "Contention" -Message "Unable to acquire lock" -EntryType "Warning" -Force
-
-                $message = "$($lockProduct.Name) : Contention"
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkYellow 
-                $message = "  Lock contention:  Unable to acquire lock"
-                
-                Write-Host+ -Iff $writeLockMessages -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                Write-Host+ -Iff $writeLockMessages
-
-                break
-            }
-
-            Write-Host+ -Iff $writeLockMessages
-
-        }
-        
-        return
-    }
-
- #>
     function global:Get-Provider {
 
         [CmdletBinding()] 
@@ -450,19 +132,19 @@
                 
             [CmdletBinding()]
             param (
-                [switch]$ResetCache,
                 [switch]$NoCache,
                 [switch]$Reset
             )
 
             Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-            if ((get-cache platformstatus).Exists() -and !$ResetCache -and !$Reset -and !$NoCache) {
-                $platformStatus = [PlatformStatus](Read-Cache platformStatus -MaxAge (New-TimeSpan -Seconds 5))
-                if ($platformStatus) {return $platformStatus}
+            if ((get-cache platformstatus).Exists() -and !$Reset -and !$NoCache) {
+                $platformStatus = [PlatformStatus](Read-Cache platformStatus)
             }
 
-            $platformStatus = [PlatformStatus]@{}
+            if (!$platformStatus) {
+                $platformStatus = [PlatformStatus]::new()
+            }
 
             Write-Verbose "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)"
             # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "Read-Cache" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
@@ -511,27 +193,35 @@
                     Write-Log -Action "IsStoppedTimeout" -Target "Platform" -EntryType "Warning" -Status $IsStoppedTimeout
             
                 }
-            }
-
-            Write-Verbose "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)"
-            # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "IsStopped" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force            
+            }         
 
             $platformStatus.IsOk = $isOK
-            $platformStatus.IsStopped = $serviceStatus -in $PlatformServiceDownState
+            $platformStatus.IsStopped = $platformStatus.RollupStatus -in $PlatformServiceDownState
             $platformStatus.IsStoppedTimeout = $IsStoppedTimeout
-            $platformStatus.EventUpdatedAt = [datetime]::Now
-            # $platformStatus.CheckedBy = $global:Product.Id
+            
             $platformStatus.ByCimInstance = $platformCimInstance
 
-            if ($platformStatus.IsStoppedTimeout -or $platformStatus.EventStatus -eq $PlatformEventStatus.Failed) {
+            $platformStatus.Intervention = $false
+            $platformStatus.InterventionReason = $null
+
+            if ($platformStatus.IsStoppedTimeout) {
                 $platformStatus.Intervention = $true
+                $platformStatus.InterventionReason = "Platform $($platformStatus.Event.ToUpper()) has exceeded $($shutdownTimeout.TotalMinutes) minutes"
+            }
+
+            if ($platformStatus.EventStatus -eq $PlatformEventStatus.Failed) {
+                $platformStatus.Intervention = $true
+                $platformStatus.InterventionReason = "Platform $($platformStatus.Event.ToUpper()) has $($platformStatus.EventStatus.ToUpper())"
             }
 
             if ($platformStatus.Event) {
-                if ($platformStatus.EventStatus -eq $PlatformEventStatus.Completed -and 
-                    $platformStatus.RollupStatus -eq $platformStatus.EventStatusTarget) {
-                        $platformStatus.EventHasCompleted = $true
-                }
+                $platformStatus.EventUpdatedAt = [datetime]::Now
+            }
+            
+            if ($platformStatus.RollupStatus -eq $platformStatus.EventStatusTarget) {
+                    $platformStatus.EventHasCompleted = $true
+                    $platformStatus.EventStatus = $PlatformEventStatus.Completed
+                    $platformStatus.EventCompletedAt = [datetime]::Now
             }
 
             if ($Reset) {
@@ -544,9 +234,13 @@
                 $platformStatus.EventStatus = $null
                 $platformStatus.EventStatusTarget = $null
                 $platformStatus.EventCreatedAt = [datetime]::MinValue
+                $platformStatus.EventUpdatedAt = [datetime]::MinValue
                 $platformStatus.EventCreatedBy = $null
-                $platformStatus.Intervention = $false
                 $platformStatus.EventHasCompleted = $false
+                $platformStatus.Intervention = $false
+                $platformStatus.InterventionReason = $null
+                $platformStatus.ByCimInstance = $null
+                $platformStatus.StatusObject = $null
                 
             }
 
@@ -589,8 +283,7 @@
 
             $PlatformStatus | Write-Cache platformstatus
 
-            Send-PlatformEventMessage -PlatformStatus $PlatformStatus
-
+            Send-PlatformEventMessage -PlatformStatus $PlatformStatus -NoThrottle
             return
 
         }
@@ -600,8 +293,8 @@
             [CmdletBinding()]
             param ()
 
-            $null = Get-PlatformStatus -Reset
-            Send-PlatformEventMessage -Reset
+            return Get-PlatformStatus -Reset
+
         }
 
     #endregion EVENT
