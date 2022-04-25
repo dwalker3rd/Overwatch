@@ -139,20 +139,19 @@ function global:Get-ServerStatus {
 
     $eventCheckTimeStamp = [datetime]::Now
 
-    $events = $ComputerName | ForEach-Object -Parallel {
+    $winEvents = $ComputerName | ForEach-Object -Parallel {
         Get-WinEvent -FilterHashtable $using:filterHashtable -ComputerName $_ -ErrorAction SilentlyContinue
     } 
 
-    Write-Verbose  "$($events.Count) events since $($lastRunTime)"
+    Write-Verbose  "$($winEvents.Count) events since $($lastRunTime)"
 
-    $lastShutdown = @()
-
-    if ($events) {
+    $shutdownEvents = @()
+    if ($winEvents) {
 
         foreach ($node in $ComputerName) {
 
             $machineName = $PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine ? $node : "$($node).$($PrincipalContextName)"
-            $nodeEvents = $events | Where-Object -Property MachineName -EQ $machineName | Sort-Object -Property TimeCreated -Descending
+            $nodeEvents = $winEvents | Where-Object -Property MachineName -EQ $machineName | Sort-Object -Property TimeCreated -Descending
             if ($nodeEvents) {
 
                 $shutdown = @{
@@ -209,7 +208,8 @@ function global:Get-ServerStatus {
                 # don't combine this switch w/the one above!
                 # the latest event may be startup with the shutdown reason in a previous event
 
-                $shutdownEventWithReason = $($nodeEvents | Where-Object -property Id -in -Value 1074,1076,6008 | Sort-Object -Property Time -Descending)[0]
+                $nodeEventsWithReason = $($nodeEvents | Where-Object -property Id -in -Value 1074,1076,6008 | Sort-Object -Property Time -Descending)
+                $shutdownEventWithReason = $nodeEventsWithReason ? $nodeEventsWithReason[0] : $null
                 if ($shutdownEventWithReason) {
                     $shutdown.reasonId = $shutdownEventWithReason.Id
                     switch ($shutdownEventWithReason.Id) {
@@ -240,24 +240,29 @@ function global:Get-ServerStatus {
 
                 Send-ServerStatusMessage -ComputerName $shutdown.node -Event $shutdown.event -Status $shutdown.status -Reason $shutdown.reason -Comment $shutdown.comment -User $shutdown.user -Level $shutdown.level -TimeCreated $shutdown.timeCreated
 
-                $lastShutdown += $shutdown
+                $shutdownEvents += $shutdown
             }        
         }
-    }
-
-    $lastShutdownThisNode = $lastShutdown | Where-Object {$_.node -eq $env:COMPUTERNAME}
-    if ($lastShutdownThisNode) {
-        $serverStatus = $lastShutdownThisNode.event + "." + $lastShutdownThisNode.status
     }
 
     # update product lastruntime *BEFORE* processing $serverStatus
     $eventCheckTimeStamp | Write-Cache lastruntime
 
+    # select primary/priority shutdown event
+    $serverStatus = $null
+    if ($shutdownEvents) {
+        $initialNodeEvent = $shutdownEvents | Where-Object {$_.node -eq (pt InitialNode)}
+        $mainEvent = $initialNodeEvent ?? $shutdownEvents[0]
+        $serverStatus = $mainEvent.event + "." + $mainEvent.status
+    }
+
     # actions based on $serverStatus
     switch ($serverStatus) {
-        "Startup.Completed" {Clear-Cache}
-        "Reboot.Completed" {Clear-Cache}
-        "Restart.Completed" {Clear-Cache}
+        "Startup.Completed" {
+            Clear-Cache clusterstatus
+            Clear-Cache platforminfo
+            Clear-Cache platformservices
+        }
     }
 
     return $serverStatus

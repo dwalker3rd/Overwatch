@@ -132,13 +132,13 @@
                 
             [CmdletBinding()]
             param (
-                [switch]$NoCache,
+                # [switch]$NoCache,  <=== do NOT use this as it loses track of the current platform event!
                 [switch]$Reset
             )
 
             Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-            if ((get-cache platformstatus).Exists() -and !$Reset -and !$NoCache) {
+            if ((get-cache platformstatus).Exists() -and !$Reset) {  #-and !$NoCache) {
                 $platformStatus = [PlatformStatus](Read-Cache platformStatus)
             }
 
@@ -150,7 +150,7 @@
             # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "Read-Cache" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
 
             $params = @{}
-            if ($NoCache) {$params += @{NoCache = $true}}
+            # if ($NoCache) {$params += @{NoCache = $true}}
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
 
             if ($platformStatus.RollUpStatus -in @("Stopping","Starting","Restarting") -and !$platformStatus.Event) {
@@ -184,8 +184,8 @@
                     Write-Log -Action "IsStopped" -Target "Platform" -EntryType "Warning" -Status $platformStatus.IsStopped
 
                     $productShutdownTimeout = $(Get-Product -Id $platformStatus.EventCreatedBy).ShutdownMax
-                    $productShutdownTimeout = $productShutdownTimeout.TotalMinutes -gt 0 ? $productShutdownTimeout : $PlatformShutdownMax
-                    $shutdownTimeout = $platformStatus.EventCreatedBy ? $productShutdownTimeout : $PlatformShutdownMax
+                    $shutdownTimeout = $productShutdownTimeout.TotalMinutes -gt 0 ? $productShutdownTimeout : $PlatformShutdownMax
+                    # $shutdownTimeout = $platformStatus.EventCreatedBy ? $productShutdownTimeout : $PlatformShutdownMax
                     $IsStoppedTimeout = $(new-timespan -Start $platformStatus.EventCreatedAt).TotalMinutes -gt $shutdownTimeout.TotalMinutes
                     $isOK = !$IsStoppedTimeout
 
@@ -263,7 +263,7 @@
                 [Parameter(Mandatory=$true)][string]$Event,
                 [Parameter(Mandatory=$false)][string]$Context,
                 [Parameter(Mandatory=$false)][string]$EventReason,
-                [Parameter(Mandatory=$false)][ValidateSet('In Progress','Completed','Failed','Reset','Testing')][string]$EventStatus,
+                [Parameter(Mandatory=$false)][ValidateSet('In Progress','Completed','Failed','Reset')][string]$EventStatus,
                 [Parameter(Mandatory=$false)][string]$EventStatusTarget,
                 [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus)
 
@@ -279,7 +279,7 @@
             $PlatformStatus.EventStatusTarget = $EventStatusTarget ? $EventStatusTarget : $PlatformEventStatusTarget.$($Event)
             $PlatformStatus.EventCreatedAt = [datetime]::Now
             $PlatformStatus.EventCreatedBy = $Context ?? $global:Product.Id
-            $PlatformStatus.EventHasCompleted = $false
+            $PlatformStatus.EventHasCompleted = $EventStatus -eq "Completed" ? $true : $false
 
             $PlatformStatus | Write-Cache platformstatus
 
@@ -609,15 +609,20 @@
             $ComputerName = $global:Platform.Uri.Host,
 
             [Parameter(ValueFromPipelineByPropertyName=$true)]
-            [int]$Port = 443
+            [int]$Port = 443,
+
+            [Parameter(ValueFromPipelineByPropertyName=$true)]
+            [switch]$PassFailOnly
         )
 
         begin {
                 
             Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-            $message = "  SSL Protocol: PENDING"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+            If (!$PassFailOnly) {Write-Host+}
+
+            $messagePart = "  SSL Protocol ","$($ComputerName)"
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Write-Dots -Length 48 -Adjust (-(($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray
 
             $now = Get-Date -AsUTC
             $30days = New-TimeSpan -days 30
@@ -629,11 +634,19 @@
                 Get-Member -Static -MemberType Property |
                 Where-Object -Filter { $_.Name -notin @("Default","None") } |
                 Foreach-Object { $_.Name }
-
+    
             $bestPractice = @{
-                protocols = @("TLS12")
+                protocols = @{
+                    Ssl2  = @{state="Disabled"; displayName="SSLv2"}
+                    Ssl3  = @{state="Disabled"; displayName="SSLv3"}
+                    Tls   = @{state="Disabled"; displayName="TLSv1"}
+                    Tls11 = @{state="Disabled"; displayName="TLSv1.1"}
+                    Tls12 = @{state="Enabled"; displayName="TLSv1.2"}
+                    Tls13 = @{state=""; displayName="TLSv1.3"}
+                }
                 signatureAlgorithms = @("sha256RSA")
             }
+            $supportedProtocols = $bestPractice.protocols.Keys | Sort-Object
 
         }
 
@@ -685,25 +698,25 @@
             $expiryColor = $thisFail ? "DarkRed" : ($thisWarn ? "DarkYellow" : "DarkGray")
             
             $message = "    Certificate : PENDING"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
             $message = "      Subject:      $($ProtocolStatus.Certificate.Subject)"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
             $message = "      Issuer:       $($ProtocolStatus.Certificate.Issuer.split(",")[0])"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
             $message = "      Serial#:      $($ProtocolStatus.Certificate.SerialNumber)"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
             $message = "      Thumbprint:   $($ProtocolStatus.Certificate.Thumbprint)"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
             $message = "      Expiry:      | $($ProtocolStatus.Certificate.NotAfter)"
-            Write-Host+ -NoTrace -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor DarkGray,$expiryColor
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor DarkGray,$expiryColor
             $message = "      Status:      | $($thisFail ? "Expired" : ($thisWarn ? "Expires in $([math]::round($expiresInDays.TotalDays,1)) days" : "Valid"))"
-            Write-Host+ -NoTrace -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor DarkGray,$expiryColor
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor DarkGray,$expiryColor
 
             # change expireColor success from darkgray to darkgreen for PASS indicators
             $expiryColor = $thisFail ? "DarkRed" : ($thisWarn ? "DarkYellow" : "DarkGreen")
 
             $message = "    Certificate : $($thisFail ? "FAIL" : ($thisWarn ? "WARN" : "PASS"))"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$expiryColor
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$expiryColor
 
             $thisWarn = $false
             $thisFail = $false
@@ -712,24 +725,28 @@
                 $thisFail = $ProtocolStatus.SignatureAlgorithm -ne $signatureAlgorithm
                 $fail = $fail -or $thisFail
                 $message = "    Signature Algorithm : $($thisFail ? "FAIL": "PASS")"
-                Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($thisFail ? "DarkRed" : "DarkGreen")
+                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($thisFail ? "DarkRed" : "DarkGreen")
             }
 
             $thisWarn = $false
             $thisFail = $false
 
-            foreach ($protocol in $bestPractice.protocols) {
-                $thisFail = !$ProtocolStatus.$protocol
+            foreach ($protocol in $supportedProtocols) {
+                $thisFail = $bestPractice.protocols.$protocol.state -ne "" ? $ProtocolStatus.$protocol -ne ($bestPractice.protocols.$protocol.state -eq "Enabled") : $false
                 $fail = $fail -or $thisFail
-                $message = "    $protocol Enabled : $($thisFail ? "FAIL": "PASS")"
-                Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($thisFail ? "DarkRed" : "DarkGreen")
+                $state = $bestPractice.protocols.$protocol.state -ne "" ? $($bestPractice.protocols.$protocol.state -eq "Enabled" ? "Enabled" : "Disabled") : $($ProtocolStatus.$protocol ? "Enabled" : "Disabled")
+                $result = $bestPractice.protocols.$protocol.state -ne "" ? $($thisFail ? "FAIL": "PASS") : "NA"
+                $message = "    $($bestPractice.protocols.$protocol.displayName) : $(($state.ToUpper() + " ").Substring(0,8)):$result"
+                $stateColor = $state -eq "Enabled" ? "DarkGreen" : "DarkRed"
+                $resultColor = $result -ne "NA" ? $thisFail ? "DarkRed" : "DarkGreen" : "DarkGray"
+                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 31 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1],"/",$message.Split(":")[2] -ForegroundColor Gray,DarkGray,$stateColor,DarkGray,$resultColor
             }
 
             $thisWarn = $false
             $thisFail = $false
 
-            $message = "  SSL Protocol : $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$expiryColor
+            $messagePart = "  SSL Protocol ","$($ComputerName)"
+            Write-Host+ -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Write-Dots -Length 48 -Adjust (-(($messagePart -join " ").Length+2)))," $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,$expiryColor
             Write-Log -Action "Test" -Target "SSL" -Status $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))
         
             # return [PSCustomObject]$ProtocolStatus

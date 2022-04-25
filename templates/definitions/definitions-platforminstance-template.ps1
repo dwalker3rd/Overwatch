@@ -61,7 +61,7 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
     #region PLATFORM-TIMEOUTS
 
         $global:PlatformComponentTimeout = 300
-        $global:PlatformShutdownMax = New-TimeSpan -Minutes 15   
+        $global:PlatformShutdownMax = New-TimeSpan -Minutes 75   
 
     #endregion PLATFORM-TIMEOUTS
 

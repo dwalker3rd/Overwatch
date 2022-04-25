@@ -9,6 +9,16 @@
         Image = "$($global:Location.Images)/windows_server.png"  
     }
 
+    $global:ServerEvent = @{
+        Startup = "Startup"
+        Shutdown = "Shutdown"
+    }
+
+    $global:ServerEventStatus = @{
+        InProgress = 'In Progress'
+        Completed = 'Completed'
+    }
+
     $global:PerformanceCounters = @(
         [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_PerfOS_Processor";Instance="_Total";Counter="PercentProcessorTime";Name="Processor Utilization";Suffix="%"},
         [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_PerfOS_Memory";Counter="AvailableBytes";Name="Available Memory";Suffix=" GB";Factor=1/1gb} #,

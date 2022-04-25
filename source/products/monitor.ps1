@@ -35,7 +35,7 @@ Open-Monitor
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $status = "Aborted"
-        $message = "$($Product.Id) $($status.ToLower()) because server $(($serverStatus -split ".")[0].ToUpper()) is $(($serverStatus -split ".")[1].ToUpper())"
+        $message = "$($Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
         Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
@@ -64,7 +64,6 @@ Open-Monitor
     Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 25 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
     $message = "    Update | $($platformStatus.EventHasCompleted ? $platformStatus.EventCompletedAt : ($platformStatus.Event ? $platformStatus.EventUpdatedAt : "None"))"
     Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 25 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
-    Write-Host+
 
     Update-AsyncJob
 
@@ -109,6 +108,7 @@ Open-Monitor
 
     }
 
+    Write-Host+
     $message = "  Flap Detection : $($heartbeat.FlapDetectionEnabled ? "Enabled" : "Disabled")"
     Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($heartbeat.FlapDetectionEnabled ? "DarkGreen" : "DarkYellow") -NoSeparator
     Write-Log -EntryType $entryType -Action "Heartbeat" -Message $message
@@ -209,12 +209,19 @@ Open-Monitor
         $messageType = $PlatformMessageType.Alert
     }
 
-    $message = "  Sending message : SENT"
-    Write-Host+ -NoTrace -NoNewLine $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)) -ForegroundColor Gray,DarkGray -NoSeparator
+    [console]::CursorVisible = $false
 
-    Send-PlatformStatusMessage -PlatformStatus $platformStatus -MessageType $messageType
+    Write-Host+
+    $message = "  Sending message : PENDING"
+    Write-Host+ -NoTrace -NoNewLine $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray -NoSeparator
 
-    Write-Host+ -NoTrace -NoTimeStamp $message.Split(":")[1] -ForegroundColor DarkGreen -NoSeparator
+    $sendMessageStatus = Send-PlatformStatusMessage -PlatformStatus $platformStatus -MessageType $messageType
+
+    $message = "$($emptyString.PadLeft(8,"`b")) $sendMessageStatus$($emptyString.PadLeft(8," "))"
+    $color = $sendMessageStatus -eq "Sent" ? "DarkGreen" : "DarkYellow"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor $color
+
+    [console]::CursorVisible = $true
 
     Close-Monitor
 

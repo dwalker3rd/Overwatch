@@ -109,7 +109,12 @@ switch ($PSVersionTable.PSVersion.Major) {
     Write-Host+ "  Product","$($Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
     Write-Host+ "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
     Write-Host+ "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    Write-Host+ "  Version","$($global:Platform.Version) ($($Platform.Build))" -ForegroundColor Gray,DarkBlue -Separator ":    "
+    if ($global:Platform.Version) {
+        Write-Host+ "  Version","$($global:Platform.Version)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+    }
+    if ($global:Platform.Build) {
+        Write-Host+ "  Build","$($Platform.Build)" -ForegroundColor Gray,DarkBlue -Separator ":      "
+    }
     Write-Host+ "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
     Write-Host+ "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
 
@@ -130,7 +135,6 @@ switch ($PSVersionTable.PSVersion.Major) {
     if (IsMessagingDisabled) {
         Write-Host+
         Write-Host+ -NoTrace "Messaging DISABLED" -ForegroundColor DarkYellow
-        Write-Host+ -NoTrace "Enable messaging with the 'Enable-Messaging' cmdlet" -ForegroundColor DarkYellow
     }
 
 #endregion WARNINGS

@@ -4,7 +4,7 @@ $trustedHosts = @()
 if ($trustedHosts) {
     Test-Connections $trustedHosts
 
-    $platformStatus = Get-PlatformStatus -NoCache
+    $platformStatus = Get-PlatformStatus
     if ($platformStatus.IsOK) {
         Test-RepositoryAccess $trustedHosts
     }

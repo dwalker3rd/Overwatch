@@ -17,6 +17,32 @@ $global:Product = @{Id="AzureADSync"}
 $emptyString = ""
 $tenantKey = "pathseattle"
 
+function Assert-SyncError {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Target,
+        [Parameter(Mandatory=$true)][object]$Status,
+        [Parameter(Mandatory=$true)][object]$ErrorDetail
+    )
+
+    Write-Log -Context "AzureADSync" -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
+    $message = "$($emptyString.PadLeft(8,"`b")) $($ErrorDetail.summary)$($emptyString.PadLeft(8," "))"
+    Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
+    
+    Send-TaskMessage -Id "AzureADSync" -Status $Status -Message $message -MessageType $PlatformMessageType.Alert
+
+    Write-Host+
+    $message = "AzureADSync $($status.ToLower()) because $($ErrorDetail.summary)"
+    Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+    $message = "AzureADCache should correct this issue on its next run."
+    Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+    Write-Host+
+
+    return
+
+}
+
 #region SERVER/PLATFORM CHECK
 
     # Do NOT continue if ...
@@ -29,10 +55,10 @@ $tenantKey = "pathseattle"
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $status = "Aborted"
-        $message = "$($Product.Id) $($status.ToLower()) because server $(($serverStatus -split ".")[0].ToUpper()) is $(($serverStatus -split ".")[1].ToUpper())"
-        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        $message = "$($global:Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
+        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
@@ -41,26 +67,26 @@ $tenantKey = "pathseattle"
     # abort if platform is stopped or if a platform event is in progress
     if ($platformStatus.IsStopped -or ($platformStatus.Event -and !$platformStatus.EventHasCompleted)) {
         $status = "Aborted"
-        $message = "$($Product.Id) $($status.ToLower()) because platform $($Platform.Event.ToUpper()) is $($Platform.EventStatus.ToUpper()) on $($Platform.Name)"
-        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        $message = "$($global:Product.Id) $($status.ToLower()) because platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
+        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
     # abort if platform status is not ok
     If (!$platformStatus.IsOK) {
         $status = "Aborted"
-        $message = "$($Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
-        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        $message = "$($global:Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
+        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
 #endregion SERVER/PLATFORM CHECK
 
-Initialize-TSRestApiConfiguration
+# Send-TaskMessage -Id $($global:Product.Id)
 
 $action = $null; $target = $null; $status = $null
 try {
@@ -77,9 +103,19 @@ try {
     Connect-AzureAD -Tenant $tenantKey
 
     $action = "Sync"; $target = "AzureAD\$tenantKey\Groups"
-    Sync-TSGroups -Tenant $tenantKey
+    $syncError = Sync-TSGroups -Tenant $tenantKey
+    if ($syncError) {
+        Assert-SyncError -Target $target -Status "Aborted" -ErrorDetail $syncError
+        return
+    }
+
     $action = "Sync"; $target = "AzureAD\$tenantKey\Users"
-    Sync-TSUsers -Tenant $tenantKey -Delta
+    $syncError = Sync-TSUsers -Tenant $tenantKey -Delta
+    if ($syncError) {
+        Assert-SyncError -Target $target -Status "Aborted" -ErrorDetail $syncError
+        return
+    }
+
     $status = "Success"
 
     $action = "Export"; $target = "AzureAD\$tenantKey\Log"

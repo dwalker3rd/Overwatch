@@ -46,6 +46,7 @@ function global:Initialize-TSRestApiConfiguration {
     $creds = Get-Credentials $global:tsRestApiConfig.Credentials
 
     $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$ContentUrl)
+    if ($responseError) {throw $responseError}
 
     $global:tsRestApiConfig.Token = $response.token
     $global:tsRestApiConfig.SiteId = $response.site.id
@@ -57,7 +58,7 @@ function global:Initialize-TSRestApiConfiguration {
     $serverInfo | Out-Null
 
     Update-TSRestApiMethods
-
+    
     return
 
 }
@@ -401,10 +402,11 @@ function global:Invoke-TSRestApiMethod {
     
     try {
         $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -SkipCertificateCheck -SkipHttpErrorCheck -ContentType $global:tsRestApiConfig.ContentType -Verbose:$false 
+        $responseError = $response.$responseRoot.error 
     }
-    catch {}
-
-    $responseError = $response.$responseRoot.error
+    catch {
+        $responseError = $_.Exception.Message
+    }
 
     $pagination = [ordered]@{
         PageNumber = $PageNumber
@@ -507,7 +509,7 @@ function global:Get-TSServerInfo {
     }
 
     $response = Get-TSObjects -Method ServerInfo
-    Write-Host+ -NoTrace -Iff (!$response) "Unable to connect to Tableau Server REST API." -ForegroundColor Red
+    # Write-Host+ -NoTrace -NoTimestamp -Iff (!$response) "Unable to connect to Tableau Server REST API." -ForegroundColor Red
 
     if ($response -and $Update) {
         $global:Platform.Api.TsRestApiVersion = $response.restApiVersion
@@ -2126,12 +2128,19 @@ function global:Sync-TSGroups {
 
     $azureADGroupUpdates,$cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray -After $lastStartTime
     if ($cacheError) {
-        Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
-        $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
-        $message = "    Error $($cacheError.code) : ($($cacheError.summary)))"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
-        return
+
+        # Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
+        # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
+        # $message = "    Error Code : $($($cacheError.code))"
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # $message = "    Error Summary : $($($cacheError.summary))"
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+
+        # Send-TaskMessage -Id "AzureADSync" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
+
+        return $cacheError
+
     }
     
     $message = "$($emptyString.PadLeft(8,"`b")) $($azureADGroupUpdates.Count)$($emptyString.PadLeft(8," "))"
@@ -2142,20 +2151,27 @@ function global:Sync-TSGroups {
 
     $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray
     if ($cacheError) {
-        Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
-        $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
-        $message = "    Error $($cacheError.code) : ($($cacheError.summary)))"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
-        return
+
+        # Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
+        # Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
+        # $message = "    Error Code : $($($cacheError.code))"
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # $message = "    Error Summary : $($($cacheError.summary))"
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+
+        # Send-TaskMessage -Id "AzureADSync" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
+
+        return $cacheError
+
     }
 
-    if ($azureADGroups.Count -le 0) {
-        $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "DarkRed")
-        Write-Host+
-        return
-    }
+    # if ($azureADGroups.Count -le 0) {
+    #     $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
+    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "DarkRed")
+    #     Write-Host+
+    #     return
+    # }
 
     $message = "$($emptyString.PadLeft(8,"`b")) $($azureADGroups.Count)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -2165,20 +2181,27 @@ function global:Sync-TSGroups {
 
     $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray
     if ($cacheError) {
-        Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
-        $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed
-        $message = "    Error $($cacheError.code) : ($($cacheError.summary)))"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
-        return
+
+        # Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
+        # Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed
+        # $message = "    Error Code : $($($cacheError.code))"
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # $message = "    Error Summary : $($($cacheError.summary))"
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+
+        # Send-TaskMessage -Id "AzureADSync" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
+
+        return $cacheError
+
     }
 
-    if ($azureADUsers.Count -le 0) {
-        $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "DarkRed")
-        Write-Host+
-        return
-    }
+    # if ($azureADUsers.Count -le 0) {
+    #     $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
+    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "DarkRed")
+    #     Write-Host+
+    #     return
+    # }
 
     $message = "$($emptyString.PadLeft(8,"`b")) $($azureADUsers.Count)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -2238,7 +2261,7 @@ function global:Sync-TSGroups {
 
                 $rebuildSearchIndex,$timeout = Wait-Asyncjob -id $rebuildSearchIndex.id -IntervalSeconds 5 -TimeoutSeconds 60
                 if ($timeout) {
-                    Watch-AsyncJob -Id $rebuildSearchIndex.id -Callback "Write-AsyncJobStatusToLog"
+                    # Watch-AsyncJob -Id $rebuildSearchIndex.id -Callback "Write-AsyncJobStatusToLog" -NoMessaging
                 }
                 Write-AsyncJobStatusToLog -Id $rebuildSearchIndex.id
 
@@ -2299,7 +2322,7 @@ function global:Sync-TSUsers {
         Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         $message = "  $($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
-        $message = "    Error $($cacheError.code) : ($($cacheError.summary)))"
+        $message = "    Error $($cacheError.code) : $($($cacheError.summary))"
         Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
         return
     }

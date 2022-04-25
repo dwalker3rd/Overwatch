@@ -85,13 +85,35 @@ function global:Get-TableauServerStatus {
 
             # modify the rollupStatus of services with the following serviceNames and instance.messages
             # TODO: convert this to rules-based logic (using a CSV file)
-            foreach ($service in $tableauServerStatus.nodes.services) { 
-                foreach ($instance in $service.instances) {
-                    switch ($service.serviceName) {
-                        "backgrounder" {
-                            if ($instance.message -like "Error opening named pipe*") {
-                                $instance.message = "Scheduled restart"
-                                $service.rollupStatus = "Running"
+            foreach ($nodeId in $tableauServerStatus.nodes.nodeId) { 
+                $node = Get-PlatformTopologyAlias $nodeId
+                foreach ($service in ($tableauServerStatus.nodes | Where-Object {$_.nodeid -eq $nodeId}).services) { 
+                    foreach ($instance in $service.instances) {
+                        switch ($service.serviceName) {
+                            "backgrounder" {
+                                if ($instance.message -like "Error opening named pipe*") {
+                                    $instance.message = "Scheduled restart"
+                                    $service.rollupStatus = "Running"
+                                }
+                            }
+                            "clientfileservice" {
+                                if ($instance.processStatus -eq "StatusUnavailable") {
+
+                                    $installPath = $global:Platform.InstallPath -replace ":","$"
+                                    $path = "\\$node\$installPath\data\tabsvc\logs\clientfileservice\clientfileservice_$nodeId-0.log"
+                                    $pattern = "java.lang.RuntimeException: "
+                                    $match = select-string -path $path -pattern $pattern
+                                    $message = ($match[-1] -split $pattern)[-1]
+                                    $instance | Add-Member -NotePropertyName "message" -NotePropertyValue $message
+
+                                    # $cimSession = New-CimSession -ComputerName $node
+                                    # $clientFileService = Get-CimInstance -ClassName "Win32_Service" -CimSession $cimSession -Property * | Where-Object {$_.Name -eq "clientfileservice_0"}
+                                    # $clientFileService | Invoke-CimMethod -Name "StopService" 
+                                    # $clientFileService | Invoke-CimMethod -Name "StartService"
+                                    # Remove-CimSession $cimSession
+
+                                    # $service.rollupStatus = "Running"
+                                }
                             }
                         }
                     }
@@ -203,7 +225,7 @@ function global:Get-PlatformInfo {
 
     $serverInfo = Get-TSServerInfo -Update
     $global:Platform.DisplayName = $global:Platform.Name + " " + $serverInfo.productVersion.InnerText
-    return $serverInfo
+    return
 
 }
 
@@ -275,13 +297,12 @@ function global:Request-Platform {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    # $verb = switch ($Command) {
-    #     "Stop" {"Stopping"}
-    #     "Start" {"Starting"}
-    # }
-
-    $message = "$($global:Platform.Name) $($Command.ToUpper()) : PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray 
+    Write-Host+
+    Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
+    $message = "  Command : $($Command.ToUpper())"
+    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
+    $message = "  Reason : $Reason"
+    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkBlue
 
     Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
 
@@ -299,18 +320,18 @@ function global:Request-Platform {
         Watch-AsyncJob -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
         $asyncJob = Wait-AsyncJob -Id $asyncJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
 
-        if ($asyncJob.status -eq $global:tsmApiConfig.Status.Async.Failed) {
+        if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
             $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
             throw
         } 
-        elseif ($asyncJob.status -eq $global:tsmApiConfig.Status.Async.Cancelled) {
+        elseif ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
             $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) was $($asyncJob.status). $($asyncJob.errorMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }
-        elseif ($asyncJob.status -ne $global:tsmApiConfig.Status.Async.Succeeded) {
+        elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
             $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
@@ -329,8 +350,8 @@ function global:Request-Platform {
 
     Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
 
-    $message = "$($global:Platform.Name) $($Command.ToUpper()) : $($commandStatus.ToUpper())"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
+    $message = "  $($Command.ToUpper()) : $($commandStatus.ToUpper())"
+    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
     Write-Host+
 
     Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
@@ -404,7 +425,8 @@ function global:Cleanup-Platform {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    Send-TaskMessage -Id "Cleanup" -Status "Running"
+    # Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
+    # Send-TaskMessage -Id "Cleanup" -Status "Running"
 
     #region PURGE
 
@@ -428,7 +450,7 @@ function global:Cleanup-Platform {
 
             # . tsm maintenance cleanup -l --log-files-retention $LogFilesRetention -t
             $cleanupAsyncJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
-            Watch-AsyncJob -Id $cleanupAsyncJob.id -Context "Cleanup" -Callback "Invoke-AsyncJobCallback"
+            Watch-AsyncJob -Id $cleanupAsyncJob.id -Context "Cleanup" # -Callback "Invoke-AsyncJobCallback"
 
             Write-Log -Context "Cleanup" -Action "Cleanup" -Target "asyncJob $($cleanupAsyncJob.id)" -Status $cleanupAsyncJob.status -Message $cleanupAsyncJob.statusMessage
             Write-Information "asyncJob $($cleanupAsyncJob.id): $($cleanupAsyncJob.statusMessage)"
@@ -439,7 +461,8 @@ function global:Cleanup-Platform {
             Write-Log -Context "Cleanup" -EntryType "Error" -Action "Cleanup" -Status "Error" -Message $_.Exception.Message
             Write-Error "$($_.Exception.Message)"
 
-            Send-TaskMessage -Id "Cleanup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
+            # Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
+            # Send-TaskMessage -Id "Cleanup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
             
         }
 
@@ -495,7 +518,7 @@ function global:Backup-Platform {
         try {
 
             $backupAsyncJob = Invoke-TsmApiMethod -Method "Backup" -Params @(Get-BackupFileName)
-            Watch-AsyncJob -Id $backupAsyncJob.id -Context "Backup" -Callback "Invoke-AsyncJobCallback"
+            Watch-AsyncJob -Id $backupAsyncJob.id -Context "Backup" # -Callback "Invoke-AsyncJobCallback"
 
             Write-Log -Context "Backup" -Action "Backup" -Target "asyncJob $($backupAsyncJob.id)" -Status $backupAsyncJob.status -Message $backupAsyncJob.statusMessage
             Write-Information "asyncJob $($backupAsyncJob.id): $($backupAsyncJob.statusMessage)"
@@ -528,7 +551,7 @@ function global:Invoke-AsyncJobCallback {
             "CleanupJob" { "Cleanup" }
         })
 
-    if ($asyncJob.status -eq $global:tsmApiConfig.Status.Async.Cancelled) {
+    if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
 
         Write-Log -EntryType "Warning" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
         Write-Warning "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
@@ -537,7 +560,7 @@ function global:Invoke-AsyncJobCallback {
         return
 
     } 
-    elseif ($asyncJob.status -ne $global:tsmApiConfig.Status.Async.Succeeded) {
+    elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
 
         Write-Log -EntryType "Error" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
         Write-Error "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
@@ -572,8 +595,8 @@ function global:Initialize-TsmApiConfiguration {
         Port = "8850"
         ApiVersion = "0.5"
         Credentials = "localadmin-$($global:Platform.Instance)"
-        Status = @{
-            Async = @{
+        Async = @{
+            Status = @{
                 Succeeded = "Succeeded"
                 Created = "Created"
                 Running = "Running"
@@ -581,6 +604,7 @@ function global:Initialize-TsmApiConfiguration {
                 Cancelled = "Cancelled"
                 Queued = "Queued"
             } 
+            DontWatchExternalJobType = @("RebuildSearchIndex")
         }
     }
     $global:tsmApiConfig.ApiUri = "https://$($global:tsmApiConfig.Server):$($global:tsmApiConfig.Port)/api/$($global:tsmApiConfig.ApiVersion)"
@@ -681,7 +705,7 @@ function global:Initialize-TsmApiConfiguration {
         ConfigurationKey = @{
             Path = "$($global:tsmApiConfig.ApiUri)/configurations/<0>/keys/<1>"
             HttpMethod = "GET"
-            Response = @{Keys = "configKeys.<1>"}
+            Response = @{Keys = "configKeys"}
         }
         ExportConfigurationAndTopologySettings = @{
             Path = "$($global:tsmApiConfig.ApiUri)/export?includeBinaryVersion=true"
@@ -764,7 +788,7 @@ function global:New-TsmApiSession {
     $httpMethod = $global:tsmApiConfig.Method.Login.HttpMethod
 
     # must assign the response from this Invoke-Method to a variable or $session does not get set
-    $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -SkipCertificateCheck -SessionVariable session -Verbose:$false
+    $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -TimeoutSec 15 -SkipCertificateCheck -SessionVariable session -Verbose:$false
     $response | Out-Null
     return $session
 
@@ -928,6 +952,8 @@ function global:Watch-AsyncJob {
                     context = $Context
                     source = $Source
                     callback = $Callback
+                    noMessaging = $NoMessaging
+                    noEventManagement = $NoEventManagement
                 }
             }
             return $outputObject
@@ -982,6 +1008,10 @@ function global:Watch-AsyncJob {
         "Update" {
             # remove previous entry and add updated entry
             $watchlist = $watchlist | Remove-AsyncJobFromWatchlist -AsyncJob $asyncJob 
+
+            $NoMessaging = $prevAsyncJob.noMessaging
+            $NoEventManagement = $prevAsyncJob.noEventManagement
+
             if (!$asyncJob.completedAt) {
                 $watchlist = $watchlist | Add-AsyncJobToWatchlist -AsyncJob $asyncJob -Context $prevAsyncJob.context -Source $prevAsyncJob.source-Callback $prevAsyncJob.callback
             }
@@ -1056,7 +1086,7 @@ function global:Update-AsyncJob {
 
     # check TSM for running asyncJobs started by others
     # this step returns all running jobs: dupes removed by Watch-AsyncJob
-    $asyncJobs = Get-AsyncJob -Status "Running" | Where-Object {$_.id -notin $watchlist.id}
+    $asyncJobs = Get-AsyncJob -Status "Running" | Where-Object {$_.id -notin $watchlist.id -and $_.jobType -notin $global:tsmApiConfig.Async.DontWatchExternalJobType}
     foreach ($asyncJob in $asyncJobs) {
         Watch-AsyncJob $asyncJob.Id -Add -Source "External Service/Person"
     }
@@ -1090,7 +1120,7 @@ function global:Wait-AsyncJob {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$true)][string]$Context,
+        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
         [Parameter(Mandatory=$false)][int]$IntervalSeconds = 15,
         [Parameter(Mandatory=$false)][int]$TimeoutSeconds = 300,
         [Parameter(Mandatory=$false)][int]$ProgressSeconds
@@ -1232,6 +1262,54 @@ function global:Initialize-PlatformTopology {
 Set-Alias -Name ptInit -Value Initialize-PlatformTopology -Scope Global
 
 #endregion TOPOLOGY
+#region CONFIGURATION
+
+    function global:Get-ConfigurationKey {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][Alias("K")][string]$Key
+        )
+
+        $currentConfigurationVersion = Invoke-TsmApiMethod -Method "ConfigurationsRequestedVersion"
+        $value = Invoke-TsmApiMethod -Method "ConfigurationKey" -Params @($currentConfigurationVersion, $Key)
+        return $value
+    }
+
+    function global:Show-TSSslProtocols {
+
+        Write-Host+ -NoTrace "  Tableau Server SSL Protocols" -ForegroundColor DarkBlue
+
+        $sslProtocolsAll = "+SSLv2 +SSLv3 +TLSv1 +TLSv1.1 +TLSv1.2 +TLSv1.3"
+        $sslProtocols = Get-ConfigurationKey -Key "ssl.protocols"
+        $sslProtocols = $sslProtocols.PSObject.Properties.Value -replace "all",$sslProtocolsAll
+        $sslProtocols = $sslProtocols -split " " | Sort-Object
+
+        $protocols = @{}
+        foreach ($sslProtocol in $sslProtocols) {
+            $state = $sslProtocol.Substring(0,1) -eq "-" ? "Disabled" : "Enabled"
+            $protocol = $sslProtocol.Substring(1,$sslProtocol.Length-1)
+            if (!$protocols.$protocol) {
+                $protocols += @{
+                    $protocol = $state
+                }
+            }
+            else {
+                $protocols.$protocol = $state
+            }
+        }
+
+        $protocols = $protocols.GetEnumerator() | Sort-Object -Property value -Descending | Sort-Object -Property name
+
+        foreach ($protocol in $protocols) {
+            $message = "    $($protocol.name) : $($protocol.value.ToUpper())"
+            $color = $protocol.value -eq "ENABLED" ? "DarkGreen" : "DarkRed"
+            Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$color -NoSeparator
+        }
+
+    }
+
+#endregion CONFIGURATION
 #region LICENSING
 
 function global:Get-PlatformLicenses {

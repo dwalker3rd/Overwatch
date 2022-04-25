@@ -32,12 +32,12 @@ function global:Send-Message {
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
     if (IsMessagingDisabled) {
-        Write-Host+
-        Write-Host+ "Messaging DISABLED" -ForegroundColor DarkYellow -NoSeparator
-        Write-Host+ "Message from $($Message.Source) not sent" -ForegroundColor Gray -NoSeparator
-        Write-Host+
+        # Write-Host+
+        # Write-Host+ "Messaging DISABLED" -ForegroundColor DarkYellow -NoSeparator
+        # Write-Host+ "Message from $($Message.Source) not sent" -ForegroundColor Gray -NoSeparator
+        # Write-Host+
         Write-Log -EntryType "Warning" -Action "Send-Message" -Target $Message.Source -Message "Messaging disabled" -Force
-        return
+        return "Disabled"
     }
 
     Get-Provider | Where-Object {$_.Category -eq 'Messaging'} | ForEach-Object {
@@ -46,7 +46,7 @@ function global:Send-Message {
         }
     }
 
-    return
+    return # "Sent"
     
 }
 
@@ -143,15 +143,13 @@ function global:Send-PlatformStatusMessage {
         Title = $global:Product.TaskName
         Text = $global:Product.Description
         Type = $MessageType
-        Summary = "Current status for $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) is $($PlatformStatus.RollupStatus.ToUpper())"
-        Subject = "Current status for $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) is $($PlatformStatus.RollupStatus.ToUpper())"
+        Summary = "Overwatch $MessageType`: $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) is $($PlatformStatus.RollupStatus.ToUpper())"
+        Subject = "Overwatch $MessageType`: $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) is $($PlatformStatus.RollupStatus.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
         Source = "Send-PlatformStatusMessage"
     }
 
-    Send-Message -Message $msg
-
-    return
+    return Send-Message -Message $msg
 
 }
 
@@ -210,9 +208,7 @@ function global:Send-AsyncJobMessage {
         Source = "Send-AsyncJobMessage"
     }
 
-    Send-Message -Message $msg
-
-    return
+    return Send-Message -Message $msg
 
 }
 
@@ -261,15 +257,13 @@ function global:Send-TaskMessage {
         Title = $task.Name
         Text = $(Get-Product -Id $task.ProductId).Description 
         Type = $MessageType
-        Summary = "Status of $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($Status.ToUpper())"
-        Subject = "Status of $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($Status.ToUpper())"
+        Summary = "Overwatch $MessageType`: $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)) is $($Status.ToUpper())"
+        Subject = "Overwatch $MessageType`: $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)) is $($Status.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
         Source = "Send-TaskMessage"
     }
 
-    Send-Message -Message $msg
-
-    return
+    return Send-Message -Message $msg
 
 }
 
@@ -331,15 +325,13 @@ function global:Send-PlatformEventMessage {
         Title = $global:Product.TaskName
         Text = $global:Product.Description
         Type = $MessageType
-        Summary = "$($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) $($PlatformStatus.Event.ToUpper()) $($be) $($PlatformStatus.EventStatus.ToUpper())"
-        Subject = "$($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) $($PlatformStatus.Event.ToUpper()) $($be) $($PlatformStatus.EventStatus.ToUpper())"
+        Summary = "Overwatch $MessageType`: $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) $($PlatformStatus.Event.ToUpper()) $($be) $($PlatformStatus.EventStatus.ToUpper())"
+        Subject = "Overwatch $MessageType`: $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) $($PlatformStatus.Event.ToUpper()) $($be) $($PlatformStatus.EventStatus.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
         Source = "Send-PlatformEventMessage"
     }
 
-    Send-Message -Message $msg
-
-    return
+    return Send-Message -Message $msg
 
 }
 
@@ -458,9 +450,7 @@ function global:Send-LicenseMessage {
         Source = "Send-LicenseMessage"
     }
 
-    Send-Message -Message $msg
-
-    return
+    return Send-Message -Message $msg
 
 }
 
@@ -511,14 +501,12 @@ function global:Send-ServerStatusMessage {
         Text = $monitor.Description
         Sections = $sections
         Type = $Level
-        Summary = "$($OS.DisplayName) $($Event) $($Status) on $($serverInfo.DisplayName)"
-        Subject = "$($OS.DisplayName) $($Event) $($Status) on $($serverInfo.DisplayName)"
+        Summary = "Overwatch $MessageType`: $($OS.DisplayName) $($Event) $($Status) on $($serverInfo.DisplayName)"
+        Subject = "Overwatch $MessageType`: $($OS.DisplayName) $($Event) $($Status) on $($serverInfo.DisplayName)"
         Throttle = $NoThrottle ? [timespan]::Zero : [timespan]::Zero
         Source = "Send-ServerStatusMessage"
     }
 
-    Send-Message -Message $msg
-
-    return
+    return Send-Message -Message $msg
 
 }

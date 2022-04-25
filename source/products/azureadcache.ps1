@@ -26,10 +26,10 @@ $global:Product = @{Id="AzureADCache"}
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $status = "Aborted"
-        $message = "$($Product.Id) $($status.ToLower()) because server $(($serverStatus -split ".")[0].ToUpper()) is $(($serverStatus -split ".")[1].ToUpper())"
-        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        $message = "$($global:Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
+        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
@@ -38,28 +38,28 @@ $global:Product = @{Id="AzureADCache"}
     # abort if platform is stopped or if a platform event is in progress
     if ($platformStatus.IsStopped -or ($platformStatus.Event -and !$platformStatus.EventHasCompleted)) {
         $status = "Aborted"
-        $message = "$($Product.Id) $($status.ToLower()) because platform $($Platform.Event.ToUpper()) is $($Platform.EventStatus.ToUpper()) on $($Platform.Name)"
-        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        $message = "$($global:Product.Id) $($status.ToLower()) because platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
+        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
     # abort if platform status is not ok
     If (!$platformStatus.IsOK) {
         $status = "Aborted"
-        $message = "$($Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
-        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        $message = "$($global:Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
+        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
     }
 
 #endregion SERVER/PLATFORM CHECK
 
-$emptyString = ""
-$tenantKey = "pathseattle"
+# Send-TaskMessage -Id $($global:Product.Id)
 
+$tenantKey = "pathseattle"
 $action = $null; $target = $null; $status = $null
 try {
 

@@ -124,6 +124,8 @@ function global:Connect-AzureAD {
 
     # request token
     $response = Invoke-RestMethod @restParams
+
+    #TODO: try/catch for expired secret with critical messaging
     
     # headers
     $global:AzureAD.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
@@ -311,6 +313,8 @@ function global:Reset-AzureADUserPassword {
         `n}"
         
         $response = Invoke-RestMethod "https://graph.microsoft.com/beta/users/$($azureADUser.userPrincipalName)/authentication/passwordMethods/$($passwordAuthenticationMethod.value.id)/resetPassword" -Method POST -Headers $headers -Body $body
+
+        #TODO: try/catch for expired secret with critical messaging
 
     #endregion RESET PASSWORD
 
@@ -548,18 +552,26 @@ function global:Get-AzureADObjects {
 
             $azureADObjects,$cacheError = Read-AzureADCache -Tenant $tenantKey -Type $Type
             if (!$azureADObjects) {
+
+                # cache is empty, clear delta flag to get all/full data
                 $Delta = $false
-            }
-            switch ($Type) {
-                "Users" {
-                    if ($azureADObjects.GetType().FullName -ne "System.Collections.Hashtable") {
-                        $cacheError = @{code = "CORRUPTED"; summary = "$($cache) cache object is not 'System.Collections.Hashtable'";}
-                        Write-Log -Action "ReadAzureADCache" -Target $cache -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
-                        $Delta = $false
-                    }
-                }
+
+                # azureADObjects is empty, but it may be an empty string (hack in Read-AzureADCache)
+                # reinit azureADObjects to be an empty hashtable
+                $azureADObjects = @{}
+
             }
 
+            # i think this issue was part of passing multiple values back from Read-AzureADCache incorrectly
+            # switch ($Type) {
+            #     "Users" {
+            #         if ($azureADObjects.GetType().FullName -ne "System.Collections.Hashtable") {
+            #             $cacheError = @{code = "CORRUPTED"; summary = "$($cache) cache object is not 'System.Collections.Hashtable'";}
+            #             Write-Log -Action "ReadAzureADCache" -Target $cache -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
+            #             $Delta = $false
+            #         }
+            #     }
+            # }
 
         }
 
@@ -940,7 +952,7 @@ function global:Read-AzureADCache {
 
     }
     else {
-        $cacheError = @{code = "NOTFOUND"; summary = "$($cache) not found";}
+        $cacheError = @{code = "ISEMPTY"; summary = "$($cache.ToUpper()) cache ISEMPTY";}
     }
 
     if (!$azureADObject -and !$After) {
@@ -951,6 +963,13 @@ function global:Read-AzureADCache {
     #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
     # }
 
+    # returning multiple values from function
+    # if azureADObject is empty/null, then cache error is returned in the first instead of second slot
+    # if azureADObject is empty/null, stuff something in it to keep the cache error in the second slot
+    if (!$azureADObject) {
+        $azureADObject = $emptyString
+        $AsArray = $false
+    }
     return ($AsArray ? ($azureADObject.values | Select-Object -Property *) : $azureADObject), $cacheError
 
 }

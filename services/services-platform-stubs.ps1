@@ -202,6 +202,7 @@
         [CmdletBinding()]
         param(
             [Parameter(Mandatory=$true,Position=0)][string]$Id,
+            [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
             [Parameter(Mandatory=$false)][int]$IntervalSeconds = 15,
             [Parameter(Mandatory=$false)][int]$TimeoutSeconds = 300,
             [Parameter(Mandatory=$false)][int]$ProgressSeconds
