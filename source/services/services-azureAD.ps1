@@ -1,90 +1,34 @@
-function global:Initialize-AzureAD {
+function global:Get-AzureADTenantKeys {
 
-    $global:AzureAD = @()
-    $global:AzureAD += @{
+    [CmdletBinding()]
+    param(
+        [switch]$All,
+        [switch]$AzureAD,
+        [switch]$AzureADB2C
+    )
 
-        Data = "$($global:Location.Root)\data\azureAD"
-        SpecialGroups = @("All Users", "All Domain Users")
+    if ($All -and $AzureAD) {
+        throw "The `"All`" switch cannot be used with the `"AzureAD`" switch"
+    }
+    if ($All -and $AzureADB2C) {
+        throw "The `"All`" switch cannot be used with the `"AzureADB2C`" switch"
+    }
+    if ($AzureAD -and $AzureADB2C) {
+        throw "The `"AzureAD`" and `"AzureADB2C`" switches cannot be used together"
+    }
+    if (!$AzureAD -and !$AzureADB2C) { $All = $true }
 
-        myAzureADTenant = @{
-            Name = ""
-            Prefix = ""
-            DisplayName = " "
-            Organization = ""
-            Subscription = @{
-                Id = ""
-                Name = ""
-            }
-            Tenant = @{
-                Type = ""
-                Id = ""
-                Name = ""
-                Domain = @("")
-            }
-            MsGraph = @{
-                Scope = "https://graph.microsoft.com/.default"
-                Credentials = "" # app id/secret
-                AccessToken = $null
-            }
-            Sync = @{
-                Enabled = $true
-                Source = ""
-            }
-        }
-
-        myAzureADB2CTenant = @{
-            Name = ""
-            Prefix = ""
-            DisplayName = ""
-            Organization = ""
-            Subscription = @{
-                Id = ""
-                Name = ""
-            }
-            Tenant = @{
-                Type = "Azure AD B2C"
-                Id = ""
-                Name = ""
-                Domain = @("")
-            }
-            MsGraph = @{
-                Scope = "https://graph.microsoft.com/.default"
-                Credentials = "" # app id/secret
-                AccessToken = $null
-            }
-            Admin = @{
-                Credentials = ""
-            }
-            Defaults = @{
-                Location = ""
-                Bastion = @{ Name = @{ Template = "<0><1>bastion" } }
-                ResourceGroup = @{Name = @{ Template = "<0>-<1>-rg" } }
-                StorageAccount = @{
-                    SKU = "Standard_LRS"
-                    Name = @{ Template = "<0><1>storage" }
-                    SoftDelete = @{
-                        Enabled = $true
-                        RetentionDays = 7
-                    }
-                    Permission = "Off"
-                }
-                VM = @{
-                    Name = @{ Template = "<0><1>vm<2>" }
-                    Size = "Standard_DS13_v2"
-                    OsType = "Windows"
-                    Admin = @{ Template = "<0><1>adm" }
-                }
-                MLWorkspace = @{ Name = @{ Template = "<0><1>mlws<2>" } }
-                CosmosDBAccount = @{  Name = @{ Template = "<0><1>cosmos<2>"  } }
-                SqlVM = @{ Name = @{ Template = "<0><1>sqlvm<2>" } }
-                KeyVault = @{ Name = @{ Template = "<0><1>-kv" } }
-                DataFactory = @{ Name = @{ Template = "<0><1>-adf" } }
-            }
+    $tenantKeys = @()
+    $tenantKeys = foreach ($key in $global:AzureAD.Keys) {
+        if (![string]::IsNullOrEmpty($global:AzureAD.$key.Tenant)) {
+            if ($AzureAD -and $global:AzureAD.$key.Tenant.Type -eq "Azure AD") { $key }
+            if ($AzureADB2C -and $global:AzureAD.$key.Tenant.Type -eq "Azure AD B2C") { $key }
+            if ($All) { $key }
         }
     }
+    return $tenantKeys
 
 }
-Set-Alias -Name azureADInit -Value Initialize-AzureAD -Scope Global
 
 function global:Connect-AzureAD {
 
@@ -153,20 +97,26 @@ function global:Invoke-AzureADRestMethod {
     }
 
     $retry = $false
-    $response = $null
+    $response = @{ error = @{} }
     try {
         $response = Invoke-RestMethod @params
     }
     catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-        $errorCode = ((get-error).ErrorDetails | ConvertFrom-Json).error.code
-        if ($errorCode -eq "InvalidAuthenticationToken") {
+        $response.error = ((get-error).ErrorDetails | ConvertFrom-Json).error
+        if ($response.error.code -eq "InvalidAuthenticationToken") {
             Connect-AzureAD -tenant $tenantKey
             $params.Headers.Authorization = $global:AzureAD.$tenantKey.MsGraph.AccessToken
             $retry = $true
         }
     }
     if ($retry) {
-        $response = Invoke-RestMethod @params
+        $response = @{ error = @{} }
+        try {
+            $response = Invoke-RestMethod @params
+        }
+        catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+            $response.error = ((get-error).ErrorDetails | ConvertFrom-Json).error
+        }
     }
 
     return $response
@@ -188,7 +138,6 @@ function global:Get-AzureADUser {
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
-
 
     $isUserId = $User -match $global:RegexPattern.Guid
     $isGuestUserPrincipalName = $User -match $global:RegexPattern.AzureAD.UserPrincipalName -and $User -like "*#EXT#*"
@@ -220,6 +169,17 @@ function global:Get-AzureADUser {
 
     $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method GET -Headers $headers
     $azureADUser = $filter ? $response.value : $response
+
+    # if $User can't be found in the mail or userPrincipalName properties, check the Identities collection
+    if (!$azureADUser) {
+        $filter = "identities/any(c:c/issuerAssignedId eq '$User' and c/issuer eq '$($global:AzureAD.$tenantKey.Tenant.Name)')"
+        $restParams.Uri = "https://graph.microsoft.com/$graphApiVersion/users?`$filter=$filter"
+        $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method GET -Headers $headers
+        $azureADUser = $response.value
+        # $azureADB2CUserIdentity = $azureADUser.identities | where-object {$_.issuer -eq $global:AzureAD.$tenantKey.Tenant.Name -and $_.signInType -eq "emailAddress"}
+        # $azureADUser | Add-Member -NotePropertyName issuer -NotePropertyValue $azureADB2CUserIdentity.issuer
+        # $azureADUser | Add-Member -NotePropertyName issuerAssignedId -NotePropertyValue $azureADB2CUserIdentity.issuerAssignedId
+    }
 
     return $azureADUser | Select-Object -Property $($View ? $AzureADView.User.$($View) : $AzureADView.User.Default)
      
@@ -325,6 +285,70 @@ function global:Reset-AzureADUserPassword {
      
 }
 
+function global:Update-AzureADUserProperty {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][object]$User,
+        [Parameter(Mandatory=$true)][string]$Property,
+        [Parameter(Mandatory=$true)][string]$Value,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'PATCH'
+        Uri = $uri
+        body = "{
+            `n    `"$Property`" : $Value
+            `n}"
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
+    $response | Out-Null
+
+    return
+
+}
+
+function global:Disable-AzureADUser {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][object]$User,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
+    )
+
+    Update-AzureADUserProperty -Tenant $Tenant -User $User -Property accountEnabled -Value false
+
+    return
+}
+
+function global:Enable-AzureADUser {
+    
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][object]$User,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
+    )
+
+    Update-AzureADUserProperty -Tenant $Tenant -User $User -Property accountEnabled -Value true
+
+    return
+}
+
 function global:Get-AzureADUser+ {
 
     [CmdletBinding()]
@@ -358,7 +382,9 @@ function global:Get-AzureADUser+ {
         $azureADUser | Add-Member -NotePropertyName tenant -NotePropertyValue $global:AzureAD.$tenantKey.Tenant
     }
 
-    return $azureADUser | Select-Object -Property $($View ? $AzureADView.User.$($View) : $AzureADView.User.Plus)
+    $defaultView = ![string]::IsNullOrEmpty($azureADUser.issuer) ? $AzureADView.User.PlusWithIdentities : $AzureADView.User.Plus
+
+    return $azureADUser | Select-Object -Property $($View ? $AzureADView.User.$($View) : $defaultView)
 
 }
 
@@ -419,7 +445,7 @@ function global:Get-AzureADUserMembership {
 
 function global:Send-AzureADInvitation {
 
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$false)][string]$Email,
@@ -457,30 +483,79 @@ function global:Send-AzureADInvitation {
         Method = 'POST'
         Uri = $uri
     }
-        
-    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method POST -Headers $headers -Body $body
-    
-    return $response
+
+    if ($PSCmdlet.ShouldProcess($Email, "Send invitation to '{0}'")) {
+        $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method POST -Headers $headers -Body $body
+        return $response
+    }
+    else {
+        return
+    }
 
 }
-
 
 function global:Update-AzureADUserEmail {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true,ValueFromPipeline)][object]$AzureADUser
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][object]$User,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
 
-    if (!($AzureADUser | Get-Member -Name "mail" -Membertype Properties)) {
-        $AzureADUser | Add-Member -NotePropertyName "mail" -NotePropertyValue "."
+    $mailOriginal = $User.mail ?? "None"
+
+    $mail = ($User.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
+    if ($mail.Count -gt 1) {
+        throw "User $($User.userPrincipalName) has multiple identities with multiple email addresses."
+        return $User
+    }
+    if ($mail.Count -eq 0) {
+        return $User
     }
 
-    if ($AzureADUser.mail -notmatch $global:RegexPattern.Mail) {
-        $AzureADUser.mail = $AzureADUser.userPrincipalName -match $global:RegexPattern.Mail -and $AzureADUser.userPrincipalName -notmatch $global:RegexPattern.AzureAD.MailFromGuestUserUPN ? $Matches[0] : ($AzureADUser.userPrincipalName -match $global:RegexPattern.AzureAD.MailFromGuestUserUPN ? "$($Matches[1])@$($Matches[2])" : $null)
+    # Update user in Azure AD B2C
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'PATCH'
+        Uri = $uri
+        body = "{
+            `n    `"mail`" : `"$mail`"
+            `n}"
     }
 
-    return $AzureADUser
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
+
+    $status = $null
+    $message = $null
+    if ($response.error) { 
+        $status = "Failure"
+        $entryType = "Error"
+        if ($response.error.details.code -contains "ObjectConflict") {
+            $status = "Conflict"
+            $message = ($response.error.details | Where-Object {$_.code -eq "ObjectConflict"}).message
+            $entryType = "Warning"
+        }
+    }
+    else {
+        $response = Get-AzureADUser -Tenant $tenantKey -User $User.id
+        $status = $response.mail -eq $mail ? "Success" : "Failure"
+        $message = "$mailOriginal > $($response.mail)"
+        $entryType = $status -eq "Success" ? "Information" : "Error"
+    }
+    Write-Log -Action "UpdateAzureADUserEmail" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
+
+    return $response
 
 }
 
@@ -505,7 +580,7 @@ function global:Get-AzureADObjects {
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $AzureADB2C = $azureAD.$($tenantKey).tenant.type -eq "Azure AD B2C"
-    if ($AzureADB2C -and $Delta) {throw "Delta switch is not valid for $($azureAD.$($tenantKey).tenant.type) tenants."}
+    if ($AzureADB2C -and $Delta) {$Delta = $false} # Delta switch not valid for Azure AD B2C tenants
 
     # $typeTitleCase = (Get-Culture).TextInfo.ToTitleCase($Type)
     $typeLowerCase = $Type.ToLower()
@@ -578,7 +653,7 @@ function global:Get-AzureADObjects {
     #endregion AZUREADOBJECTS CACHE
     #region AZUREADOBJECTS UPDATES
         
-        [console]::CursorVisible = $false
+        Set-CursorInvisible
             
         $message = "$($Delta ? "Processing" : "Getting") $typeLowerCaseSingular updates"
         Write-Host+ -NoTrace -NoNewLine -NoSeparator $message,(Write-Dots -Length 48 -Adjust (-($message.Length))) -ForegroundColor Gray,DarkGray -Prefix "`r"
@@ -697,7 +772,7 @@ function global:Get-AzureADObjects {
 
         Write-Host+
 
-        [console]::CursorVisible = $true
+        Set-CursorVisible
 
         if (!$NoCache -or $AzureADB2C) {
 

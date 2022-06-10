@@ -66,12 +66,12 @@ function global:Uninstall-Product {
 
     $productToUninstall = Get-Product $Context
     $Name = $productToUninstall.Name 
-    $Vendor = $productToUninstall.Vendor
+    $Publisher = $productToUninstall.Publisher
 
-    $message = "    $Name$($emptyString.PadLeft(20-$Name.Length," "))$Vendor$($emptyString.PadLeft(20-$Vendor.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+    $message = "    $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
     Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
 
-    if (Test-Path -Path $PSScriptRoot\uninstall\uninstall-product-$($productToUninstall.Id).ps1) {. $PSScriptRoot\uninstall\uninstall-product-$($productToUninstall.Id).ps1}
+    if (Test-Path -Path $PSScriptRoot\uninstall-product-$($productToUninstall.Id).ps1) {. $PSScriptRoot\uninstall-product-$($productToUninstall.Id).ps1}
 
     Write-Host+
 
@@ -86,12 +86,12 @@ function global:Uninstall-Provider {
 
     $providerToUninstall = Get-Provider $ProviderName
     $Name = $providerToUninstall.Name 
-    $Vendor = $providerToUninstall.Vendor
+    $Publisher = $providerToUninstall.Publisher
 
-    $message = "    $Name$($emptyString.PadLeft(20-$Name.Length," "))$Vendor$($emptyString.PadLeft(20-$Vendor.Length," "))","PENDING"
+    $message = "    $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING"
     Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
     
-    if (Test-Path -Path $PSScriptRoot\uninstall\uninstall-provider-$($providerToUninstall.Id).ps1) {. $PSScriptRoot\uninstall\uninstall-provider-$($providerToUninstall.Id).ps1}
+    if (Test-Path -Path $PSScriptRoot\uninstall-provider-$($providerToUninstall.Id).ps1) {. $PSScriptRoot\uninstall-provider-$($providerToUninstall.Id).ps1}
 
     Write-Host+
 
@@ -136,7 +136,6 @@ function global:Uninstall-Provider {
             $message = "    -------             ------              ----                ------"
             Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
 
-
             $global:Environ.Product | ForEach-Object {Uninstall-Product $_}
             
             Write-Host+
@@ -147,7 +146,7 @@ function global:Uninstall-Provider {
         #endregion PRODUCTS        
         # region PLATFORM
 
-            $message = "  Configuring $($Platform.Name) platform : PENDING"
+            $message = "  Deconfiguring $($Platform.Name) platform : PENDING"
             Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
 
             Uninstall-Platform

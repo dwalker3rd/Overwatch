@@ -10,6 +10,11 @@ switch ($PSVersionTable.PSVersion.Major) {
     . $definitionsPath\classes.ps1
 
 #endregion CLASSES
+#region CATALOG
+
+    . $definitionsPath\catalog.ps1
+
+#endregion CATALOG
 #region ENVIRON
 
     . $PSScriptRoot\environ.ps1

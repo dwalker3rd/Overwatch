@@ -2,142 +2,8 @@
 
 #region STATUS
 
-function global:Get-TableauServerStatus {
-
-    [CmdletBinding()] 
-    param (
-        [switch]$ResetCache,
-        [switch]$NoCache
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $tableauServerStatus = $null
-
-    $action = "Read-Cache"
-    $target = "clusterstatus"
-    $attemptMessage = ""
-
-    if ((get-cache clusterstatus).Exists() -and !$ResetCache -and !$NoCache) {
-        
-        Write-Debug "$($action) $($target): Pending"
-
-        # need to cache for back-to-back calls, but ... MaxAge should be as short as possible
-        $tableauServerStatus = Read-Cache clusterstatus -MaxAge $(New-TimeSpan -Seconds 5)
-
-        if ($tableauServerStatus) {
-            
-            Write-Debug "$($action) $($target): Success"
-
-            return $tableauServerStatus
-
-        }
-        else {
-
-            Write-Debug "$($action) $($target): Cache empty or expired"
-
-        }
-    }
-    
-    $attempt = 1
-    $maxAttempts = 3
-    $sleepSeconds = 5
-
-    $action = "Query"
-    $target = "TSM API"
-    $attemptMessage = "Attempt #<0>"
-
-    do {
-
-        Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Pending"
-        
-        try {
-
-            # Invoke-TsmApiMethod (1st attempt)
-            $tableauServerStatus = Invoke-TsmApiMethod -Method "ClusterStatus"
-
-            Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Success"
-
-        }
-        catch {
-
-            if ($attempt -eq $maxAttempts) {
-                Write-Error -Message $_.Exception
-                Write-Error "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure"
-                Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
-                Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
-            }
-
-            # give the TSM API a moment to think it over
-            Write-Debug "Waiting $($sleepSeconds) before retrying ... "
-            Start-Sleep -Seconds $sleepSeconds
-
-        }
-
-        $attempt++
-        
-    } until ($tableauServerStatus -or $attempt -gt $maxAttempts)
-
-    if ($tableauServerStatus) {
-        
-        # if Tableau Server's rollupStatus is DEGRADED
-        if ($tableauServerStatus.rollupStatus -eq "Degraded") {
-
-            # modify the rollupStatus of services with the following serviceNames and instance.messages
-            # TODO: convert this to rules-based logic (using a CSV file)
-            foreach ($nodeId in $tableauServerStatus.nodes.nodeId) { 
-                $node = Get-PlatformTopologyAlias $nodeId
-                foreach ($service in ($tableauServerStatus.nodes | Where-Object {$_.nodeid -eq $nodeId}).services) { 
-                    foreach ($instance in $service.instances) {
-                        switch ($service.serviceName) {
-                            "backgrounder" {
-                                if ($instance.message -like "Error opening named pipe*") {
-                                    $instance.message = "Scheduled restart"
-                                    $service.rollupStatus = "Running"
-                                }
-                            }
-                            "clientfileservice" {
-                                if ($instance.processStatus -eq "StatusUnavailable") {
-
-                                    $installPath = $global:Platform.InstallPath -replace ":","$"
-                                    $path = "\\$node\$installPath\data\tabsvc\logs\clientfileservice\clientfileservice_$nodeId-0.log"
-                                    $pattern = "java.lang.RuntimeException: "
-                                    $match = select-string -path $path -pattern $pattern
-                                    $message = ($match[-1] -split $pattern)[-1]
-                                    $instance | Add-Member -NotePropertyName "message" -NotePropertyValue $message
-
-                                    # $cimSession = New-CimSession -ComputerName $node
-                                    # $clientFileService = Get-CimInstance -ClassName "Win32_Service" -CimSession $cimSession -Property * | Where-Object {$_.Name -eq "clientfileservice_0"}
-                                    # $clientFileService | Invoke-CimMethod -Name "StopService" 
-                                    # $clientFileService | Invoke-CimMethod -Name "StartService"
-                                    # Remove-CimSession $cimSession
-
-                                    # $service.rollupStatus = "Running"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            # enabled services (other than those excluded above) with a DEGRADED rollupStatus
-            $tableauServerServicesNotOK = $tableauServerStatus.nodes.services | 
-                Where-Object {$_.rollupRequestedDeploymentState -eq "Enabled" -and !$PlatformStatusOK.Contains($_.rollupStatus)}
-            # if there are no enabled services (other than those excluded above) with a DEGRADED status, then change Tableau Server's rollupStatus to RUNNING
-            if (!$tableauServerServicesNotOK) {
-                $tableauServerStatus.rollupStatus = "Running"
-            }
-
-        }    
-        $tableauServerStatus | Write-Cache "clusterstatus"
-    }
-
-    return $tableauServerStatus
-
-}
-
 function global:Get-PlatformStatusRollup {
-    
+        
     [CmdletBinding()]
     param (
         [switch]$NoCache
@@ -181,8 +47,6 @@ function global:Show-PlatformStatus {
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
-
-
 function global:Build-StatusFacts {
 
     [CmdletBinding()]
@@ -218,14 +82,40 @@ function global:Build-StatusFacts {
 
 function global:Get-PlatformInfo {
 
-    [CmdletBinding()]
-    param (
-        [switch][Alias("Update")]$ResetCache
-    )
+[CmdletBinding()]
+param (
+    [switch][Alias("Update")]$ResetCache
+)
 
-    $serverInfo = Get-TSServerInfo -Update
-    $global:Platform.DisplayName = $global:Platform.Name + " " + $serverInfo.productVersion.InnerText
-    return
+if (!$ResetCache) {
+    if ($(get-cache platforminfo).Exists()) {
+        $platformInfo = Read-Cache platforminfo 
+        if ($platformInfo) {
+            $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
+            $global:Platform.Version = $platformInfo.Version
+            $global:Platform.Build = $platformInfo.Build
+            $global:Platform.DisplayName = $global:Platform.Name + " " + $platformInfo.Version
+            return
+        }
+    }
+}
+
+$serverInfo = Get-TSServerInfo
+
+$global:Platform.Api.TsRestApiVersion = $serverinfo.restApiVersion
+$global:Platform.Version = $serverinfo.productVersion.InnerText
+$global:Platform.Build = $serverinfo.productVersion.build
+$global:Platform.DisplayName = $global:Platform.Name + " " + $global:Platform.Version
+
+$platformInfo = @{
+    Version=$global:Platform.Version
+    Build=$global:Platform.Build
+    TsRestApiVersion=$global:Platform.Api.TsRestApiVersion
+}
+
+$platformInfo | Write-Cache platforminfo
+
+return
 
 }
 
@@ -234,165 +124,166 @@ function global:Get-PlatformInfo {
 
 function global:Get-PlatformService {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
-        [Parameter(Mandatory=$false)][string]$View,
-        [switch]$ResetCache
-    )
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+    [Parameter(Mandatory=$false)][string]$View,
+    [switch]$ResetCache
+)
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    if ($(get-cache platformservices).Exists() -and !$ResetCache) {
-        Write-Debug "Read-Cache platformservices"
-        $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
-        if ($platformServicesCache) {
-            $platformServices = $platformServicesCache
-            return $platformServices
-        }
+if ($(get-cache platformservices).Exists() -and !$ResetCache) {
+    Write-Debug "Read-Cache platformservices"
+    $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
+    if ($platformServicesCache) {
+        $platformServices = $platformServicesCache
+        return $platformServices
     }
-    
-    $platformTopology = Get-PlatformTopology
-    $tableauServerStatus = Get-TableauServerStatus
+}
 
-    Write-Debug "Processing PlatformServices"
-    if ($tableauServerStatus) {
-        $platformServices = 
-            foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
-                $node = $platformTopology.Alias.$nodeId                   
-                $services = ($tableauServerStatus.nodes | Where-Object {$_.nodeid -eq $nodeId}).services
-                $services | Foreach-Object {
-                    $service = $_
-                    @(
-                        [PlatformCim]@{
-                            Name = $service.ServiceName
-                            DisplayName = $service.ServiceName
-                            Class = "Service"
-                            Node = $node
-                            Required = $service.rollupRequestedDeploymentState -eq "Enabled"
-                            Status = $service.rollupStatus
-                            StatusOK = @("Active","Running")
-                            IsOK = @("Active","Running").Contains($service.rollupStatus)
-                            Instance = $service.instances
-                        }
-                    )
-                }
+$platformTopology = Get-PlatformTopology
+$tableauServerStatus = Get-TableauServerStatus
+
+Write-Debug "Processing PlatformServices"
+if ($tableauServerStatus) {
+    $platformServices = 
+        foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
+            $node = $platformTopology.Alias.$nodeId                   
+            $services = ($tableauServerStatus.nodes | Where-Object {$_.nodeid -eq $nodeId}).services
+            $services | Foreach-Object {
+                $service = $_
+                @(
+                    [PlatformCim]@{
+                        Name = $service.ServiceName
+                        DisplayName = $service.ServiceName
+                        Class = "Service"
+                        Node = $node
+                        Required = $service.rollupRequestedDeploymentState -eq "Enabled"
+                        Status = $service.rollupStatus
+                        StatusOK = @("Active","Running")
+                        IsOK = @("Active","Running").Contains($service.rollupStatus)
+                        Instance = $service.instances
+                    }
+                )
             }
-    }      
+        }
+}      
 
-    Write-Debug "Write-Cache platformservices"
-    $platformServices | Write-Cache platformservices
+Write-Debug "Write-Cache platformservices"
+$platformServices | Write-Cache platformservices
 
-    return $platformServices | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
+return $platformServices | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
 }
 
 function global:Request-Platform {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
-        [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason = "$Command requested."
-    )
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
+    [Parameter(Mandatory=$false)][string]$Context = "Command",
+    [Parameter(Mandatory=$false)][string]$Reason = "$Command requested."
+)
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    Write-Host+
-    Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
-    $message = "  Command : $($Command.ToUpper())"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
-    $message = "  Reason : $Reason"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkBlue
+Write-Host+
+Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
+$message = "  Command : $($Command.ToUpper())"
+Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
+$message = "  Reason : $Reason"
+Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkBlue
 
-    Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
+Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
 
-    $commandStatus = $PlatformEventStatus.InProgress
-    Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
+$commandStatus = $PlatformEventStatus.InProgress
+Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
+
+# preflight checks
+if ($Command -eq "Start") {
+    Update-Preflight
+}
+
+try {
+
+    $asyncJob = Invoke-TsmApiMethod -Method $Command
+    Watch-AsyncJob -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
+    $asyncJob = Wait-AsyncJob -Id $asyncJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
+
+    if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
+        $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
+        Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
+        throw
+    } 
+    elseif ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
+        $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) was $($asyncJob.status). $($asyncJob.errorMessage)"
+        Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
+    }
+    elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
+        $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
+        Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
+    }
+
+    $commandStatus = $PlatformEventStatus.Completed
 
     # preflight checks
     if ($Command -eq "Start") {
-        Update-Preflight
+        Confirm-PostFlight
     }
+}
+catch {
+    $commandStatus = $PlatformEventStatus.Failed
+}
 
-    try {
+Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
 
-        $asyncJob = Invoke-TsmApiMethod -Method $Command
-        Watch-AsyncJob -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
-        $asyncJob = Wait-AsyncJob -Id $asyncJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
+$message = "  $($Command.ToUpper()) : $($commandStatus.ToUpper())"
+Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
+Write-Host+
 
-        if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
-            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
-            throw
-        } 
-        elseif ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
-            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) was $($asyncJob.status). $($asyncJob.errorMessage)"
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
-        }
-        elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
-            $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
-        }
+Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
 
-        $commandStatus = $PlatformEventStatus.Completed
+Write-Log -Context $Context -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
 
-        # preflight checks
-        if ($Command -eq "Start") {
-            Confirm-PostFlight
-        }
-    }
-    catch {
-        $commandStatus = $PlatformEventStatus.Failed
-    }
+if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
 
-    Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
-
-    $message = "  $($Command.ToUpper()) : $($commandStatus.ToUpper())"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
-    Write-Host+
-
-    Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
-    
-    Write-Log -Context $Context -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
-    
-    if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
-
-    return
+return
 }
 
 function global:Start-Platform {
 
-    [CmdletBinding()] param (
-        [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason = "Start Platform"
-    )
+[CmdletBinding()] param (
+    [Parameter(Mandatory=$false)][string]$Context = "Command",
+    [Parameter(Mandatory=$false)][string]$Reason = "Start Platform"
+)
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    Request-Platform -Command Start -Context $Context -Reason $Reason
+Request-Platform -Command Start -Context $Context -Reason $Reason
 }
 function global:Stop-Platform {
 
-    [CmdletBinding()] param (
-        [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
-    )
+[CmdletBinding()] param (
+    [Parameter(Mandatory=$false)][string]$Context = "Command",
+    [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
+)
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    Request-Platform -Command Stop -Context $Context -Reason $Reason
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+Request-Platform -Command Stop -Context $Context -Reason $Reason
 }
 function global:Restart-Platform {
 
-    [CmdletBinding()] param ()
+[CmdletBinding()] param ()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    Stop-Platform
-    Start-Platform
+Stop-Platform
+Start-Platform
+
 }
 
 #endregion SERVICE
@@ -400,15 +291,15 @@ function global:Restart-Platform {
 
 function global:Get-PlatformProcess {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
-        [Parameter(Mandatory=$false)][string]$View,
-        [switch]$ResetCache
-    )
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+    [Parameter(Mandatory=$false)][string]$View,
+    [switch]$ResetCache
+)
 
-    Write-Debug "$($MyInvocation.MyCommand) is a STUB"
-    return
+Write-Debug "$($MyInvocation.MyCommand) is a STUB"
+return
 
 }
 
@@ -417,846 +308,281 @@ function global:Get-PlatformProcess {
 
 function global:Cleanup-Platform {
 
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
 
-    [CmdletBinding()] param(
-        [Parameter(Mandatory=$false)][timespan]$LogFilesRetention = (New-TimeSpan -Days 7)
+[CmdletBinding()] param(
+    [Parameter(Mandatory=$false)][timespan]$LogFilesRetention = (New-TimeSpan -Days 7)
+)
+
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+# Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
+# Send-TaskMessage -Id "Cleanup" -Status "Running"
+
+#region PURGE
+
+    # purge backup files
+    Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)" 
+    Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json" 
+    
+#endregion CLEANUP
+#region CLEANUP
+
+    $cleanupOptions = @(
+        $LogFilesRetention.TotalSeconds.ToString(),     # logFilesRetentionSeconds
+        "True",                                         # deleteLogFiles
+        "True",                                         # deleteTempFiles
+        "False",                                        # clearRedisCache
+        "False",                                        # deleteHttpRequests
+        "False"                                         # clearSheetImageCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    try {
 
-    # Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
-    # Send-TaskMessage -Id "Cleanup" -Status "Running"
+        # . tsm maintenance cleanup -l --log-files-retention $LogFilesRetention -t
+        $cleanupAsyncJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
+        Watch-AsyncJob -Id $cleanupAsyncJob.id -Context "Cleanup" # -Callback "Invoke-AsyncJobCallback"
 
-    #region PURGE
+        Write-Log -Context "Cleanup" -Action "Cleanup" -Target "asyncJob $($cleanupAsyncJob.id)" -Status $cleanupAsyncJob.status -Message $cleanupAsyncJob.statusMessage
+        # Write-Information "asyncJob $($cleanupAsyncJob.id): $($cleanupAsyncJob.statusMessage)"
 
-        # purge backup files
-        Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)" 
-        Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json" 
+    }
+    catch {
+
+        Write-Log -Context "Cleanup" -EntryType "Error" -Action "Cleanup" -Status "Error" -Message $_.Exception.Message
+        Write-Error "$($_.Exception.Message)"
+
+        # Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
+        # Send-TaskMessage -Id "Cleanup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
         
-    #endregion CLEANUP
-    #region CLEANUP
+    }
 
-        $cleanupOptions = @(
-            $LogFilesRetention.TotalSeconds.ToString(),     # logFilesRetentionSeconds
-            "True",                                         # deleteLogFiles
-            "True",                                         # deleteTempFiles
-            "False",                                        # clearRedisCache
-            "False",                                        # deleteHttpRequests
-            "False"                                         # clearSheetImageCache
-        )
+#endregion CLEANUP
 
-        try {
-
-            # . tsm maintenance cleanup -l --log-files-retention $LogFilesRetention -t
-            $cleanupAsyncJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
-            Watch-AsyncJob -Id $cleanupAsyncJob.id -Context "Cleanup" # -Callback "Invoke-AsyncJobCallback"
-
-            Write-Log -Context "Cleanup" -Action "Cleanup" -Target "asyncJob $($cleanupAsyncJob.id)" -Status $cleanupAsyncJob.status -Message $cleanupAsyncJob.statusMessage
-            Write-Information "asyncJob $($cleanupAsyncJob.id): $($cleanupAsyncJob.statusMessage)"
-
-        }
-        catch {
-
-            Write-Log -Context "Cleanup" -EntryType "Error" -Action "Cleanup" -Status "Error" -Message $_.Exception.Message
-            Write-Error "$($_.Exception.Message)"
-
-            # Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
-            # Send-TaskMessage -Id "Cleanup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
-            
-        }
-
-    #endregion CLEANUP
-
-    return
+return
 
 }
 
 function global:Get-BackupFileName {
 
-    $global:Backup.Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $global:Backup.File = "$($Backup.Name).$($Backup.Extension)"
+$global:Backup.Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
+$global:Backup.File = "$($Backup.Name).$($Backup.Extension)"
 
-    return $global:Backup.File
+return $global:Backup.File
 
 }
 
 function global:Backup-Platform {
 
-    [CmdletBinding()] param()
+[CmdletBinding()] param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running"
+Write-Information "Running"
+Send-TaskMessage -Id "Backup" -Status "Running"
+
+#region EXPORT-CONFIG
+
+    Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Running"
+    Write-Information "ExportConfigurationAndTopologySettings: Running"
     
-    Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running"
-    Write-Information "Running"
-    Send-TaskMessage -Id "Backup" -Status "Running"
+    try {
 
-    #region EXPORT-CONFIG
+        $response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings"
+        $response | ConvertTo-Json -Depth 99 | Out-File "$($Backup.Path)\$($Backup.File).json" 
 
-        Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Running"
-        Write-Information "ExportConfigurationAndTopologySettings: Running"
+        Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Completed"
+        Write-Information "ExportConfigurationAndTopologySettings: Completed"
+
+    }
+    catch {
+
+        Write-Log -EntryType "Warning" -Context "Backup" -Action "Export" -Target "Configuration" -Status "Error" -Message $_.Exception.Message
+        Write-Warning "ExportConfigurationAndTopologySettings: $($_.Exception.Message)"
+
+    }
+
+#endregion EXPORT-CONFIG
+#region BACKUP
+
+    try {
+
+        $backupAsyncJob = Invoke-TsmApiMethod -Method "Backup" -Params @(Get-BackupFileName)
+        Watch-AsyncJob -Id $backupAsyncJob.id -Context "Backup" # -Callback "Invoke-AsyncJobCallback"
+
+        Write-Log -Context "Backup" -Action "Backup" -Target "asyncJob $($backupAsyncJob.id)" -Status $backupAsyncJob.status -Message $backupAsyncJob.statusMessage
+        Write-Information "asyncJob $($backupAsyncJob.id): $($backupAsyncJob.statusMessage)"
+
+    }
+    catch {
+
+        Write-Log -EntryType "Error" -Action "Backup" -Status "Error" -Message $_.Exception.Message
+        Write-Error "$($_.Exception.Message)"
+
+        Send-TaskMessage -Id "Backup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
         
-        try {
+    }
 
-            $response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings"
-            $response | ConvertTo-Json -Depth 99 | Out-File "$($Backup.Path)\$($Backup.File).json" 
+#endregion BACKUP
 
-            Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Completed"
-            Write-Information "ExportConfigurationAndTopologySettings: Completed"
-
-        }
-        catch {
-
-            Write-Log -EntryType "Warning" -Context "Backup" -Action "Export" -Target "Configuration" -Status "Error" -Message $_.Exception.Message
-            Write-Warning "ExportConfigurationAndTopologySettings: $($_.Exception.Message)"
-
-        }
-
-    #endregion EXPORT-CONFIG
-    #region BACKUP
-
-        try {
-
-            $backupAsyncJob = Invoke-TsmApiMethod -Method "Backup" -Params @(Get-BackupFileName)
-            Watch-AsyncJob -Id $backupAsyncJob.id -Context "Backup" # -Callback "Invoke-AsyncJobCallback"
-
-            Write-Log -Context "Backup" -Action "Backup" -Target "asyncJob $($backupAsyncJob.id)" -Status $backupAsyncJob.status -Message $backupAsyncJob.statusMessage
-            Write-Information "asyncJob $($backupAsyncJob.id): $($backupAsyncJob.statusMessage)"
-
-        }
-        catch {
-
-            Write-Log -EntryType "Error" -Action "Backup" -Status "Error" -Message $_.Exception.Message
-            Write-Error "$($_.Exception.Message)"
-
-            Send-TaskMessage -Id "Backup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
-            
-        }
-
-    #endregion BACKUP
-
-    return
+return
 }
 
 function global:Invoke-AsyncJobCallback {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=1)][string]$Id
-    )
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true,Position=1)][string]$Id
+)
 
-    $asyncJob = Get-AsyncJob -Id $Id
-    $asyncJobProduct = Get-Product -Name $(switch ($asyncJob.jobtype) {
-            "GenerateBackupJob" { "Backup" }
-            "CleanupJob" { "Cleanup" }
-        })
+$asyncJob = Get-AsyncJob -Id $Id
+$asyncJobProduct = Get-Product -Name $(switch ($asyncJob.jobtype) {
+        "GenerateBackupJob" { "Backup" }
+        "CleanupJob" { "Cleanup" }
+    })
 
-    if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
+if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
 
-        Write-Log -EntryType "Warning" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
-        Write-Warning "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
-        Send-TaskMessage -Id $asyncJobProduct.Id -Status "Warning" -Message $asyncJob.statusMessage -MessageType $PlatformMessageType.Warning
+    Write-Log -EntryType "Warning" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
+    Write-Warning "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
+    Send-TaskMessage -Id $asyncJobProduct.Id -Status "Warning" -Message $asyncJob.statusMessage -MessageType $PlatformMessageType.Warning
 
-        return
+    return
 
-    } 
-    elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
+} 
+elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
 
-        Write-Log -EntryType "Error" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
-        Write-Error "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
-        Send-TaskMessage -Id $asyncJobProduct.Id -Status "Error" -Message $asyncJob.statusMessage -MessageType $PlatformMessageType.Alert
+    Write-Log -EntryType "Error" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
+    Write-Error "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
+    Send-TaskMessage -Id $asyncJobProduct.Id -Status "Error" -Message $asyncJob.statusMessage -MessageType $PlatformMessageType.Alert
 
-        return
+    return
 
-    } 
-    else {
+} 
+else {
 
-        Send-TaskMessage -Id $asyncJobProduct.Id -Status "Completed"
-        
-        return
-    } 
+    Send-TaskMessage -Id $asyncJobProduct.Id -Status "Completed"
+    
+    return
+} 
 }
 
 #endregion BACKUP
-#region TSMAPI
-
-function global:Initialize-TsmApiConfiguration {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false)][string]$Server, # TODO: Validate $Server
-        [switch]$ResetCache
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $global:tsmApiConfig = @{
-        Server = $Server ? $Server : "localhost"
-        Port = "8850"
-        ApiVersion = "0.5"
-        Credentials = "localadmin-$($global:Platform.Instance)"
-        Async = @{
-            Status = @{
-                Succeeded = "Succeeded"
-                Created = "Created"
-                Running = "Running"
-                Failed = "Failed"
-                Cancelled = "Cancelled"
-                Queued = "Queued"
-            } 
-            DontWatchExternalJobType = @("RebuildSearchIndex")
-        }
-    }
-    $global:tsmApiConfig.ApiUri = "https://$($global:tsmApiConfig.Server):$($global:tsmApiConfig.Port)/api/$($global:tsmApiConfig.ApiVersion)"
-    $global:tsmApiConfig.Method = @{
-        Bootstrap = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/bootstrap"
-            HttpMethod = "GET"
-            Response = @{Keys = "initialBootstrapSettings"}
-        }
-        Login = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/login"
-            HttpMethod = "POST"
-            Headers = @{"Content-Type" = "application/json"}
-            Body = @{
-                authentication = @{
-                    name = "<0>"
-                    password = "<1>"
-                }
-            } | ConvertTo-Json
-            Response = @{Keys = ""}
-        }      
-    }       
-
-    $global:tsmApiConfig.Session = New-TsmApiSession
-    $bootstrap = Invoke-TsmApiMethod -Method "Bootstrap"
-
-    $global:tsmApiConfig.Controller += $bootstrap.machineAddress
-    $global:tsmApiConfig.Server = $bootstrap.machineAddress -eq $env:COMPUTERNAME.ToLower() ? "localhost" : $bootstrap.machineAddress
-    $global:tsmApiConfig.ApiUri = "https://$($global:tsmApiConfig.Server):$($global:tsmApiConfig.Port)/api/$($global:tsmApiConfig.ApiVersion)"
-
-    $global:tsmApiConfig.Method = @{
-        Bootstrap = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/bootstrap"
-            HttpMethod = "GET"
-            Response = @{Keys = "initialBootstrapSettings"}
-        }
-        Login = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/login"
-            HttpMethod = "POST"
-            Headers = @{"Content-Type" = "application/json"}
-            Body = @{
-                authentication = @{
-                    name = "<0>"
-                    password = "<1>"
-                }
-            } | ConvertTo-Json
-            Response = @{Keys = ""}
-        }
-        Logout = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/logout"
-            HttpMethod = "POST"
-        }
-        TopologiesRequestedVersion = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/topologies/requested/version"
-            HttpMethod = "GET"
-            Response = @{Keys = "version"}
-        }
-        Topology = @{
-            Path = "/topologies/<0>"
-            HttpMethod = "GET"
-            Response = @{Keys = "topologyVersion.nodes"}
-        }
-        Nodes = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes"
-            HttpMethod = "GET"
-            Response = @{Keys = "clusterNodes.nodes"}
-        }
-        NodeInfo = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes/<0>"
-            HttpMethod = "GET"
-            Response = @{Keys = "nodeInfo"}
-        }            
-        NodeHost = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes/<0>"
-            HttpMethod = "GET"
-            Response = @{Keys = "nodeInfo.address"}
-        }
-        NodeCores = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes/<0>"
-            HttpMethod = "GET"
-            Response = @{Keys = "nodeInfo.processorCount"}
-        }
-        RepositoryNodeInfo = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/repository/currentMaster"
-            HttpMethod = "GET"
-            Response = @{Keys = "repositoryNodeInfo"}
-        }
-        ConfigurationsRequestedVersion = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/configurations/requested/version"
-            HttpMethod = "GET"
-            Response = @{Keys = "version"}
-        }
-        ConfigurationKeys = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/configurations/<0>/keys"
-            HttpMethod = "GET"
-            Response = @{Keys = "configKeys"}
-        }
-        ConfigurationKey = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/configurations/<0>/keys/<1>"
-            HttpMethod = "GET"
-            Response = @{Keys = "configKeys"}
-        }
-        ExportConfigurationAndTopologySettings = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/export?includeBinaryVersion=true"
-            HttpMethod = "GET"
-            Response = @{Keys = ""}
-        }
-        ClusterStatus = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/status"
-            HttpMethod = "GET"
-            Response = @{Keys = "clusterStatus"}
-        }
-        ProductKeys = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/licensing/productKeys"
-            HttpMethod = "GET"
-            Response = @{Keys = "productKeys.items"}
-        }
-        RebuildSearchIndex = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/reindex-search"
-            HttpMethod = "POST"
-            Response = @{Keys = "asyncJob"}
-        }
-        AsyncJob = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/asyncJobs/<0>"
-            HttpMethod = "GET"
-            Response = @{Keys = "asyncJob"}
-        }                          
-        AsyncJobs = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/asyncJobs"
-            HttpMethod = "GET"
-            Response = @{Keys = "asyncJobs"}
-        }   
-        CancelAsyncJob = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/asyncJobs/<0>/cancel"
-            HttpMethod = "PUT"
-            Response = @{Keys = "asyncJob"}
-        } 
-        Backup = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/backupFixedFile?writePath=<0>"
-            HttpMethod = "POST"
-            Response = @{Keys = "asyncJob"}
-        }
-        Cleanup = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/cleanup?logFilesRetentionSeconds=<0>&deleteLogFiles=<1>&deleteTempFiles=<2>&clearRedisCache=<3>&deleteHttpRequests=<4>&clearSheetImageCache=<5>"
-            HttpMethod = "POST"
-            Response = @{Keys = "asyncJob"}
-        }
-        Restore = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/restoreFixedFile?fixedFile=<0>"
-            HttpMethod = "POST"
-            Response = @{Keys = "asyncJob"}
-        }
-        Start = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/enable"
-            HttpMethod = "POST"
-            Response = @{Keys = "asyncJob"}
-        }
-        Stop = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/disable"
-            HttpMethod = "POST"
-            Response = @{Keys = "asyncJob"}
-        }
-    }
-
-    return
-
-}
-Set-Alias -Name tsmApiInit -Value Initialize-TsmApiConfiguration -Scope Global
-
-function global:New-TsmApiSession {
-
-    [CmdletBinding()]
-    param ()
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $creds = Get-Credentials $global:tsmApiConfig.Credentials
-    $headers = $global:tsmApiConfig.Method.Login.Headers
-    $body = $global:tsmApiConfig.Method.Login.Body.replace("<0>",$creds.UserName).replace("<1>",$creds.GetNetworkCredential().Password)
-    $path = $global:tsmApiConfig.Method.Login.Path 
-    $httpMethod = $global:tsmApiConfig.Method.Login.HttpMethod
-
-    # must assign the response from this Invoke-Method to a variable or $session does not get set
-    $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -TimeoutSec 15 -SkipCertificateCheck -SessionVariable session -Verbose:$false
-    $response | Out-Null
-    return $session
-
-}
-Set-Alias -Name tsmApiLogin -Value New-TsmApiSession -Scope Global
-
-function global:Remove-TsmApiSession {
-
-    [CmdletBinding()]
-    param()
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    return Invoke-TsmApiMethod -Method "Logout"
-
-}
-Set-Alias -Name tsmApiLogout -Value Remove-TsmApiSession -Scope Global
-
-function global:Invoke-TsmApiMethod {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Method,
-        [Parameter(Mandatory=$false,Position=1)][string[]]$Params
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $path = $global:tsmApiConfig.Method.$Method.Path 
-    $httpMethod = $global:tsmApiConfig.Method.$Method.HttpMethod
-    $keys = $global:tsmApiConfig.Method.$Method.Response.Keys
-
-    for ($i = 0; $i -lt $params.Count; $i++) {
-        $path = $path -replace "<$($i)>",$Params[$i]
-        $keys = $keys -replace "<$($i)>",$Params[$i]
-    }   
-    
-    try {
-        $response = Invoke-RestMethod $path -Method $httpMethod -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
-    }
-    catch {
-        if ($_.Exception.Response.StatusCode -eq [System.Net.HttpStatusCode]::Unauthorized) {
-            $global:tsmApiConfig.Session = New-TsmApiSession
-            $response = Invoke-RestMethod $path -Method $httpMethod -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session  -Verbose:$false
-        }
-        # else {
-        #     Write-Error -Message $_.Exception.Message
-        #     Write-Log -Context $Method -Message $_.Exception.Message -EntryType "Error" -Action Invoke-RestMethod -Target $path -Status "Failure"
-        # }
-    }
-
-    if ($keys) {
-        foreach ($key in $keys.split(".")) {
-            $response = $response.$key
-        }
-    }
-    return $response
-
-}
-Set-Alias -Name tsmApi -Value Invoke-TsmApiMethod -Scope Global
-
-function global:Get-AsyncJob {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$Status,
-        [Parameter(Mandatory=$false)][string]$Type,
-        [Parameter(Mandatory=$false)][string]$View,
-        [switch]$Latest
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    if ($Id) {
-        $asyncJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
-    }
-    else {
-        $asyncJob = Invoke-TsmApiMethod -Method "AsyncJobs"
-        if ($Status) {
-            $asyncJob = $asyncJob | Where-Object {$_.status -eq $Status}
-        }
-        if ($Type) {
-            $asyncJob = $asyncJob | Where-Object {$_.jobType -eq $Type}
-        }
-        if ($Latest) {
-            $asyncJob = $asyncJob | Sort-Object -Property updatedAt | Select-Object -Last 1
-        }
-    }
-
-    return $asyncJob # ? ($asyncJob | Select-Object -Property $($View ? $AsyncJobView.$($View) : $AsyncJobView.Default)) : $null
-}
-
-function global:Show-AsyncJob {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$Status,
-        [Parameter(Mandatory=$false)][string]$Type,
-        [Parameter(Mandatory=$false)][string]$View,
-        [switch]$Latest
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    $asyncJobs = Get-AsyncJob -Id $Id -Status $Status -Type $Type
-
-    return  $asyncJobs | Select-Object -Property $($View ? $AsyncJobView.$($View) : $AsyncJobView.Default)
-}
-
-function global:Watch-AsyncJob {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
-        [Parameter(Mandatory=$false)][string]$Source,
-        [Parameter(Mandatory=$false)][string]$Callback,
-        [switch]$Add,
-        [switch]$Update,
-        [switch]$Remove,
-        [switch]$NoEventManagement,
-        [switch]$NoMessaging
-    )
-
-    function Remove-AsyncJobFromWatchlist {
-        [CmdletBinding()]
-        param (
-            [Parameter(ValueFromPipeline)][Object]$InputObject,
-            [Parameter(Mandatory=$true,Position=0)][object]$AsyncJob,
-            [Parameter(Mandatory=$false,Position=1)][string]$Callback
-        )
-        begin {$outputObject = @()}
-        process {$outputObject += $InputObject}
-        end {return $outputObject | Where-Object {$_.id -ne $AsyncJob.id}}
-    }
-
-    function Add-AsyncJobToWatchlist {
-        [CmdletBinding()]
-        param (
-            [Parameter(ValueFromPipeline)][Object]$InputObject,
-            [Parameter(Mandatory=$true,Position=0)][object]$AsyncJob,
-            [Parameter(Mandatory=$false)][string]$Context,
-            [Parameter(Mandatory=$false)][string]$Source,
-            [Parameter(Mandatory=$false)][string]$Callback
-        )
-        begin {$outputObject = @()}
-        process {
-            if ($InputObject) {
-                $outputObject += $InputObject
-            }
-        }
-        end {
-            if ($AsyncJob.id -notin $InputObject.id) {       
-                $outputObject += [PSCustomObject]@{
-                    id = $AsyncJob.id
-                    status = $AsyncJob.status
-                    progress = $AsyncJob.progress
-                    updatedAt = $AsyncJob.updatedAt
-                    context = $Context
-                    source = $Source
-                    callback = $Callback
-                    noMessaging = $NoMessaging
-                    noEventManagement = $NoEventManagement
-                }
-            }
-            return $outputObject
-        }
-    }
-
-    $Command = "Add"
-    if ($Update) {$Command = "Update"}
-    if ($Remove) {$Command = "Remove"}
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $asyncJob = Get-AsyncJob -Id $Id
-    if (!$asyncJob) {return}
-
-    $platformEvent = switch ($asyncJob.jobType) {
-        "DeploymentsJob" {$PlatformEvent.Restart}
-        "StartServerJob" {$PlatformEvent.Start}
-        "StopServerJob" {$PlatformEvent.Stop}
-        default {$null}
-    }
-
-    $platformEventStatusTarget = switch ($asyncJob.jobType) {
-        "DeploymentsJob" {$PlatformEventStatusTarget.Start}
-        "StartServerJob" {$PlatformEventStatusTarget.Start}
-        "StopServerJob" {$PlatformEventStatusTarget.Stop}
-        default {$null}
-    }
-
-    $watchlist = Read-Watchlist asyncJobsWatchlist
-
-    $prevAsyncJob = $watchlist | Where-Object {$_.id -eq $Id}
-
-    switch ($Command) {
-        "Add" {
-            $watchlist = $watchlist | Add-AsyncJobToWatchlist -AsyncJob $asyncJob -Context $Context -Source $Source -Callback $Callback 
-
-            # send alerts for new entries
-            if (!$prevAsyncJob) {
-                if (!$NoMessaging) {
-                    Send-AsyncJobMessage $asyncJob.id -Context $Context
-                }
-            } 
-
-            # set platform event 
-            if ($platformEvent) {
-                if (!$NoEventManagement) {
-                    Set-PlatformEvent -Event $platformEvent -EventStatus $PlatformEventStatus.InProgress -EventStatusTarget $platformEventStatusTarget -Context $Source
-                }
-            }
-        }
-        "Update" {
-            # remove previous entry and add updated entry
-            $watchlist = $watchlist | Remove-AsyncJobFromWatchlist -AsyncJob $asyncJob 
-
-            $NoMessaging = $prevAsyncJob.noMessaging
-            $NoEventManagement = $prevAsyncJob.noEventManagement
-
-            if (!$asyncJob.completedAt) {
-                $watchlist = $watchlist | Add-AsyncJobToWatchlist -AsyncJob $asyncJob -Context $prevAsyncJob.context -Source $prevAsyncJob.source-Callback $prevAsyncJob.callback
-            }
-
-            # send alerts for updates
-            if ($asyncJob.updatedAt -gt $prevAsyncJob.updatedAt) {
-                if ($asyncJob.status -ne $prevAsyncJob.status -or $asyncJob.progress -gt $prevAsyncJob.progress) {
-                    if (!$NoMessaging) {
-                        Send-AsyncJobMessage $asyncJob.id -Context ($Context ? $Context : $prevAsyncJob.context)
-                    }
-                }
-            }
-            if ($asyncJob.completedAt) {
-                if ($prevAsyncJob.callback) {
-                    Invoke-Expression "$($prevAsyncJob.Callback) -Id $($asyncJob.id)"
-                }
-
-                # set platform event (completed or failed)
-                if ($platformEvent) {
-                    if (!$NoEventManagement) {
-                        Set-PlatformEvent -Event $platformEvent -EventStatus ($asyncJob.status -ne "Succeeded" ? $PlatformEventStatus.Failed : $PlatformEventStatus.Completed) -EventStatusTarget $platformEventStatusTarget -Context $prevAsyncJob.source
-                    }
-                }
-            }                
-        }
-        "Remove" {
-            $watchlist = $watchlist | Remove-AsyncJobFromWatchlist $asyncJob
-        }
-    }
-
-    $watchlist | Write-Watchlist asyncJobsWatchlist
-    
-    return
-
-}
-
-Set-Alias -Name Write-Watchlist -Value Write-Cache -Scope Global
-Set-Alias -Name Clear-Watchlist -Value Clear-Cache -Scope Global
-Set-Alias -Name Read-Watchlist -Value Read-Cache -Scope Global
-
-function global:Show-Watchlist {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false,Position=0)][string]$Watchlist = "asyncJobsWatchlist",
-        [Parameter(Mandatory=$false)][string]$View="Watchlist"
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    Update-AsyncJob
-
-    return (Read-Watchlist $Watchlist) | Select-Object -Property $($View ? $AsyncJobView.$($View) : $AsyncJobView.Default)
-
-}
-
-function global:Update-AsyncJob {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false,Position=0)][string]$Id
-    )
-
-    $watchlist = Read-Watchlist asyncJobsWatchlist
-    if ($Id) { 
-        $watchlist = $watchlist | Where-Object {$_.id -eq $Id}
-        if (!$watchlist) {return}
-    }
-    foreach ($asyncJob in $watchlist) {
-        Watch-AsyncJob $asyncJob.id -Update
-    }
-
-    # check TSM for running asyncJobs started by others
-    # this step returns all running jobs: dupes removed by Watch-AsyncJob
-    $asyncJobs = Get-AsyncJob -Status "Running" | Where-Object {$_.id -notin $watchlist.id -and $_.jobType -notin $global:tsmApiConfig.Async.DontWatchExternalJobType}
-    foreach ($asyncJob in $asyncJobs) {
-        Watch-AsyncJob $asyncJob.Id -Add -Source "External Service/Person"
-    }
-
-    return
-
-}
-
-function global:Write-AsyncJobStatusToLog {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Id
-    )
-
-    $asyncJob = Get-AsyncJob $Id
-
-    $data = $null
-    $message = $asyncJob.statusMessage
-    if ($asyncJob.status -eq "Succeeded") {
-        $data = "Duration: $($asyncJob.completedAt - $asyncJob.createdAt) ms"
-        $message = "This job completed successfully at $($epoch.AddSeconds($asyncJob.completedAt/1000).ToString('u'))."
-    }
-
-    Write-Log -Context "AsyncJob" -Action $asyncJob.jobType -Target $asyncJob.id -Status $asyncJob.status -Message $message -Data $data -Force 
-
-}
-
-function global:Wait-AsyncJob {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
-        [Parameter(Mandatory=$false)][int]$IntervalSeconds = 15,
-        [Parameter(Mandatory=$false)][int]$TimeoutSeconds = 300,
-        [Parameter(Mandatory=$false)][int]$ProgressSeconds
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $asyncJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
-
-    $timeout = $false
-    $timeoutTimer = [Diagnostics.Stopwatch]::StartNew()
-
-    do {
-        Start-Sleep -seconds $IntervalSeconds
-        $asyncJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
-    } 
-    until ($asyncJob.completedAt -or 
-            [math]::Round($timeoutTimer.Elapsed.TotalSeconds,0) -gt $TimeoutSeconds)
-
-    if ([math]::Round($timeoutTimer.Elapsed.TotalSeconds,0) -gt $TimeoutSeconds) {
-        $timeout = $true
-    }
-
-    $timeoutTimer.Stop()
-
-    return $asyncJob, $timeout
-
-}
-
-#endregion TSMAPI
 #region TOPOLOGY
 
 function global:Initialize-PlatformTopology {
 
-    [CmdletBinding()]
-    param (
-        [switch]$ResetCache
-    )
+[CmdletBinding()]
+param (
+    [switch]$ResetCache
+)
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    if (!$ResetCache) {
-        if ($(get-cache platformtopology).Exists()) {
-            return Read-Cache platformtopology
+if (!$ResetCache) {
+    if ($(get-cache platformtopology).Exists()) {
+        return Read-Cache platformtopology
+    }
+}
+
+$platformTopology = @{
+    Nodes = @{}
+    Components = @{}
+    Alias = @{}
+    Repository = @{}
+}
+
+
+$platformConfiguration = @{
+    Keys = @{}
+}
+
+# $tsmApiSession = New-TsmApiSession
+$response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings" 
+
+foreach ($nodeId in $response.topologyVersion.nodes.psobject.properties.name) {
+    
+    $nodeInfo = Invoke-TsmApiMethod -Method "NodeInfo" -Params @($nodeId) 
+    $node = $nodeInfo.address
+
+    $platformTopology.Alias.$nodeId = $node
+    if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
+        if ($node -match $RegexPattern.PlatformTopology.Alias.Match) {
+            $ptAlias = ""
+            foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
+                $ptAlias += $Matches[$i]
+            }
+            $platformTopology.Alias.($ptAlias) = $node
         }
     }
 
-    $platformTopology = @{
-        Nodes = @{}
+    $platformTopology.Nodes.$node += @{
+        NodeId = $nodeId
+        NodeInfo = @{
+            ProcessorCount = $nodeInfo.processorCount
+            AvailableMemory = $nodeInfo.availableMemory
+            TotalDiskSpace = $nodeInfo.totalDiskSpace
+        }
         Components = @{}
-        Alias = @{}
-        Repository = @{}
     }
-
-
-    $platformConfiguration = @{
-        Keys = @{}
-    }
-
-    # $tsmApiSession = New-TsmApiSession
-    $response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings" 
-
-    foreach ($nodeId in $response.topologyVersion.nodes.psobject.properties.name) {
-        
-        $nodeInfo = Invoke-TsmApiMethod -Method "NodeInfo" -Params @($nodeId) 
-        $node = $nodeInfo.address
-        
-        $platformTopology.Alias.$nodeId = $node
-        $platformTopology.Alias.($node.replace("tbl-","").replace("-0","")) = $node
-
-        $platformTopology.Nodes.$node += @{
-            NodeId = $nodeId
-            NodeInfo = @{
-                ProcessorCount = $nodeInfo.processorCount
-                AvailableMemory = $nodeInfo.availableMemory
-                TotalDiskSpace = $nodeInfo.totalDiskSpace
-            }
-            Components = @{}
+    $services = ($response.topologyversion.nodes.$nodeId.services.psobject.members | Where-Object {$_.MemberType -eq "NoteProperty"} | Select-object -property Name).Name
+    foreach ($service in $services) {
+        $platformTopology.Nodes.$node.Components.$service += @{
+            Instances = @()
         }
-        $services = ($response.topologyversion.nodes.$nodeId.services.psobject.members | Where-Object {$_.MemberType -eq "NoteProperty"} | Select-object -property Name).Name
-        foreach ($service in $services) {
-            $platformTopology.Nodes.$node.Components.$service += @{
-                Instances = @()
-            }
-            foreach ($instance in $response.topologyVersion.nodes.$node.services.$service.instances) {
-                $platformTopology.Nodes.$node.Components.$service.Instances += @{
-                    ($instance.instanceId) = @{
-                        InstanceId = $instance.instanceId
-                        BinaryVersion = $instance.binaryVersion
-                    }
+        foreach ($instance in $response.topologyVersion.nodes.$node.services.$service.instances) {
+            $platformTopology.Nodes.$node.Components.$service.Instances += @{
+                ($instance.instanceId) = @{
+                    InstanceId = $instance.instanceId
+                    BinaryVersion = $instance.binaryVersion
                 }
             }
         }
     }
+}
 
-    foreach ($key in $response.configKeys.psobject.properties.name) {
-        $platformConfiguration.Keys += @{
-            $key = $response.configKeys.$key
-        }
+foreach ($key in $response.configKeys.psobject.properties.name) {
+    $platformConfiguration.Keys += @{
+        $key = $response.configKeys.$key
     }
+}
 
-    foreach ($node in $platformTopology.Nodes.Keys) {
+foreach ($node in $platformTopology.Nodes.Keys) {
 
-        foreach ($component in $platformTopology.Nodes.$node.Components.Keys) {
+    foreach ($component in $platformTopology.Nodes.$node.Components.Keys) {
 
-            if (!$platformTopology.Components.$component) {
-                $platformTopology.Components += @{
-                    $component = @{
-                        Nodes = @{}
-                    }
-                }
-            }
-            $platformTopology.Components.$component.Nodes += @{
-                $node = @{
-                    Instances = $platformTopology.Nodes.$node.Components.$component.instances
+        if (!$platformTopology.Components.$component) {
+            $platformTopology.Components += @{
+                $component = @{
+                    Nodes = @{}
                 }
             }
         }
-
+        $platformTopology.Components.$component.Nodes += @{
+            $node = @{
+                Instances = $platformTopology.Nodes.$node.Components.$component.instances
+            }
+        }
     }
 
-    $platformTopology.InitialNode = $platformTopology.Components.tabadmincontroller.Nodes.Keys
+}
 
-    $repositoryNodeInfo = Invoke-TsmApiMethod -Method "RepositoryNodeInfo"
-    $platformTopology.repository.HostName = $repositoryNodeInfo.hostName
-    $platformTopology.repository.Port = $repositoryNodeInfo.port
-    $platformTopology.repository.Active = $platformTopology.Alias.($platformTopology.repository.HostName) ?? $platformTopology.repository.HostName
-    $platformTopology.repository.Passive = $platformTopology.Components.pgsql.Nodes.Keys | Where-Object {$_ -ne $platformTopology.repository.Active}
-    $platformTopology.repository.Preferred = $platformConfiguration.Keys."pgsql.preferred_host"
-    $platformTopology.repository.Preferred ??= $platformTopology.InitialNode
+$platformTopology.InitialNode = $platformTopology.Components.tabadmincontroller.Nodes.Keys
 
-    if ($platformTopology.Nodes) {
-        $platformTopology | Write-Cache platformtopology
-    }
+$repositoryNodeInfo = Invoke-TsmApiMethod -Method "RepositoryNodeInfo"
+$platformTopology.repository.HostName = $repositoryNodeInfo.hostName
+$platformTopology.repository.Port = $repositoryNodeInfo.port
+$platformTopology.repository.Active = $platformTopology.Alias.($platformTopology.repository.HostName) ?? $platformTopology.repository.HostName
+$platformTopology.repository.Passive = $platformTopology.Components.pgsql.Nodes.Keys | Where-Object {$_ -ne $platformTopology.repository.Active}
+$platformTopology.repository.Preferred = $platformConfiguration.Keys."pgsql.preferred_host"
+$platformTopology.repository.Preferred ??= $platformTopology.InitialNode
 
-    return $platformTopology
+if ($platformTopology.Nodes) {
+    $platformTopology | Write-Cache platformtopology
+}
+
+return $platformTopology
 
 }
 Set-Alias -Name ptInit -Value Initialize-PlatformTopology -Scope Global
@@ -1264,50 +590,50 @@ Set-Alias -Name ptInit -Value Initialize-PlatformTopology -Scope Global
 #endregion TOPOLOGY
 #region CONFIGURATION
 
-    function global:Get-ConfigurationKey {
+function global:Get-ConfigurationKey {
 
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory=$false)][Alias("K")][string]$Key
-        )
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][Alias("K")][string]$Key
+    )
 
-        $currentConfigurationVersion = Invoke-TsmApiMethod -Method "ConfigurationsRequestedVersion"
-        $value = Invoke-TsmApiMethod -Method "ConfigurationKey" -Params @($currentConfigurationVersion, $Key)
-        return $value
-    }
+    $currentConfigurationVersion = Invoke-TsmApiMethod -Method "ConfigurationsRequestedVersion"
+    $value = Invoke-TsmApiMethod -Method "ConfigurationKey" -Params @($currentConfigurationVersion, $Key)
+    return $value
+}
 
-    function global:Show-TSSslProtocols {
+function global:Show-TSSslProtocols {
 
-        Write-Host+ -NoTrace "  Tableau Server SSL Protocols" -ForegroundColor DarkBlue
+    Write-Host+ -NoTrace "  Tableau Server SSL Protocols" -ForegroundColor DarkBlue
 
-        $sslProtocolsAll = "+SSLv2 +SSLv3 +TLSv1 +TLSv1.1 +TLSv1.2 +TLSv1.3"
-        $sslProtocols = Get-ConfigurationKey -Key "ssl.protocols"
-        $sslProtocols = $sslProtocols.PSObject.Properties.Value -replace "all",$sslProtocolsAll
-        $sslProtocols = $sslProtocols -split " " | Sort-Object
+    $sslProtocolsAll = "+SSLv2 +SSLv3 +TLSv1 +TLSv1.1 +TLSv1.2 +TLSv1.3"
+    $sslProtocols = Get-ConfigurationKey -Key "ssl.protocols"
+    $sslProtocols = $sslProtocols.PSObject.Properties.Value -replace "all",$sslProtocolsAll
+    $sslProtocols = $sslProtocols -split " " | Sort-Object
 
-        $protocols = @{}
-        foreach ($sslProtocol in $sslProtocols) {
-            $state = $sslProtocol.Substring(0,1) -eq "-" ? "Disabled" : "Enabled"
-            $protocol = $sslProtocol.Substring(1,$sslProtocol.Length-1)
-            if (!$protocols.$protocol) {
-                $protocols += @{
-                    $protocol = $state
-                }
-            }
-            else {
-                $protocols.$protocol = $state
+    $protocols = @{}
+    foreach ($sslProtocol in $sslProtocols) {
+        $state = $sslProtocol.Substring(0,1) -eq "-" ? "Disabled" : "Enabled"
+        $protocol = $sslProtocol.Substring(1,$sslProtocol.Length-1)
+        if (!$protocols.$protocol) {
+            $protocols += @{
+                $protocol = $state
             }
         }
-
-        $protocols = $protocols.GetEnumerator() | Sort-Object -Property value -Descending | Sort-Object -Property name
-
-        foreach ($protocol in $protocols) {
-            $message = "    $($protocol.name) : $($protocol.value.ToUpper())"
-            $color = $protocol.value -eq "ENABLED" ? "DarkGreen" : "DarkRed"
-            Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$color -NoSeparator
+        else {
+            $protocols.$protocol = $state
         }
-
     }
+
+    $protocols = $protocols.GetEnumerator() | Sort-Object -Property value -Descending | Sort-Object -Property name
+
+    foreach ($protocol in $protocols) {
+        $message = "    $($protocol.name) : $($protocol.value.ToUpper())"
+        $color = $protocol.value -eq "ENABLED" ? "DarkGreen" : "DarkRed"
+        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$color -NoSeparator
+    }
+
+}
 
 #endregion CONFIGURATION
 #region LICENSING

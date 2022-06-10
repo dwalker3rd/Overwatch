@@ -183,50 +183,6 @@ function global:Format-AzRoleAssignments {
 }
 Set-Alias -Name ftAzRoles -Value Format-AzRoleAssignments -Scope Global
 
-$global:AzVizResourceGroups = @(
-    "hub-rg",
-    "apps-gen-rg",
-    "apps-tableau-rg",
-    "apps-alteryx-rg"
-)
-$global:AzVizExcludeTypes = @(
-    "microsoft.compute/disks",
-    "microsoft.insights/datacollectionrules",
-    "microsoft.operationsmanagement/solutions",
-    "microsoft.compute/virtualmachines/extensions",
-    "microsoft.automation/automationaccounts/jobs",
-    "microsoft.automation/automationaccounts/modules",
-    "microsoft.automation/automationaccounts/jobschedules",
-    "microsoft.operationalinsights/workspaces",
-    "microsoft.storage/storageaccounts/*/*diag*",
-    "microsoft.datashare/accounts",
-    "microsoft.managedidentity/userAssignedIdentities",
-    "microsoft.recoveryservices/vaults",
-    "microsoft.automation/automationaccounts",
-    "microsoft.network/firewallpolicies")
-
-function global:Publish-AzDiagram {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][string[]]$ResourceGroup,
-        [Parameter(Mandatory=$false)][string]$OutputFilePath = "F:\Overwatch\docs\diagrams",
-        [Parameter(Mandatory=$false)][ValidateSet("svg","png")][string]$OutputFormat = "svg",
-        [Parameter(Mandatory=$false)][ValidateRange(1,3)][int]$LabelVerbosity = 2,
-        [Parameter(Mandatory=$false)][ValidateRange(1,3)][int]$CategoryDepth = 1,
-        [Parameter(Mandatory=$false)][string[]]$ExcludeTypes = $global:AzVizExcludeTypes,
-        [Parameter(Mandatory=$false)][bool]$Show = $false
-    )
-
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
-
-    $ResourceGroup | ForEach-Object {
-        Export-AzViz -ResourceGroup $_ -Theme light -Show:$Show -OutputFormat $OutputFormat -OutputFilePath "$($OutputFilePath)\$($_).$($OutputFormat)" -LabelVerbosity $LabelVerbosity -CategoryDepth $CategoryDepth -ExcludeTypes $ExcludeTypes
-    }
-}
-
 function global:Get-AzMlWorkspace {
 
     [CmdletBinding()]

@@ -3,8 +3,8 @@
 Heartbeat functions for the Overwatch Monitor product
 .Description
 Maintains heartbeat timers and status.
-.Parameter Last
-[datetime] The time at which the last heartbeat occurred.
+.Parameter Previous
+[datetime] The time at which the previous heartbeat occurred.
 .Parameter Current
 [datetime] The time at which the current heartbeat occurred.
 .Parameter Next
@@ -13,16 +13,22 @@ Maintains heartbeat timers and status.
 [bool] Whether or not reporting is enabled.
 .Parameter ReportFrequency
 [timespan] The frequency at which heartbeat reports occur.
-.Parameter LastReport
-[datetime] The time at which the last status report occurred.
-.Parameter SinceLastReport
-[timespan] The time since the last status report occurred.
+.Parameter PreviousReport
+[datetime] The time at which the previous status report occurred.
+.Parameter SincePreviousReport
+[timespan] The time since the previous status report occurred.
 .Parameter IsOK
-Flag which indicates whether the platform status was OK or NOTOK during the last Monitor check.
+[bool] [bool] Flag which indicates whether the platform status was OK or NOTOK during the previous Monitor check.
+.Parameter IsOKPrevious
+Flag which indicates whether the previous platform status was OK or NOTOK during the previous Monitor check.
 .Parameter FlapDetectionEnabled
-Flag which indicates whether Overwatch uses flap detection to avoid reporting rapid state changes.  
+[bool] Flag which indicates whether Overwatch uses flap detection to avoid reporting rapid state changes.  
 .Parameter FlapDetectionPeriod
-When flap detection is enabled, the period required before Overwatch reports a NOT OK status.
+[timespan] When flap detection is enabled, the period required before Overwatch reports a NOT OK status.
+.Parameter RollupStatus
+[string] Platform status description
+.Parameter RollupStatusPrevious
+[string] Previous platform status description
 #>
 
 function global:Get-Heartbeat {
@@ -40,7 +46,7 @@ function global:Get-Heartbeat {
     }
 
     $heartbeat.Current = Get-Date
-    $heartbeat.SinceLastReport = (Get-Date).Subtract($heartbeat.Last)
+    $heartbeat.SincePreviousReport = (Get-Date).Subtract($heartbeat.Previous)
 
     return $heartbeat
 }
@@ -49,16 +55,19 @@ function global:Set-Heartbeat {
 
     [CmdletBinding()]
     param (
+        [Parameter(Mandatory=$true)][PlatformStatus]$PlatformStatus,
         [switch]$Reported
     )
 
     $heartbeat = Get-Heartbeat
-    $heartbeat.Last = Get-Date
-    $heartbeat.IsOK = (Get-PlatformStatus).IsOK
-    # $heartbeat.NotOKCount = $heartbeat.IsOK ? 0 : ($notOKCount += 1)
+    $heartbeat.Previous = Get-Date
+    $heartbeat.IsOKPrevious = $heartbeat.IsOK
+    $heartbeat.IsOK = $PlatformStatus.IsOK
+    $heartbeat.RollupStatusPrevious = $heartbeat.RollupStatus
+    $heartbeat.RollupStatus = $PlatformStatus.RollupStatus
 
     if ($Reported) {
-        $heartbeat.LastReport = Get-Date
+        $heartbeat.PreviousReport = Get-Date
     }
 
     $heartbeat | Write-Cache heartbeat
@@ -72,17 +81,19 @@ function global:Initialize-Heartbeat {
     param()
 
     $now = Get-Date
-    $monitor = Get-Product "Monitor"
+    # $monitor = Get-Product "Monitor"
 
     $heartbeat = [Heartbeat]@{
-        ReportEnabled = $monitor.Config.ReportEnabled
-        ReportSchedule = $monitor.Config.ReportEnabled ? $monitor.Config.ReportSchedule :  [timespan]::Zero
-        FlapDetectionEnabled = $monitor.Config.FlapDetectionEnabled
-        FlapDetectionPeriod = $monitor.Config.FlapDetectionPeriod
-        LastReport = [datetime]::MinValue
+        # ReportEnabled = $monitor.Config.ReportEnabled
+        # ReportSchedule = $monitor.Config.ReportEnabled ? $monitor.Config.ReportSchedule :  [timespan]::Zero
+        # FlapDetectionEnabled = $monitor.Config.FlapDetectionEnabled
+        # FlapDetectionPeriod = $monitor.Config.FlapDetectionPeriod
+        PreviousReport = [datetime]::MinValue
         Current = $now
         IsOK = $true
-        # NotOKCount = 0
+        IsOKPrevious = $true
+        RollupStatus = "Pending"
+        RollupStatusPrevious = "Pending"
     }
 
     $heartbeat | Write-Cache heartbeat
@@ -90,3 +101,4 @@ function global:Initialize-Heartbeat {
     return $heartbeat
 
 }
+Set-Alias -Name hbInit -Value Initialize-Heartbeat -Scope Global

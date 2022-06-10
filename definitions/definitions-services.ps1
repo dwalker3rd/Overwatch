@@ -13,7 +13,7 @@ if (Test-Path -Path $servicesPath\services-$($global:Environ.OS).ps1) {. $servic
 
 if (Test-Path -Path $servicesPath\services-platform-stubs.ps1) {. $servicesPath\services-platform-stubs.ps1}
 if (Test-Path -Path $servicesPath\services-$($global:Environ.Platform)*.ps1) {
-    Get-Item $servicesPath\services-$($global:Environ.Platform)*.ps1 | Foreach-Object {. $_}
+    Get-Item $servicesPath\services-$($global:Environ.Platform)*.ps1 | Sort-Object -Property Name | Foreach-Object {. "$servicesPath\$($_.Name)"}
 }
 
 if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name).ps1) {. $servicesPath\services-$($global:Overwatch.Name).ps1}
@@ -27,9 +27,15 @@ if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name).ps1) {. $se
 . $servicesPath\messaging.ps1
 . $servicesPath\contacts.ps1
 . $servicesPath\python.ps1
-# . $servicesPath\services-azure.ps1
-# . $servicesPath\services-azureAD.ps1
-# . $servicesPath\services-tableauserver-tsrestapi.ps1
 
 if (Test-Path -Path $servicesPath\services-$($global:Product.Id).ps1) {. $servicesPath\services-$($global:Product.Id).ps1}
 if (Test-Path -Path $servicesPath\services-$($global:Provider.Id).ps1) {. $servicesPath\services-$($global:Provider.Id).ps1}
+
+. $PSScriptRoot\definitions-service-azuread.ps1
+. $servicesPath\services-azuread.ps1
+. $servicesPath\services-azuread.ps1
+. $servicesPath\services-azuread.ps1
+. $servicesPath\services-azuread.ps1
+. $servicesPath\services-azuread.ps1
+. $servicesPath\services-azuread.ps1
+. $servicesPath\services-azuread.ps1

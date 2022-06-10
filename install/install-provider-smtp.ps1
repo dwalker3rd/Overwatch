@@ -1,8 +1,8 @@
 $Provider = Get-Provider -Id 'SMTP'
 $Name = $Provider.Name 
-$Vendor = $Provider.Vendor
+$Publisher = $Provider.Publisher
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Vendor$($emptyString.PadLeft(20-$Vendor.Length," "))","PENDING"
+$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
 
 if (!(Test-Log -Name smtp)) {
@@ -43,7 +43,7 @@ if (!$(Test-Credentials $Provider.Id -NoValidate)) {
 
 if ($interaction) {
     Write-Host+
-    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Vendor$($emptyString.PadLeft(20-$Vendor.Length," "))","INSTALLED"
+    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","INSTALLED"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGreen
 }
 else {

@@ -133,12 +133,12 @@
             [CmdletBinding()]
             param (
                 # [switch]$NoCache,  <=== do NOT use this as it loses track of the current platform event!
-                [switch]$Reset
+                [switch]$ResetCache
             )
 
             Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-            if ((get-cache platformstatus).Exists() -and !$Reset) {  #-and !$NoCache) {
+            if ((get-cache platformstatus).Exists() -and !$ResetCache) { # -and !$NoCache) {
                 $platformStatus = [PlatformStatus](Read-Cache platformStatus)
             }
 
@@ -150,13 +150,13 @@
             # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "Read-Cache" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
 
             $params = @{}
-            # if ($NoCache) {$params += @{NoCache = $true}}
+            if ($ResetCache) {$params += @{Reset = $true}}
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
 
-            if ($platformStatus.RollUpStatus -in @("Stopping","Starting","Restarting") -and !$platformStatus.Event) {
-                $command = switch ($platformStatus.RollUpStatus) {
+            if ($platformStatus.RollupStatus -in @("Stopping","Starting","Restarting") -and !$platformStatus.Event) {
+                $command = switch ($platformStatus.RollupStatus) {
                     "Stopping" {"Stop"}
-                    default {$platformStatus.RollUpStatus -replace "ing",""}
+                    default {$platformStatus.RollupStatus -replace "ing",""}
                 }
                 Set-PlatformEvent -Event $command -Context "Unknown" -EventReason "Unknown" -EventStatus $global:PlatformEventStatus.InProgress -PlatformStatus $platformStatus
             }
@@ -206,7 +206,7 @@
 
             if ($platformStatus.IsStoppedTimeout) {
                 $platformStatus.Intervention = $true
-                $platformStatus.InterventionReason = "Platform $($platformStatus.Event.ToUpper()) has exceeded $($shutdownTimeout.TotalMinutes) minutes"
+                $platformStatus.InterventionReason = "Platform STOP has exceeded $($shutdownTimeout.TotalMinutes) minutes"
             }
 
             if ($platformStatus.EventStatus -eq $PlatformEventStatus.Failed) {
@@ -224,7 +224,7 @@
                     $platformStatus.EventCompletedAt = [datetime]::Now
             }
 
-            if ($Reset) {
+            if ($ResetCache) {
 
                 Write-Verbose "Reset Platform Status"
                 # Write-Log -Action "Reset" -Target "Platform Status" -EntryType "Warning" -Status $isOK
@@ -263,7 +263,7 @@
                 [Parameter(Mandatory=$true)][string]$Event,
                 [Parameter(Mandatory=$false)][string]$Context,
                 [Parameter(Mandatory=$false)][string]$EventReason,
-                [Parameter(Mandatory=$false)][ValidateSet('In Progress','Completed','Failed','Reset')][string]$EventStatus,
+                [Parameter(Mandatory=$false)][ValidateSet('In Progress','Completed','Failed','Reset','Testing')][string]$EventStatus,
                 [Parameter(Mandatory=$false)][string]$EventStatusTarget,
                 [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus)
 
@@ -283,7 +283,9 @@
 
             $PlatformStatus | Write-Cache platformstatus
 
-            Send-PlatformEventMessage -PlatformStatus $PlatformStatus -NoThrottle
+            $result = Send-PlatformEventMessage -PlatformStatus $PlatformStatus -NoThrottle
+            $result | Out-Null
+
             return
 
         }
@@ -293,7 +295,7 @@
             [CmdletBinding()]
             param ()
 
-            return Get-PlatformStatus -Reset
+            return Get-PlatformStatus -ResetCache
 
         }
 
@@ -350,6 +352,7 @@
             $len = $Key ? $Key.Split('.').Count : 0
             $p = $Key.Split('.').ToLower()
             $k = [array]$p.Clone()
+            if ($k[0] -eq "alias") { $NoAlias = $true }
             for ($i = 0; $i -lt $len; $i++) {
                 $k[$i] = "['$($NoAlias ? $k[$i] : ($platformTopology.Alias.($k[$i]) ?? $k[$i]))']"
             }
@@ -718,6 +721,10 @@
             $message = "    Certificate : $($thisFail ? "FAIL" : ($thisWarn ? "WARN" : "PASS"))"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$expiryColor
 
+            if ($thisWarn -or $thisFail) {
+                Send-SSLCertificateExpiryMessage -Certificate $ProtocolStatus.Certificate
+            }
+
             $thisWarn = $false
             $thisFail = $false
 
@@ -737,7 +744,7 @@
                 $state = $bestPractice.protocols.$protocol.state -ne "" ? $($bestPractice.protocols.$protocol.state -eq "Enabled" ? "Enabled" : "Disabled") : $($ProtocolStatus.$protocol ? "Enabled" : "Disabled")
                 $result = $bestPractice.protocols.$protocol.state -ne "" ? $($thisFail ? "FAIL": "PASS") : "NA"
                 $message = "    $($bestPractice.protocols.$protocol.displayName) : $(($state.ToUpper() + " ").Substring(0,8)):$result"
-                $stateColor = $state -eq "Enabled" ? "DarkGreen" : "DarkRed"
+                $stateColor = $state -eq "ENABLED" ? "DarkGreen" : "DarkRed"
                 $resultColor = $result -ne "NA" ? $thisFail ? "DarkRed" : "DarkGreen" : "DarkGray"
                 Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 31 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1],"/",$message.Split(":")[2] -ForegroundColor Gray,DarkGray,$stateColor,DarkGray,$resultColor
             }
@@ -885,36 +892,18 @@
         }
     }
 
-#endregion MISC
-#region TESTS
+    function global:Set-CursorVisible {
 
-    function global:Set-PlatformService {
-
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
-            [Parameter(Mandatory=$true)][string]$Name,
-            [Parameter(Mandatory=$true)][ValidateSet("Manual","Automatic","AutomaticDelayedStart","Disabled")][Microsoft.PowerShell.Commands.ServiceStartupType]$StartupType
-        )
-
-        $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
-
-        Invoke-Command -Session $psSession {
-            Get-Service -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {
-                if ($_.StartMode -ne $using:StartupType) {
-                    Set-Service -Name $_.Name -StartupType $using:StartupType
-                }
-            }
-        }
-
-        # $svc = Invoke-Command -Session $psSession {
-        #     Get-Service -Name $using:Name -ErrorAction SilentlyContinue
-        # }
-
-        Remove-PSSession $psSession
-
-        return # $svc
+        try { [console]::CursorVisible = $true }
+        catch {}
 
     }
 
-#endregion TESTS
+    function global:Set-CursorInvisible {
+
+        try { [console]::CursorVisible = $false }
+        catch {}
+
+    }
+
+#endregion MISC

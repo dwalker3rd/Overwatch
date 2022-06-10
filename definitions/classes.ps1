@@ -54,7 +54,6 @@ class PlatformStatus {
     [string]$EventStatusTarget
 
     [PlatformCim[]]$ByCimInstance
-    # [object[]]$ByNode
     [object]$StatusObject
 
     [bool]$IsStopped 
@@ -98,7 +97,8 @@ class Product {
     [bool]$HasTask
     [string]$TaskName
     [object]$Config
-    [string]$Vendor
+    [string]$Publisher
+    [object]$Installation
 }
 
 class Provider {
@@ -112,19 +112,23 @@ class Provider {
     [string]$Version
     [string]$Log
     [object]$Config
-    [string]$Vendor
+    [string]$Publisher
+    [object]$Installation
 }
 
 class Heartbeat {
     [DateTime]$Current   
-    [DateTime]$Last
-    [object[]]$ReportSchedule
-    [bool]$ReportEnabled 
-    [DateTime]$LastReport
-    [TimeSpan]$SinceLastReport    
+    [DateTime]$Previous
+    # [object[]]$ReportSchedule
+    # [bool]$ReportEnabled 
+    [DateTime]$PreviousReport
+    [TimeSpan]$SincePreviousReport    
     [bool]$IsOK
-    [bool]$FlapDetectionEnabled
-    [timespan]$FlapDetectionPeriod
+    [bool]$IsOKPrevious
+    # [bool]$FlapDetectionEnabled
+    # [timespan]$FlapDetectionPeriod
+    [string]$RollupStatus
+    [string]$RollupStatusPrevious
 }
     
 class PerformanceMeasurement {
@@ -239,8 +243,8 @@ class FileObject {
     [object]New(
     ){
         if ($this.Exists($this.Path)) {
-            Write-Information "The file '$($this.Path)' already exists."
-            return $this.FileInfo}
+            Write-Warning "The file '$($this.Path)' already exists."
+            return $null}
         if (!$this.Exists($this.Directory)) {
             Write-Warning "Could not find a part of the path '$($this.Path)'"
             return $null
@@ -263,7 +267,7 @@ class FileObject {
     [object]Get(
         [hashtable]$Options
     ){
-        $this.FileInfo = Get-ChildItem -Path $this.Path @Options
+        $this.FileInfo = Get-ChildItem -Path $this.Path @Options -ErrorAction SilentlyContinue
         return $this.FileInfo
     }
 

@@ -1,0 +1,1 @@
+Uninstall-PlatformTask "AzureADSyncB2C"

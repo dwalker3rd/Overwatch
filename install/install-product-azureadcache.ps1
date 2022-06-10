@@ -1,11 +1,19 @@
 $product = Get-Product "AzureADCache"
 $Name = $product.Name 
-$Vendor = $product.Vendor
+$Publisher = $product.Publisher
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Vendor$($emptyString.PadLeft(20-$Vendor.Length," "))","PENDING$($emptyString.PadLeft(27," "))"
+$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(27," "))"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
 
-Copy-File $PSScriptRoot\templates\definitions\definitions-product-$($product.Id.ToLower())-template.ps1 -Quiet
+Copy-File $PSScriptRoot\source\definitions\definitions-product-$($product.Id.ToLower())-template.ps1 -Quiet
+
+foreach ($node in (pt nodes -k)) {
+    $remotedirectory = "\\$node\$(($global:AzureAD.Data).Replace(":","$"))"
+    if (!(Test-Path $remotedirectory)) { 
+        New-Item -ItemType Directory -Path $remotedirectory -Force | Out-Null
+        Write-Host+ -NoTrace -NoTimeStamp $remotedirectory -ForegroundColor DarkGray
+    }
+}
 
 if ($(Get-PlatformTask -Id "AzureADCache")) {
     Unregister-PlatformTask -Id "AzureADCache"

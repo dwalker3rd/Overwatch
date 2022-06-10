@@ -57,8 +57,8 @@ function global:Repair-PythonSSL {
         "libcrypto-1_1-x64.dll",
         "libssl-1_1-x64.dll"
     )
-    $from = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Library\bin"
-    $to = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\DLLs"
+    $from = "$($global:Platform.InstallPath)\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Library\bin"
+    $to = "$($global:Platform.InstallPath)\bin\Miniconda3\envs\DesignerBaseTools_vEnv\DLLs"
 
     foreach ($node in $ComputerName) {
         Write-Host+ -NoTrace "$node" -ForegroundColor DarkBlue -IfVerbose

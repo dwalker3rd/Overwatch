@@ -1,9 +1,12 @@
 #Requires -RunAsAdministrator
 #Requires -Version 7
 
+[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
 param(
     [Parameter(Mandatory=$false,Position=0)][string]$Command,
-    [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+    [Parameter(Mandatory=$false)][string]$OverwatchController = $env:COMPUTERNAME,
+    # [Parameter(Mandatory=$false)][string]$ComputerName,
     [switch]$RunSilent,
     [switch]$DoubleHop,
     [switch]$NoDoubleHop,
@@ -20,8 +23,8 @@ $global:InformationPreference = "SilentlyContinue"
 $global:VerbosePreference = "SilentlyContinue"
 $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
-$global:PreflightPreference = "SilentlyContinue"
-$global:PostflightPreference = "SilentlyContinue"
+$global:PreflightPreference = $SkipPreflight ? "SilentlyContinue" : "Continue"
+$global:PostflightPreference = $SkipPreflight ? "SilentlyContinue" : "Continue"
 $global:WriteHostPlusPreference = "SilentlyContinue"
 
 # product id must be set before include files
@@ -33,41 +36,55 @@ $global:WriteHostPlusPreference = "Continue"
 $result = $null
 if ($Command) {
 
-    if (!$NoDoubleHop -and $Context -like "Azure*" -and $Platform.Id -eq "AlteryxServer") {
+    if (!$NoDoubleHop -and $Context -like "Azure*" -and $Platform.Id -in ("AlteryxServer","TableauRMT")) {
         $DoubleHop = $true
     }
 
     if ($DoubleHop) {
 
-        Write-Host+ -NoTrace "Remoting to $ComputerName using CredSSP `"double hop`"." 
+        Write-Host+ -NoTrace "Remoting to $OverwatchController using CredSSP `"double hop`"." 
 
         $creds = Get-Credentials "localadmin-$($Platform.Instance)"
-        if ($creds.UserName -notlike ".\*" -and $creds.UserName -notlike "$ComputerName\*") {
-            Write-Host+ -NoTrace "ERROR: Username must include the NETBIOS or domains name when remoting with CredSSP." -ForegroundColor Red
-            return
+        if ($creds.UserName -notlike ".\*" -and $creds.UserName -notlike "$OverwatchController\*" -and $creds.UserName -notlike "$($global:Platform.Domain)\*") {
+            Write-Host+ -NoTrace "ERROR: Credentials must include the NETBIOS or domain name in the username when remoting with CredSSP." -ForegroundColor DarkRED
+            if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine) {
+                Write-Host+ -NoTrace "ATTENTION: Modifying the username in the credentials to include the NETBIOS name and continuing." 
+                $creds = Request-Credentials -UserName ".\$($creds.UserName)" -Password $creds.GetNetworkCredential().Password
+            }
+            elseif ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Domain) {
+                Write-Host+ -NoTrace "ATTENTION: Modifying the username in the credentials to include the domain name and continuing." 
+                $creds = Request-Credentials -UserName "$($global:Platform.Domain)\$($creds.UserName)" -Password $creds.GetNetworkCredential().Password
+            }
+            # else {
+            #     Write-Host+ -NoTrace "ERROR: Username must include the NETBIOS or domain name when remoting with CredSSP." -ForegroundColor Red
+            #     return
+            # }
         }
 
-        $result = Invoke-Command -Authentication CredSsp `
+        $workingDirectory = $global:Location.Root
+        $result = Invoke-Command -ComputerName $OverwatchController `
             -ScriptBlock {
-                    Set-Location F:\Overwatch; 
-                    pwsh command.ps1 -Command $using:Command -Context $using:Context -Reason $using:Reason -NoDoubleHop -SkipPreflight -RunSilent
+                    Set-Location $using:workingDirectory; 
+                    pwsh command.ps1 -Command $using:Command -Context $using:Context -Reason $using:Reason -NoDoubleHop -SkipPreflight
                 } `
-            -ComputerName $ComputerName `
-            -Credential $creds
-        
-            return $result
+            -Authentication Credssp `
+            -Credential $creds 
+            
+        return $result
 
     }
     else {
 
-        $commandParams = (Get-Command $Command).parameters.keys
-        
         $commandExpression = $Command
-        if (![string]::IsNullOrEmpty($Context) -and $commandParams -contains "Context") {$commandExpression += " -Context '$Context'"}
-        if (![string]::IsNullOrEmpty($Reason) -and $commandParams -contains "Reason") {$commandExpression += " -Reason '$Reason'"}
-        if (![string]::IsNullOrEmpty($RunId) -and $commandParams -contains "RunId") {$commandExpression += " -RunId '$RunId'"}
+        $commandParametersKeys = (Get-Command $Command.Split(" ")[0]).parameters.keys
         
-        Write-Host+ -NoTrace "Executing `"$commandExpression`" on $ComputerName" 
+        # if (![string]::IsNullOrEmpty($ComputerName) -and $commandParametersKeys -contains "ComputerName") {$commandExpression += " -ComputerName $ComputerName"}
+        if (![string]::IsNullOrEmpty($Context) -and $commandParametersKeys -contains "Context") {$commandExpression += " -Context '$Context'"}
+        if (![string]::IsNullOrEmpty($Reason) -and $commandParametersKeys -contains "Reason") {$commandExpression += " -Reason '$Reason'"}
+        if (![string]::IsNullOrEmpty($RunId) -and $commandParametersKeys -contains "RunId") {$commandExpression += " -RunId '$RunId'"}
+        
+        Write-Host+ -NoTrace "Overwatch controller: $OverwatchController"
+        Write-Host+ -NoTrace "Command: $commandExpression" 
         Write-Host+
         
         $result = Invoke-Expression -Command $commandExpression
@@ -76,6 +93,3 @@ if ($Command) {
     }
 
 }
-
-return
-

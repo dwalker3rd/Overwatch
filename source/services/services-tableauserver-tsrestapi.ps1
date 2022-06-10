@@ -1,5 +1,116 @@
+#region DEFINITIONS
 
+$WorkbookPermissions = @(
+    "AddComment:Allow","AddComment:Deny",
+    "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
+    "ChangePermissions:Allow","ChangePermissions:Deny",
+    "Delete:Allow","Delete:Deny",
+    "ExportData:Allow","ExportData:Deny",
+    "ExportImage:Allow","ExportImage:Deny",
+    "ExportXml:Allow","ExportXml:Deny",
+    "Filter:Allow","Filter:Deny",
+    "Read:Allow","Read:Deny",
+    "ShareView:Allow","ShareView:Deny",
+    "ViewComments:Allow","ViewComments:Deny",
+    "ViewUnderlyingData:Allow","ViewUnderlyingData:Deny",
+    "WebAuthoring:Allow","WebAuthoring:Deny",
+    "Write:Allow","Write:Deny",
+    "RunExplainData:Allow","RunExplainData:Deny",
+    "CreateRefreshMetrics:Allow","CreateRefreshMetrics:Deny" 
+)
+
+$ViewPermissions = @(
+    "AddComment:Allow","AddComment:Deny",
+    "ChangePermissions:Allow","ChangePermissions:Deny",
+    "Delete:Allow","Delete:Deny",
+    "ExportData:Allow","ExportData:Deny",
+    "ExportImage:Allow","ExportImage:Deny",
+    "ExportXml:Allow","ExportXml:Deny",
+    "Filter:Allow","Filter:Deny",
+    "Read:Allow","Read:Deny",
+    "ShareView:Allow","ShareView:Deny",
+    "ViewComments:Allow","ViewComments:Deny",
+    "ViewUnderlyingData:Allow","ViewUnderlyingData:Deny",
+    "WebAuthoring:Allow","WebAuthoring:Deny",
+    "Write:Allow","Write:Deny"
+)
+
+$DataSourcePermissions = @(
+    "ChangePermissions:Allow","ChangePermissions:Deny",
+    "Connect:Allow","Connect:Deny",
+    "Delete:Allow","Delete:Deny",
+    "ExportXml:Allow","ExportXml:Deny",
+    "Read:Allow","Read:Deny",
+    "Write:Allow","Write:Deny"
+)
+
+$FlowPermissions = @(
+    "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
+    "ChangePermissions:Allow","ChangePermissions:Deny",
+    "Delete:Allow","Delete:Deny",
+    "ExportXml:Allow","ExportXml:Deny",
+    "Execute:Allow","Execute:Deny",
+    "Read:Allow","Read:Deny",
+    "WebAuthoring:Allow","WebAuthoring:Deny",
+    "Write:Allow","Write:Deny"
+)
+
+#endregion DEFINITIONS
 #region CONFIG
+
+$EndpointVersioningType = @{
+    RestApiVersioning = "RestApiVersioning"
+    PerResourceVersioning = "PerResourceVersioning"
+}
+$EndpointVersioningType.Default = $EndpointVersioningType.RestApiVersioning
+
+function Get-VersioningType {
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Method
+    )
+    return $global:tsRestApiConfig.Method.$Method.VersioningType ?? $EndpointVersioningType.Default
+}
+
+function IsRestApiVersioning {
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Method
+    )
+    return (Get-VersioningType -Method $Method) -eq $EndpointVersioningType.RestApiVersioning
+}
+
+function IsPerResourceVersioning {
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Method
+    )
+    return (Get-VersioningType -Method $Method) -eq $EndpointVersioningType.PerResourceVersioning
+}
+function Get-TSServerType {
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$Server
+    )
+    $params = @{}
+    if ($Server) { $params += @{Server = $Server} }
+    return (IsTableauOnline @params) ? "TableauOnline" : "TableauServer"
+}
+
+
+function IsTableauOnline {
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$Server
+    )
+    if (!($global:tsRestApiConfig.Platform.id) -and !$Server) {
+        throw "`"Server`" must be specified when the Tableau Server REST API platform is undefined."
+        return
+    }
+    if ($Server) { return $Server -like "*online.tableau.com" }
+    return $global:tsRestApiConfig.Platform.Id -eq "TableauOnline"
+}
+
+function IsPlatformServer {
+    param()
+    return $Server -eq "localhost" -or $Server -eq $global:Platform.Uri.Host
+}
+
 function global:Initialize-TSRestApiConfiguration {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
@@ -7,18 +118,21 @@ function global:Initialize-TSRestApiConfiguration {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Server = "localhost",
-        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($Platform.Instance)"
+        [Parameter(Mandatory=$false)][Alias("Site")][string]$ContentUrl = "",
+        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($Platform.Instance)",
+        [switch]$Reset
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    if ($Reset) {
+        $global:tsRestApiConfig = @{}
+    }
 
     $global:tsRestApiConfig = @{
         Server = $Server ? $Server : ($tsmApiConfig.Server ? $tsmApiConfig.Server : "localhost")
-        ApiVersion = $global:Platform.Api.TsRestApiVersion ? $global:Platform.Api.TsRestApiVersion : "3.6"
         Credentials = $Credentials
         Token = $null
         SiteId = $null
-        ContentUrl = ""
+        ContentUrl = $ContentUrl
         ContentType = "application/xml;charset=utf-8"
         UserId = $null
         SpecialAccounts = @("guest","tableausvc","TabSrvAdmin","alteryxsvc")
@@ -26,18 +140,37 @@ function global:Initialize-TSRestApiConfiguration {
         SpecialMethods = @("ServerInfo","Login")
     }
 
-    $global:tsRestApiConfig.Headers = @{"Content-Type" = $global:tsRestApiConfig.ContentType}
-    $global:tsRestApiConfig.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.ApiVersion)"
+    $global:tsRestApiConfig.RestApiVersioning = @{
+        ApiVersion = "3.15"
+        Headers = @{
+            "Accept" = "*/*"
+            "Content-Type" = "application/xml;charset=utf-8"
+            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
+        }
+        ApiUri = ""
+    }
+    $global:tsRestApiConfig.RestApiVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)"
+    $global:tsRestApiConfig.PerResourceVersioning = @{
+        ApiVersion = "-"
+        Headers = @{
+            "Accept" = "*/*"
+            "Content-Type" = "application/vnd.<ResourceString>+json"
+            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
+        }
+        ApiUri = ""
+    }
+    $global:tsRestApiConfig.PerResourceVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.PerResourceVersioning.ApiVersion)"
+
     
     $global:tsRestApiConfig.Method = @{
         Login = @{
-            Path = "$($global:tsRestApiConfig.ApiUri)/auth/signin"
+            Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/signin"
             HttpMethod = "POST"
             Body = "<tsRequest><credentials name='<0>' password='<1>'><site contentUrl='<2>'/></credentials></tsRequest>"
             Response = @{Keys = "credentials"}
         } 
         ServerInfo = @{
-            Path = "$($global:tsRestApiConfig.ApiUri)/serverinfo"
+            Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/serverinfo"
             HttpMethod = "GET"
             Response = @{Keys = "serverinfo"}
         }
@@ -45,17 +178,50 @@ function global:Initialize-TSRestApiConfiguration {
 
     $creds = Get-Credentials $global:tsRestApiConfig.Credentials
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$ContentUrl)
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$global:tsRestApiConfig.ContentUrl)
     if ($responseError) {throw $responseError}
 
     $global:tsRestApiConfig.Token = $response.token
     $global:tsRestApiConfig.SiteId = $response.site.id
     $global:tsRestApiConfig.ContentUrl = $response.site.contentUrl
     $global:tsRestApiConfig.UserId = $response.user.id 
-    $global:tsRestApiConfig.Headers = @{"Content-Type" = "application/xml;charset=utf-8"; "X-Tableau-Auth" = $global:tsRestApiConfig.Token}
 
-    $serverInfo = Get-TsServerInfo -Update
-    $serverInfo | Out-Null
+    $serverInfo = Get-TsServerInfo
+    
+    $global:tsRestApiConfig.RestApiVersioning = @{
+        ApiVersion = $serverInfo.restApiVersion
+        Headers = @{
+            "Accept" = "*/*"
+            "Content-Type" = "application/xml;charset=utf-8"
+            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
+        }
+        ApiUri = ""
+    }
+    $global:tsRestApiConfig.RestApiVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)"
+    $global:tsRestApiConfig.PerResourceVersioning = @{
+        ApiVersion = "-"
+        Headers = @{
+            "Accept" = "*/*"
+            "Content-Type" = "application/vnd.<ResourceString>+json"
+            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
+        }
+        ApiUri = ""
+    }
+    $global:tsRestApiConfig.PerResourceVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.PerResourceVersioning.ApiVersion)"
+
+    if (IsPlatformServer) {
+        $global:tsRestApiConfig.Platform = $global:Platform
+    }
+    else {
+        $global:tsRestApiConfig.Platform = $global:Catalog.Platform.(Get-TSServerType -Server $Server) | Copy-Object
+        $global:tsRestApiConfig.Platform.Uri = [System.Uri]::new("https://$Server")
+        $global:tsRestApiConfig.Platform.Domain = $Server.Split(".")[-1]
+        $global:tsRestApiConfig.Platform.Instance = "$($Server.Replace(".","-"))"
+    }
+    $global:tsRestApiConfig.Platform.Api.TsRestApiVersion = $serverinfo.restApiVersion
+    $global:tsRestApiConfig.Platform.Version = $serverinfo.productVersion.InnerText
+    $global:tsRestApiConfig.Platform.Build = $serverinfo.productVersion.build
+    $global:tsRestApiConfig.Platform.DisplayName = $global:tsRestApiConfig.Platform.Name + " " + $global:tsRestApiConfig.Platform.Version
 
     Update-TSRestApiMethods
     
@@ -74,280 +240,436 @@ function global:Update-TSRestApiMethods {
         #region SESSION METHODS
 
             Login = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/auth/signin"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/signin"
                 HttpMethod = "POST"
                 Body = "<tsRequest><credentials name='<0>' password='<1>'><site contentUrl='<2>'/></credentials></tsRequest>"
                 Response = @{Keys = "credentials"}
             } 
             GetCurrentSession = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sessions/current"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sessions/current"
                 HttpMethod = "GET"
                 Response = @{Keys = "session"}
             }
             Logout = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/auth/signout"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/signout"
                 HttpMethod = "POST"
             }
 
         #endregion SESSION METHODS
-
         #region SERVER METHODS
 
             ServerInfo = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/serverinfo"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/serverinfo"
                 HttpMethod = "GET"
                 Response = @{Keys = "serverinfo"}
             }
             GetDomains = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/domains"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/domains"
                 HttpMethod = "GET"
                 Response = @{Keys = "domainList"}
             }
 
         #endregion SERVER METHODS
-        
         #region GROUP METHODS
 
             GetGroups = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/groups"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups"
                 HttpMethod = "GET"
                 Response = @{Keys = "groups.group"}
             }
             AddGroupToSite = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/groups"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups"
                 HttpMethod = "POST"
                 Body = "<tsRequest><group name='<0>'/></tsRequest>"
                 Response = @{Keys = "group"}
             }
             RemoveGroupFromSite = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = "group"}
             }
             GetGroupMembership = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
                 HttpMethod = "GET"
                 Response = @{Keys = "users.user"}
             }
             AddUserToGroup = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
                 HttpMethod = "POST"
                 Body = "<tsRequest><user id='<1>'/></tsRequest>"
                 Response = @{Keys = "user"}
             }
             RemoveUserFromGroup = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users/<1>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users/<1>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = ""}
             }
 
         #endregion GROUP METHODS
-
         #region SITE METHODS
 
             SwitchSite = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/auth/switchSite"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/switchSite"
                 HttpMethod = "POST"
                 Body = "<tsRequest><site contentUrl='<0>'/></tsRequest>"
                 Response = @{Keys = "credentials"}
             } 
             GetSites = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites"
                 HttpMethod = "GET"
                 Response = @{Keys = "sites.site"}
             }
             GetSite = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)"
                 HttpMethod = "GET"
                 Response = @{Keys = "site"}
             }
 
         #endregion SITE METHODS
-
         #region USER METHODS
 
             GetUsers = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/users"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users"
                 HttpMethod = "GET"
                 Response = @{Keys = "users.user"}
             }
             GetUser = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "user"}
             }
             AddUser = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/users"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users"
                 HttpMethod = "POST"
                 Body = "<tsRequest><user name='<0>' siteRole='<1>' /></tsRequest>"
                 Response = @{Keys = "user"}
             }
             RemoveUser = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = ""}
             }
             UpdateUser = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><user fullName='<1>' email='<2>' siteRole='<3>' /></tsRequest>"
                 Response = @{Keys = "user"}
             }
             UpdateUserPassword = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><user password='<1>' /></tsRequest>"
                 Response = @{Keys = "user"}
             }
             GetUserMembership = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>/groups"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>/groups"
                 HttpMethod = "GET"
                 Response = @{Keys = "groups.group"}
             }
 
         #endregion USER METHODS
-
         #region PROJECT METHODS 
             
             GetProjects = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/projects"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects"
                 HttpMethod = "GET"
                 Response = @{Keys = "projects.project"}
             }
             GetProjectPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }
             GetProjectDefaultPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }
             AddProjectPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
             AddProjectDefaultPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><2></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
             RemoveProjectPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions/<1>/<2>/<3>/<4>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions/<1>/<2>/<3>/<4>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = "permissions"}
             }
             RemoveProjectDefaultPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>/<2>/<3>/<4>/<5>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>/<2>/<3>/<4>/<5>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = "permissions"}
             }
 
         #endregion PROJECT METHODS
-
         #region WORKBOOK METHODS
 
             GetWorkbooks = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/workbooks"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks"
                 HttpMethod = "GET"
                 Response = @{Keys = "workbooks.workbook"}
             }
             GetWorkbook = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "workbook"}
             }
+            GetWorkbookRevisions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/revisions"
+                HttpMethod = "GET"
+                Response = @{Keys = "revisions.revision"}
+            }
             GetWorkbookPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }   
             AddWorkbookPermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
+            GetWorkbookConnections = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/connections"
+                HttpMethod = "GET"
+                Response = @{Keys = "connections.connection"}
+            }
 
         #endregion WORKBOOK METHODS
-
         #region VIEW METHODS 
 
             GetViewsForSite = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/views"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views"
                 HttpMethod = "GET"
                 Response = @{Keys = "views.view"}
             }
             GetViewsForWorkbook = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/views"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/views"
                 HttpMethod = "GET"
                 Response = @{Keys = "views.view"}
             }
-
-        #endregion VIEW METHODS 
-
-        #region DATASOURCE METHODS 
-
-            GetDataSources = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/datasources"
-                HttpMethod = "GET"
-                Response = @{Keys = "datasources.datasource"}
-            }
-            GetDatasourcePermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
+            GetViewPermissions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
-            }
-            AddDataSourcePermissions = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
+            }   
+            AddViewPermissions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
 
+        #endregion VIEW METHODS 
+        #region DATASOURCE METHODS 
+
+            GetDataSource = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "datasource"}
+            }
+            GetDataSources = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources"
+                HttpMethod = "GET"
+                Response = @{Keys = "datasources.datasource"}
+            }
+            GetDatasourcePermissions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
+                HttpMethod = "GET"
+                Response = @{Keys = "permissions"}
+            }
+            AddDataSourcePermissions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
+                HttpMethod = "PUT"
+                Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
+                Response = @{Keys = "permissions"}
+            }
+            GetDataSourceRevisions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/revisions"
+                HttpMethod = "GET"
+                Response = @{Keys = "revisions.revision"}
+            }
+            GetDataSourceConnections = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/connections"
+                HttpMethod = "GET"
+                Response = @{Keys = "connections.connection"}
+            }
+
         #endregion DATASOURCE METHODS
-
-
         #region FLOW METHODS
 
             GetFlows = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/flows"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows"
                 HttpMethod = "GET"
                 Response = @{Keys = "flows.flow"}
             }
+            GetFlow = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "flow"}
+            }
+            GetFlowPermissions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/permissions"
+                HttpMethod = "GET"
+                Response = @{Keys = "permissions"}
+            }
+            AddFlowPermissions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/permissions"
+                HttpMethod = "PUT"
+                Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
+                Response = @{Keys = "permissions"}
+            }
 
         #endregion FLOW METHODS          
-        
         #region METRIC METHODS
 
             GetMetrics = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/metrics"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/metrics"
+                HttpMethod = "GET"
+                Response = @{Keys = "metrics.metric"}
+            }
+            GetMetric = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/metrics/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "metrics.metric"}
             }
 
-        #endregion METRIC METHODS              
-
+        #endregion METRIC METHODS
         #region FAVORITE METHODS
 
             GetFavorites = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "favorites.favorite"}
             }
             AddFavorites = @{
-                Path = "$($global:tsRestApiConfig.ApiUri)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><favorite label='<1>'><<2> id='<3>'/></favorite></tsRequest>"
                 Response = @{Keys = "favorites.favorite"}
             }
 
         #endregion FAVORITE METHODS
-    
+        #region SCHEDULES
+
+            GetSchedules = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/schedules"
+                HttpMethod = "GET"
+                Response = @{Keys = "schedules.schedule"}
+            }
+            GetSchedule = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/schedules/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "schedule"}
+            }
+        
+        #endregion SCHEDULES
+        #region SUBSCRIPTIONS
+
+            GetSubscriptions = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/subscriptions"
+                HttpMethod = "GET"
+                Response = @{Keys = "subscriptions.subscription"}
+            }
+            GetSubscription = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/subscriptions/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "subscription"}
+            }
+
+        #endregion SUBSCRIPTIONS
+        #region NOTIFICATIONS
+            
+            GetDataAlerts = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/dataAlerts"
+                HttpMethod = "GET"
+                Response = @{Keys = "dataAlerts.dataAlert"}
+            }
+            GetWebhooks = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/webhooks"
+                HttpMethod = "GET"
+                Response = @{Keys = "webhooks.webhook"}
+            }
+            GetWebhook = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/webhooks/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "webhook"}
+            }
+            GetUserNotificationPreferences = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/settings/notifications"
+                HttpMethod = "GET"
+                Response = @{Keys = "userNotificationsPreferences.userNotificationsPreference"}
+            }
+
+        #endregion NOTIFICATIONS
+        #region ANALYTICS EXTENSIONS
+
+            GetAnalyticsExtensionsConnectionsForSite = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/analytics/connections"
+                HttpMethod = "GET"
+                Response = @{Keys = "connectionList"}
+                ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
+                VersioningType = $EndpointVersioningType.PerResourceVersioning
+            }
+            GetAnalyticsExtensionsEnabledStateForSite = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/analytics"
+                HttpMethod = "GET"
+                Response = @{Keys = "enabled"}
+                ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
+                VersioningType = $EndpointVersioningType.PerResourceVersioning
+            }  
+
+        #endregion ANALYTICS EXTENSIONS
+        #region DASHBOARD EXTENSIONS
+
+            GetDashboardExtensionSettingsForServer = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/-/settings/server/extensions/dashboard"
+                HttpMethod = "GET"
+                ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
+                VersioningType = $EndpointVersioningType.PerResourceVersioning
+            } 
+            GetBlockedDashboardExtensionsForServer = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/-/settings/server/extensions/dashboard/blockListItems"
+                HttpMethod = "GET"
+                ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
+                VersioningType = $EndpointVersioningType.PerResourceVersioning
+            }  
+            GetDashboardExtensionSettingsForSite = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/dashboard"
+                HttpMethod = "GET"
+                ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
+                VersioningType = $EndpointVersioningType.PerResourceVersioning
+            } 
+            GetAllowedDashboardExtensionsForSite = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/dashboard/safeListItems"
+                HttpMethod = "GET"
+                ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
+                VersioningType = $EndpointVersioningType.PerResourceVersioning
+            }
+
+        #endregion DASHBOARD EXTENSIONS
+        #region CONNECTED APPLICATIONS
+
+            GetConnectedApplications = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/connected-applications"
+                HttpMethod = "GET"
+                Response = @{Keys = "connectedApplications.connectedApplication"}
+            }
+            GetConnectedApplication = @{
+                Path = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/connected-applications/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "connectedApplications.connectedApplication"}
+            }
+
+        #endregion CONNECTED APPLICATIONS
 
     }
 
@@ -377,35 +699,64 @@ function global:Invoke-TSRestApiMethod {
             summary = "Unauthorized Access"
             detail = "Invalid authentication credentials were provided"
         }
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        # Write-Host+ $errorMessage -ForegroundColor DarkRed
+        $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        Write-Host+ $errorMessage -ForegroundColor Red
         Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
         return $null, $null, $responseError
     }
 
-    $responseRoot = "tsResponse"
+    $responseRoot = (IsRestApiVersioning -Method $Method) ? "tsResponse" : $null
+    
     $pageFilter = "pageNumber=$($PageNumber)&pageSize=$($PageSize)"
-
     $filter = $FilterExpression ? "?filter=$($FilterExpression)&$($pageFilter)" : "?$($pageFilter)"
 
     $httpMethod = $global:tsRestApiConfig.Method.$Method.HttpMethod
-    $path = "$($global:tsRestApiConfig.Method.$Method.Path)$($httpMethod -eq "GET" ? $filter : $null)"
-    $body = $global:tsRestApiConfig.Method.$Method.Body 
-    $headers = $global:tsRestApiConfig.Headers
-    $keys = $global:tsRestApiConfig.Method.$Method.Response.Keys
 
-    for ($i = 0; $i -lt $params.Count; $i++) {
+    $path = "$($global:tsRestApiConfig.Method.$Method.Path)"
+    $path += (IsRestApiVersioning -Method $Method) -and $httpMethod -eq "GET" ? $filter : $null
+
+    $body = $global:tsRestApiConfig.Method.$Method.Body 
+
+    $headers = $global:tsRestApiConfig.(Get-VersioningType -Method $Method).Headers | Copy-Object
+    $headers."Content-Type" = $headers."Content-Type".Replace("<ResourceString>",$global:tsRestApiConfig.Method.$Method.ResourceString)
+
+    $keys = $global:tsRestApiConfig.Method.$Method.Response.Keys
+    # $tsObjectName = $keys ? $keys.split(".")[-1] : "response"
+
+    for ($i = 0; $i -lt $Params.Count; $i++) {
         $path = $path -replace "<$($i)>",$Params[$i]
         $body = $body -replace "<$($i)>",$Params[$i]
         $keys = $keys -replace "<$($i)>",$Params[$i]
     }  
     
     try {
-        $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -SkipCertificateCheck -SkipHttpErrorCheck -ContentType $global:tsRestApiConfig.ContentType -Verbose:$false 
-        $responseError = $response.$responseRoot.error 
+        $response = Invoke-RestMethod -Uri $path -Method $httpMethod -Headers $headers -Body $body -TimeoutSec 15 -SkipCertificateCheck -SkipHttpErrorCheck -Verbose:$false -ResponseHeadersVariable responseHeaders
+        $responseError = $null
+        if (IsRestApiVersioning -Method $Method) {
+            $responseError = $response.$responseRoot.error 
+        }
+        else {
+            if ($response.httpErrorCode) {
+                $responseError = @{
+                    code = $response.httpErrorCode
+                    detail = $response.message
+                }
+            }
+        }
     }
     catch {
         $responseError = $_.Exception.Message
+    }
+
+    if ($responseError) {
+        $errorMessage = $responseError
+        if ($responseError.code) {
+            $errorMessage = "Error $($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
+        }
+        Write-Host+ $errorMessage -ForegroundColor Red
+        Write-Log -Action $Method -Status "Error" -EntryType "Error" -Message $errorMessage
+        # return $response, $null, $responseError
+        throw $errorMessage
     }
 
     $pagination = [ordered]@{
@@ -420,17 +771,134 @@ function global:Invoke-TSRestApiMethod {
     $pagination.TotalRemaining = $pagination.TotalAvailable -gt ($PageNumber * $PageSize) ? ($pagination.TotalAvailable - ($PageNumber * $PageSize)) : 0
     $pagination.IsLastPage = $pagination.TotalRemaining -eq 0
 
-    $keys = $keys ? "$($responseRoot).$($keys)" : $responseRoot
+    $tsObject = $response | Copy-Object
+    $keys = $keys ? "$($responseRoot)$($responseRoot ? "." : $null)$($keys)" : $responseRoot
     if ($keys) {
         foreach ($key in $keys.split(".")) {
-            $response = $response.$key
+            $tsObject = $tsObject.$key
         }
     }
 
-    $pagination.CountThisPage = $response.Count
+    $pagination.CountThisPage = $tsObject.Count
     $pagination.TotalReturned = ((($PageNumber - 1) * $PageSize) + $pagination.CountThisPage)
 
-    return $response, $pagination, $responseError
+    # if ([string]::IsNullOrEmpty($tsObject)) {
+    #     $errorMessage = "$tsObjectName object is null"
+    #     Write-Host+ $errorMessage -ForegroundColor DarkGray
+    # }
+
+    return $tsObject, $pagination, $responseError
+
+}
+
+function global:Download-TSObject {
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Method,
+        [Parameter(Mandatory=$true)][System.Xml.XmlElement]$InputObject
+    )
+
+    if ($Method -notin $global:tsRestApiConfig.SpecialMethods -and !$global:tsRestApiConfig.Token) {
+        $responseError = @{
+            code = "401002"
+            summary = "Unauthorized Access"
+            detail = "Invalid authentication credentials were provided"
+        }
+        $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
+        return $null, $null, $responseError
+    }
+
+    $tsObjectType = $global:tsRestApiConfig.Method.$Method.Response.Keys.Split(".")[-1]
+
+    $projectPath = ""
+    $projects = Get-TSProjects
+    $project = $projects | Where-Object {$_.id -eq $InputObject.project.id}
+    do {
+        $projectPath = $project.Name + ($projectPath ? "\" : $null) + $projectPath
+        $project = $projects | Where-Object {$_.id -eq $project.parentProjectId}
+    } until (!$project)
+
+    $contentUrl = ![string]::IsNullOrEmpty($global:tsRestApiConfig.ContentUrl) ? $global:tsRestApiConfig.ContentUrl : "default"
+    $outFileDirectory = "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentUrl\$projectPath"
+    if (!(Test-Path $outFileDirectory)) { New-Item -ItemType Directory -Path $outFileDirectory | Out-Null }
+
+    $httpMethod = $global:tsRestApiConfig.Method.$Method.HttpMethod
+    $path = "$($global:tsRestApiConfig.Method.$Method.Path)/content" -replace "<0>",$InputObject.Id
+    
+    $headers = $global:tsRestApiConfig.(Get-VersioningType -Method $Method).Headers | Copy-Object
+    $headers."Content-Type" = $headers."Content-Type".Replace("<ResourceString>",$global:tsRestApiConfig.Method.$Method.ResourceString)
+
+    try {
+        $response = Invoke-RestMethod -Uri $path -Method $httpMethod -Headers $headers -TimeoutSec 15 -SkipCertificateCheck -SkipHttpErrorCheck -Verbose:$false -ResponseHeadersVariable responseHeaders
+        $responseError = $null
+        if (IsRestApiVersioning -Method $Method) {
+            $responseError = $response.$responseRoot.error 
+        }
+        else {
+            if ($response.httpErrorCode) {
+                $responseError = [System.Collections.Specialized.OrderedDictionary]@{}
+                $responseError += @{
+                    code = $response.httpErrorCode
+                    detail = $response.message
+                }
+            }
+        }
+    }
+    catch {
+        $responseError = $_.Exception.Message
+    }
+
+    if ([string]::IsNullOrEmpty($responseHeaders."Content-Disposition")) {
+        $responseError = [System.Collections.Specialized.OrderedDictionary]@{}
+        $responseError += @{
+            code = 404
+            summary = "Not Found"
+            detail = "$((Get-Culture).TextInfo.ToTitleCase($tsObjectType)) download failed"
+        }
+    } 
+
+    if ($responseError) {
+        return @{ error = $responseError }
+    }         
+
+    # $contentType = $responseHeaders."Content-Type"
+    $contentDisposition = $responseHeaders."Content-Disposition".Split("; ")
+    $outFileName = $contentDisposition[1].Split("=")[1].Replace("`"","")
+    $outFile = "$outFileDirectory\$outFileName"
+
+    Remove-Variable $responseHeaders
+
+    $responseError = $null
+    try {
+        $response = Invoke-RestMethod -Uri $path -Method $httpMethod -Headers $headers -TimeoutSec 15 -SkipCertificateCheck -SkipHttpErrorCheck -Verbose:$false -OutFile $outFile
+        if (IsRestApiVersioning -Method $Method) {
+            $responseError = $response.$responseRoot.error 
+        }
+        else {
+            if ($response.httpErrorCode) {
+                $responseError = @{
+                    code = $response.httpErrorCode
+                    detail = $response.message
+                }
+            }
+        }
+    }
+    catch {
+        $responseError = $_.Exception.Message
+    }
+
+    if ($responseError) {
+        return @{ error = $responseError }
+    }  
+
+    return @{
+        outFile = $outFile
+    }
 
 }
 
@@ -445,11 +913,11 @@ function global:Connect-TableauServer {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Server = "localhost",
-        [Parameter(Mandatory=$false,Position=1)][string]$Site
+        [Parameter(Mandatory=$false,Position=1)][Alias("Site")][string]$ContentUrl
     )
 
     Initialize-TSRestApiConfiguration $Server
-    if ($Site) {Switch-TSSite $Site}
+    if ($ContentUrl) {Switch-TSSite $ContentUrl}
 
     return
 }
@@ -474,7 +942,7 @@ function global:Disconnect-TableauServer {
         [Parameter(Mandatory=$false,Position=0)][string]$Server = "localhost"
     )
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method Logout
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Logout
 
     $global:tsRestApiConfig = @{
         SpecialAccounts = @("guest","tableausvc","TabSrvAdmin","alteryxsvc","pathdevsvc")
@@ -493,32 +961,32 @@ function global:Get-TSServerInfo {
 
     [CmdletBinding()]
     param(
-        [switch][Alias("ResetCache")]$Update
+        # [switch][Alias("ResetCache")]$Update
     )
 
-    if (!$Update) {
-        if ($(get-cache platforminfo ).Exists()) {
-            $platformInfo = Read-Cache platforminfo 
-            if ($platformInfo) {
-                $global:Platform.Version = $platformInfo.Version
-                $global:Platform.Build = $platformInfo.Build
-                $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
-                return 
-            }
-        }
-    }
+    # if (!$Update) {
+    #     if ($(get-cache platforminfo ).Exists()) {
+    #         $platformInfo = Read-Cache platforminfo 
+    #         if ($platformInfo) {
+    #             $global:Platform.Version = $platformInfo.Version
+    #             $global:Platform.Build = $platformInfo.Build
+    #             $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
+    #             return
+    #         }
+    #     }
+    # }
 
-    $response = Get-TSObjects -Method ServerInfo
+    return Get-TSObjects -Method ServerInfo
     # Write-Host+ -NoTrace -NoTimestamp -Iff (!$response) "Unable to connect to Tableau Server REST API." -ForegroundColor Red
 
-    if ($response -and $Update) {
-        $global:Platform.Api.TsRestApiVersion = $response.restApiVersion
-        $global:Platform.Version = $response.productVersion.InnerText
-        $global:Platform.Build = $response.productVersion.build
-        Write-Cache platforminfo -InputObject @{Version=$global:Platform.Version;Build=$global:Platform.Build;TsRestApiVersion=$global:Platform.Api.TsRestApiVersion}
-    }
+    # if ($response -and $Update) {
+    #     $global:Platform.Api.TsRestApiVersion = $response.restApiVersion
+    #     $global:Platform.Version = $response.productVersion.InnerText
+    #     $global:Platform.Build = $response.productVersion.build
+    #     Write-Cache platforminfo -InputObject @{Version=$global:Platform.Version;Build=$global:Platform.Build;TsRestApiVersion=$global:Platform.Api.TsRestApiVersion}
+    # }
 
-    return $response
+    # return $response
 
 }
 
@@ -534,7 +1002,8 @@ function global:Get-TSObjects {
         [Parameter(Mandatory=$false,Position=1)][string[]]$Params,
         [Parameter(Mandatory=$false)][ValidateRange(1,1000)][int]$PageNumber = 1,
         [Parameter(Mandatory=$false)][ValidateRange(1,1000)][int]$PageSize = 100,
-        [Parameter(Mandatory=$false)][string]$FilterExpression
+        [Parameter(Mandatory=$false)][string]$FilterExpression,
+        [switch]$Download
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -545,16 +1014,31 @@ function global:Get-TSObjects {
     $pageSize = 100
 
     do {
-        $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method $Method -Params $Params -FilterExpression $FilterExpression -PageNumber $pageNumber -PageSize $pageSize
-        if ($responseError.code -eq "401002") {
-            $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-            Write-Host+ $errorMessage -ForegroundColor DarkRed
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method $Method -Params $Params -FilterExpression $FilterExpression -PageNumber $pageNumber -PageSize $pageSize
+        if ($responseError) {
+            $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+            Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
             Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
             return
         }
         $objects += $response
         $pagenumber += 1
     } until ($pagination.IsLastPage)
+
+    if ($objects -and $Download) {
+        foreach ($object in $objects) {
+            $response = Download-TSObject -Method ($Method -replace "s$","") -InputObject $object
+            if ($response.error) {
+                $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
+                # Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
+                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                $object.SetAttribute("error", ($response | ConvertTo-Json -Compress))
+            }
+            else {
+                $object.SetAttribute("outFile", $response.outFile)
+            }
+        }
+    }
 
     return $objects
 
@@ -630,36 +1114,31 @@ function global:Find-TSObject {
 }    
 
 #endregion OBJECT
-
 #region SITE
 
 function global:Switch-TSSite {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Site = ""
+        [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = ""
     )
 
-    if ($Site -notin (Get-TSSites).contentUrl) {    
-        
-        $message = "Site '$($Site)' is not a valid contentURL for a site on $($global:tsRestApiConfig.Server)"
-        Write-Host+ $message -ForegroundColor DarkRed
-        Disconnect-TableauServer
+    # if (IsTableauOnline) { return }
 
-        $message = "You must reconnect to Tableau Server to continue."
-        Write-Host+ $message -ForegroundColor DarkYellow
-        Write-Log -Message $message -EntryType "Error" -Action "SwitchSite" -Target $Site -Status "Error"
-        
+    if ($ContentUrl -notin (Get-TSSites).contentUrl) {    
+        $message = "Site `"$ContentUrl`" is not a valid contentURL for a site on $($global:tsRestApiConfig.Server)"
+        Write-Host+ $message -ForegroundColor Red
+        Write-Log -Message $message -EntryType "Error" -Action "SwitchSite" -Target $ContentUrl -Status "Error"
         return
     }
 
-    if ($Site -eq $global:tsRestApiConfig.ContentUrl) {return}
+    if ($ContentUrl -eq $global:tsRestApiConfig.ContentUrl) {return}
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "SwitchSite" -Params @($Site)
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "SwitchSite" -Params @($ContentUrl)
     if ($responseError) {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ -NoTrace $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "SwitchSite" -Status "Error"
+        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
+        # Write-Log -Message $errorMessage -EntryType "Error" -Action "SwitchSite" -Status "Error"
         return
     }
 
@@ -667,7 +1146,30 @@ function global:Switch-TSSite {
     $global:tsRestApiConfig.SiteId = $response.site.id
     $global:tsRestApiConfig.ContentUrl = $response.site.contentUrl
     $global:tsRestApiConfig.UserId = $response.user.id 
-    $global:tsRestApiConfig.Headers = @{"Content-Type" = $global:tsRestApiConfig.ContentType; "X-Tableau-Auth" = $global:tsRestApiConfig.Token}
+    # $global:tsRestApiConfig.Headers = @{"Content-Type" = $global:tsRestApiConfig.ContentType; "X-Tableau-Auth" = $global:tsRestApiConfig.Token}
+
+    $serverInfo = Get-TsServerInfo
+
+    $global:tsRestApiConfig.RestApiVersioning = @{
+        ApiVersion = $serverInfo.restApiVersion
+        Headers = @{
+            "Accept" = "*/*"
+            "Content-Type" = "application/xml;charset=utf-8"
+            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
+        }
+        ApiUri = ""
+    }
+    $global:tsRestApiConfig.RestApiVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)"
+    $global:tsRestApiConfig.PerResourceVersioning = @{
+        ApiVersion = "-"
+        Headers = @{
+            "Accept" = "*/*"
+            "Content-Type" = "application/vnd.<ResourceString>+json"
+            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
+        }
+        ApiUri = ""
+    }
+    $global:tsRestApiConfig.PerResourceVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.PerResourceVersioning.ApiVersion)"
 
     Update-TSRestApiMethods
 
@@ -679,8 +1181,8 @@ function global:Get-TSSites {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
+    if (IsTableauOnline) { return Get-TSSite }
+
     return Get-TSObjects -Method GetSites
 }
 
@@ -689,17 +1191,14 @@ function global:Get-TSSite {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
     return Get-TSObjects -Method GetSite
+
 }
 
 function global:Get-TSCurrentSite {
 
     [CmdletBinding()]
     param()
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     return (Get-TSCurrentSession).site
 
@@ -721,16 +1220,35 @@ function global:Find-TSSite {
 }
 
 #endregion SITE
-
 #region USERS
+
+function global:Get-TSUsers+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+    )
+
+    $usersPlus = @()
+    $Users | ForEach-Object {
+        $user = @{}
+        $userMembers = $_ | Get-Member -MemberType Property
+        foreach ($member in  $userMembers) {
+            $user.($member.Name) = $_.($member.Name)
+        }
+        $user.membership = Get-TSUserMembership -User $_
+        $usersPlus += $user
+    }
+
+    return $usersPlus
+    
+}
 
 function global:Get-TSUsers {
 
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
     return Get-TSObjects -Method GetUsers
 }
 
@@ -741,8 +1259,6 @@ function global:Get-TSUser {
         [Parameter(Mandatory=$false,Position=0)][string]$Id = ((Get-TSCurrentUser).id)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
     return Get-TSObjects -Method GetUser -Params @($Id)
 }
 
@@ -799,35 +1315,29 @@ function global:Add-TSUser {
     if ([string]::IsNullOrEmpty($FullName)) {
         $errorMessage = "$($Site.contentUrl)\$Username : FullName is missing or invalid."
         Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
-        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor DarkRed
+        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor Red
         return
     }
     if ([string]::IsNullOrEmpty($Email)) {
         $errorMessage = "$($Site.contentUrl)\$Username : Email is missing or invalid."
         Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
-        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor DarkRed
+        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor Red
         return
     }
 
-    $SiteRole = $SiteRole -in $global:SiteRoles ? $SiteRole : "Unlicensed"
+    $SiteRole = $SiteRole -in $global:TSSiteRoles ? $SiteRole : "Unlicensed"
 
     # $response is a user object or an error object
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "AddUser" -Params @($Username,$SiteRole)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "AddUser" -Status "Error"
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddUser" -Params @($Username,$SiteRole)
+    if ($responseError) { #}.code -eq "401002") {
+        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddUser" -Status "Error"
         return
-    }
-    elseif ($responseError) {
-        # $response is an error object
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Log -Action "AddUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Username)" -Status "Error" -Message $errorMessage -EntryType "Error"
-        Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
     }
     else {
         $tsSiteUser = $response # $response is a user object
-        Write-Log -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Force 
+        Write-Log -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Message "$($tsSiteUser.fullName) | $(![string]::IsNullOrEmpty($tsSiteUser.email) ? "$($tsSiteUser.email) | " : $null)$($tsSiteUser.siteRole)" -Force 
         
         # $response is an update object (NOT a user object) or an error object
         $response = Update-TSSiteUser -User $tsSiteUser -FullName $FullName -Email $Email -SiteRole $SiteRole
@@ -860,9 +1370,9 @@ function global:Update-TSUser {
     $action = $SiteRole -eq "Unlicensed" ? "DisableUser" : "UpdateUser"
 
     $update = $null
-    if ($FullName -ne $User.fullname) {$update += "$($update ? " | " : $null)$($User.fullname ? "$($User.fullname) > " : $null)$($FullName)"}
-    if ($Email -ne $User.name) {$update += "$($update ? " | " : $null)$($User.name ? "$($User.name) > " : $null)$($Email)"}
-    if ($SiteRole -ne $User.siteRole) {$update += "$($update ? " | " : $null)$($User.siteRole ? "$($User.siteRole) > " : $null)$($SiteRole)"}
+    if (![string]::IsNullOrEmpty($FullName) -and $FullName -ne $User.fullname) {$update += "$($update ? " | " : $null)$($User.fullname ? "$($User.fullname) > " : $null)$($FullName)"}
+    if (![string]::IsNullOrEmpty($Email) -and $Email -ne $User.name) {$update += "$($update ? " | " : $null)$($User.name ? "$($User.name) > " : $null)$($Email)"}
+    if (![string]::IsNullOrEmpty($SiteRole) -and $SiteRole -ne $User.siteRole) {$update += "$($update ? " | " : $null)$($User.siteRole ? "$($User.siteRole) > " : $null)$($SiteRole)"}
 
     $FullName = $FullName ? $FullName : $User.fullName
     $Email = $Email ? $Email : $User.Name
@@ -871,21 +1381,15 @@ function global:Update-TSUser {
     $FullName = $FullName.replace("'","&apos;").replace("’","&apos;")
     $Email = $Email.replace("'","&apos;").replace("’","&apos;")
 
-    $SiteRole = $SiteRole -in $global:SiteRoles ? $SiteRole : $User.SiteRole
+    $SiteRole = $SiteRole -in $global:TSSiteRoles ? $SiteRole : $User.SiteRole
     
     # $response is an update object (NOT a user object) or an error object
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "UpdateUser" -Params @($User.Id,$FullName,$Email,$SiteRole)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action $action -Status "Error"
-        # return
-    }
-    elseif ($responseError) {
-        # $response is an an error object
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Log -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Error" -Message $errorMessage -EntryType "Error"
-        Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "UpdateUser" -Params @($User.Id,$FullName,$Email,$SiteRole)
+    if ($responseError) { #}.code -eq "401002") {
+        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        # Write-Log -Message $errorMessage -EntryType "Error" -Action $action -Status "Error"
+        return
     }
     else {
         Write-Log -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Message $update -Force 
@@ -910,18 +1414,12 @@ function global:Update-TSUserPassword {
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     # $response is an update object (NOT a user object) or an error object
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "UpdateUserPassword" -Params @($User.id,$Password)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "UpdateUserPassword" -Status "Error"
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "UpdateUserPassword" -Params @($User.id,$Password)
+    if ($responseError) { #}.code -eq "401002") {
+        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        # Write-Log -Message $errorMessage -EntryType "Error" -Action "UpdateUserPassword" -Status "Error"
         return
-    }
-    elseif ($responseError) {
-        # $response is an an error object
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Log -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Error" -Message $errorMessage -EntryType "Error"
-        Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
     }
     else {
         Write-Log -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Force 
@@ -946,17 +1444,11 @@ function global:Remove-TSUser {
     # Switch-TSSite $tsSite.contentUrl
 
     $response, $pagination, $responseError = Invoke-TsRestApiMethod -Method "RemoveUser" -Params @($User.Id)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveUser" -Status "Error"
+    if ($responseError) { #}.code -eq "401002") {
+        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        # Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveUser" -Status "Error"
         # return
-    }
-    elseif ($responseError) {
-        # $response is an an error object
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Log -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Error" -Message $errorMessage -EntryType "Error"
-        Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
     }
     else {
         Write-Log -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Force 
@@ -968,16 +1460,35 @@ function global:Remove-TSUser {
 Set-Alias -Name Remove-TSUserFromSite -Value Remove-TSUser -Scope Global
 
 #endregion USERS
-
 #region GROUPS
+
+function global:Get-TSGroups+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups)
+    )
+
+    $groupsPlus = @()
+    $Groups | ForEach-Object {
+        $group = @{}
+        $groupMembers = $_ | Get-Member -MemberType Property
+        foreach ($member in  $groupMembers) {
+            $group.($member.Name) = $_.($member.Name)
+        }
+        $group.membership = Get-TSGroupMembership -Group $_
+        $groupsPlus += $group
+    }
+
+    return $groupsPlus
+    
+}
 
 function global:Get-TSGroups {
 
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
     return Get-TSObjects -Method GetGroups
 }
 
@@ -1001,8 +1512,6 @@ function global:Get-TSGroupMembership {
         [Parameter(Mandatory=$true,Position=0)][object]$Group
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     return Get-TSObjects -Method GetGroupMembership -Params @($Group.Id)
 
 }
@@ -1019,17 +1528,12 @@ function global:Add-TSUserToGroup {
 
     # $usersAddedToGroup = 0
     $User | ForEach-Object {
-        $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "AddUserToGroup" -Params @($Group.Id,$_.Id)
-        if ($responseError.code -eq "401002") {
-            $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-            Write-Host+  $errorMessage -ForegroundColor DarkRed
-            Write-Log -Message $errorMessage -EntryType "Error" -Action "AddUserToGroup" -Status "Error"
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddUserToGroup" -Params @($Group.Id,$_.Id)
+        if ($responseError) { #}.code -eq "401002") {
+            # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+            # Write-Host+  $errorMessage -ForegroundColor Red
+            # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddUserToGroup" -Status "Error"
             return
-        }
-        elseif ($responseError) {
-            $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-            Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Error" -Message $errorMessage -EntryType "Error"
-            Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
         }
         else {
             # $usersAddedToGroup += 1
@@ -1055,17 +1559,12 @@ function global:Remove-TSUserFromGroup {
 
     # $usersRemovedFromGroup = 0
     $User | ForEach-Object {
-        $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "RemoveUserFromGroup" -Params @($Group.Id,$_.Id)
-        if ($responseError.code -eq "401002") {
-            $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-            Write-Host+ $errorMessage -ForegroundColor DarkRed
-            Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveUserFromGroup" -Status "Error"
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveUserFromGroup" -Params @($Group.Id,$_.Id)
+        if ($responseError) { #}.code -eq "401002") {
+            # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+            # Write-Host+ $errorMessage -ForegroundColor Red
+            # Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveUserFromGroup" -Status "Error"
             return
-        }
-        elseif ($responseError) {
-            $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-            Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Error" -Message $errorMessage -EntryType "Error"
-            Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
         }
         else {
             # $usersRemovedFromGroup += 1
@@ -1077,31 +1576,39 @@ function global:Remove-TSUserFromGroup {
     return
 }   
 
-#endregion GROUPS
-
+#endregion GROUP
 #region PROJECTS
 
 function global:Get-TSProjects+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    $projects = @()
-    Get-TSProjects | ForEach-Object {
+    if (!$Projects) {
+        # Write-Host+ "No projects found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
+        return
+    }
+
+    $projectPermissions = Get-TSProjectPermissions+ -Users $Users -Groups $Groups -Projects $Projects
+
+    $projectsPlus = @()
+    $Projects | ForEach-Object {
         $project = @{}
         $projectMembers = $_ | Get-Member -MemberType Property
         foreach ($member in  $projectMembers) {
             $project.($member.Name) = $_.($member.Name)
         }
         $project.owner = Find-TSUser -Users $Users -Id $_.owner.id
-        $projects += $project
+        $project.granteeCapabilities = $projectPermissions.$($_.id).granteeCapabilities
+        $project.defaultPermissions = $projectPermissions.$($_.id).defaultPermissions
+        $projectsPlus += $project
     }
 
-    return $projects
+    return $projectsPlus
 }
 
 function global:Get-TSProjects {
@@ -1109,9 +1616,8 @@ function global:Get-TSProjects {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
     return Get-TSObjects -Method GetProjects
+
 }
 
 function global:Find-TSProject {
@@ -1138,9 +1644,6 @@ function global:Get-TSProjectPermissions+ {
     if (!$Projects) {throw "Workbooks is empty"}
     if (!$Groups) {throw "Groups is empty"}
     if (!$Users) {throw "Users is empty"}
-
-    $message = "Getting project permissions : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 38 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
 
     $projectPermissions = Get-TSProjectPermissions -Project $Projects
     $projectPermissionsCount = ($projectPermissions.keys | ForEach-Object {$projectPermissions.$_.granteeCapabilities.count} | Measure-Object -Sum).Sum 
@@ -1178,8 +1681,6 @@ function global:Get-TSProjectPermissions+ {
 
         $projectPermissionsPlus += @{$projectKey = $perm}
     }
-    $message = "$($emptyString.PadLeft(8,"`b")) $($projectPermissionsCount)$($emptyString.PadLeft(8," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
     return $projectPermissionsPlus
 }
@@ -1237,13 +1738,13 @@ function global:Add-TSProjectPermissions {
     }
     $capabilityXML += "</capabilities>"
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method AddProjectPermissions -Params @($Project.id,$capabilityXML)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "AddProjectPermissions" -Status "Error"
-        # return
-    }
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method AddProjectPermissions -Params @($Project.id,$capabilityXML)
+    # if ($responseError) { #}.code -eq "401002") {
+    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+    #     Write-Host+ $errorMessage -ForegroundColor Red
+    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddProjectPermissions" -Status "Error"
+    #     # return
+    # }
     
     return $response,$responseError
 }
@@ -1277,13 +1778,13 @@ function global:Remove-TSProjectPermissions {
 
     foreach ($capability in $Capabilities) {
         $capabilityName,$capabilityMode = $capability.split(":")
-        $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "RemoveProjectPermissions" -Params @($Project.id,$granteeType,$grantee.Id,$capabilityName,$capabilityMode)
-        if ($responseError.code -eq "401002") {
-            $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-            Write-Host+ $errorMessage -ForegroundColor DarkRed
-            Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveProjectPermissions" -Status "Error"
-            # return
-        }
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveProjectPermissions" -Params @($Project.id,$granteeType,$grantee.Id,$capabilityName,$capabilityMode)
+        # if ($responseError) { #}.code -eq "401002") {
+        #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        #     Write-Host+ $errorMessage -ForegroundColor Red
+        #     Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveProjectPermissions" -Status "Error"
+        #     # return
+        # }
     }
     
     return $response,$responseError
@@ -1338,8 +1839,7 @@ function global:Get-TSProjectDefaultPermissions {
         [Parameter(Mandatory=$true)][ValidateSet("Workbooks","Datasources","Metrics","Flows")][string]$Type
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
+
     $projectDefaultPermissions = @{}
     foreach ($project in $Projects) {
         $projectDefaultPermissions += @{$project.id = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($Project.Id,$Type)}
@@ -1359,97 +1859,35 @@ function global:Add-TSProjectDefaultPermissions {
         [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $validateSetWorkbooks = @(
-        "AddComment:Allow","AddComment:Deny",
-        "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
-        "ChangePermissions:Allow","ChangePermissions:Deny",
-        "Delete:Allow","Delete:Deny",
-        "ExportData:Allow","ExportData:Deny",
-        "ExportImage:Allow","ExportImage:Deny",
-        "ExportXml:Allow","ExportXml:Deny",
-        "Filter:Allow","Filter:Deny",
-        "Read:Allow","Read:Deny",
-        "ShareView:Allow","ShareView:Deny",
-        "ViewComments:Allow","ViewComments:Deny",
-        "ViewUnderlyingData:Allow","ViewUnderlyingData:Deny",
-        "WebAuthoring:Allow","WebAuthoring:Deny",
-        "Write:Allow","Write:Deny"
-    )
-
-    $validateSetDataSources = @(
-        "ChangePermissions:Allow","ChangePermissions:Deny",
-        "Connect:Allow","Connect:Deny",
-        "Delete:Allow","Delete:Deny",
-        "ExportXml:Allow","ExportXml:Deny",
-        "Read:Allow","Read:Deny",
-        "Write:Allow","Write:Deny"
-    )
-
-    $validateSetFlows = @(
-        "Read:Allow","Read:Deny",
-        "ExportXml:Allow","ExportXml:Deny",
-        "Run:Allow","Run:Deny",
-        "Write:Allow","Write:Deny",
-        "WebAuthoring:Allow","WebAuthoring:Deny",
-        "Move:Allow","Move:Deny",
-        "Delete:Allow","Delete:Deny",
-        "ChangePermissions:Allow","ChangePermissions:Deny"
-    )
-
-    $validateSetMetrics = @(
-        "Read:Allow","Read:Deny",
-        "Write:Allow","Write:Deny",
-        "Move:Allow","Move:Deny",
-        "Delete:Allow","Delete:Deny",
-        "ChangePermissions:Allow","ChangePermissions:Deny"
-    )   
-    
-    # $validateSetDataRoles = @(
-    #     "Read:Allow","Read:Deny",
-    #     "Write:Allow","Write:Deny",
-    #     "Move:Allow","Move:Deny",
-    #     "Delete:Allow","Delete:Deny",
-    #     "ChangePermissions:Allow","ChangePermissions:Deny"
-    # )  
-
     switch ($Type) {
         "Workbooks" {
             $Capabilities | Foreach-Object {
-                if ($_ -notin $validateSetWorkbooks) {
+                if ($_ -notin $workbookPermissions) {
+                    throw "$($_) is not a valid capability"
+                }
+            }
+        }
+        "Views" {
+            $Capabilities | Foreach-Object {
+                if ($_ -notin $viewPermissions) {
                     throw "$($_) is not a valid capability"
                 }
             }
         }
         "Datasources" {
             $Capabilities | Foreach-Object {
-                if ($_ -notin $validateSetDatasources) {
+                if ($_ -notin $dataSourcePermissions) {
                     throw "$($_) is not a valid capability"
                 }
             }
         }
         "Flows" {
             $Capabilities | Foreach-Object {
-                if ($_ -notin $validateSetFlows) {
+                if ($_ -notin $flowPermissions) {
                     throw "$($_) is not a valid capability"
                 }
             }
         }
-        "Metrics" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $validateSetMetrics) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
-        # "DataRoles" {
-        #     $Capabilities | Foreach-Object {
-        #         if ($_ -notin $validateSetDataRoles) {
-        #             throw "$($_) is not a valid capability"
-        #         }
-        #     }
-        # }
     }
 
     
@@ -1468,13 +1906,13 @@ function global:Add-TSProjectDefaultPermissions {
     }
     $capabilityXML += "</capabilities>"
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "AddProjectDefaultPermissions" -Params @($Project.id,$Type,$capabilityXML)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "AddProjectDefaultPermissions" -Status "Error"
-        # return
-    }
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddProjectDefaultPermissions" -Params @($Project.id,$Type,$capabilityXML)
+    # if ($responseError) { #}.code -eq "401002") {
+    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+    #     Write-Host+ $errorMessage -ForegroundColor Red
+    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddProjectDefaultPermissions" -Status "Error"
+    #     # return
+    # }
     
     return $response,$responseError
 }
@@ -1490,45 +1928,31 @@ function global:Remove-TSProjectDefaultPermissions {
         [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $validateSetWorkbooks = @(
-        "AddComment:Allow","AddComment:Deny",
-        "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
-        "ChangePermissions:Allow","ChangePermissions:Deny",
-        "Delete:Allow","Delete:Deny",
-        "ExportData:Allow","ExportData:Deny",
-        "ExportImage:Allow","ExportImage:Deny",
-        "ExportXml:Allow","ExportXml:Deny",
-        "Filter:Allow","Filter:Deny",
-        "Read:Allow","Read:Deny",
-        "ShareView:Allow","ShareView:Deny",
-        "ViewComments:Allow","ViewComments:Deny",
-        "ViewUnderlyingData:Allow","ViewUnderlyingData:Deny",
-        "WebAuthoring:Allow","WebAuthoring:Deny",
-        "Write:Allow","Write:Deny"
-    )
-
-    $validateSetDataSources = @(
-        "ChangePermissions:Allow","ChangePermissions:Deny",
-        "Connect:Allow","Connect:Deny",
-        "Delete:Allow","Delete:Deny",
-        "ExportXml:Allow","ExportXml:Deny",
-        "Read:Allow","Read:Deny",
-        "Write:Allow","Write:Deny"
-    )
-
     switch ($Type) {
         "Workbooks" {
             $Capabilities | Foreach-Object {
-                if ($_ -notin $validateSetWorkbooks) {
+                if ($_ -notin $workbookPermissions) {
                     throw "$($_) is not a valid capability"
                 }
             }
         }
+        "Views" {
+            $Capabilities | Foreach-Object {
+                if ($_ -notin $viewPermissions) {
+                    throw "$($_) is not a valid capability"
+                }
+            }
+        }            
         "Datasources" {
             $Capabilities | Foreach-Object {
-                if ($_ -notin $validateSetDatasources) {
+                if ($_ -notin $dataSourcePermissions) {
+                    throw "$($_) is not a valid capability"
+                }
+            }
+        }
+        "Flows" {
+            $Capabilities | Foreach-Object {
+                if ($_ -notin $flowPermissions) {
                     throw "$($_) is not a valid capability"
                 }
             }
@@ -1545,20 +1969,19 @@ function global:Remove-TSProjectDefaultPermissions {
 
     foreach ($capability in $Capabilities) {
         $capabilityName,$capabilityMode = $capability.split(":")
-        $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "RemoveProjectDefaultPermissions" -Params @($Project.id,$Type,$granteeType,$grantee.Id,$capabilityName,$capabilityMode)
-        if ($responseError.code -eq "401002") {
-            $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-            Write-Host+ $errorMessage -ForegroundColor DarkRed
-            Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveProjectDefaultPermissions" -Status "Error"
-            # return
-        }
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveProjectDefaultPermissions" -Params @($Project.id,$Type,$granteeType,$grantee.Id,$capabilityName,$capabilityMode)
+        # if ($responseError) { #}.code -eq "401002") {
+        #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        #     Write-Host+ $errorMessage -ForegroundColor Red
+        #     Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveProjectDefaultPermissions" -Status "Error"
+        #     # return
+        # }
     }
     
     return $response,$responseError
 }
 
 #endregion PROJECTS
-
 #region WORKBOOKS
 
 function global:Get-TSWorkbooks+ {
@@ -1566,13 +1989,21 @@ function global:Get-TSWorkbooks+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
-        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+)
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks -Download:$Download.IsPresent),
+        [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    $workbooks = @()
-    Get-TSWorkbooks | ForEach-Object {
+    if (!$Workbooks) {
+        # Write-Host+ "No workbooks found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
+        return
+    }
+
+    $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $Workbooks
+
+    $workbooksPlus = @()
+    $Workbooks | ForEach-Object {
         $workbook = @{}
         $workbookMembers = $_ | Get-Member -MemberType Property
         foreach ($member in  $workbookMembers) {
@@ -1580,32 +2011,52 @@ function global:Get-TSWorkbooks+ {
         }
         $workbook.owner = Find-TSUser -Users $Users -Id $_.owner.id
         $workbook.project = Find-TSProject -Projects $Projects -Id $_.project.id
-        $workbooks += $workbook
+        $workbook.granteeCapabilities = $workbookPermissions.$($_.id).granteeCapabilities
+        $workbook.revisions = Get-TSWorkbookRevisions -Id $_.id
+        $workbook.connections = Get-TSWorkbookConnections -Id $_.id
+        $workbooksPlus += $workbook
     }
 
-    return $workbooks
+    return $workbooksPlus
 }
 
 function global:Get-TSWorkbooks {
 
     [CmdletBinding()]
-    param()
+    param(
+        [switch]$Download
+    )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    return Get-TSObjects -Method GetWorkbooks
+    $params = @{}
+    if ($Download) { $params += @{ Download = $true } }
+
+    return Get-TSObjects -Method GetWorkbooks @Params
+
 }
 
 function global:Get-TSWorkbook {
 
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [switch]$Download
+    )
+
+    $params = @{ Params = @($Id) }
+    if ($Download) { $params += @{ Download = $true } }
+
+    return Get-TSObjects -Method GetWorkbook @Params
+
+}
+
+function global:Get-TSWorkbookConnections {
+
+    [CmdletBinding()]
+    param(
         [Parameter(Mandatory=$true,Position=0)][string]$Id
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    return Get-TSObjects -Method GetWorkbook -Params @($Id)
+    return Get-TSObjects -Method GetWorkbookConnections -Params @($Id)
 }
 
 function global:Find-TSWorkbook {
@@ -1664,8 +2115,6 @@ function global:Get-TSWorkbookPermissions {
         [Parameter(Mandatory=$true,Position=0)][object]$Workbook
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
     return Get-TSObjects -Method GetWorkbookPermissions -Params @($Workbook.Id)
 }
 
@@ -1676,32 +2125,18 @@ function global:Add-TSWorkbookPermissions {
         [Parameter(Mandatory=$true)][object]$Workbook,
         [Parameter(Mandatory=$false)][object]$Group,
         [Parameter(Mandatory=$false)][object]$User,
-        [Parameter(Mandatory=$false)]
-        [ValidateSet(
-            "AddComment:Allow","AddComment:Deny",
-            "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
-            "ChangePermissions:Allow","ChangePermissions:Deny",
-            "Delete:Allow","Delete:Deny",
-            "ExportData:Allow","ExportData:Deny",
-            "ExportImage:Allow","ExportImage:Deny",
-            "ExportXml:Allow","ExportXml:Deny",
-            "Filter:Allow","Filter:Deny",
-            "Read:Allow","Read:Deny",
-            "ShareView:Allow","ShareView:Deny",
-            "ViewComments:Allow","ViewComments:Deny",
-            "ViewUnderlyingData:Allow","ViewUnderlyingData:Deny",
-            "WebAuthoring:Allow","WebAuthoring:Deny",
-            "Write:Allow","Write:Deny"      
-        )]
-        [string[]]
-        $Capabilities 
+        [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
     }
+
+    $Capabilities | Foreach-Object {
+        if ($_ -notin $WorkbookPermissions) {
+            throw "$($_) is not a valid capability"
+        }
+    }        
 
     $grantee = $Group ?? $User
     $granteeType = $Group ? "group" : "user"
@@ -1714,19 +2149,29 @@ function global:Add-TSWorkbookPermissions {
     }
     $capabilityXML += "</capabilities>"
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "AddWorkBookPermissions" -Params @($Workbook.id,$capabilityXML)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "AddWorkBookPermissions" -Status "Error"
-        # return
-    }
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddWorkBookPermissions" -Params @($Workbook.id,$capabilityXML)
+    # if ($responseError) { #}.code -eq "401002") {
+    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+    #     Write-Host+ $errorMessage -ForegroundColor Red
+    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddWorkBookPermissions" -Status "Error"
+    #     # return
+    # }
     
     return $response,$responseError
 }
 
-#endregion WORKBOOKS
+function global:Get-TSWorkbookRevisions {
 
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetWorkbookRevisions -Params @($Id)
+
+}
+
+#endregion WORKBOOKS
 #region VIEWS
 
 function global:Get-TSViews+ {
@@ -1734,14 +2179,21 @@ function global:Get-TSViews+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks+)
+        [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks+),
+        [Parameter(Mandatory=$false)][object]$Views = (Get-TSViews)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    $views = @()
-    Get-TSViews | ForEach-Object {
+    if (!$Views) {
+        # Write-Host+ "No views found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
+        return
+    }
+
+    $viewPermissions = Get-TSViewPermissions+ -Users $Users -Groups $Groups -Views $Views
+
+    $viewsPlus = @()
+    $Views | ForEach-Object {
         $view = @{}
         $viewMembers = $_ | Get-Member -MemberType Property
         foreach ($member in  $viewMembers) {
@@ -1750,10 +2202,11 @@ function global:Get-TSViews+ {
         $view.owner = Find-TSUser -Users $Users -Id $_.owner.id
         $view.project = Find-TSProject -Projects $Projects -Id $_.project.id
         $view.workbook = Find-TSWorkbook -Workbooks $Workbooks -Id $_.workbook.id
-        $views += $view
+        $view.granteeCapabilities = $viewPermissions.$($_.id).granteeCapabilities
+        $viewsPlus += $view
     }
 
-    return $views
+    return $viewsPlus
 }
 
 function global:Get-TSViews {
@@ -1790,8 +2243,93 @@ function global:Find-TSView {
     return Find-TSObject -Type "View" -Views $Views @Params
 }    
 
-#endregion VIEWS
+function global:Get-TSViewPermissions+ {
 
+    param(
+        [Parameter(Mandatory=$false)][object]$Views = (Get-TSViews+),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+    )
+
+    if (!$Views) {throw "Views is empty"}
+    if (!$Groups) {throw "Groups is empty"}
+    if (!$Users) {throw "Users is empty"}
+    
+    $viewPermissions = @{}
+    foreach ($view in $views) {
+        $permissions = Get-TSViewPermissions -View $View
+        foreach ($defaultPermission in $permissions) {
+            $perm = @{view = $view; granteeCapabilities = @()}
+            foreach ($granteeCapability in $defaultPermission.GranteeCapabilities) { 
+                $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
+                if ($granteeCapability.user) {
+                    $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                }
+                elseif ($granteeCapability.group) {
+                    $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                }
+                $perm.granteeCapabilities += $granteeCapabilityPlus
+            }
+            $viewPermissions += @{$view.id = $perm}
+        }
+    }
+
+    return $viewPermissions
+}
+
+function global:Get-TSViewPermissions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][object]$View
+    )
+
+    return Get-TSObjects -Method GetViewPermissions -Params @($View.Id)
+}
+
+function global:Add-TSViewPermissions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$View,
+        [Parameter(Mandatory=$false)][object]$Group,
+        [Parameter(Mandatory=$false)][object]$User,
+        [Parameter(Mandatory=$false)][string[]]$Capabilities 
+    )
+
+    if (!($Group -or $User) -or ($Group -and $User)) {
+        throw "Must specify either Group or User"
+    }
+
+    $Capabilities | Foreach-Object {
+        if ($_ -notin $ViewPermissions) {
+            throw "$($_) is not a valid capability"
+        }
+    }  
+
+    $grantee = $Group ?? $User
+    $granteeType = $Group ? "group" : "user"
+    $capabilityXML = "<$granteeType id='$($grantee.id)'/>"
+    
+    $capabilityXML += "<capabilities>"
+    foreach ($capability in $Capabilities) {
+        $name,$mode = $capability -split ":"
+        $capabilityXML += "<capability name='$name' mode='$mode'/>"
+    }
+    $capabilityXML += "</capabilities>"
+
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddViewPermissions" -Params @($View.id,$capabilityXML)
+    # if ($responseError) { #}.code -eq "401002") {
+    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+    #     Write-Host+ $errorMessage -ForegroundColor Red
+    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddViewPermissions" -Status "Error"
+    #     # return
+    # }
+    
+    return $response,$responseError
+}
+
+#endregion VIEWS
 #region DATASOURCES
 
 function global:Get-TSDatasources+ {
@@ -1799,13 +2337,21 @@ function global:Get-TSDatasources+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
-        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+)
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][object]$Datasources = (Get-TSDatasources -Download:$Download.IsPresent),
+        [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    if (!$Datasources) {
+        # Write-Host+ "No datasources found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
+        return
+    }
     
-    $datasources = @()
-    Get-TSDatasources | ForEach-Object {
+    $datasourcePermissions = Get-TSDatasourcePermissions+ -Users $Users -Groups $Groups -Datasource $Datasources
+
+    $datasourcesPlus = @()
+    $Datasources | ForEach-Object {
         $datasource = @{}
         $datasourceMembers = $_ | Get-Member -MemberType Property
         foreach ($member in  $datasourceMembers) {
@@ -1813,20 +2359,61 @@ function global:Get-TSDatasources+ {
         }
         $datasource.owner = Find-TSUser -Users $Users -Id $_.owner.id
         $datasource.project = Find-TSProject -Projects $Projects -Id $_.project.id
-        $datasources += $datasource
+        $datasource.granteeCapabilities = $datasourcePermissions.$($_.id).granteeCapabilities
+        $datasource.revisions = Get-TSDataSourceRevisions -Id $_.id
+        $datasource.connections = Get-TSDataSourceConnections -Id $_.id
+        $datasourcesPlus += $datasource
     }
 
-    return $datasources
+    return $datasourcesPlus
 }
 
 function global:Get-TSDataSources {
 
     [CmdletBinding()]
-    param()
+    param(
+        [switch]$Download
+    )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
-    return Get-TSObjects -Method GetDataSources
+    $params = @{}
+    if ($Download) { $params += @{ Download = $true } }
+
+    return Get-TSObjects -Method GetDatasources @Params
+
+}
+
+function global:Get-TSDataSource {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [switch]$Download
+    )
+
+    $params = @{ Params = @($Id) }
+    if ($Download) { $params += @{ Download = $true } }
+
+    return Get-TSObjects -Method GetDataSource @Params
+}
+
+function global:Get-TSDataSourceRevisions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetDataSourceRevisions -Params @($Id)
+}
+
+function global:Get-TSDataSourceConnections {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetDataSourceConnections -Params @($Id)
 }
 
 function global:Find-TSDatasource {
@@ -1885,8 +2472,7 @@ function global:Get-TSDatasourcePermissions {
         [Parameter(Mandatory=$true,Position=0)][object]$Datasource
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
+
     return Get-TSObjects -Method GetDatasourcePermissions -Params @($Datasource.Id)
 }
 
@@ -1897,14 +2483,19 @@ function global:Add-TSDataSourcePermissions {
         [Parameter(Mandatory=$true)][object]$DataSource,
         [Parameter(Mandatory=$false)][object]$Group,
         [Parameter(Mandatory=$false)][object]$User,
-        [Parameter(Mandatory=$false)][ValidateSet("ChangePermissions:Allow","Connect:Allow","Delete:Allow","ExportXml:Allow","Read:Allow","Write:Allow")][string[]]$Capabilities 
+        [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
     }
+
+    
+    $Capabilities | Foreach-Object {
+        if ($_ -notin $DataSourcePermissions) {
+            throw "$($_) is not a valid capability"
+        }
+    }  
 
     $grantee = $Group ?? $User
     $granteeType = $Group ? "group" : "user"
@@ -1917,33 +2508,199 @@ function global:Add-TSDataSourcePermissions {
     }
     $capabilityXML += "</capabilities>"
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "AddDataSourcePermissions" -Params @($DataSource.id,$capabilityXML)
-    if ($responseError.code -eq "401002") {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "AddDataSourcePermissions" -Status "Error"
-        # return
-    }
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddDataSourcePermissions" -Params @($DataSource.id,$capabilityXML)
+    # if ($responseError) { #}.code -eq "401002") {
+    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+    #     Write-Host+ $errorMessage -ForegroundColor Red
+    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddDataSourcePermissions" -Status "Error"
+    #     # return
+    # }
     
     return $response,$responseError
 }
 
 #endregion DATASOURCES
-
 #region FLOWS
+
+function global:Get-TSFlows+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][switch]$Download
+    )
+
+    $flows = Get-TSFlows -Download:$Download.IsPresent
+    if (!$flows) { return }
+
+    $flowPermissions = Get-TSFlowPermissions+ -Users $Users -Groups $Groups -Flow $Flows
+
+    $flowsPlus = @()
+    $flows | ForEach-Object {
+        $flow = @{}
+        $flowMembers = $_ | Get-Member -MemberType Property
+        foreach ($member in  $flowMembers) {
+            $flow.($member.Name) = $_.($member.Name)
+        }
+        $flow.owner = Find-TSUser -Users $Users -Id $_.owner.id
+        $flow.project = Find-TSProject -Projects $Projects -Id $_.project.id
+        $flow.granteeCapabilities = $flowPermissions.$($_.id).granteeCapabilities
+        $flowsPlus += $flow
+    }
+
+    return $flowsPlus
+}
 
 function global:Get-TSFlows {
 
     [CmdletBinding()]
-    param()
+    param(
+        [switch]$Download
+    )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    $flows = @()
+    foreach ($flow in Get-TSObjects -Method GetFlows) {
+        $flows += Get-TSFlow -Id $flow.Id -Download:$Download.IsPresent
+    }
+
+    return $flows
+
+}
+
+function global:Get-TSFlow {
+
+    [CmdletBinding()]
+    param(        
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [switch]$Download
+    )
+
+    $flow = Get-TSObjects -Method GetFlow -Params @($Id)
+    if (!$flow) { return }
+
+    # special processing for downloading flows
+    # the tsrestapi doesn't always successfully download flows (.tfl and .tflx)
+    # occasionally, the tsrestapi returns "Page Not Found" with no content-disposition header
+    # repeating the download 2-3 times has, thus far, succeeded:  thus the code below
+    # this has to be a tsrestapi or tableau server bug - confirmed in postman
+    # note: this has NEVER happened with workbooks or datasources
+
+    if ($Download) { 
+        $downloadAttemptsMax = 3
+        $downloadAttempts = 0
+        do {
+            $flow = Get-TSObjects -Method GetFlow -Params @($flow.Id) -Download
+            $downloadAttempts++
+        }
+        while ($flow.error -and $downloadAttempts -lt $downloadAttemptsMax)
+        if ($flow.error -and $downloadAttempts -ge $downloadAttemptsMax) {
+            Write-Host+ -NoTrace "Error: Max download attempts exceeded" -ForegroundColor Red
+        }
+    }
+
+    return $flow
+
+}
+
+function global:Find-TSFlow {
+    param(
+        [Parameter(Mandatory=$false)][object]$Flows = (Get-TSFlows),
+        [Parameter(Mandatory=$false)][string]$Id,
+        [Parameter(Mandatory=$false)][string]$Name,
+        [Parameter(Mandatory=$false)][object]$Owner,
+        [Parameter(Mandatory=$false)][string]$Operator="eq"
+    )
+    $params = @{Operator = $Operator}
+    if ($Id) {$params += @{Id = $Id}}
+    if ($Name) {$params += @{Name = $Name}}
+    if ($Owner) {$params += @{OwnerId = $Owner.id}}
+    return Find-TSObject -Type "Flow" -Flows $Flows @Params
+}
+
+function global:Get-TSFlowPermissions+ {
+
+    param(
+        [Parameter(Mandatory=$false)][object]$Flows = (Get-TSFlows+),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+    )
+
+    if (!$Flows) {throw "Flows is empty"}
+    if (!$Groups) {throw "Groups is empty"}
+    if (!$Users) {throw "Users is empty"}
     
-    return Get-TSObjects -Method GetFlows
+    $flowPermissions = @{}
+    foreach ($flow in $flows) {
+        $permissions = Get-TSFlowPermissions -Flow $Flow
+        foreach ($defaultPermission in $permissions) {
+            $perm = @{flow = $flow; granteeCapabilities = @()}
+            foreach ($granteeCapability in $defaultPermission.GranteeCapabilities) { 
+                $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
+                if ($granteeCapability.user) {
+                    $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                }
+                elseif ($granteeCapability.group) {
+                    $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                }
+                $perm.granteeCapabilities += $granteeCapabilityPlus
+            }
+            $flowPermissions += @{$flow.id = $perm}
+        }
+    }
+
+    return $flowPermissions
+}
+
+function global:Get-TSFlowPermissions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][object]$Flow
+    )
+
+    return Get-TSObjects -Method GetFlowPermissions -Params @($Flow.Id)
+}
+
+function global:Add-TSFlowPermissions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Flow,
+        [Parameter(Mandatory=$false)][object]$Group,
+        [Parameter(Mandatory=$false)][object]$User,
+        [Parameter(Mandatory=$false)][string[]]$Capabilities 
+    )
+
+    if (!($Group -or $User) -or ($Group -and $User)) {
+        throw "Must specify either Group or User"
+    }
+
+    
+    $Capabilities | Foreach-Object {
+        if ($_ -notin $FlowPermissions) {
+            throw "$($_) is not a valid capability"
+        }
+    }  
+
+    $grantee = $Group ?? $User
+    $granteeType = $Group ? "group" : "user"
+    $capabilityXML = "<$granteeType id='$($grantee.id)'/>"
+    
+    $capabilityXML += "<capabilities>"
+    foreach ($capability in $Capabilities) {
+        $name,$mode = $capability -split ":"
+        $capabilityXML += "<capability name='$name' mode='$mode'/>"
+    }
+    $capabilityXML += "</capabilities>"
+
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddFlowPermissions" -Params @($Flow.id,$capabilityXML)
+    
+    return $response,$responseError
 }
 
 #endregion FLOWS
-
 #region METRICS
 
 function global:Get-TSMetrics {
@@ -1951,13 +2708,20 @@ function global:Get-TSMetrics {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
     return Get-TSObjects -Method GetMetrics
 }
 
-#endregion METRICS
+function global:Get-TSMetric {
 
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$MetricLuid
+    )
+
+    return Get-TSObjects -Method GetMetric -Params @($MetricLuid)
+}
+
+#endregion METRICS
 #region FAVORITES
 
 function global:Get-TSFavorites+ {
@@ -2039,8 +2803,7 @@ function global:Get-TSFavorites {
         [Parameter(Mandatory=$false)][object]$User=(Get-TSCurrentUser)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    
+
     $favorite = Get-TSObjects -Method GetFavorites -Params @($User.id)
 
     return $favorite
@@ -2070,9 +2833,9 @@ function global:Add-TSFavorites {
     foreach ($favorite in $favorites) {
         $response,$responseError = Add-TSFavorite -User $favorite.user -Label $favorite.label -Type $favorite.favoriteType -InputObject $favorite.($favorite.favoriteType)
         if ($responseError.code) {
-            $errorMessage = "Error adding favorite:  $($favorite.user.name)  $($favorite.label)  $($favorite.favoriteType)  $($favorite.($favorite.favoriteType).name)"
-            Write-Host+ $errorMessage -ForegroundColor DarkRed
-            Write-Log -Message $errorMessage -EntryType "Error" -Action "AddFavorites" -Status "Error"
+            # $errorMessage = "Error adding favorite:  $($favorite.user.name)  $($favorite.label)  $($favorite.favoriteType)  $($favorite.($favorite.favoriteType).name)"
+            # Write-Host+ $errorMessage -ForegroundColor Red
+            # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddFavorites" -Status "Error"
             return
         }
     }
@@ -2092,11 +2855,11 @@ function global:Add-TSFavorite {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $response,$pagination,$responseError = Invoke-TSRestApiMethod -Method "AddFavorites" -Params @($User.id,($Label.replace("&","&amp;")),$Type,$InputObject.id)
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddFavorites" -Params @($User.id,($Label.replace("&","&amp;")),$Type,$InputObject.id)
     if ($responseError.code) {
-        $errorMessage = "$($responseError.detail)\$($responseError.summary)\$($responseError.code)"
-        Write-Host+ $errorMessage -ForegroundColor DarkRed
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "AddFavorites" -Status "Error"
+        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddFavorites" -Status "Error"
         return
     }
     
@@ -2104,7 +2867,225 @@ function global:Add-TSFavorite {
 }
 
 #endregion FAVORITES
+#region SCHEDULES
 
+function global:Get-TSSchedules {
+
+    [CmdletBinding()]
+    param()
+
+    return Get-TSObjects -Method GetSchedules
+
+}
+
+function global:Get-TSSchedule {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetSchedule -Params @($Id)
+
+}
+
+#endregion SCHEDULES    
+#region SUBSCRIPTIONS
+
+function global:Get-TSSubscriptions {
+
+    [CmdletBinding()]
+    param()
+
+    return Get-TSObjects -Method GetSubscriptions
+
+}
+
+function global:Get-TSSubscription {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetSubscription -Params @($Id)
+
+}
+
+#endregion SUBSCRIPTIONS 
+#region NOTIFICATIONS
+
+function global:Get-TSDataAlerts {
+
+    [CmdletBinding()]
+    param()
+
+    return Get-TSObjects -Method GetDataAlerts
+
+}
+
+function global:Get-TSDataAlert {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetDataAlert -Params @($Id)
+
+}
+
+function global:Get-TSUserNotificationPreferences {
+
+    [CmdletBinding()]
+    param()
+
+    return Get-TSObjects -Method GetUserNotificationPreferences
+
+}
+
+#endregion NOTIFICATIONS
+#region WEBHOOKS
+
+function global:Get-TSWebhooks {
+
+    [CmdletBinding()]
+    param()
+
+    return Get-TSObjects -Method GetWebhooks
+
+}
+
+function global:Get-TSWebhook {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetWebhook -Params @($Id)
+
+}
+
+#region WEBHOOKS
+#region ANALYTICS EXTENSIONS
+
+function Add-TSAnalyticsExtensionsMeta {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,ValueFromPipeline)][object]$InputObject,
+        [Parameter(Mandatory=$true)][ValidateSet("Server","Site")][string]$Target
+    )
+
+    begin {
+    }
+    process {
+        $dashboardExtensionsTarget = $InputObject
+    }
+    end {
+        $dashboardExtensionsTarget | Add-Member -NotePropertyName "settingsType" -NotePropertyValue $Target
+        if ($Target -eq "Site") {
+            $dashboardExtensionsTarget | Add-Member -NotePropertyName "site" -NotePropertyValue $global:tsRestApiConfig.ContentUrl
+        }
+        $dashboardExtensionsTarget | Add-Member -NotePropertyName "server" -NotePropertyValue ([Uri]$global:tsRestApiConfig.Platform.Uri).Host
+
+        return $dashboardExtensionsTarget
+    }
+
+}
+
+function global:Get-TSAnalyticsExtensionsConnections {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][ValidateSet("Site")][string]$Target = "Site"
+    )
+
+    $method = "GetAnalyticsExtensionsConnectionsFor$Target"
+    $key = ($global:tsRestApiConfig.Method.$method.Response.Keys).Split(".")[0]
+    $tsObject = (Get-TSObjects -Method $method)
+
+    return [PSCustomObject]@{ $key = $tsObject } | Add-TSAnalyticsExtensionsMeta -Target $Target
+
+}
+
+function global:Get-TSAnalyticsExtensionsEnabledState {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][ValidateSet("Site")][string]$Target = "Site"
+    )
+
+    $method = "GetAnalyticsExtensionsEnabledStateFor$Target"
+    $key = ($global:tsRestApiConfig.Method.$method.Response.Keys).Split(".")[0]
+    $tsObject = (Get-TSObjects -Method $method)
+
+    return [PSCustomObject]@{ $key = $tsObject } | Add-TSAnalyticsExtensionsMeta -Target $Target
+
+}
+
+#endregion ANALYTICS EXTENSIONS
+#region DASHBOARD EXTENSIONS
+
+function global:Get-TSDashboardExtensionSettings {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][ValidateSet("Server","Site")][string]$Target
+    )
+
+    return Get-TSObjects -Method "GetDashboardExtensionSettingsFor$Target" | Add-TSAnalyticsExtensionsMeta -Target $Target
+
+
+}
+
+function global:Get-TSBlockedDashboardExtensions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][ValidateSet("Server")][string]$Target = "Server"
+    )
+
+    return Get-TSObjects -Method "GetBlockedDashboardExtensionsFor$Target" | Add-TSAnalyticsExtensionsMeta -Target $Target
+
+}
+
+function global:Get-TSAllowedDashboardExtensions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][ValidateSet("Site")][string]$Target = "Site"
+    )
+
+    return Get-TSObjects -Method "GetAllowedDashboardExtensionsFor$Target" | Add-TSAnalyticsExtensionsMeta -Target $Target
+
+}
+
+#endregion DASHBOARD EXTENSIONS
+#region CONNECTED APPLICATIONS
+
+function global:Get-TSConnectedApplications {
+
+    [CmdletBinding()]
+    param()
+
+    return Get-TSObjects -Method "GetConnectedApplications"
+
+}
+
+function global:Get-TSConnectedApplication {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$ClientId
+    )
+
+    return Get-TSObjects -Method "GetConnectedApplications" -Params @($ClientId)
+
+}
+
+#endregion CONNECTED APPLICATIONS
 #region SYNC
 
 function global:Sync-TSGroups {
@@ -2129,15 +3110,15 @@ function global:Sync-TSGroups {
     $azureADGroupUpdates,$cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray -After $lastStartTime
     if ($cacheError) {
 
-        # Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        # Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
+        # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
         # $message = "    Error Code : $($($cacheError.code))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
         # $message = "    Error Summary : $($($cacheError.summary))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
 
-        # Send-TaskMessage -Id "AzureADSync" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
+        # Send-TaskMessage -Id "AzureADSyncTS" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
 
         return $cacheError
 
@@ -2152,15 +3133,15 @@ function global:Sync-TSGroups {
     $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray
     if ($cacheError) {
 
-        # Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        # Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        # Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
+        # Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor Red
         # $message = "    Error Code : $($($cacheError.code))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
         # $message = "    Error Summary : $($($cacheError.summary))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
 
-        # Send-TaskMessage -Id "AzureADSync" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
+        # Send-TaskMessage -Id "AzureADSyncTS" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
 
         return $cacheError
 
@@ -2168,7 +3149,7 @@ function global:Sync-TSGroups {
 
     # if ($azureADGroups.Count -le 0) {
     #     $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
-    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "DarkRed")
+    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "Red")
     #     Write-Host+
     #     return
     # }
@@ -2182,15 +3163,15 @@ function global:Sync-TSGroups {
     $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray
     if ($cacheError) {
 
-        # Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        # Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        # Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed
+        # Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
         # $message = "    Error Code : $($($cacheError.code))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
         # $message = "    Error Summary : $($($cacheError.summary))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
 
-        # Send-TaskMessage -Id "AzureADSync" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
+        # Send-TaskMessage -Id "AzureADSyncTS" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
 
         return $cacheError
 
@@ -2198,7 +3179,7 @@ function global:Sync-TSGroups {
 
     # if ($azureADUsers.Count -le 0) {
     #     $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
-    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "DarkRed")
+    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "Red")
     #     Write-Host+
     #     return
     # }
@@ -2210,7 +3191,7 @@ function global:Sync-TSGroups {
     $message = "Syncing Tableau Server groups : PENDING"
     Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
 
-    foreach ($contentUrl in $global:AzureADSync.Sites.ContentUrl) {
+    foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
 
         Switch-TSSite $contentUrl
         $tsSite = Get-TSSite
@@ -2225,7 +3206,7 @@ function global:Sync-TSGroups {
 
             $azureADGroupToSync = $azureADGroups | Where-Object {$_.displayName -eq $tsGroup.name}
             $tsGroupMembership = Get-TSGroupMembership -Group $tsGroup
-            $azureADGroupMembership = $azureADUsers | Where-Object {$_.id -in $azureADGroupToSync.members -and $_.accountEnabled} | Foreach-Object {Update-AzureADUserEmail -AzureADUser $_} | Where-Object {![string]::IsNullOrEmpty($_.mail)}
+            $azureADGroupMembership = $azureADUsers | Where-Object {$_.id -in $azureADGroupToSync.members -and $_.accountEnabled} | Foreach-Object {Update-AzureADUserEmail -Tenant $tenantKey -User $_} | Where-Object {![string]::IsNullOrEmpty($_.mail)}
 
             $tsUsersToAddToGroup = ($tsUsers | Where-Object {$_.name -in $azureADGroupMembership.userPrincipalName -and $_.id -notin $tsGroupMembership.id}) ?? @()
             $tsUsersToRemoveFromGroup = $tsGroupMembership | Where-object {$_.name -notin $azureADGroupMembership.userPrincipalName}
@@ -2239,7 +3220,7 @@ function global:Sync-TSGroups {
                     Username = $azureADUser.userPrincipalName
                     FullName = $azureADUser.displayName
                     Email = $azureADUser.mail
-                    SiteRole = $tsGroup.import.siteRole ?? "Explorer"
+                    SiteRole = $global:TSSiteRoles.IndexOf($tsGroup.import.siteRole) -ge $global:TSSiteRoles.IndexOf($global:AzureADSyncTS.$($contentUrl).SiteRoleMinimum) ? $tsGroup.import.siteRole : $global:AzureADSyncTS.$($contentUrl).SiteRoleMinimum
                 }
 
                 $newUser = Add-TSUserToSite @params
@@ -2278,7 +3259,7 @@ function global:Sync-TSGroups {
                 Add-TSUserToGroup -Group $tsGroup -User $tsUsersToAddToGroup
             }
             if ($tsUsersToRemoveFromGroup) {
-                Write-Host+ -NoTrace -NoNewLine -NoTimeStamp "  -$($tsUsersToRemoveFromGroup.count) users" -ForegroundColor DarkRed
+                Write-Host+ -NoTrace -NoNewLine -NoTimeStamp "  -$($tsUsersToRemoveFromGroup.count) users" -ForegroundColor Red
                 Remove-TSUserFromGroup -Group $tsGroup -User $tsUsersToRemoveFromGroup
             }
 
@@ -2319,11 +3300,11 @@ function global:Sync-TSUsers {
 
     $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray -After ($Delta ? $lastStartTime : [datetime]::MinValue)
     if ($cacheError) {
-        Write-Log -Context "AzureADSync" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         $message = "  $($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
         $message = "    Error $($cacheError.code) : $($($cacheError.summary))"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
         return
     }
 
@@ -2333,7 +3314,7 @@ function global:Sync-TSUsers {
     if ($azureADUsers.Count -le 0) {
         Write-Host+
         $message = "Syncing Tableau Server users : $($Delta ? 'SUCCESS' : 'CACHE EMPTY')"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($Delta ? "DarkGreen" : "DarkRed")
+        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($Delta ? "DarkGreen" : "Red")
         Write-Host+
         return
     }
@@ -2342,12 +3323,12 @@ function global:Sync-TSUsers {
     $message = "Syncing Tableau Server users : PENDING"
     Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
 
-    foreach ($contentUrl in $global:AzureADSync.Sites.ContentUrl) {
+    foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
 
         Switch-TSSite $contentUrl
         $tsSite = Get-TSSite
 
-        [console]::CursorVisible = $false
+        Set-CursorInvisible
 
         $emptyString = ""
 
@@ -2375,7 +3356,7 @@ function global:Sync-TSUsers {
             $email = $azureADUser.mail ?? $tsUser.email
 
             if ($tsUser.siteRole -eq "Unlicensed" -and $azureADUser.accountEnabled) {
-                $siteRole = "ExplorerCanPublish"
+                $siteRole = $global:AzureADSyncTS.$($contentUrl).SiteRoleMinimum
             }
             else {
                 $siteRole = $tsUser.siteRole
@@ -2385,18 +3366,18 @@ function global:Sync-TSUsers {
             # ignore users that are already unlicensed
             # TODO: remove unlicensed users from their groups? 
 
-            if ($tsUser.siteRole -notin $global:SiteAdminRoles -and !$azureADUser.accountEnabled) {
+            if ($tsUser.siteRole -notin $global:TSSiteAdminRoles -and !$azureADUser.accountEnabled) {
 
                 if ($tsUser.SiteRole -ne "Unlicensed") {
 
                     $response, $responseError = Update-TSUser -User $tsUser -SiteRole "Unlicensed" | Out-Null
                     if ($responseError) {
-                        Write-Log -Context "AzureADSync" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
-                        Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
+                        Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
+                        Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                     }
                     else {
-                        # Write-Log -Context "AzureADSync" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$siteRole" -EntryType "Information" -Force
-                        Write-Host+ -NoTrace "      Disable: $($tsUser.id) $($tsUser.name): $($tsUser.siteRole) >> $siteRole" -ForegroundColor DarkRed
+                        # Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$siteRole" -EntryType "Information" -Force
+                        Write-Host+ -NoTrace "      Disable: $($tsUser.id) $($tsUser.name): $($tsUser.siteRole) >> $siteRole" -ForegroundColor Red
                     }
 
                     $lastOp = "Disable"
@@ -2411,11 +3392,11 @@ function global:Sync-TSUsers {
             elseif ($fullName.replace("’","'") -ne $tsUser.fullName -or $email.replace("’","'") -ne $tsUser.email -or $siteRole -ne $tsUser.siteRole) {
                 $response, $responseError = Update-tsUser -User $tsUser -FullName $fullName -Email $email -SiteRole $siteRole | Out-Null
                 if ($responseError) {
-                    Write-Log -Context "AzureADSync" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
-                    Write-Host+ "      $($response.error.detail)" -ForegroundColor DarkRed
+                    Write-Log -Context "AzureADSyncTS" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
+                    Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                 }
                 else {
-                    # Write-Log -Context "AzureADSync" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$fullName | $email | $siteRole" -EntryType "Information" -Force
+                    # Write-Log -Context "AzureADSyncTS" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$fullName | $email | $siteRole" -EntryType "Information" -Force
                     # Write-Host+ -NoTrace "      Update: $($tsUser.id) $($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole)" -ForegroundColor DarkYellow
                     Write-Host+ -NoTrace "      Update: $($tsUser.id) $($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor DarkGreen
                 }
@@ -2442,8 +3423,7 @@ function global:Sync-TSUsers {
 }
 
 #endregion SYNC
-
-
+#region MISC
 function global:Get-TSUsersDistributionLists {
 
 [CmdletBinding()]
@@ -2489,3 +3469,5 @@ $distributionLists += $emailAddresses[750..999] -join "; "
 return $users, $emailAddresses, $distributionLists
 
 }
+
+#endregion MISC

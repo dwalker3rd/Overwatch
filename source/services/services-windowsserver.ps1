@@ -140,7 +140,12 @@ function global:Get-ServerStatus {
     $eventCheckTimeStamp = [datetime]::Now
 
     $winEvents = $ComputerName | ForEach-Object -Parallel {
-        Get-WinEvent -FilterHashtable $using:filterHashtable -ComputerName $_ -ErrorAction SilentlyContinue
+        try{
+            Get-WinEvent -FilterHashtable $using:filterHashtable -ComputerName $_ -ErrorAction SilentlyContinue
+        }
+        catch {
+            # if this fails when run from Azure Update Management, ignore the error
+        }
     } 
 
     Write-Verbose  "$($winEvents.Count) events since $($lastRunTime)"
@@ -174,7 +179,7 @@ function global:Get-ServerStatus {
                 switch ($lastShutdownEvent.Id) {
                     1074 { # user-initiated shutdown w/reason
                         $shutdown.event = "Shutdown"
-                        $shutdown.status = "In Progress"
+                        $shutdown.status = "InProgress"
                         $shutdown.level = $PlatformMessageType.Alert
                         $be = "is"
                     }
@@ -186,7 +191,7 @@ function global:Get-ServerStatus {
                     }
                     1076 { # unexpected shutdown w/post-startup reason
                         $shutdown.event = "Shutdown"
-                        $shutdown.status = "In Progress"
+                        $shutdown.status = "InProgress"
                         $shutdown.level = $PlatformMessageType.Alert
                         $be = "is"
                     }
@@ -198,7 +203,7 @@ function global:Get-ServerStatus {
                     }
                     6006 { # event log service stopped
                         $shutdown.event = "Shutdown"
-                        $shutdown.status = "In Progress"
+                        $shutdown.status = "InProgress"
                         $shutdown.level = $PlatformMessageType.Alert
                         $be = "is"
                     }
@@ -575,7 +580,7 @@ param (
 
 $emptyString = ""
 
-[console]::CursorVisible = $false
+Set-CursorInvisible
 
 $message = "  Group Policy: PENDING"
 Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
@@ -653,7 +658,7 @@ if ($fail -and !$Update) {
     Write-Host+ -NoTrace "  INFO:  Use `"-Update`" switch to update group policy." -ForegroundColor DarkGray
 }
 
-[console]::CursorVisible = $true
+Set-CursorVisible
 
 }
 
@@ -684,5 +689,84 @@ $message = " $($emptyString.PadLeft($message.Split(":")[1].Length,"`b"))$($confi
 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($configured ? "Green" : "Red")
 
 Write-Host+
+
+}
+
+function global:Request-PlatformService {
+
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true)][ValidateSet("Start","Stop")][string]$Command,
+    [Parameter(Mandatory=$true)][string]$Name,
+    [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
+    [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME
+)
+
+$psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+
+Invoke-Command -Session $psSession {
+    if ($using:Command -eq "Stop") {
+        Stop-Service -Name $using:Name -ErrorAction SilentlyContinue
+    }
+    elseif ($using:Command -eq "Start") {
+        Start-Service -Name $using:Name -ErrorAction SilentlyContinue
+    }
+}
+
+Remove-PSSession $psSession
+
+return 
+
+}
+
+function global:Stop-PlatformService {
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true)][string]$Name,
+    [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
+    [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME
+)
+Request-PlatformService -Command "Stop" -Name $Name -ComputerName $ComputerName -ExcludeComputerName $ExcludeComputerName
+}
+function global:Start-PlatformService {
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true)][string]$Name,
+    [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
+    [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME
+)
+Request-PlatformService -Command "Start" -Name $Name -ComputerName $ComputerName -ExcludeComputerName $ExcludeComputerName
+}
+function global:Restart-PlatformService {
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$true)][string]$Name,
+    [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
+    [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME
+)
+Request-PlatformService -Command "Stop" -Name $Name -ComputerName $ComputerName -ExcludeComputerName $ExcludeComputerName
+Request-PlatformService -Command "Start" -Name $Name -ComputerName $ComputerName -ExcludeComputerName $ExcludeComputerName
+}
+
+function global:Set-PlatformService {
+
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
+    [Parameter(Mandatory=$true)][string]$Name,
+    [Parameter(Mandatory=$true)][ValidateSet("Manual","Automatic","AutomaticDelayedStart","Disabled")][Microsoft.PowerShell.Commands.ServiceStartupType]$StartupType
+)
+
+$psSession = Get-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
+
+Invoke-Command -Session $psSession {
+    Get-Service -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.StartMode -ne $using:StartupType) {
+            Set-Service -Name $_.Name -StartupType $using:StartupType
+        }
+    }
+}
+
+return
 
 }

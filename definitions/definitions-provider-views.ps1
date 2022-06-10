@@ -15,7 +15,7 @@
         Category = "Formatting"
         SubCategory = "Views"
         Description = "Predefined PowerShell Format-Table views for Overwatch functions"
-        Vendor = "Overwatch"
+        Publisher = "Overwatch"
     }
 
     $global:ViewSettings = @{
