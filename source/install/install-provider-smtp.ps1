@@ -9,6 +9,9 @@ if (!(Test-Log -Name smtp)) {
     New-Log -Name "smtp" | Out-Null
 }
 
+$cursorVisible = [console]::CursorVisible
+[console]::CursorVisible = $true
+
 $interaction = $false
 $overwatchRoot = $PSScriptRoot -replace "\\install",""
 if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1 | Select-String "<server>" -Quiet) {
@@ -50,3 +53,5 @@ else {
     $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGreen
 }
+
+[console]::CursorVisible = $cursorVisible

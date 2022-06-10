@@ -111,16 +111,24 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #region MICROSOFT-TEAMS
 
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Provider > MicrosoftTeams > Webhooks
+
+        # If using the MicrosoftTeams provider, enter the webhook URI[s] for each message type (see $PlatformMessageType)
+        # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
+
         $global:MicrosoftTeamsConfig = @{
             Connector = @{
-                AllClear = @("https://outlook.office.com/webhook/...")
-                Alert = @("https://outlook.office.com/webhook/...","https://outlook.office.com/webhook/...")
-                Information = @("https://outlook.office.com/webhook/...")
-                Task = @("https://outlook.office.com/webhook/...")
-                Warning = @("https://outlook.office.com/webhook/...")
+                AllClear = @("https://pathseattle.webhook.office.com/webhookb2/5183f052-81bf-4237-9304-889a998ba761@29ca3f4f-6d67-49a5-a001-e1db48252717/IncomingWebhook/f72ff7668c3546048ed7bf271ffe5c9c/bc22261f-00af-4fcc-8b84-cbab1b931a1a",
+                            "***REMOVED***")
+                Alert = @("https://pathseattle.webhook.office.com/webhookb2/5183f052-81bf-4237-9304-889a998ba761@29ca3f4f-6d67-49a5-a001-e1db48252717/IncomingWebhook/997e1ad9d07846d484a40861304697a9/bc22261f-00af-4fcc-8b84-cbab1b931a1a",
+                            "***REMOVED***")
+                Information = @("https://pathseattle.webhook.office.com/webhookb2/5183f052-81bf-4237-9304-889a998ba761@29ca3f4f-6d67-49a5-a001-e1db48252717/IncomingWebhook/ed584224e7c8404e9a359bbb19c92caf/bc22261f-00af-4fcc-8b84-cbab1b931a1a")
+                Warning = @("https://pathseattle.webhook.office.com/webhookb2/5183f052-81bf-4237-9304-889a998ba761@29ca3f4f-6d67-49a5-a001-e1db48252717/IncomingWebhook/6ae3a07bf9e34fa1a0d14742c8f19a39/bc22261f-00af-4fcc-8b84-cbab1b931a1a",
+                            "***REMOVED***")
             }
+            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear)
         }
-        $global:MicrosoftTeamsConfig += @{MessageType = $MicrosoftTeamsConfig.Connector.Keys}
 
     #endregion MICROSOFT-TEAMS
 

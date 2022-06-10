@@ -116,9 +116,6 @@ $global:Catalog.Product += @{ AzureADCache =
         Installation = @{
             Flag = @("NoPrompt")
             Service = @("AzureAD")
-            Todo = @(
-                    "Manual configuration required. Edit `"definitions\definitions-service-azuread.ps1`""
-            )
         }
     }
 }
@@ -204,9 +201,6 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         SubCategory = "Teams"
         Description = "Overwatch messaging via Microsoft Teams"
         Publisher = "Overwatch"
-        Installation = @{
-            Todo =  @("Manual configuration required. Edit `"definitions-platforminstance-$($global:Environ.Instance).ps1`"")
-        }
     }
 }
 

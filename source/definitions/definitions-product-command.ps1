@@ -7,15 +7,15 @@
 
     $global:Product = 
     [Product]@{
-        Id = "Watcher"
-        Name = "Watcher"
-        Publisher = "Overwatch"
+        Id = "Command"
+        Name = "Command"
     }
-    $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.Name)"
+    $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.DisplayName)"
     $global:Product.TaskName = $global:Product.DisplayName
-    $global:Product.Description = "Monitors CIM events for the $($global:Platform.Name) platform."
+    $global:Product.Description = "A command interface for managing the $($global:Platform.DisplayName) platform."
+    $global:Product.ShutdownMax = New-TimeSpan -Minutes 5
     $global:Product.HasTask = $false
-    
+
     return $global:Product
 
 #endregion PRODUCT DEFINITIONS
