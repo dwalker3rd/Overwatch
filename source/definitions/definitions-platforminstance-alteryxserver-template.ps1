@@ -100,19 +100,24 @@ If using the Microsoft Teams provider, it must be configured here.
 
 #endregion DISKS
 
-#region MICROSOFT-TEAMS
+    #region MICROSOFT-TEAMS
 
-    $global:MicrosoftTeamsConfig = @{
-        Connector = @{
-            AllClear = @("https://outlook.office.com/webhook/...")
-            Alert = @("https://outlook.office.com/webhook/...","https://outlook.office.com/webhook/...")
-            Information = @("https://outlook.office.com/webhook/...")
-            Task = @("https://outlook.office.com/webhook/...")
-            Warning = @("https://outlook.office.com/webhook/...")
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Provider > MicrosoftTeams > Webhooks
+
+        # If using the MicrosoftTeams provider, enter the webhook URI[s] for each message type (see $PlatformMessageType)
+        # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
+
+        $global:MicrosoftTeamsConfig = @{
+            Connector = @{
+                AllClear = @("<Microsoft Teams AllClear Webhook>")
+                Alert = @("<Microsoft Teams Alert Webhook>","<Microsoft Teams Alert Webhook>")
+                Information = @("<Microsoft Teams Information Webhook>")
+                Warning = @("<Microsoft Teams Warning Webhook>")
+            }
         }
-    }
-    $global:MicrosoftTeamsConfig += @{MessageType = $MicrosoftTeamsConfig.Connector.Keys}
+        $global:MicrosoftTeamsConfig += @{MessageType = $MicrosoftTeamsConfig.Connector.Keys}
 
-#endregion MICROSOFT-TEAMS
+    #endregion MICROSOFT-TEAMS
 
 #endregion INSTANCE-DEFINITIONS

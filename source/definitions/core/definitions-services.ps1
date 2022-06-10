@@ -31,11 +31,3 @@ if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name).ps1) {. $se
 if (Test-Path -Path $servicesPath\services-$($global:Product.Id).ps1) {. $servicesPath\services-$($global:Product.Id).ps1}
 if (Test-Path -Path $servicesPath\services-$($global:Provider.Id).ps1) {. $servicesPath\services-$($global:Provider.Id).ps1}
 
-. $PSScriptRoot\definitions-service-azuread.ps1
-. $servicesPath\services-azuread.ps1
-. $servicesPath\services-azuread.ps1
-. $servicesPath\services-azuread.ps1
-. $servicesPath\services-azuread.ps1
-. $servicesPath\services-azuread.ps1
-. $servicesPath\services-azuread.ps1
-. $servicesPath\services-azuread.ps1

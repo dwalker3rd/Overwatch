@@ -75,8 +75,6 @@ Write-Host+ -Clear
 
 $overwatchInstallLocation = $PSScriptRoot
 
-$todos = @()
-
 #region INSTALLATIONS
 
     Write-Host+
@@ -274,26 +272,27 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     Write-Host+ -NoTrace -NoTimestamp "Public URI for images: $imagesUri" -IfDebug -ForegroundColor Yellow
 
 #endregion IMAGES
-#region DIRECTORIES
+#region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("data\$platformInstanceId","logs","initialize","preflight","postflight","temp")
+    $requiredDirectories = @("data","definitions","docs","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId")
+
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
-        if (!(Test-Path $PSScriptRoot\$requiredDirectory)) { $missingDirectories += $requiredDirectory }
+        if (!(Test-Path "$PSScriptRoot\$requiredDirectory")) { $missingDirectories += "$PSScriptRoot\$requiredDirectory" }
     }
     if ($missingDirectories) {
 
         Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "Directories" -ForegroundColor DarkGray
-        Write-Host+ -NoTrace -NoTimestamp "-----------" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "Local Directories" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "-----------------" -ForegroundColor DarkGray
 
         foreach ($missingDirectory in $missingDirectories) {
-            New-Item -ItemType Directory -Path $PSScriptRoot\$missingDirectory -Force
+            New-Item -ItemType Directory -Path $missingDirectory -Force
         }
 
     }
 
-#endregion DIRECTORIES
+#endregion LOCAL DIRECTORIES
 #region PRODUCTS
 
     Write-Host+
@@ -390,11 +389,16 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     Write-Host+ -NoTrace -NoTimestamp "Configuration Files" -ForegroundColor DarkGray
     Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
 
-    # Write-Host+
-    # $message = "Configuration files : COPYING"
-    # Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
-    # Write-Host+
+    #region CORE
 
+        Copy-File $PSScriptRoot\source\definitions\core\*.ps1 -Destination $PSScriptRoot\definitions
+        Copy-File $PSScriptRoot\source\services\core\*.ps1 -Destination $PSScriptRoot\services
+        Copy-File $PSScriptRoot\source\root\core\*.ps1 -Destination $PSScriptRoot
+        Copy-File $PSScriptRoot\source\root\core\docs\*.* -Destination $PSScriptRoot\docs
+        Copy-File $PSScriptRoot\source\root\core\img\*.* -Destination $PSScriptRoot\img
+        Copy-File $PSScriptRoot\source\providers\core\*.ps1 -Destination $PSScriptRoot\providers
+
+    #endregion CORE
     #region ENVIRON
 
         $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
@@ -476,18 +480,16 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         Copy-File $PSScriptRoot\source\postflight\postflightupdates-platforminstance-$($global:Environ.Platform.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platforminstance-$($global:Environ.Instance).ps1
 
         foreach ($product in $productIds) {
+            Copy-File $PSScriptRoot\source\install\*install-product-$($product.ToLower()).ps1 -Destination $PSScriptRoot\install
             Copy-File $PSScriptRoot\source\definitions\definitions-product-$($product.ToLower())-template.ps1
             Copy-File $PSScriptRoot\source\products\$($product.ToLower()).ps1
         }      
         foreach ($provider in $providerIds) {
+            Copy-File $PSScriptRoot\source\install\*install-provider-$($provider.ToLower()).ps1 -Destination $PSScriptRoot\install
             Copy-File $PSScriptRoot\source\definitions\definitions-provider-$($provider.ToLower())-template.ps1 -ConfirmOverwrite
             Copy-File $PSScriptRoot\source\providers\provider-$($provider.ToLower()).ps1
         }
 
-        # Write-Host+
-        # $message = "Configuration files : COPIED"
-        # Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
-        # Write-Host+
 
     #endregion COPY
 #endregion FILES
@@ -570,23 +572,25 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion INITIALIZE OVERWATCH
 #region REMOTE DIRECTORIES
 
-    Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "Remote Directories" -ForegroundColor DarkGray
-    Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
+    $requiredDirectories = @("data\$platformInstanceId")
 
+    $missingDirectories = @()
     foreach ($node in (pt nodes -k)) {
-        $missingDirectories = @()
         $remotePSScriptRoot = "\\$node\$($PSScriptRoot.Replace(":","$"))"
         foreach ($requiredDirectory in $requiredDirectories) {
-            if (!(Test-Path $remotePSScriptRoot\$requiredDirectory)) { $missingDirectories += $requiredDirectory }
+            if (!(Test-Path "$remotePSScriptRoot\$requiredDirectory")) { $missingDirectories += "$remotePSScriptRoot\$requiredDirectory" }
         }
-        if ($missingDirectories) {
-            foreach ($missingDirectory in $missingDirectories) {
-                New-Item -ItemType Directory -Path $remotePSScriptRoot\$missingDirectory -Force | Out-Null
-                Write-Host+ -NoTrace -NoTimeStamp $remotePSScriptRoot\$missingDirectory -ForegroundColor DarkGray
-            }
+    }
+    if ($missingDirectories) {
 
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "Remote Directories" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
+
+        foreach ($missingDirectory in $missingDirectories) {
+            New-Item -ItemType Directory -Path $missingDirectory -Force
         }
+
     }
 
 #endregion REMOTE DIRECTORIES
@@ -670,15 +674,6 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
             $global:Environ.Product | ForEach-Object {Install-Product $_}
-
-            foreach ($product in $global:Environ.Product) {
-                if ($global:Catalog.Product.$product.Installation.Todo) {
-                    $todos += @{
-                        Source = $product
-                        Message = $global:Catalog.Product.$product.Installation.Todo
-                    }
-                }
-            }
             
             Write-Host+
             $message = "Installing products : SUCCESS"
@@ -698,49 +693,53 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
 
             $global:Environ.Provider | ForEach-Object {Install-Provider $_}
-
-            foreach ($provider in $global:Environ.Provider) {
-                if ($global:Catalog.Provider.$provider.Installation.Todo) {
-                    $todos += @{
-                        Source = $provider
-                        Message = $global:Catalog.Provider.$provider.Installation.Todo
-                    }
-                }
-            }
             
             Write-Host+ -MaxBlankLines 1
             $message = "Installing providers : SUCCESS"
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
 
         #endregion PROVIDERS
-        #region TODO
+        #region POST-INSTALLATION CONFIG
 
-            if ($todos) {
+            $manualConfigFiles = @()
+            $definitionsFiles = Get-Item -Path "definitions\definitions-*.ps1"
+            foreach ($definitionFile in $definitionsFiles) {
+                if (Select-String $definitionFile -Pattern "Manual Configuration > " -Quiet) {
+                    $manualConfigFiles += $definitionFile
+                }
+            }
+
+            if ($manualConfigFiles) {
 
                 Write-Host+
-                Write-Host+ -NoTrace -NoTimestamp "Post-Installation TODOs" -ForegroundColor DarkGray
-                Write-Host+ -NoTrace -NoTimestamp "-----------------------" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace -NoTimestamp "Post-Installation Configuration" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace -NoTimestamp "-------------------------------" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Start disabled tasks"
                 
-                foreach ($todo in $todos) {
-                    foreach ($todoMessage in $todo.Message) {
-                        $message = "$($todo.Source): | $todoMessage"
-                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],(Write-Dots -Character " " -Length 20 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor DarkGray,DarkGray,Gray
+                foreach ($manualConfigFile in $manualConfigFiles) {
+
+                    $manualConfigMeta = (Select-String $manualConfigFile -Pattern "Manual Configuration > " -noemphasis -Raw) -split " > "
+                    if ($manualConfigMeta) {
+                        $manualConfigObjectType = $manualConfigMeta[1]
+                        $manualConfigObjectId = $manualConfigMeta[2]
+                        $manualConfigAction = $manualConfigMeta[3]
+                        
+                        $manualConfigObject = Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId"
+                        if ($manualConfigObject.IsInstalled) {
+                            $message = "$manualConfigObjectType > $($manualConfigObject.Name) > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
+                        }
                     }
                 }
 
             }
 
-        #endregion TODO
+        #endregion POST-INSTALLATION CONFIG
 
         Write-Host+
         $message = "Overwatch installation is complete."
         Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
         Write-Host+
-
-        # $message = "Press any key to restart Overwatch"
-        # Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
-        # Read-Host
-        # .\overwatch.ps1
 
     [console]::CursorVisible = $true
 

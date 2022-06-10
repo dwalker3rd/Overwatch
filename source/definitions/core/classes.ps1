@@ -114,6 +114,7 @@ class Provider {
     [object]$Config
     [string]$Publisher
     [object]$Installation
+    [bool]$IsInstalled
 }
 
 class Heartbeat {

@@ -111,16 +111,24 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #region MICROSOFT-TEAMS
 
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Provider > MicrosoftTeams > Webhooks
+
+        # If using the MicrosoftTeams provider, enter the webhook URI[s] for each message type (see $PlatformMessageType)
+        # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
+
         $global:MicrosoftTeamsConfig = @{
             Connector = @{
-                AllClear = @("https://outlook.office.com/webhook/...")
-                Alert = @("https://outlook.office.com/webhook/...","https://outlook.office.com/webhook/...")
-                Information = @("https://outlook.office.com/webhook/...")
-                Task = @("https://outlook.office.com/webhook/...")
-                Warning = @("https://outlook.office.com/webhook/...")
+                AllClear = @("***REMOVED***",
+                            "***REMOVED***")
+                Alert = @("***REMOVED***",
+                            "***REMOVED***")
+                Information = @("***REMOVED***")
+                Warning = @("***REMOVED***",
+                            "***REMOVED***")
             }
+            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear)
         }
-        $global:MicrosoftTeamsConfig += @{MessageType = $MicrosoftTeamsConfig.Connector.Keys}
 
     #endregion MICROSOFT-TEAMS
 

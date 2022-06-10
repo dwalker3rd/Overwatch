@@ -9,6 +9,9 @@ if (!(Get-Log -Name "twiliosms")) {
     New-Log -Name "twiliosms" | Out-Null
 }
 
+$cursorVisible = [console]::CursorVisible
+[console]::CursorVisible = $true
+
 $interaction = $false
 $overwatchRoot = $PSScriptRoot -replace "\\install",""
 if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1 | Select-String "<fromPhone>" -Quiet) {
@@ -45,3 +48,5 @@ else {
     $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGreen
 }
+
+[console]::CursorVisible = $cursorVisible

@@ -47,9 +47,7 @@
             [switch]$ResetCache
         )
 
-        $definitionPath = "$($global:Location.Definitions)\definitions"
-
-        $products = $null
+        $products = @()
         if (!$ResetCache) {
             if ($(get-cache products).Exists()) {
                 $products = Read-Cache products #-MaxAge $(New-Timespan -Minutes 2)
@@ -63,8 +61,9 @@
         if (!$products) {
             $products = @()
             $global:Environ.Product | ForEach-Object {
-                if (Test-Path -Path $definitionPath-product-$($_).ps1) {
-                    $products += . $definitionPath-product-$($_).ps1
+                $productDefinitionsFile = "$($global:Location.Definitions)\definitions-product-$($_).ps1"
+                if (Test-Path -Path $productDefinitionsFile) {
+                    $products += . $productDefinitionsFile
                 }
             }
 
@@ -94,8 +93,7 @@
             [switch]$ResetCache
         )
 
-        $definitionPath = "$($global:Location.Root)\definitions\definitions"
-
+        $providers = @()
         if (!$ResetCache) {
             if ($(get-cache providers).Exists()) {
                 $providers = Read-Cache providers -MaxAge $(New-Timespan -Minutes 2)
@@ -105,14 +103,15 @@
         if (!$providers) {
             $providers = @()
             $global:Environ.Provider | ForEach-Object {
-                if (Test-Path -Path $definitionPath-provider-$($_).ps1) {
-                    $providers += . $definitionPath-provider-$($_).ps1
+                $providerDefinitionFile = "$($global:Location.Root)\definitions\definitions-provider-$($_).ps1"
+                if (Test-Path -Path $providerDefinitionFile) {
+                    $providers += . $providerDefinitionFile
                 }
             }
 
-            # for ($i = 0; $i -lt $providers.Count; $i++) {
-            #     $providers[$i].IsInstalled = $global:Environ.Provider -contains $providers[$i].Id
-            # }
+            for ($i = 0; $i -lt $providers.Count; $i++) {
+                $providers[$i].IsInstalled = $global:Environ.Provider -contains $providers[$i].Id
+            }
 
             Write-Cache providers -InputObject $providers
         }
