@@ -8,8 +8,8 @@
     $global:Product = 
         [Product]@{
             Id = "DiskCheck"
-            Publisher = "Overwatch"
             Name = "DiskCheck"
+            Publisher = "Overwatch"
         }
     $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.Name)"
     $global:Product.TaskName = $global:Product.DisplayName

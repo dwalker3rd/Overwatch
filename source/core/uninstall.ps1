@@ -104,6 +104,8 @@ function global:Uninstall-Provider {
 
     [console]::CursorVisible = $false
 
+    Write-Host+ -ResetIndentGlobal
+
     Write-Host+
     $message = "$($Overwatch.DisplayName) $($Product.Id) : PENDING"
     Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGreen
@@ -115,9 +117,9 @@ function global:Uninstall-Provider {
             Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
             Write-Host+
 
-            $message = "    Provider            Vendor              Status"
+            $message = "    Provider            Publisher           Status"
             Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "    --------            ------              ------"
+            $message = "    --------            ---------           ------"
             Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray            
 
             $global:Environ.Provider | ForEach-Object {Uninstall-Provider $_}
@@ -134,9 +136,9 @@ function global:Uninstall-Provider {
             Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
             Write-Host+
 
-            $message = "    Product             Vendor              Task                Status"
+            $message = "    Product             Publisher           Task                Status"
             Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "    -------             ------              ----                ------"
+            $message = "    -------             ---------           ----                ------"
             Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
 
             $global:Environ.Product | Where-Object {$_ -ne "Command"} | ForEach-Object {Uninstall-Product $_}

@@ -9,6 +9,7 @@
     [Product]@{
         Id = "Command"
         Name = "Command"
+        Publisher = "Overwatch"
     }
     $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.DisplayName)"
     $global:Product.TaskName = $global:Product.DisplayName
