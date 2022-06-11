@@ -126,10 +126,12 @@ function global:Export-TSServer {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Server = "localhost",
-        [Parameter(Mandatory=$false)][Alias("Site")][string]$ContentUrl = "",
+        [Parameter(Mandatory=$false)][Alias("Site")][string]$ContentUrl = "*",
         [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($Platform.Instance)"
     )
 
+    $exportAllSites = $ContentUrl -eq "*"
+    if ($exportAllSites -or (Get-Culture).TextInfo.ToTitleCase($ContentUrl) -eq "Default") {$ContentUrl = ""}
     Initialize-TSRestApiConfiguration -Server $Server -ContentUrl $ContentUrl -Credentials $Credentials
 
     Write-Host+ -ResetIndentGlobal
@@ -144,7 +146,7 @@ function global:Export-TSServer {
     Write-End serverInfo
 
     Write-Start sites
-    $sites = Get-TSSites
+    $sites = $exportAllSites ? (Get-TSSites) : (Get-TSSite)
     $sites | Export-TSServerObject -Name sites
     Write-End sites
 

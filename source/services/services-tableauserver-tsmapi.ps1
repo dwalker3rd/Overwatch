@@ -245,12 +245,12 @@ function global:Invoke-TsmApiMethod {
     }   
     
     try {
-        $response = Invoke-RestMethod $path -Method $httpMethod -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
+        $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec 15 -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
     }
     catch {
         if ($_.Exception.Response.StatusCode -eq [System.Net.HttpStatusCode]::Unauthorized) {
             $global:tsmApiConfig.Session = New-TsmApiSession
-            $response = Invoke-RestMethod $path -Method $httpMethod -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
+            $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec 15 -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
         }
         # else {
         #     Write-Error -Message $_.Exception.Message

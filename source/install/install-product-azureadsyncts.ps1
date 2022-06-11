@@ -11,7 +11,6 @@ foreach ($node in (pt nodes -k)) {
     $remotedirectory = "\\$node\$(($global:AzureAD.Data).Replace(":","$"))"
     if (!(Test-Path $remotedirectory)) { 
         New-Item -ItemType Directory -Path $remotedirectory -Force | Out-Null
-        Write-Host+ -NoTrace -NoTimeStamp $remotedirectory -ForegroundColor DarkGray
     }
 }
 
