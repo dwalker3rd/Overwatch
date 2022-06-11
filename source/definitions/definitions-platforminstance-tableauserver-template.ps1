@@ -134,13 +134,17 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #region AZUREADSYNC
 
-        $global:AzureADSync = @{
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Product > AzureADSyncTS > Data
+
+        $global:AzureADSyncTS = @{
             Sites = @{
                 ContentUrl = @()
             }
+            PathOperations = @{
+                SiteRoleMinimum = "Viewer"
+            }
         }
-
-        $global:TSSiteRoleMinimum = "Explorer"
     
     #endregion AZUREADSYNC
 

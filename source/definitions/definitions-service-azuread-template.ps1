@@ -1,3 +1,6 @@
+# The following line indicates a post-installation configuration to the installer
+# Manual Configuration > Service > AzureAD > Update Data
+
 function global:Initialize-AzureAD {
 
     $global:AzureAD = @()

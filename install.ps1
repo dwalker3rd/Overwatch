@@ -3,9 +3,9 @@
 
 $emptyString = ""
 
-. $PSScriptRoot\definitions\classes.ps1
-. $PSScriptRoot\definitions\catalog.ps1
-. $PSScriptRoot\services\services-overwatch-loadearly.ps1
+. $PSScriptRoot\source\definitions\core\classes.ps1
+. $PSScriptRoot\source\definitions\core\catalog.ps1
+. $PSScriptRoot\source\services\core\services-overwatch-loadearly.ps1
 
 function Copy-File {
     [CmdletBinding()]
@@ -427,7 +427,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
         $isSourceFileTemplate = $false
         $sourceFile = "$PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1"
-        if (!(Test-Path $sourceFile) -or (Get-Content -Path $sourceFile | Select-String "<platformId>" -Quiet)) {
+        if (!(Test-Path $sourceFile) -or (Get-Content -Path $sourceFile | Select-String "<platformId>" -SimpleMatch -Quiet)) {
             $sourceFile = "$PSScriptRoot\source\definitions\definitions-platforminstance-$platformId-template.ps1"
             $isSourceFileTemplate = $true
         }
@@ -450,9 +450,11 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Copy-File $PSScriptRoot\source\definitions\definitions-service-$($productSpecificService.ToLower())-template.ps1 -ConfirmOverwrite
             Copy-File $PSScriptRoot\source\services\services-$($productSpecificService.ToLower())*.ps1 -Destination $PSScriptRoot\services
             $definitionsServices = "$PSScriptRoot\definitions\definitions-services.ps1"
-            $contentLine = ". `$servicesPath\services-$($productSpecificService.ToLower()).ps1"
-            if (!(Select-String -Path $definitionsServices -Pattern $contentLine -Quiet)) {
-                Add-Content -Path $definitionsServices -Value $contentLine
+            $contentLine1 = ". `$definitionsPath\definitions-service-$($productSpecificService.ToLower()).ps1"
+            $contentLine2 = ". `$servicesPath\services-$($productSpecificService.ToLower()).ps1"
+            if (!(Select-String -Path $definitionsServices -Pattern $contentLine1 -SimpleMatch -Quiet)) {
+                Add-Content -Path $definitionsServices -Value $contentLine1
+                Add-Content -Path $definitionsServices -Value $contentLine2
             }
         }
 
@@ -704,7 +706,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $manualConfigFiles = @()
             $definitionsFiles = Get-Item -Path "definitions\definitions-*.ps1"
             foreach ($definitionFile in $definitionsFiles) {
-                if (Select-String $definitionFile -Pattern "Manual Configuration > " -Quiet) {
+                if (Select-String $definitionFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
                     $manualConfigFiles += $definitionFile
                 }
             }
@@ -718,13 +720,23 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 
                 foreach ($manualConfigFile in $manualConfigFiles) {
 
-                    $manualConfigMeta = (Select-String $manualConfigFile -Pattern "Manual Configuration > " -noemphasis -Raw) -split " > "
+                    $manualConfigMeta = (Select-String $manualConfigFile -Pattern "Manual Configuration > " -SimpleMatch -NoEmphasis -Raw) -split " > "
                     if ($manualConfigMeta) {
                         $manualConfigObjectType = $manualConfigMeta[1]
                         $manualConfigObjectId = $manualConfigMeta[2]
                         $manualConfigAction = $manualConfigMeta[3]
                         
-                        $manualConfigObject = Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId"
+                        switch ($manualConfigObject) {
+                            "Service" {
+                                $manualConfigObject = @{
+                                    Name = $manualConfigObjectId
+                                    IsInstalled = $true
+                                }
+                            }   
+                            default {
+                                $manualConfigObject = Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId"
+                            } 
+                        }
                         if ($manualConfigObject.IsInstalled) {
                             $message = "$manualConfigObjectType > $($manualConfigObject.Name) > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
                             Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray

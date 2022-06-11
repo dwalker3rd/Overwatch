@@ -40,4 +40,33 @@ function global:Reset-OpenIdSub {
         
 }
 
+# function global:Publish-TSContent {
+
+#     [CmdletBinding()]
+#     param (
+#         [Parameter(Mandatory=$false)][string]$Path,
+#         [Parameter(Mandatory=$false)][string]$Name,
+#         [Parameter(Mandatory=$false)][string]$ProjectName,
+#         [Parameter(Mandatory=$false)][string]$ParentProjectName,
+#         [switch]$Overwrite,
+#         [switch]$Tabbed
+#     )
+
+#     $workbookExtensions = @("twb","twbx")
+#     $datasourceExtensions = @("tde","tds","tdsx","hyper")
+
+#     $fileLeafBase = Split-Path $Path -LeafBase
+#     $fileExtension = Split-Path $Path -Extension
+#     $fileType = $fileExtension.TrimStart(".")
+#     $objectName = [string]::IsNullOrEmpty($Name) ? $fileLeafBase : $Name
+
+#     $objectType = ""
+#     if ($fileType -in $workbookExtensions) { $objectType = "workbook" }
+#     if ($fileType -in $datasourceExtensions) { $objectType = "datasource" }
+#     if ([string]::IsNullOrEmpty($objectType)) { throw "`"$fileType`" is an invalid file type for the tabcmd publish method"}
+
+#     . tabcmd publish $Path --name $objectName --project $ProjectName --overwrite
+
+# }
+
 #endregion TABCMD
