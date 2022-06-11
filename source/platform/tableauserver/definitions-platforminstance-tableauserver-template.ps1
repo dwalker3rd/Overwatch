@@ -119,15 +119,12 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
         $global:MicrosoftTeamsConfig = @{
             Connector = @{
-                AllClear = @("***REMOVED***",
-                            "***REMOVED***")
-                Alert = @("***REMOVED***",
-                            "***REMOVED***")
-                Information = @("***REMOVED***")
-                Warning = @("***REMOVED***",
-                            "***REMOVED***")
+                AllClear = @("<Microsoft Teams AllClear Webhook>")
+                Alert = @("<Microsoft Teams Alert Webhook>","<Microsoft Teams Alert Webhook>")
+                Information = @("<Microsoft Teams Information Webhook>")
+                Warning = @("<Microsoft Teams Warning Webhook>")
             }
-            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear)
+            MessageType = $MicrosoftTeamsConfig.Connector.Keys
         }
 
     #endregion MICROSOFT-TEAMS
