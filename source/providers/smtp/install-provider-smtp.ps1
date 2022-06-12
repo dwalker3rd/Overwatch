@@ -19,11 +19,11 @@ if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1 |
     $interaction = $true
 
     Write-Host+; Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
-    Write-Host+ -NoTrace -NoTimestamp "      -----------------"
-    $server = Read-Host "      Server"
-    $port = Read-Host "      Port"
-    $useSsl = (Read-Host "      Use SSL? (Y/N)") -eq "Y" ? "`$true" : "`$false"
+    # Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
+    # Write-Host+ -NoTrace -NoTimestamp "      -----------------"
+    $server =  Read-Host "    Server"
+    $port =    Read-Host "    Port"
+    $useSsl = (Read-Host "    Use SSL? (Y/N)") -eq "Y" ? "`$true" : "`$false"
 
 
     $smtpDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1
@@ -37,11 +37,11 @@ if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1 |
 if (!$(Test-Credentials $Provider.Id -NoValidate)) {
     if(!$interaction) {
         Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
-        Write-Host+ -NoTrace -NoTimestamp "      -----------------"
+        # Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
+        # Write-Host+ -NoTrace -NoTimestamp "      -----------------"
     }
     $interaction = $true
-    Request-Credentials -Prompt1 "      Account" -Prompt2 "      Password" | Set-Credentials $Provider.Id
+    Request-Credentials -Prompt1 "    Account" -Prompt2 "    Password" | Set-Credentials $Provider.Id
 }
 
 if ($interaction) {

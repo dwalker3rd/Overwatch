@@ -59,19 +59,6 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #endregion PLATFORM-OBJECT
 
-    #region PLATFORMTOPOLOGY ALIAS REGEX
-
-        $global:RegexPattern = @{
-            PlatformTopology = @{
-                Alias = @{
-                    Match = "" # enter Regex pattern here for creating platform topology aliases from node names
-                    Groups = @()
-                }
-            }
-        }
-
-    #endregion PLATFORMTOPOLOGY ALIAS REGEX
-
     #region PLATFORM-TIMEOUTS
 
         $global:PlatformComponentTimeout = 300
@@ -144,5 +131,21 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         }
     
     #endregion AZUREADSYNC
+
+    #region PLATFORM TOPOLOGY ALIASES
+
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Platform > Topology > Update Alias Regex [OPTIONAL]
+
+        $global:RegexPattern += @{
+            PlatformTopology = @{
+                Alias = @{
+                    Match = "" # enter Regex pattern here for creating platform topology aliases from node names
+                    Groups = @()
+                }
+            }
+        }
+
+    #endregion PLATFORM TOPOLOGY ALIASES
 
 #endregion INSTANCE-DEFINITIONS

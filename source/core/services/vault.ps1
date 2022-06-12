@@ -25,7 +25,6 @@ the caller.  If Name is not specified, then the properties of ALL Overwatch vaul
 .Outputs
 Vault object properties (not the content of the vault).
 #>
-
 function global:Get-Vault {
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name
@@ -37,6 +36,32 @@ function global:Get-Vault {
     return $vault
 }
 
+<# 
+.Synopsis
+Get the keys of an Overwatch vault.
+.Description
+Get the vault (hashtable) keys.
+.Parameter Vault
+Vault name. 
+.Outputs
+Vault keys.
+#>
+function global:Get-VaultKeys {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Vault
+    )
+
+    return (Read-Vault $Vault).keys
+
+}
+function global:Get-KeysFromSecretVault {
+    return Get-VaultKeys -Vault secret
+}
+function global:Get-KeysFromKeyVault {
+    return Get-VaultKeys -Vault key
+}
 <# 
 .Synopsis
 Read the contents of an Overwatch object from vault.

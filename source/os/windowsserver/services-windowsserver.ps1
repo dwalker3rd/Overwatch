@@ -220,15 +220,15 @@ function global:Get-ServerStatus {
                     switch ($shutdownEventWithReason.Id) {
                         1074 {
                             # $regex = "The\sprocess\s(?'process'\S*\s\(.*\))\shas\sinitiated\sthe\s(\S*)\sof\scomputer\s(?'computer'\S*)\son\sbehalf\sof\suser\s(?'user'\S*)\s.*:\s(?'reason'.*)\n\s*Reason\sCode:\s*(?'code'.*)\n\s*Shutdown\sType:\s*(?'type'.*)\n\s*Comment:\s*(?'comment'\S?.*)"
-                            $shutdown.user = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent.$_))).Groups["user"].Value.Trim()
-                            $shutdown.reason = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent.$_))).Groups["reason"].Value.Trim()
-                            $shutdown.event = ((Get-Culture).TextInfo).ToTitleCase(([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent.$_))).Groups["type"].Value.Trim()).Replace("Restart","Reboot")
+                            $shutdown.user = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent[$_]))).Groups["user"].Value.Trim()
+                            $shutdown.reason = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent[$_]))).Groups["reason"].Value.Trim()
+                            $shutdown.event = ((Get-Culture).TextInfo).ToTitleCase(([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent[$_]))).Groups["type"].Value.Trim()).Replace("Restart","Reboot")
                         }
                         1076 {
                             # $regex = "The\sreason\ssupplied\sby\suser\s(?'user'\S*)\sfor\sthe\slast\sunexpected\sshutdown\sof\sthis\scomputer\sis:\s(?'reason'.*)\n\s*Reason\sCode:\s*(?'code'.*)\n\s*Bug\sID:\s*(?'bugID'.*)\s*Bugcheck\sString:\s*(?'bugcheckString'.*)\n\s*Comment:\s*(?'comment'\S?.*)"
-                            $shutdown.user = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent.$_))).Groups["user"].Value
-                            $shutdown.reason = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent.$_))).Groups["reason"].Value.Trim()
-                            $shutdown.comment = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent.$_))).Groups["comment"].Value.Trim()
+                            $shutdown.user = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent[$_]))).Groups["user"].Value
+                            $shutdown.reason = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent[$_]))).Groups["reason"].Value.Trim()
+                            $shutdown.comment = ([regex]::Match($shutdownEventWithReason.message,($global:RegexPattern.Windows.ShutdownEvent[$_]))).Groups["comment"].Value.Trim()
                         }
                         6008 {
                             $shutdown.reason = $shutdownEventWithReason.message.Trim()
