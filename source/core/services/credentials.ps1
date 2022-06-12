@@ -71,36 +71,25 @@ If no encryption key is specified:
 #>
 function global:Set-Credentials {
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
+
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0,ParameterSetName="byCredentials")]
-        [Parameter(Mandatory=$true,Position=0,ParameterSetName="byUserNamePassword")][string]$Name,
-        [Parameter(Mandatory=$true,Position=1,ValueFromPipeline,ParameterSetName="byCredentials")][System.Management.Automation.PsCredential]$Credentials,
-        [Parameter(Mandatory=$true,Position=1,ParameterSetName="byUserNamePassword")][Alias("Id")][string]$UserName,
-        [Parameter(Mandatory=$true,Position=2,ParameterSetName="byUserNamePassword")][Alias("Token")][securestring]$Password,
-        [Parameter(Mandatory=$false,ParameterSetName="byCredentials")]
-        [Parameter(Mandatory=$false,ParameterSetName="byUserNamePassword")][object]$Key
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false,ValueFromPipeline)][System.Management.Automation.PsCredential]$Credentials,
+        [Parameter(Mandatory=$false)][Alias("Id")][string]$UserName,
+        [Parameter(Mandatory=$false)][Alias("Token")][string]$Password
     )
     
     $Name = $Name.ToLower()
-    
-    $Key = $Key ? $Key : ((Get-EncryptionKey $Name) ?? (New-EncryptionKey $Name))
+    $Key = New-EncryptionKey $Name
+    $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
+    $PasswordEncrypted = $Credentials.Password | ConvertFrom-SecureString -Key $Key
 
-    $UserName = $null
-    $Password = $null
-    if ($Credentials) {
-        $UserName = $Credentials.UserName
-        $Password = $Credentials.Password 
-    }
-    else {
-        $UserName = $UserName
-        $Password = $Password
-    }
+    Save-EncryptionKey $Name -Key $Key 
+    Save-Secret $Name -Secret @{ $Credentials.UserName = $PasswordEncrypted } 
 
-    $PasswordAsString = $Key ? ($Password | ConvertFrom-SecureString -Key $Key) : ($Password | ConvertFrom-SecureString)
-
-    Save-EncryptionKey $Name -Key $Key
-    Save-Secret $Name -Secret @{$UserName = $PasswordAsString}
+    return
 
 }
 
@@ -139,10 +128,10 @@ function global:Get-Credentials {
     if (!$creds) {return}
 
     $UserName = $creds.keys[0]
-    $Password = $creds.$($username)
+    $PasswordEncrypted = $creds.$($username)
 
     try {
-        $Password = $Key ? $($Password | ConvertTo-SecureString -Key $Key) : $($Password | ConvertTo-SecureString)
+        $Password = $Key ? $($PasswordEncrypted | ConvertTo-SecureString -Key $Key) : $($PasswordEncrypted | ConvertTo-SecureString)
         return New-Object System.Management.Automation.PSCredential($UserName, $Password)
     }
     catch {
@@ -250,6 +239,32 @@ function global:New-EncryptionKey {
     Save-EncryptionKey $Name -Key $key
 
     return $key
+
+}
+
+<# 
+.Synopsis
+Replaces encryption keys.
+.Description
+Replaces encryption keys for the specified credential or for all credentials.
+.Parameter Name
+Credential name.
+#>
+function global:Replace-EncryptionKey {
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false,Position=0)][string]$Name
+    )
+
+    $credentialNames = ![string]::IsNullOrEmpty($Name) ? $Name : (Get-VaultKeys)
+    foreach ($credentialName in $credentialNames) {
+        Get-Credentials $credentialName | Set-Credentials $credentialName
+    }
+
+    return
 
 }
 

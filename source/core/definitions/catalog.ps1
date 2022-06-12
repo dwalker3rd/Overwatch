@@ -61,7 +61,7 @@ $global:Catalog.Product += @{ Command =
         Description = "A command interface for managing the platform."
         Publisher = "Overwatch"
         Installation = @{
-            Flag = @("NoInstall")
+            Flag = @("NoInstall","UninstallProtected")
         }
     }
 }
@@ -213,5 +213,8 @@ $global:Catalog.Provider += @{ Views =
         SubCategory = "Views"
         Description = "Predefined PowerShell Format-Table views for Overwatch functions"
         Publisher = "Overwatch"
+        Installation = @{
+            Flag = @("NoPrompt","AlwaysInstall","UninstallProtected")
+        }
     }
 }

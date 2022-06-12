@@ -19,9 +19,9 @@ if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.
     $interaction = $true
 
     Write-Host+; Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "    Twilio SMS Configuration"
-    Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
-    $fromPhone = Read-Host "      Twilio phone number"
+    # Write-Host+ -NoTrace -NoTimestamp "    Twilio SMS Configuration"
+    # Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
+    $fromPhone = Read-Host "    Twilio phone number"
 
     $smtpDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1
     $smtpDefinitionsFile = $smtpDefinitionsFile -replace "<fromPhone>", $fromPhone
@@ -32,11 +32,11 @@ if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.
 if (!$(Test-Credentials $Provider.Id -NoValidate)) { 
     if(!$interaction) {
         Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "    Twilio SMS Configuration"
-        Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
+        # Write-Host+ -NoTrace -NoTimestamp "    Twilio SMS Configuration"
+        # Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
     }
     $interaction = $true
-    Request-Credentials -Prompt1 "      Account SID" -Prompt2 "      Auth Token" | Set-Credentials $Provider.Id
+    Request-Credentials -Prompt1 "    Account SID" -Prompt2 "    Auth Token" | Set-Credentials $Provider.Id
 }
 
 if ($interaction) {

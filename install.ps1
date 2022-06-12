@@ -71,9 +71,37 @@ function Install-Provider {
     if (Test-Path -Path $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1) {. $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1}
 }
 
-Write-Host+ -Clear
+function Update-Environ {
+
+    param(
+        [Parameter(Mandatory=$false)][ValidateSet("Provider","Product")][Alias("Provider","Product")][string]$Type,
+        [Parameter(Mandatory=$false)][string]$Name
+    )
+    
+    $environItems = Select-String $PSScriptRoot\environ.ps1 -Pattern "$Type = " -Raw
+    if (!($environItems | Select-String -Pattern $Name -Quiet)) {
+        $updatedEnvironItems = $environItems.Replace(")",", `"$Name`")")
+        $content = Get-Content $PSScriptRoot\environ.ps1 
+        $newContent = $content | Foreach-Object {$_.Replace($environItems,$updatedEnvironItems)}
+        Set-Content $PSScriptRoot\environ.ps1 -Value $newContent
+    }
+
+}
+
+Clear-Host
 
 $overwatchInstallLocation = $PSScriptRoot
+
+$installedProducts = @()
+$installedProviders = @()
+$overwatchIsInstalled = $false
+try {
+    . $PSScriptRoot\environ.ps1
+    $installedProducts = Get-Product -ResetCache
+    $installedProviders = Get-Provider -ResetCache
+    $overwatchIsInstalled = $true
+}
+catch {}
 
 #region INSTALLATIONS
 
@@ -294,39 +322,55 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
 #endregion LOCAL DIRECTORIES
 #region PRODUCTS
-
-    Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "Select Products" -ForegroundColor DarkGray
-    Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
     
-    $productsSelected = @("Command")
+    $productsSelected = @()
     $productSpecificServices = @()
     $productDependencies = @()
+    $productHeaderWritten = $false
     foreach ($key in $global:Catalog.Product.Keys) {
         $product = $global:Catalog.Product.$key
-        if ([string]::IsNullOrEmpty($product.Installation.Flag) -or ($product.Installation.Flag -notcontains "NoInstall" -and $product.Installation.Flag -notcontains "NoPrompt")) {
+        if ([string]::IsNullOrEmpty($product.Installation.Flag) -or $product.Installation.Flag -notcontains "NoInstall") {
             if ([string]::IsNullOrEmpty($product.Installation.Prerequisite.Platform) -or $product.Installation.Prerequisite.Platform -contains $platformId) {
-                $productResponseDefault = $product.id -in $productIds ? "Y" : "N"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-                $productResponse = Read-Host
-                if ([string]::IsNullOrEmpty($productResponse)) {$productResponse = $productResponseDefault}
-                if ($productResponse -eq "Y") {
-                    $productsSelected += $product.id
-                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Product)) {
-                        foreach ($prerequisiteProduct in $product.Installation.Prerequisite.Product) {
-                            if ($productsSelected -notcontains $prerequisiteProduct) {
-                                $productsSelected += $prerequisiteProduct
-                                $productDependencies += @{
-                                    Product = $product.id
-                                    Dependency = $prerequisiteProduct
-                                }
-                            }
+                if ($product.Id -notin $installedProducts.Id) {
+                    $productResponse = $null
+                    if ($product.Installation.Flag -contains "AlwaysInstall") {
+                        $productsSelected += $product.id
+                        $productResponse = "Y"
+                    }
+                    elseif ($product.Installation.Flag -notcontains "NoPrompt") {
+                        if (!$productHeaderWritten) {
+                            Write-Host+
+                            Write-Host+ -NoTrace -NoTimestamp "Select Products" -ForegroundColor DarkGray
+                            Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
+                            $productHeaderWritten = $true
+                        }
+                        $productResponseDefault = $product.id -in $productIds ? "Y" : "N"
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
+                        $productResponse = Read-Host
+                        if ([string]::IsNullOrEmpty($productResponse)) {$productResponse = $productResponseDefault}
+                        if ($productResponse -eq "Y") {
+                            $productsSelected += $product.id
                         }
                     }
-                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
-                        foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
-                            if ($prerequisiteService -notin $productSpecificServices) {
-                                $productSpecificServices += $prerequisiteService
+                    if ($productResponse -eq "Y") {
+                        if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Product)) {
+                            foreach ($prerequisiteProduct in $product.Installation.Prerequisite.Product) {
+                                if ($prerequisiteProduct -notin $installedProducts.Id) {
+                                    if ($prerequisiteProduct -notin $productsSelected) {
+                                        $productsSelected += $prerequisiteProduct
+                                        $productDependencies += @{
+                                            Product = $product.id
+                                            Dependency = $prerequisiteProduct
+                                        }
+                                        if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
+                                            foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
+                                                if ($prerequisiteService -notin $productSpecificServices) {
+                                                    $productSpecificServices += $prerequisiteService
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -335,7 +379,6 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         }
     }
     $productIds = $productsSelected
-    Write-Host+ -NoTrace -NoTimestamp "Products: $($productIds -join ", ")" -IfDebug -ForegroundColor Yellow
 
     if ($productDependencies) {
         Write-Host+
@@ -350,51 +393,50 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion PRODUCTS
 #region PROVIDERS
 
-    Write-Host+ -MaxBlankLines 1
-    Write-Host+ -NoTrace -NoTimestamp "Select Providers" -ForegroundColor DarkGray
-    Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
-    $_providerIds = @("Views")
-    $providerList = $global:Catalog.Provider.Keys | Where-Object {$_ -ne "Views"}
-    foreach ($provider in $providerList) {
-        $providerResponseDefault = $provider -in $providerIds ? "Y" : "N"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $provider ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-        $providerResponse = Read-Host
-        if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
-        if ($providerResponse -eq "Y") {
-            $_providerIds += $provider
+    $providerHeaderWritten = $false
+    $_providerIds = @()
+    foreach ($key in $global:Catalog.Provider.Keys) {
+        $provider = $global:Catalog.Provider.$key
+        if ([string]::IsNullOrEmpty($provider.Installation.Flag) -or $provider.Installation.Flag -notcontains "NoInstall") {
+            if ($provider.Id -notin $installedProviders.Id) {
+                if ($provider.Installation.Flag -contains "AlwaysInstall") {
+                    $_providerIds += $provider.Id
+                }
+                elseif ($provider.Installation.Flag -notcontains "NoPrompt") {
+                    if (!$providerHeaderWritten) {
+                        Write-Host+ -MaxBlankLines 1
+                        Write-Host+ -NoTrace -NoTimestamp "Select Providers" -ForegroundColor DarkGray
+                        Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
+                        $providerHeaderWritten = $true
+                    }
+                    $providerResponseDefault = $provider.ID -in $providerIds ? "Y" : "N"
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($provider.Id) ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
+                    $providerResponse = Read-Host
+                    if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
+                    if ($providerResponse -eq "Y") {
+                        $_providerIds += $provider.Id
+                    }
+                }
+            }
         }
-
     }
     $providerIds = $_providerIds
-    Write-Host+ -NoTrace -NoTimestamp "Providers: $($providerIds -join ", ")" -IfDebug -ForegroundColor Yellow
 
 #endregion PROVIDERS
-#region SAVE SETTINGS
-
-    if (Test-Path $installSettings) {Clear-Content -Path $installSettings}
-    '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $installSettings
-    "Param()" | Add-Content -Path $installSettings
-    "`$operatingSystemId = ""$operatingSystemId""" | Add-Content -Path $installSettings
-    "`$platformId = ""$platformId""" | Add-Content -Path $installSettings
-    "`$platformInstallLocation = ""$platformInstallLocation""" | Add-Content -Path $installSettings
-    "`$platformInstanceId = ""$platformInstanceId""" | Add-Content -Path $installSettings
-    "`$productIds = @('$($productIds -join "', '")')" | Add-Content -Path $installSettings
-    "`$providerIds = @('$($providerIds -join "', '")')" | Add-Content -Path $installSettings
-    "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $installSettings
-    "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $installSettings
-    "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $installSettings
-
-#endregion SAVE SETTINGS
 #region FILES
 
-    Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "Configuration Files" -ForegroundColor DarkGray
-    Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
+    if ($productIds -or $providerIds -or !$overwatchIsInstalled) {
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "Configuration Files" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
+    }
 
     #region CORE
 
-        $files = (Get-ChildItem $PSScriptRoot\source\core -File -Recurse).VersionInfo.FileName
-        foreach ($file in $files) { Copy-File $file $file.replace("\source\core","")}
+        if (!$overwatchIsInstalled) {
+            $files = (Get-ChildItem $PSScriptRoot\source\core -File -Recurse).VersionInfo.FileName
+            foreach ($file in $files) { Copy-File $file $file.replace("\source\core","")}
+        }
 
     #endregion CORE
     #region ENVIRON
@@ -402,46 +444,55 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
         $targetFile = "$PSScriptRoot\environ.ps1"
         $targetFileExists = Test-Path $targetFile
-        $environFile = Get-Content -Path $sourceFile
-        $environFile = $environFile -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
-        $environFile = $environFile -replace "<platformId>", ($platformId -replace " ","")
-        $environFile = $environFile -replace "<overwatchInstallLocation>", $overwatchInstallLocation
-        $environFile = $environFile -replace "<platformInstanceId>", $platformInstanceId
-        $environFile = ($environFile -replace "<productIds>", "'$($productIds -join "', '")'") -replace "'",'"'
-        $environFile = ($environFile -replace "<providerIds>", "'$($providerIds -join "', '")'") -replace "'",'"'
-        $environFile = $environFile -replace "<imagesUri>", $imagesUri
-        $environFile = $environFile -replace "<pipLocation>", $pipLocation
-        $environFile | Set-Content -Path $targetFile
-        Write-Host+ -NoTrace -NoTimestamp "$($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
-
+        if (!$overwatchIsInstalled) {
+            $environFile = Get-Content -Path $sourceFile
+            $environFile = $environFile -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
+            $environFile = $environFile -replace "<platformId>", ($platformId -replace " ","")
+            $environFile = $environFile -replace "<overwatchInstallLocation>", $overwatchInstallLocation
+            $environFile = $environFile -replace "<platformInstanceId>", $platformInstanceId
+            $environFile = ($environFile -replace "<productIds>", "'$($productIds -join "', '")'") -replace "'",'"'
+            $environFile = ($environFile -replace "<providerIds>", "'$($providerIds -join "', '")'") -replace "'",'"'
+            $environFile = $environFile -replace "<imagesUri>", $imagesUri
+            $environFile = $environFile -replace "<pipLocation>", $pipLocation
+            $environFile | Set-Content -Path $targetFile
+            Write-Host+ -NoTrace -NoTimestamp "$($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
+        }
+        else {
+            foreach ($productId in $productIds) { Update-Environ -Type Product -Name $productId }
+            foreach ($providerId in $providerIds) { Update-Environ -Type Provider -Name $providerId }
+        }
         . $PSScriptRoot\environ.ps1
 
     #endregion ENVIRON
     #region PLATFORM INSTANCE DEFINITIONS
 
-        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platform-$($platformId.ToLower()).ps1
+        if (!$overwatchIsInstalled) {
+            Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platform-$($platformId.ToLower()).ps1
 
-        $isSourceFileTemplate = $false
-        $sourceFile = "$PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1"
-        if (!(Test-Path $sourceFile) -or (Get-Content -Path $sourceFile | Select-String "<platformId>" -SimpleMatch -Quiet)) {
-            $sourceFile = "$PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platforminstance-$platformId-template.ps1"
-            $isSourceFileTemplate = $true
+            $isSourceFileTemplate = $false
+            $sourceFile = "$PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1"
+            if (!(Test-Path $sourceFile) -or (Get-Content -Path $sourceFile | Select-String "<platformId>" -SimpleMatch -Quiet)) {
+                $sourceFile = "$PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platforminstance-$platformId-template.ps1"
+                $isSourceFileTemplate = $true
+            }
+            $platformInstanceDefinitionsFile = Get-Content -Path $sourceFile
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformId>", ($platformId -replace " ","")
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstallLocation>", $platformInstallLocation
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceUrl>", $platformInstanceUri
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceDomain>", $platformInstanceDomain
+            $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
+            Write-Host+ -NoTrace -NoTimestamp "$($isSourceFileTemplate ? "Created" : "Updated") $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
         }
-        $platformInstanceDefinitionsFile = Get-Content -Path $sourceFile
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformId>", ($platformId -replace " ","")
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstallLocation>", $platformInstallLocation
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceUrl>", $platformInstanceUri
-        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceDomain>", $platformInstanceDomain
-        $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
-        Write-Host+ -NoTrace -NoTimestamp "$($isSourceFileTemplate ? "Created" : "Updated") $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
 
     #endregion PLATFORM INSTANCE DEFINITIONS
     #region COPY
 
-        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\services-$($operatingSystemId.ToLower())*.ps1 $PSScriptRoot\services
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services
+        if (!$overwatchIsInstalled) {
+            Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\services-$($operatingSystemId.ToLower())*.ps1 $PSScriptRoot\services
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services
+        }
 
         foreach ($productSpecificService in $productSpecificServices) {
             Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1 -ConfirmOverwrite
@@ -455,23 +506,25 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
         }
 
-        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\initialize-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-os-$($operatingSystemId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformInstanceId).ps1
+        if (!$overwatchIsInstalled) {
+            Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\initialize-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-os-$($operatingSystemId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformInstanceId).ps1
 
-        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\preflightchecks-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightchecks-os-$($operatingSystemId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightchecks-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightchecks-platform-$($platformId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightchecks-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightchecks-platforminstance-$($platformInstanceId).ps1
-        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\preflightupdates-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightupdates-os-$($operatingSystemId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightupdates-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightupdates-platform-$($platformId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightupdates-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightupdates-platforminstance-$($platformInstanceId).ps1
+            Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\preflightchecks-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightchecks-os-$($operatingSystemId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightchecks-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightchecks-platform-$($platformId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightchecks-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightchecks-platforminstance-$($platformInstanceId).ps1
+            Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\preflightupdates-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightupdates-os-$($operatingSystemId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightupdates-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightupdates-platform-$($platformId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\preflightupdates-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightupdates-platforminstance-$($platformInstanceId).ps1
 
-        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\postflightchecks-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightchecks-os-$($operatingSystemId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightchecks-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightchecks-platform-$($platformId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightchecks-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightchecks-platforminstance-$($platformInstanceId).ps1
-        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\postflightupdates-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-os-$($operatingSystemId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platform-$($platformId.ToLower()).ps1
-        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platforminstance-$($platformInstanceId).ps1
+            Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\postflightchecks-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightchecks-os-$($operatingSystemId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightchecks-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightchecks-platform-$($platformId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightchecks-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightchecks-platforminstance-$($platformInstanceId).ps1
+            Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\postflightupdates-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-os-$($operatingSystemId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platform-$($platformId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platforminstance-$($platformInstanceId).ps1
+        }
 
         foreach ($product in $productIds) {
             Copy-File $PSScriptRoot\source\product\$($product.ToLower())\install-product-$($product.ToLower()).ps1 $PSScriptRoot\install\install-product-$($product.ToLower()).ps1
@@ -486,170 +539,188 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\provider-$($provider.ToLower()).ps1 $PSScriptRoot\providers\provider-$($provider.ToLower()).ps1
         }
 
+        Write-Host+
+
     #endregion COPY
 #endregion FILES
 #region MODULES-PACKAGES
 
-    Write-Host+ -MaxBlankLines 1
-    $message = "Powershell modules/packages : INSTALLING"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+    if (!$overwatchIsInstalled) {
+        Write-Host+ -MaxBlankLines 1
+        $message = "Powershell modules/packages : INSTALLING"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
 
-    if (!(Get-PackageSource -ProviderName PowerShellGet)) {
-        Register-PackageSource -Name PSGallery -Location "https://www.powershellgallery.com/api/v2" -ProviderName PowerShellGet -ErrorAction SilentlyContinue | Out-Null
-    }
-    $requiredModules = @("PsIni")
-    foreach ($module in $requiredModules) {
-        if (!(Get-Module -Name $module -ErrorAction SilentlyContinue | Out-Null)) {
-            Install-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
-            Import-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
+        if (!(Get-PackageSource -ProviderName PowerShellGet)) {
+            Register-PackageSource -Name PSGallery -Location "https://www.powershellgallery.com/api/v2" -ProviderName PowerShellGet -ErrorAction SilentlyContinue | Out-Null
         }
-    }
-
-    if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
-        Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -ErrorAction SilentlyContinue | Out-Null
-    }
-    $requiredPackages = @("Portable.BouncyCastle","MimeKit","MailKit")
-    foreach ($package in $requiredPackages) {
-        if (!(Get-Package -Name $package -ErrorAction SilentlyContinue)) {
-            Install-Package -Name $package -SkipDependencies -Force | Out-Null
+        $requiredModules = @("PsIni")
+        foreach ($module in $requiredModules) {
+            if (!(Get-Module -Name $module -ErrorAction SilentlyContinue | Out-Null)) {
+                Install-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
+                Import-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
+            }
         }
-    }
 
-    $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
+            Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -ErrorAction SilentlyContinue | Out-Null
+        }
+        $requiredPackages = @("Portable.BouncyCastle","MimeKit","MailKit")
+        foreach ($package in $requiredPackages) {
+            if (!(Get-Package -Name $package -ErrorAction SilentlyContinue)) {
+                Install-Package -Name $package -SkipDependencies -Force | Out-Null
+            }
+        }
+
+        $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    }
 
 #endregion MODULES-PACKAGES
 #region REMOVE CACHE
 
-    Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache" -Quiet
+    if (!$overwatchIsInstalled) {
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache" -Quiet
+    }
 
 #endregion REMOVE CACHE
 #region CREDENTIALS
 
-    . $PSScriptRoot\services\vault.ps1
-    . $PSScriptRoot\services\credentials.ps1
+    if (!$overwatchIsInstalled) {
+        . $PSScriptRoot\services\vault.ps1
+        . $PSScriptRoot\services\credentials.ps1
 
-    $message = "Admin Credentials : VALIDATING"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+        $message = "Admin Credentials : VALIDATING"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
 
-    if (!$(Test-Credentials -NoValidate "localadmin-$platformInstanceId")) { 
-        Write-Host+
-        Write-Host+
+        if (!$(Test-Credentials -NoValidate "localadmin-$platformInstanceId")) { 
+            Write-Host+
+            Write-Host+
 
-        Request-Credentials -Message "    Enter the local admin credentials" -Prompt1 "    User" -Prompt2 "    Password" | Set-Credentials "localadmin-$($global:Platform.Instance)"
-        
-        Write-Host+
-        $message = "Credentials : VALID"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGreen
-        Write-Host+
-    }
-    else {
-        $message = "$($emptyString.PadLeft(10,"`b"))VALID     "
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+            Request-Credentials -Message "  Enter the local admin credentials" -Prompt1 "  User" -Prompt2 "  Password" | Set-Credentials "localadmin-$($global:Platform.Instance)"
+            
+            Write-Host+
+            $message = "Admin Credentials : VALID"
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+            Write-Host+
+        }
+        else {
+            $message = "$($emptyString.PadLeft(10,"`b"))VALID     "
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        }
     }
 
 #endregion CREDENTIALS
 #region INITIALIZE OVERWATCH
 
-    $message = "Overwatch : INITIALIZING"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+    if ($productIds -or $providerIds -or !$overwatchIsInstalled) {
 
-    psPref -xpref -xpostf -xwhp -Quiet
+        $message = "Overwatch : INITIALIZING"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
 
-    $global:Product = @{Id="Install"}
-    . $PSScriptRoot\definitions.ps1
+        psPref -xpref -xpostf -xwhp -Quiet
 
-    psPref -Quiet
+        $global:Product = @{Id="Install"}
+        . $PSScriptRoot\definitions.ps1
 
-    $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        psPref -Quiet
+
+        $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+    }
 
 #endregion INITIALIZE OVERWATCH
 #region REMOTE DIRECTORIES
 
-    $requiredDirectories = @("data\$platformInstanceId")
+    if (!$overwatchIsInstalled) {
+        $requiredDirectories = @("data\$platformInstanceId")
 
-    $missingDirectories = @()
-    foreach ($node in (pt nodes -k)) {
-        $remotePSScriptRoot = "\\$node\$($PSScriptRoot.Replace(":","$"))"
-        foreach ($requiredDirectory in $requiredDirectories) {
-            if (!(Test-Path "$remotePSScriptRoot\$requiredDirectory")) { $missingDirectories += "$remotePSScriptRoot\$requiredDirectory" }
+        $missingDirectories = @()
+        foreach ($node in (pt nodes -k)) {
+            $remotePSScriptRoot = "\\$node\$($PSScriptRoot.Replace(":","$"))"
+            foreach ($requiredDirectory in $requiredDirectories) {
+                if (!(Test-Path "$remotePSScriptRoot\$requiredDirectory")) { $missingDirectories += "$remotePSScriptRoot\$requiredDirectory" }
+            }
         }
-    }
-    if ($missingDirectories) {
+        if ($missingDirectories) {
 
-        Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "Remote Directories" -ForegroundColor DarkGray
-        Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "Remote Directories" -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
 
-        foreach ($missingDirectory in $missingDirectories) {
-            New-Item -ItemType Directory -Path $missingDirectory -Force
+            foreach ($missingDirectory in $missingDirectories) {
+                New-Item -ItemType Directory -Path $missingDirectory -Force
+            }
+
         }
-
     }
 
 #endregion REMOTE DIRECTORIES
 #region CONTACTS
 
-    $message = "Contacts : UPDATING"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+    if (!$overwatchIsInstalled) {
+        $message = "Contacts : UPDATING"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
 
-    if (!(Test-Path $ContactsDB)) {New-ContactsDB}
+        if (!(Test-Path $ContactsDB)) {New-ContactsDB}
 
-    if (!(Get-Contact)) {
-        while (!(Get-Contact)) {
+        if (!(Get-Contact)) {
+            while (!(Get-Contact)) {
+                Write-Host+
+                Write-Host+
+                # Write-Host+ -NoTrace -NoTimestamp "  Contacts" -ForegroundColor DarkGray
+                # Write-Host+ -NoTrace -NoTimestamp "  --------" -ForegroundColor DarkGray
+                do {
+                    $contactName = Read-Host "  Name"
+                    if (Get-Contact -Name $contactName) {Write-Host+ -NoTrace -NoTimestamp "  Contact $($contactName) already exists." -ForegroundColor DarkYellow}
+                } until (!(Get-Contact -Name $contactName))
+                do {
+                    $contactEmail = Read-Host "  Email (SMTP)"
+                    if (!$contactEmail) {
+                        Write-Host+ -NoTrace -NoTimestamp "    Email is required for SMTP." -ForegroundColor DarkYellow
+                    }
+                    elseif (Get-Contact -Email $contactEmail) {
+                        Write-Host+ -NoTrace -NoTimestamp "    Email $($contactEmail) already exists." -ForegroundColor DarkYellow
+                    }
+                } until ($contactEmail -and !(Get-Contact -Email $contactEmail) -and $(IsValidEmail $contactEmail))
+                do {
+                    $contactPhone = Read-Host "  Phone (SMS)"
+                    if (!$contactPhone) {
+                        Write-Host+ -NoTrace -NoTimestamp "    Phone is required for SMS." -ForegroundColor DarkYellow
+                    }
+                    elseif (Get-Contact -Phone $contactPhone) {
+                        Write-Host+ -NoTrace -NoTimestamp "    Phone $($contactPhone) already exists." -ForegroundColor DarkYellow
+                    }
+                } until ($contactPhone -and !(Get-Contact -Phone $contactPhone) -and $(IsValidPhone $contactPhone))
+                Add-Contact $contactName -Email $contactEmail -Phone $contactPhone
+            }
+
             Write-Host+
+            $message = "Contacts : UPDATED"
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
             Write-Host+
-            Write-Host+ -NoTrace -NoTimestamp "  Contacts" -ForegroundColor DarkGray
-            Write-Host+ -NoTrace -NoTimestamp "  --------" -ForegroundColor DarkGray
-            do {
-                $contactName = Read-Host "  Name"
-                if (Get-Contact -Name $contactName) {Write-Host+ -NoTrace -NoTimestamp "  Contact $($contactName) already exists." -ForegroundColor DarkYellow}
-            } until (!(Get-Contact -Name $contactName))
-            do {
-                $contactEmail = Read-Host "  Email (SMTP)"
-                if (!$contactEmail) {
-                    Write-Host+ -NoTrace -NoTimestamp "    Email is required for SMTP." -ForegroundColor DarkYellow
-                }
-                elseif (Get-Contact -Email $contactEmail) {
-                    Write-Host+ -NoTrace -NoTimestamp "    Email $($contactEmail) already exists." -ForegroundColor DarkYellow
-                }
-            } until ($contactEmail -and !(Get-Contact -Email $contactEmail) -and $(IsValidEmail $contactEmail))
-            do {
-                $contactPhone = Read-Host "  Phone (SMS)"
-                if (!$contactPhone) {
-                    Write-Host+ -NoTrace -NoTimestamp "    Phone is required for SMS." -ForegroundColor DarkYellow
-                }
-                elseif (Get-Contact -Phone $contactPhone) {
-                    Write-Host+ -NoTrace -NoTimestamp "    Phone $($contactPhone) already exists." -ForegroundColor DarkYellow
-                }
-            } until ($contactPhone -and !(Get-Contact -Phone $contactPhone) -and $(IsValidPhone $contactPhone))
-            Add-Contact $contactName -Email $contactEmail -Phone $contactPhone
+
         }
-
-        Write-Host+
-        $message = "Contacts : UPDATED"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGreen
-        Write-Host+
-
-    }
-    else {
-        $message = "$($emptyString.PadLeft(8,"`b"))UPDATED "
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        else {
+            $message = "$($emptyString.PadLeft(8,"`b"))UPDATED "
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        }
     }
 
 #endregion CONTACTS
 #region LOG
 
-    $message = "Log files : CREATING"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+    if (!$overwatchIsInstalled) {
+        $message = "Log files : CREATING"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
 
-    if (!(Test-Log -Name $Platform.Instance)) {
-        New-Log -Name $Platform.Instance | Out-Null
+        if (!(Test-Log -Name $Platform.Instance)) {
+            New-Log -Name $Platform.Instance | Out-Null
+        }
+
+        $message = "$($emptyString.PadLeft(8,"`b"))CREATED "
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
     }
-
-    $message = "$($emptyString.PadLeft(8,"`b"))CREATED "
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
 #endregion LOG 
 #region MAIN
@@ -658,46 +729,56 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
         #region PRODUCTS
 
-            Write-Host+ -MaxBlankLines 1
-            $message = "Installing products : PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
-            Write-Host+
+            if ($productIds) {
 
-            $message = "  Product             Publisher           Status              Task"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
-            $message = "  -------             ---------           ------              ----"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+                Write-Host+ -MaxBlankLines 1
+                $message = "Installing products : PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+                Write-Host+
 
-            $global:Environ.Product | ForEach-Object {Install-Product $_}
-            
-            Write-Host+
-            $message = "Installing products : SUCCESS"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+                $message = "  Product             Publisher           Status              Task"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+                $message = "  -------             ---------           ------              ----"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+
+                $productIds | ForEach-Object { Install-Product $_ }
+                
+                Write-Host+
+                $message = "Installing products : SUCCESS"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+
+            }
 
         #endregion PRODUCTS
         #region PROVIDERS
-            
-            Write-Host+ -MaxBlankLines 1
-            $message = "Installing providers : PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
-            Write-Host+
 
-            $message = "  Provider            Publisher           Status"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
-            $message = "  --------            ---------           ------"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
+            if ($providerIds) {
+                
+                Write-Host+ -MaxBlankLines 1
+                $message = "Installing providers : PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+                Write-Host+
 
-            $global:Environ.Provider | ForEach-Object {Install-Provider $_}
-            
-            Write-Host+ -MaxBlankLines 1
-            $message = "Installing providers : SUCCESS"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+                $message = "  Provider            Publisher           Status"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+                $message = "  --------            ---------           ------"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
+
+                $providerIds | ForEach-Object { Install-Provider $_ }
+                
+                Write-Host+ -MaxBlankLines 1
+                $message = "Installing providers : SUCCESS"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+
+            }
 
         #endregion PROVIDERS
         #region POST-INSTALLATION CONFIG
 
             $manualConfigFiles = @()
-            $definitionsFiles = Get-Item -Path "definitions\definitions-*.ps1"
+            $definitionsFilesPathPattern = "definitions\definitions-*.ps1"
+            if ($overwatchIsInstalled) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
+            $definitionsFiles = Get-Item -Path $definitionsFilesPathPattern
             foreach ($definitionFile in $definitionsFiles) {
                 if (Select-String $definitionFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
                     $manualConfigFiles += $definitionFile
@@ -713,25 +794,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 
                 foreach ($manualConfigFile in $manualConfigFiles) {
 
-                    $manualConfigMeta = (Select-String $manualConfigFile -Pattern "Manual Configuration > " -SimpleMatch -NoEmphasis -Raw) -split " > "
-                    if ($manualConfigMeta) {
-                        $manualConfigObjectType = $manualConfigMeta[1]
-                        $manualConfigObjectId = $manualConfigMeta[2]
-                        $manualConfigAction = $manualConfigMeta[3]
-                        
-                        switch ($manualConfigObjectType) {
-                            "Service" {
-                                $manualConfigObject = @{
-                                    Name = $manualConfigObjectId
-                                    IsInstalled = $true
-                                }
-                            }   
-                            default {
-                                $manualConfigObject = Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId"
-                            } 
-                        }
-                        if ($manualConfigObject.IsInstalled) {
-                            $message = "$manualConfigObjectType > $($manualConfigObject.Name) > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
+                    $manualConfigStrings = Select-String $manualConfigFile -Pattern "Manual Configuration > " -SimpleMatch -NoEmphasis -Raw
+                    foreach ($manualConfigString in $manualConfigStrings) {
+                        $manualConfigMeta = $manualConfigString -split " > "
+                        if ($manualConfigMeta) {
+                            $manualConfigObjectType = $manualConfigMeta[1]
+                            $manualConfigObjectId = $manualConfigMeta[2]
+                            $manualConfigAction = $manualConfigMeta[3]
+                            $message = "$manualConfigObjectType > $manualConfigObjectId > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
                             Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
                         }
                     }
@@ -740,8 +810,24 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
 
         #endregion POST-INSTALLATION CONFIG
+        #region SAVE SETTINGS
 
-        Write-Host+
+            if (Test-Path $installSettings) {Clear-Content -Path $installSettings}
+            '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $installSettings
+            "Param()" | Add-Content -Path $installSettings
+            "`$operatingSystemId = ""$operatingSystemId""" | Add-Content -Path $installSettings
+            "`$platformId = ""$platformId""" | Add-Content -Path $installSettings
+            "`$platformInstallLocation = ""$platformInstallLocation""" | Add-Content -Path $installSettings
+            "`$platformInstanceId = ""$platformInstanceId""" | Add-Content -Path $installSettings
+            "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $installSettings
+            "`$providerIds = @('$($global:Environ.Provider -join "', '")')" | Add-Content -Path $installSettings
+            "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $installSettings
+            "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $installSettings
+            "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $installSettings
+
+        #endregion SAVE SETTINGS
+
+        Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."
         Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
         Write-Host+
