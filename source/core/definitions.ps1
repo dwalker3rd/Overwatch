@@ -107,8 +107,8 @@ switch ($PSVersionTable.PSVersion.Major) {
 #region INTRO
 
     # Clear-Host
-    $message = "$($Overwatch.DisplayName) $($Product.Id) : PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+    $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
     Write-Host+
     Write-Host+ "  Environ","$($Overwatch.DisplayName)" -ForegroundColor Gray,DarkBlue -Separator ":    "
     Write-Host+ "  Product","$($Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
@@ -146,8 +146,8 @@ switch ($PSVersionTable.PSVersion.Major) {
 #region CLOSE
 
     Write-Host+ ""
-    $message = "$($Overwatch.DisplayName) $($Product.Id) : READY"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGreen
+    $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
     Write-Host+
     
 #endregion CLOSE

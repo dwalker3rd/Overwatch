@@ -55,7 +55,7 @@ function global:Send-SMTP-Message {
     $builder = New-Object MimeKit.BodyBuilder
     foreach ($section in $Message.Sections) {
         foreach ($fact in $section.Facts) {
-            $tab = Write-Dots -Character " " -Length 20 -Adjust (-(("$($fact.name):").Length))
+            $tab = Format-Leader -Character " " -Length 20 -Adjust ((("$($fact.name):").Length))
             $builder.TextBody += $fact.name ? "$($fact.name):$($tab)$($fact.value)`n" : $fact.value
             $builder.HtmlBody += $fact.name ? "<pre><b>$($fact.name)</b>:$($tab)$($fact.value)</pre>" : "<pre>$($fact.value)</pre>"
         }

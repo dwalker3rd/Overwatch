@@ -125,8 +125,8 @@ try {
     $status = "Success"
 
     $action = "Export"; $target = "AzureAD\$tenantKey\Log"
-    $message = "Exporting sync transactions : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "Exporting< sync transactions <.>48> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $azureADSyncLog = read-log -context AzureADSyncTS
     if ($azureADSyncLog.Count -gt 0) {

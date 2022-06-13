@@ -656,7 +656,7 @@ function global:Get-AzureADObjects {
         Set-CursorInvisible
             
         $message = "$($Delta ? "Processing" : "Getting") $typeLowerCaseSingular updates"
-        Write-Host+ -NoTrace -NoNewLine -NoSeparator $message,(Write-Dots -Length 48 -Adjust (-($message.Length))) -ForegroundColor Gray,DarkGray -Prefix "`r"
+        Write-Host+ -NoTrace -NoNewLine -NoSeparator $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray -Prefix "`r"
     
         $uri = $Delta ?  $deltaLink : "https://graph.microsoft.com/$($graphApiVersion)/$typeLowerCase$($Filter ? $null : "/delta")?$($queryParams.$Type.select)$($Filter ? "`&$Filter" : $null)"
 
@@ -777,7 +777,7 @@ function global:Get-AzureADObjects {
         if (!$NoCache -or $AzureADB2C) {
 
             $message = "Writing $tenantKey $typeLowerCase to cache "
-            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Write-Dots -Length 48 -Adjust (-($message.Length))) -ForegroundColor Gray,DarkGray
+            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
 
             $azureADObjects | Write-AzureADCache -Tenant $tenantKey -Type $Type
             
@@ -832,8 +832,8 @@ function global:Export-AzureADObjects {
     try {
 
         $action = "Export"; $target = "AzureAD\$tenantKey\$Type"
-        $message = "Exporting $typeLowerCase cache : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<Exporting $typeLowerCase cache <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         switch ($Type) {
             "Users" {
@@ -912,7 +912,7 @@ function global:Get-DeltaLink {
     $cache = "$($tenantLowerCase)-deltaLinks"
 
     $message = "Reading $typeLowerCaseSingular delta link "
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Write-Dots -Length 48 -Adjust (-($message.Length))) -ForegroundColor Gray,DarkGray
+    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
 
     if ((get-cache $cache).Exists()) {
         $deltaLinks = read-cache $cache
@@ -957,7 +957,7 @@ function global:Set-DeltaLink {
     $deltaLinks.$Type = $Value
 
     $message = "Writing $typeLowerCaseSingular delta link "
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Write-Dots -Length 48 -Adjust (-($message.Length))) -ForegroundColor Gray,DarkGray
+    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
 
     $deltaLinks | Write-Cache $cache
 

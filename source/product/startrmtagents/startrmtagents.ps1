@@ -38,8 +38,8 @@ if ($agents) {
 
     while ($skippedEnvironments.Count -gt 0) { 
 
-        $message = "Wait $sleepSeconds seconds : PENDING"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkYellow,DarkGray,DarkGray
+        $message = "<Wait $sleepSeconds seconds <.>48> PENDING"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkYellow,DarkGray,DarkGray
         Write-Log -Context StartRMTAgents -Action Sleeping -Status Pending -Data "$sleepSeconds seconds" -Force
         
         Start-Sleep -Seconds $sleepSeconds
@@ -80,8 +80,8 @@ if ($agents) {
 }
 
 Write-Host+
-$message = "All agents/environments : Connected"
-Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen    
+$message = "<All agents/environments <.>48> Connected"
+Write-Host+ -Iff (!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen    
 Write-Host+
 
 Write-Log -Context StartRMTAgents -Status Success -Message $message.Replace(":","are") -Force

@@ -483,8 +483,8 @@
 
         Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-        $dots = Write-Dots -Length 47 -Adjust (-(("  Network Connections").Length))
-        Write-Host+ -NoTrace "  Network Connections",$dots,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        $leader = Format-Leader -Length 47 -Adjust ((("  Network Connections").Length))
+        Write-Host+ -NoTrace "  Network Connections",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
         Write-Log -Action "Test" -Target "Network"
 
         $fail = $false
@@ -492,8 +492,8 @@
 
             $ip = ([System.Net.Dns]::GetHostAddresses($node) | Where-Object {$_.AddressFamily -eq "InterNetwork"}).IPAddressToString
 
-            $dots = Write-Dots -Length 39 -Adjust (-(("    Ping $($node) [$($ip)]").Length))
-            Write-Host+ -NoTrace -NoNewLine "    Ping","$($node) [$($ip)]",$dots -ForegroundColor Gray,DarkBlue,DarkGray
+            $leader = Format-Leader -Length 39 -Adjust ((("    Ping $($node) [$($ip)]").Length))
+            Write-Host+ -NoTrace -NoNewLine "    Ping","$($node) [$($ip)]",$leader -ForegroundColor Gray,DarkBlue,DarkGray
 
             if (Test-Connection -ComputerName $node -Quiet) {
                 Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen
@@ -506,8 +506,8 @@
 
         }
 
-        $dots = Write-Dots -Length 47 -Adjust (-(("  Network Connections").Length))
-        Write-Host+ -NoTrace -NoNewLine  "  Network Connections",$dots -ForegroundColor Gray,DarkGray
+        $leader = Format-Leader -Length 47 -Adjust ((("  Network Connections").Length))
+        Write-Host+ -NoTrace -NoNewLine  "  Network Connections",$leader -ForegroundColor Gray,DarkGray
 
         if ($fail) {
             Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
@@ -527,8 +527,8 @@
 
         Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-        $dots = Write-Dots -Length 47 -Adjust (-(("  Powershell Remoting").Length))
-        Write-Host+ -NoTrace "  Powershell Remoting",$dots,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        $leader = Format-Leader -Length 47 -Adjust ((("  Powershell Remoting").Length))
+        Write-Host+ -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
         Write-Log -Action "Test" -Target "Powershell-Remoting"
 
         $fail = $false
@@ -536,8 +536,8 @@
 
             # Write-Host+ -NoNewline -NoTimestamp -NoTrace "." -ForegroundColor DarkGray
 
-            $dots = Write-Dots -Length 39 -Adjust (-(("    Remote to $($node)").Length))
-            Write-Host+ -NoTrace -NoNewLine "    Remote to","$($node)",$dots -ForegroundColor Gray,DarkBlue,DarkGray
+            $leader = Format-Leader -Length 39 -Adjust ((("    Remote to $($node)").Length))
+            Write-Host+ -NoTrace -NoNewLine "    Remote to","$($node)",$leader -ForegroundColor Gray,DarkBlue,DarkGray
 
             try {
                 $psSession = Get-PSSession+ -ComputerName $node 
@@ -552,8 +552,8 @@
 
         }
 
-        $dots = Write-Dots -Length 47 -Adjust (-(("  Powershell Remoting").Length))
-        Write-Host+ -NoTrace -NoNewLine "  Powershell Remoting",$dots -ForegroundColor Gray,DarkGray
+        $leader = Format-Leader -Length 47 -Adjust ((("  Powershell Remoting").Length))
+        Write-Host+ -NoTrace -NoNewLine "  Powershell Remoting",$leader -ForegroundColor Gray,DarkGray
         
         if ($fail) {
             Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
@@ -624,7 +624,7 @@
             If (!$PassFailOnly) {Write-Host+}
 
             $messagePart = "  SSL Protocol ","$($ComputerName)"
-            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Write-Dots -Length 48 -Adjust (-(($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 48 -Adjust ((($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray
 
             $now = Get-Date -AsUTC
             $30days = New-TimeSpan -days 30
@@ -699,8 +699,8 @@
 
             $expiryColor = $thisFail ? "DarkRed" : ($thisWarn ? "DarkYellow" : "DarkGray")
             
-            $message = "    Certificate : PENDING"
-            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+            $message = "<    Certificate <.>40> PENDING"
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             $message = "      Subject:      $($ProtocolStatus.Certificate.Subject)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
             $message = "      Issuer:       $($ProtocolStatus.Certificate.Issuer.split(",")[0])"
@@ -717,8 +717,8 @@
             # change expireColor success from darkgray to darkgreen for PASS indicators
             $expiryColor = $thisFail ? "DarkRed" : ($thisWarn ? "DarkYellow" : "DarkGreen")
 
-            $message = "    Certificate : $($thisFail ? "FAIL" : ($thisWarn ? "WARN" : "PASS"))"
-            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$expiryColor
+            $message = "<    Certificate <.>40> $($thisFail ? "FAIL" : ($thisWarn ? "WARN" : "PASS"))"
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$expiryColor
 
             if ($thisWarn -or $thisFail) {
                 Send-SSLCertificateExpiryMessage -Certificate $ProtocolStatus.Certificate
@@ -730,8 +730,8 @@
             foreach ($signatureAlgorithm in $bestPractice.signatureAlgorithms) {
                 $thisFail = $ProtocolStatus.SignatureAlgorithm -ne $signatureAlgorithm
                 $fail = $fail -or $thisFail
-                $message = "    Signature Algorithm : $($thisFail ? "FAIL": "PASS")"
-                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($thisFail ? "DarkRed" : "DarkGreen")
+                $message = "<    Signature Algorithm <.>40> $($thisFail ? "FAIL" : "PASS")"
+                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($thisFail ? "DarkRed" : "DarkGreen")
             }
 
             $thisWarn = $false
@@ -742,17 +742,17 @@
                 $fail = $fail -or $thisFail
                 $state = $bestPractice.protocols.$protocol.state -ne "" ? $($bestPractice.protocols.$protocol.state -eq "Enabled" ? "Enabled" : "Disabled") : $($ProtocolStatus.$protocol ? "Enabled" : "Disabled")
                 $result = $bestPractice.protocols.$protocol.state -ne "" ? $($thisFail ? "FAIL": "PASS") : "NA"
-                $message = "    $($bestPractice.protocols.$protocol.displayName) : $(($state.ToUpper() + " ").Substring(0,8)):$result"
+                $message = "<    $($bestPractice.protocols.$protocol.displayName) <.>31> $(($state.ToUpper() + " ").Substring(0,8))/$result"
                 $stateColor = $state -eq "ENABLED" ? "DarkGreen" : "DarkRed"
                 $resultColor = $result -ne "NA" ? $thisFail ? "DarkRed" : "DarkGreen" : "DarkGray"
-                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 31 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1],"/",$message.Split(":")[2] -ForegroundColor Gray,DarkGray,$stateColor,DarkGray,$resultColor
+                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$stateColor,DarkGray,$resultColor
             }
 
             $thisWarn = $false
             $thisFail = $false
 
             $messagePart = "  SSL Protocol ","$($ComputerName)"
-            Write-Host+ -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Write-Dots -Length 48 -Adjust (-(($messagePart -join " ").Length+2)))," $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,$expiryColor
+            Write-Host+ -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 48 -Adjust ((($messagePart -join " ").Length+2)))," $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,$expiryColor
             Write-Log -Action "Test" -Target "SSL" -Status $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))
         
             # return [PSCustomObject]$ProtocolStatus

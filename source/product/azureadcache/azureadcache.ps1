@@ -95,8 +95,8 @@ foreach ($tenantKey in $tenantKeys) {
         Get-AzureADObjects -Tenant $tenantKey -Type Users -Delta
 
         $action = "Export"; $target = "AzureAD\$tenantKey\Users"
-        $message = "Exporting user cache : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<Exporting user cache <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $tenantKey -AsArray
         $azureADUsers | Sort-Object -property userPrincipalName | 
@@ -111,8 +111,8 @@ foreach ($tenantKey in $tenantKeys) {
         Write-Host+
 
         $action = "Export"; $target = "AzureAD\$tenantKey\Groups"
-        $message = "Exporting group cache : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<Exporting group cache <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $tenantKey -AsArray
         $azureADGroups | Sort-Object -property displayName | 

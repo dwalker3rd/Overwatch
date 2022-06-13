@@ -235,8 +235,8 @@ function Uninstall-Overwatch { Remove-CoreFiles }
             }
         }
 
-        $message = "  Uninstalling $($Type.ToLower())s : PENDING"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+        $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
         Write-Host+
 
         switch ($Type) {
@@ -257,8 +257,8 @@ function Uninstall-Overwatch { Remove-CoreFiles }
         Invoke-Expression "Uninstall-$Type $Name"
 
         Write-Host+
-        $message = "  Uninstalling $($Type.ToLower())s : SUCCESS"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGreen
+        $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
         Write-Host+
         
         return
@@ -266,14 +266,14 @@ function Uninstall-Overwatch { Remove-CoreFiles }
     }
 
     Write-Host+
-    $message = "$($Overwatch.DisplayName) : UNINSTALLING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGreen
+    $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
     Write-Host+
 
         #region PROVIDERS
 
-            $message = "  Uninstalling providers : PENDING"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+            $message = "<  Uninstalling providers <.>48> PENDING"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
             Write-Host+
 
             $message = "    Provider            Publisher           Status"
@@ -284,15 +284,15 @@ function Uninstall-Overwatch { Remove-CoreFiles }
             $global:Environ.Provider | ForEach-Object {Uninstall-Provider $_}
             
             Write-Host+
-            $message = "  Uninstalling providers : SUCCESS"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGreen
+            $message = "<  Uninstalling providers <.>48> SUCCESS"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
             Write-Host+
 
         #region PROVIDERS
         #region PRODUCTS
 
-            $message = "  Uninstalling products : PENDING"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+            $message = "<  Uninstalling products <.>48> PENDING"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
             Write-Host+
 
             $message = "    Product             Publisher           Task                Status"
@@ -303,16 +303,16 @@ function Uninstall-Overwatch { Remove-CoreFiles }
             $global:Environ.Product | Where-Object {$_ -ne "Command"} | ForEach-Object {Uninstall-Product $_}
             
             Write-Host+
-            $message = "  Uninstalling products : SUCCESS"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGreen
+            $message = "<  Uninstalling products <.>48> SUCCESS"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
             Write-Host+
 
         #endregion PRODUCTS    
 
         # region PLATFORM
 
-            $message = "  Uninstalling $($global:Environ.Platform) platform : PENDING"
-            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+            $message = "<  Uninstalling $($global:Environ.Platform) platform <.>48> PENDING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
             Uninstall-Platform
 
@@ -324,8 +324,8 @@ function Uninstall-Overwatch { Remove-CoreFiles }
 
         # region OS
 
-            $message = "  Uninstalling $($global:Environ.OS) OS : PENDING"
-            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+            $message = "<  Uninstalling $($global:Environ.OS) OS <.>48> PENDING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
             Uninstall-OS
 
@@ -337,8 +337,8 @@ function Uninstall-Overwatch { Remove-CoreFiles }
         
         # region OVERWATCH
 
-            $message = "  Uninstalling Overwatch : PENDING"
-            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+            $message = "<  Uninstalling Overwatch <.>48> PENDING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
             Uninstall-Overwatch
 
@@ -348,8 +348,8 @@ function Uninstall-Overwatch { Remove-CoreFiles }
 
         #endregion OVERWATCH  
 
-    $message = "$($Overwatch.DisplayName) : UNINSTALLED"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGreen
+    $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLED"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
 
     [console]::CursorVisible = $true
 

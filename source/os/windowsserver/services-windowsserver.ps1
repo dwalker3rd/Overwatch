@@ -582,8 +582,8 @@ $emptyString = ""
 
 Set-CursorInvisible
 
-$message = "  Group Policy: PENDING"
-Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+$message = "<  Group Policy <.>48> PENDING"
+Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
 $sourceFileName = "$($Platform.Instance)-registry.pol"
 $sourcePath= "$($global:Location.Data)\$sourceFileName"
@@ -602,8 +602,8 @@ Write-Host+ -IfVerbose
 $fail = $false
 foreach ($node in $ComputerName) {
 
-    $message = "    $($node) : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<    $($node) <.>40> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $thisFail = $false 
 
@@ -651,8 +651,8 @@ foreach ($node in $ComputerName) {
     $fail = $fail -or $thisFail
 }
 
-$message = "  Group Policy : $($fail ? "FAIL" : "PASS")"
-Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
+$message = "<  Group Policy <.>48> $($fail ? "FAIL" : "PASS")"
+Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
 
 if ($fail -and !$Update) {
     Write-Host+ -NoTrace "  INFO:  Use `"-Update`" switch to update group policy." -ForegroundColor DarkGray
@@ -674,8 +674,8 @@ if ($ComputerName -ne $env:COMPUTERNAME) {
     return
 }
 
-$message = "  CredSSP Double-Hop Enabled : PENDING"
-Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+$message = "<  CredSSP Double-Hop Enabled <.>40> PENDING"
+Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
 $configured = Get-WSManCredSSP | Select-String -Pattern "is configured" -NoEmphasis
 

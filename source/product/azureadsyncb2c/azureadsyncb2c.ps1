@@ -104,8 +104,8 @@ try {
     #region GET SOURCE USERS
 
         $action = "Get"; $actionTarget = "$source\Users"
-        $message = "$source users : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<$source users <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $sourceUsers, $cacheError = Get-AzureADusers -Tenant $sourceTenantKey -AsArray
 
@@ -116,8 +116,8 @@ try {
     #region GET TARGET USERS
 
         $action = "Get"; $actionTarget = "$target\Users"
-        $message = "$target users : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<$target users <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         # $global:WriteHostPlusPreference = "SilentlyContinue"
         # Get-AzureADObjects -Tenant $targetTenantKey -Type Users
@@ -128,16 +128,16 @@ try {
 
         $message = "$($emptyString.PadLeft(8,"`b")) $($targetUsers.Count)$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-        $message = "$target\$identityIssuer users : $($targetUsersFromIdentityIssuer.Count)"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<$target\$identityIssuer users <.>60> $($targetUsersFromIdentityIssuer.Count)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
         Write-Host+
 
     #endregion GET TARGET USERS
     #region TARGET USERS TO DISABLE
 
         $action = "Disabled"; $actionTarget = "$target\Users"
-        $message = "$target users to disable : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<$target users to disable <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $targetUsersEnabledFromIdentityIssuer = $targetUsersFromIdentityIssuer | Where-Object {$_.accountEnabled}
         $targetSignInNames = ($targetUsersEnabledFromIdentityIssuer.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
@@ -158,8 +158,8 @@ try {
     #region TARGET USERS TO ENABLE
 
         $action = "Enabled"; $actionTarget = "$target\Users"
-        $message = "$target users to enable : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<$target users to enable <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $targetUsersDisabledFromIdentityIssuer = $targetUsersFromIdentityIssuer | Where-Object {!$_.accountEnabled}
         $targetSignInNames = ($targetUsersDisabledFromIdentityIssuer.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
@@ -191,8 +191,8 @@ try {
         $targetUsersUpdateEmail = $targetUsers | Where-Object {$_.accountEnabled -and [string]::IsNullOrEmpty($_.mail) -and ![string]::IsNullOrEmpty(($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId)}
         $targetUsersUpdateEmail = $targetUsersUpdateEmail | Where-Object {$_.id -notin $targetUsersUpdateEmailConflicts.id}
 
-        $message = "$target user emails to update : $($targetUsersUpdateEmail.Count)"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($targetUsersToEnable.Count -gt 0 ? "DarkGreen" : "DarkGray")
+        $message = "<$target user emails to update <.>60> $($targetUsersUpdateEmail.Count)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($targetUsersToEnable.Count -gt 0 ? "DarkGreen" : "DarkGray")
 
     #endregion FIND EMAIL UPDATES
     #region DISABLE TARGET USERS
@@ -202,8 +202,8 @@ try {
             Write-Host+ -MaxBlankLines 1
 
             $action = "DisableUser"; $actionTarget = "$target\Users"
-            $message = "Disabling $target users : PENDING"
-            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+            $message = "<Disabling $target users <.>60> PENDING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToDisable.Count -gt 0) {
                 Write-Host+
                 Write-Host+
@@ -213,8 +213,8 @@ try {
 
                 $targetSignInName = ($targetUserToDisable.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
 
-                $message = "  $targetSignInName : PENDING"
-                Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 50 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
+                $message = "<  $targetSignInName <.>50> PENDING"
+                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 Disable-AzureADUser -Tenant $targetTenantKey -User $targetUserToDisable
                 Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$actionTarget\$targetSignInName" -Status "Disabled" -Force
@@ -226,8 +226,8 @@ try {
 
             if ($targetUsersToDisable.Count -gt 0) {
                 Write-Host+
-                $message = "Disabling $target users : SUCCESS"
-                Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+                $message = "<Disabling $target users <.>60> SUCCESS"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
             }
             else {
                 $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
@@ -244,8 +244,8 @@ try {
             Write-Host+ -MaxBlankLines 1
 
             $action = "EnableUser"; $actionTarget = "$target\Users"
-            $message = "Enabling $target users : PENDING"
-            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+            $message = "<Enabling $target users <.>60> PENDING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToEnable.Count -gt 0) {
                 Write-Host+
                 Write-Host+
@@ -255,8 +255,8 @@ try {
 
                 $targetSignInName = ($targetUserToEnable.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
 
-                $message = "  $targetSignInName : PENDING"
-                Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 50 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
+                $message = "<  $targetSignInName <.>50> PENDING"
+                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 Enable-AzureADUser -Tenant $targetTenantKey -User $targetUserToEnable
                 Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$actionTarget\$targetSignInName" -Status "Enabled" -Force
@@ -269,7 +269,7 @@ try {
             if ($targetUsersToEnable.Count -gt 0) {
                 Write-Host+
                 $message = "Enabling $target users : SUCCESS"
-                Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
             }
             else {
                 $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
@@ -286,16 +286,16 @@ try {
             Write-Host+
 
             $action = "UpdateEmail"; $actionTarget = "$target\Users"
-            $message = "Updating $target user emails : PENDING"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+            $message = "<Updating $target user emails <.>60> PENDING"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             Write-Host+
 
             foreach ($targetUserUpdateEmail in $targetUsersUpdateEmail) {
 
                 $targetSignInName = ($targetUserUpdateEmail.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
 
-                $message = "  $targetSignInName ($($targetUserUpdateEmail.id)) : PENDING"
-                Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 80 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
+                $message = "<  $targetSignInName ($($targetUserUpdateEmail.id)) <.>80> PENDING"
+                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 $status = "SUCCESS"
                 $response = Update-AzureADUserEmail -Tenant $targetTenantKey -User $targetUserUpdateEmail
@@ -322,8 +322,8 @@ try {
 
             Write-Host+
 
-            $message = "Updating $target user emails : SUCCESS"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+            $message = "<Updating $target user emails <.>60> SUCCESS"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
         }
 

@@ -64,11 +64,11 @@ function global:Repair-PythonSSL {
         Write-Host+ -NoTrace "$node" -ForegroundColor DarkBlue -IfVerbose
         foreach ($dll in $dlls) {
             $message = "  $dll"
-            Write-Host+ -NoTrace -NoNewLine $message,(Write-Dots -Length 35 -Adjust (-($message.Length))) -ForegroundColor Gray,DarkGray -NoSeparator -IfVerbose
+            Write-Host+ -NoTrace -NoNewLine $message,(Format-Leader -Length 35 -Adjust $message.Length) -ForegroundColor Gray,DarkGray -NoSeparator -IfVerbose
             if (!([System.IO.File]::Exists("\\$node\$($to.replace(":","`$"))\$dll"))) {
                 Write-Host+ -NoTrace -NoTimeStamp " MISSING" -ForegroundColor DarkRed -IfVerbose
                 $message = "  Copying dll : OK"
-                Write-Host+ -NoTrace $message.Split(":",2)[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":",2)[0]).Length)),$message.Split(":",2)[1] -ForegroundColor Gray,DarkGray,DarkGreen -IfVerbose
+                Write-Host+ -NoTrace $message.Split(":",2)[0],(Format-Leader -Length 25 -Adjust (($message.Split(":",2)[0]).Length)),$message.Split(":",2)[1] -ForegroundColor Gray,DarkGray,DarkGreen -IfVerbose
                 Copy-Files -Path "$from\$dll" -Destination "$to\$dll" -ComputerName $node -ExcludeComputerName $env:COMPUTERNAME
             }
             else {

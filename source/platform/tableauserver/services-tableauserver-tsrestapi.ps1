@@ -949,130 +949,190 @@ function global:Download-TSObject {
 #endregion DOWNLOAD
 #region PUBLISH
 
-function global:Publish-TSContent {
+    function global:Publish-TSContent {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false)][Alias("Workbook","Datasource","Flow")][object]$InputObject,
-        [Parameter(Mandatory=$false)][string]$Path,
-        [Parameter(Mandatory=$false)][string]$Name,
-        [Parameter(Mandatory=$false)][ValidateSet("twb","twbx","tde","tds","tdsx","hyper")]$Extension,
-        [Parameter(Mandatory=$false)][string]$ProjectId
-    )
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string]$Path,
+            [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectId,
+            [Parameter(Mandatory=$false)][string]$Name = (Split-Path $Path -LeafBase),
+            [Parameter(Mandatory=$false)][ValidateSet("twb","twbx","tde","tds","tdsx","hyper","tfl","tflx")][string]$Extension = ((Split-Path $Path -Extension).TrimStart(".")),
+            [Parameter(Mandatory=$false)][switch]$Progress = $global:ProgressPreference -eq "Continue"
+        )
 
-    if (!$InputObject -and (!$Path -or !$ProjectId)) {
-        Write-Host+ -NoTrace -NoNewLine "When `"`$InputObject`" is not provided, ... "
-        if (!$Path) { Write-Host+ -NoTrace "`"`$Path`" must be specified" }
-        if (!$ProjectId) { Write-Host+ -NoTrace "`"`$ProjectId`" must be specified" }
-        return
-    } 
+        #region DEFINITIONS
 
-    If ($InputObject -and $Path) {
-        Write-Host+ -NoTrace "`"`$Path`" cannot be specified when `"`$InputObject`" is provided"
-        return
-    }
+            $uriBase = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)"
+            $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+            $headers.Add("X-Tableau-Auth", $global:tsRestApiConfig.Token)
 
-    If ($InputObject) {
-        $Path = $InputObject.outFile
-        $ProjectId = $InputObject.project.id
-    }
+            $fileName = $Name + "." + $Extension 
+            $objectName = [string]::IsNullOrEmpty($Name) ? $Name : $Name
+            
+            $workbookExtensions = @("twb","twbx")
+            $datasourceExtensions = @("tde","tds","tdsx","hyper")
+            $flowExtensions = @("tfl","tflx")
 
-    $workbookExtensions = @("twb","twbx")
-    $datasourceExtensions = @("tde","tds","tdsx","hyper")
-    $flowExtensions = @("tfl","tflx")
+            $Type = ""
+            if ($Extension -in $workbookExtensions) { $Type = "workbook" }
+            if ($Extension -in $datasourceExtensions) { $Type = "datasource" }
+            if ($Extension -in $flowExtensions) { $Type = "flow" }
 
-    $fileLeafBase = [string]::IsNullOrEmpty($Name) ? (Split-Path $Path -LeafBase) : $Name
-    $fileExtension = [string]::IsNullOrEmpty($Extension) ? (Split-Path $Path -Extension) : $Extension
-    $fileType = [string]::IsNullOrEmpty($Extension) ? $fileExtension.TrimStart(".") : $Extension
-    $fileName = $fileLeafBase + "." + $fileType
-    $objectName = [string]::IsNullOrEmpty($Name) ? $fileLeafBase : $Name
-    $objectType = ""
-    if ($fileType -in $workbookExtensions) { $objectType = "workbook" }
-    if ($fileType -in $datasourceExtensions) { $objectType = "datasource" }
-    if ($fileType -in $flowExtensions) { $objectType = "flow" }
+            $fileSize = (Get-ChildItem $Path).Length
 
-    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-    $headers.Add("X-Tableau-Auth", $global:tsRestApiConfig.Token)
+        #endregion DEFINITIONS
+        #region INITIATE FILE UPLOAD        
 
-    $requestPayload = "<tsRequest><$objectType name=`"$objectName`"><project id=`"$ProjectId`"/></$objectType></tsRequest>"
+            $uploadSessionId = Invoke-TSMethod -Method InitiateFileUpload 
 
-    $Method = "Publish$((Get-Culture).TextInfo.ToTitleCase($objectType))"
-    
-    $multipartContent = [System.Net.Http.MultipartFormDataContent]::new()
-    $stringHeader = [System.Net.Http.Headers.ContentDispositionHeaderValue]::new("form-data")
-    $stringHeader.Name = "`"request_payload`""
-    $stringContent = [System.Net.Http.StringContent]::new($requestPayload)
-    $stringContent.Headers.ContentDisposition = $stringHeader
-    $stringContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("text/xml")
-    $multipartContent.Add($stringContent)
-    
-    $fileStream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open)
-    $fileHeader = [System.Net.Http.Headers.ContentDispositionHeaderValue]::new("form-data")
-    $fileHeader.Name = "`"tableau_$objectType`""
-    $fileHeader.FileName = "`"$fileName`""
-    $fileContent = [System.Net.Http.StreamContent]::new($fileStream)
-    $fileContent.Headers.ContentDisposition = $fileHeader
-    $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("application/octet-stream")
-    $multipartContent.Add($fileContent)
-    
-    $body = $multipartContent
-    
-    $mixedContentType = ($body.headers | where-object {$_.key -eq "Content-Type"}).value -replace "form-data","mixed"
-    $body.Headers.Remove("Content-Type") | Out-Null
-    $body.Headers.Add("Content-Type",$mixedContentType)
+        #endregion INITIATE FILE UPLOAD
+        #region APPEND TO FILE UPLOAD
 
-    $responseRoot = (IsRestApiVersioning -Method $Method) ? "tsResponse" : $null
-    $httpMethod = $global:tsRestApiConfig.Method.$Method.HttpMethod
+            [console]::CursorVisible = $false
 
-    $uri = "$($global:tsRestApiConfig.Method.$Method.Uri)"
-    $keys = $global:tsRestApiConfig.Method.$Method.Response.Keys
+            $message =  "<Uploading $Type `'$fileName`' <.>58> PENDING$($emptyString.PadLeft(9," "))"
+            Write-Host+ -Iff $Progress -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    for ($i = 0; $i -lt $Params.Count; $i++) {
-        $uri = $uri -replace "<$($i)>",$Params[$i]
-        $keys = $keys -replace "<$($i)>",$Params[$i]
-    } 
-
-    try {
-        $response = Invoke-RestMethod -Uri $uri -Method $httpMethod -Headers $headers -Body $body
-        if (IsRestApiVersioning -Method $Method) {
-            $responseError = $response.$responseRoot.error 
-        }
-        else {
-            if ($response.httpErrorCode) {
-                $responseError = @{
-                    code = $response.httpErrorCode
-                    detail = $response.message
-                }
+            $chunkSize = 1mb
+            $progressSizeInt = 1mb
+            $progressSizeString = "mb"
+            if ($fileSize/$progressSizeInt -le 1) {
+                $progressSizeInt = 1kb
+                $progressSizeString = "kb"
             }
-        }
-    }
-    catch {
-        $responseError = $_.Exception.Message
-    }
-    finally {        
-        $fileStream.Close()
-    }
 
-    if ($responseError) {
-        $errorMessage = $responseError
-        if ($responseError.code) {
-            $errorMessage = "Error $($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
-        }
-        Write-Host+ $errorMessage -ForegroundColor Red
-        Write-Log -Action $Method -Status "Error" -EntryType "Error" -Message $errorMessage
-        throw $errorMessage
+            $chunk = New-Object byte[] $chunkSize
+            $fileStream = [System.IO.File]::OpenRead($Path)
+
+            $bytesReadTotal = 0
+            $chunkCount = 1
+            while ($bytesRead = $fileStream.Read($chunk, 0, $chunkSize)) {
+
+                # track bytes read
+                $bytesReadTotal += $bytesRead
+                
+                # multipart/form-data, string content
+                $multipartContent = [System.Net.Http.MultipartFormDataContent]::new()
+                $stringHeader = [System.Net.Http.Headers.ContentDispositionHeaderValue]::new("form-data")
+                $stringHeader.Name = "`"request_payload`""
+                $stringContent = [System.Net.Http.StringContent]::new("")
+                $stringContent.Headers.ContentDisposition = $stringHeader
+                $stringContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("text/xml")
+                $multipartContent.Add($stringContent)
+
+                # multipart/form-data, byte array content
+                $byteArrayHeader = [System.Net.Http.Headers.ContentDispositionHeaderValue]::new("form-data")
+                $byteArrayHeader.Name = "`"tableau_file`""
+                $byteArrayHeader.FileName = "`"$objectName`""
+                # adjust length of last chunk!
+                $byteArrayContent = [System.Net.Http.ByteArrayContent]::new($chunk[0..($bytesRead-1)])
+                $byteArrayContent.Headers.ContentDisposition = $byteArrayHeader
+                $byteArrayContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("application/octet-stream")
+                $multipartContent.Add($byteArrayContent)
+
+                $body = $multipartContent
+
+                # Content-Type header mod
+                # tableau requires that the multipart/form-data payload be defined as multipart/mixed
+                $contentType = ($body.headers | where-object {$_.key -eq "Content-Type"}).value -replace "form-data","mixed"
+                $body.Headers.Remove("Content-Type") | Out-Null
+                $body.Headers.Add("Content-Type",$contentType)
+
+                $responseError = $null
+                try {
+                    $response = Invoke-RestMethod "$uriBase/fileUploads/$uploadSessionId" -Method 'PUT' -Headers $headers -Body $body
+                    $responseError = $response.tsResponse.error
+                }
+                catch {
+                    $responseError = $_.Exception.Message
+                }
+                finally {
+                    $fileSizeString = "$([math]::Round($fileSize/$progressSizeInt,0))"
+                    $fileSizeString = "$($fileSizeString.PadLeft($fileSizeString.Length))$progressSizeString"
+                    $bytesReadTotalString = "$([math]::Round($bytesReadTotal/$progressSizeInt,0))"
+                    $bytesReadTotalString = "$($bytesReadTotalString.PadLeft($fileSizeString.Length))$progressSizeString"
+                }
+
+                if ($responseError) {
+
+                    $errorMessage = "Error at AppendToFileUpload (Chunk# $chunkCount): "
+                    if ($responseError.code) {
+                        $errorMessage += "$($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
+                    }
+                    else {
+                        $errorMessage += $responseError
+                    }
+
+                    $message = "$($emptyString.PadLeft(16,"`b"))FAILURE$($emptyString.PadLeft(16-$bytesUploaded.Length," "))"
+                    Write-Host+ -Iff $Progress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
+                    [console]::CursorVisible = $true
+
+                    $fileStream.Close()
+
+                    throw $errorMessage
+                    
+                }
+
+                $message = "$($emptyString.PadLeft(16,"`b"))$bytesReadTotalString","/","$fileSizeString$($emptyString.PadLeft(16-($bytesReadTotalString.Length + 1 + $fileSizeString.Length)," "))"
+                Write-Host+ -Iff $Progress -NoTrace -NoNewLine -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen,DarkGray,DarkGray
+
+                $chunkCount++
+
+            }
+
+            $message = "$($emptyString.PadLeft(16,"`b"))$bytesReadTotalString","/","$fileSizeString$($emptyString.PadLeft(16-($bytesReadTotalString.Length + 1 + $fileSizeString.Length)," "))"
+            Write-Host+ -Iff $Progress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen,DarkGray,DarkGreen
+
+            [console]::CursorVisible = $true
+
+        #endregion APPEND TO FILE UPLOAD        
+        #region FINALIZE UPLOAD
+
+            # multipart/form-data, string content
+            $multipartContent = [System.Net.Http.MultipartFormDataContent]::new()
+            $stringHeader = [System.Net.Http.Headers.ContentDispositionHeaderValue]::new("form-data")
+            $stringHeader.Name = "`"request_payload`""
+            $stringContent = [System.Net.Http.StringContent]::new("<tsRequest><$Type name=`"$objectName`"><project id=`"$ProjectId`"/></$Type></tsRequest>")
+            $stringContent.Headers.ContentDisposition = $stringHeader
+            $stringContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("text/xml")
+            $multipartContent.Add($stringContent)
+
+            $body = $multipartContent
+
+            # Content-Type header mod
+            # tableau requires that the multipart/form-data payload be defined as multipart/mixed
+            $contentType = ($body.headers | where-object {$_.key -eq "Content-Type"}).value -replace "form-data","mixed"
+            $body.Headers.Remove("Content-Type") | Out-Null
+            $body.Headers.Add("Content-Type",$contentType)
+
+            $responseError = $null
+            try {
+                $response = Invoke-RestMethod "$uriBase/$($Type)s?uploadSessionId=$uploadSessionId&$($Type)Type=$Extension&overwrite=true" -Method 'POST' -Headers $headers -Body $body
+                $responseError = $response.tsResponse.error
+            }
+            catch {
+                $responseError = $_.Exception.Message
+            }
+            finally {        
+                $fileStream.Close()
+            }
+
+            if ($responseError) {
+                $errorMessage = "Error at Publish$((Get-Culture).TextInfo.ToTitleCase($Type)): "
+                if ($responseError.code) {
+                    $errorMessage = "$($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
+                }
+                else {
+                    $errorMessage = $responseError
+                }
+                throw $errorMessage
+            }
+
+            return $response.tsResponse.$Type
+
+        #endregion FINALIZE UPLOAD        
+
     }
-
-    $keys = $keys ? "$($responseRoot)$($responseRoot ? "." : $null)$($keys)" : $responseRoot
-    if ($keys) {
-        foreach ($key in $keys.split(".")) {
-            $response = $response.$key
-        }
-    }
-
-    return $response
-
-}
 
 #endregion PUBLISH
 #region SESSION
@@ -3397,91 +3457,35 @@ function global:Sync-TSGroups {
     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Gray
 
     $message = "  Group updates : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $azureADGroupUpdates,$cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray -After $lastStartTime
-    if ($cacheError) {
-
-        # Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
-        # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
-        # $message = "    Error Code : $($($cacheError.code))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
-        # $message = "    Error Summary : $($($cacheError.summary))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
-
-        # Send-TaskMessage -Id "AzureADSyncTS" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
-
-        return $cacheError
-
-    }
+    if ($cacheError) { return $cacheError }
     
     $message = "$($emptyString.PadLeft(8,"`b")) $($azureADGroupUpdates.Count)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen
 
-    $message = "  Groups : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<  Groups <.>48> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray
-    if ($cacheError) {
-
-        # Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Groups" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
-        # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        # Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor Red
-        # $message = "    Error Code : $($($cacheError.code))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
-        # $message = "    Error Summary : $($($cacheError.summary))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
-
-        # Send-TaskMessage -Id "AzureADSyncTS" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
-
-        return $cacheError
-
-    }
-
-    # if ($azureADGroups.Count -le 0) {
-    #     $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
-    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "Red")
-    #     Write-Host+
-    #     return
-    # }
+    if ($cacheError) { return $cacheError }
 
     $message = "$($emptyString.PadLeft(8,"`b")) $($azureADGroups.Count)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
     
-    $message = "  Users : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<  Users <.>48> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray
-    if ($cacheError) {
-
-        # Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
-        # $message = "$($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        # Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
-        # $message = "    Error Code : $($($cacheError.code))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
-        # $message = "    Error Summary : $($($cacheError.summary))"
-        # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
-
-        # Send-TaskMessage -Id "AzureADSyncTS" -Status $cacheError.code -Message $cacheError.summary -MessageType $PlatformMessageType.Alert
-
-        return $cacheError
-
-    }
-
-    # if ($azureADUsers.Count -le 0) {
-    #     $message = "$($emptyString.PadLeft(8,"`b")) ($Delta ? 'SUCCESS' : 'CACHE EMPTY')$($emptyString.PadLeft(8," "))"
-    #     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor ($Delta ? "DarkGreen" : "Red")
-    #     Write-Host+
-    #     return
-    # }
+    if ($cacheError) {  return $cacheError }
 
     $message = "$($emptyString.PadLeft(8,"`b")) $($azureADUsers.Count)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
     Write-Host+
-    $message = "Syncing Tableau Server groups : PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<Syncing Tableau Server groups <.>48> PENDING"
+    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Gray,DarkGray,DarkGray
 
     foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
 
@@ -3563,8 +3567,8 @@ function global:Sync-TSGroups {
 
     @{LastStartTime = $startTime} | Write-Cache "AzureADSyncGroups"
 
-    $message = "Syncing Tableau Server groups : SUCCESS"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+    $message = "<Syncing Tableau Server groups <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
     Write-Host+
 
 }
@@ -3587,16 +3591,16 @@ function global:Sync-TSUsers {
     $message = "Getting Azure AD users"
     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Gray
 
-    $message = "  User updates : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<  User updates <.>48> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray -After ($Delta ? $lastStartTime : [datetime]::MinValue)
     if ($cacheError) {
         Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         $message = "  $($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
-        $message = "    Error $($cacheError.code) : $($($cacheError.summary))"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Red
+        $message = "<    Error $($cacheError.code) <.>48> $($($cacheError.summary))"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,Red
         return
     }
 
@@ -3605,15 +3609,15 @@ function global:Sync-TSUsers {
 
     if ($azureADUsers.Count -le 0) {
         Write-Host+
-        $message = "Syncing Tableau Server users : $($Delta ? 'SUCCESS' : 'CACHE EMPTY')"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($Delta ? "DarkGreen" : "Red")
+        $message = "<Syncing Tableau Server users <.>48> $($Delta ? 'SUCCESS' : 'CACHE EMPTY')"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Delta ? "DarkGreen" : "Red")
         Write-Host+
         return
     }
 
     Write-Host+
-    $message = "Syncing Tableau Server users : PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<Syncing Tableau Server users <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
 
@@ -3624,8 +3628,8 @@ function global:Sync-TSUsers {
 
         $emptyString = ""
 
-        $message = "    $($tssite.name) : PENDING"
-        Write-Host+ -NoTrace -NoNewLine -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<    $($tssite.name) <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $tsUsers = Get-TSUsers | Where-Object {$_.name -in $azureADUsers.userPrincipalName -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
 
@@ -3707,8 +3711,8 @@ function global:Sync-TSUsers {
 
     @{LastStartTime = $startTime} | Write-Cache "AzureADSyncUsers"
 
-    $message = "  Syncing Tableau Server users : SUCCESS"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+    $message = "<  Syncing Tableau Server users <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
     
     Write-Host+
 

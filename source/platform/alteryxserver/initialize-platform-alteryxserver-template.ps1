@@ -4,8 +4,8 @@
 
     Write-Host+
     $message = "Platform Initialization"
-    $dots = Write-Dots -Length 47 -Adjust (-($message.Length))
-    Write-Host+ -NoNewline $message,$dots -ForegroundColor DarkBlue,DarkGray
+    $leader = Format-Leader -Length 47 -Adjust $message.Length
+    Write-Host+ -NoNewline $message,$leader -ForegroundColor DarkBlue,DarkGray
 
     try {
 

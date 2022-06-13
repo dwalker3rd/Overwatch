@@ -45,7 +45,7 @@ function global:Set-PSPreferenceVariables {
 }
 Set-Alias -Name psPref -Value Set-PSPreferenceVariables -Scope Global
 
-function global:Write-Dots {
+function global:Format-Leader {
 
     [CmdletBinding()]
     param (
@@ -59,11 +59,13 @@ function global:Write-Dots {
         $Length -= $global:WriteHostPlusIndentGlobal
     }
 
-    $dots = ""
-    for ($i = 0; $i -lt $Length+$Adjust; $i++) {
-        $dots += $Character
+    $leaderCount = $Length - $Adjust
+
+    $leader = ""
+    for ($i = 0; $i -lt $leaderCount; $i++) {
+        $leader += $Character
     }
-    return $dots
+    return $leader
 
 }
 
@@ -91,7 +93,8 @@ function global:Write-Host+ {
         [switch]$ResetIndentGlobal,
         [switch]$NoIndent,
         [switch]$ResetMaxBlankLines,
-        [switch]$ResetAll
+        [switch]$ResetAll,
+        [switch]$Parse
 
     )
 
@@ -130,6 +133,16 @@ function global:Write-Host+ {
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($NoTimestamp ? "" : "[$([datetime]::Now.ToString('u'))] ")
         Write-Host -NoNewLine -ForegroundColor $DefaultForeGroundColor[0] ($NoTrace ? "" : "$($caller)")
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Indent ? $emptyString.PadLeft($Indent," ") : "")
+
+        if ($Parse -and $Object.Count -eq 1) {
+            if ($Object[0] -match $global:RegexPattern.WriteHostPlus.Parse) {
+                $Object = @($matches[1], (Format-Leader -Character $matches[2] -Length $matches[3] -Adjust ($matches[1].Length-2)), $matches[4])
+            }
+            else {
+                Write-Error "Invalid format for object parser."
+                return
+            }
+        }
     }
 
     $i = 0

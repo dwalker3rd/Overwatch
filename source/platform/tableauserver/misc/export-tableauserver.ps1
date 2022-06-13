@@ -1,32 +1,27 @@
-function Export-TSObjectAsJson {
+function Export-TSObject {
 
     [CmdletBinding()]
     param(
         [Parameter(ValueFromPipeline)][Object[]]$InputObject,
-        [Parameter(Mandatory=$true)][string]$Name,
-        [switch]$Server,
-        [switch]$Site
+        [Parameter(Mandatory=$true,Position=0)][ValidateSet("Server","Site")][string]$Type,
+        [Parameter(Mandatory=$true,Position=1)][string]$Name,
+        [Parameter(Mandatory=$false)][ValidateSet("json")][string]$Format = "json"
     )
 
     begin {
 
-        $exportFormat = "json"
-
-        if (!$Server -and !$Site) {
-            throw "`$Server or `$Site must be specified"
-        }
-
-        $exportDirectory = 
-            if ($Server) {
-                "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\.$exportFormat"
+        $exportDirectory = switch ($Type) {
+            "Server" {
+                "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\.$Format"
             }
-            elseif ($Site) {
+            "Site" {
                 $contentUrl = ![string]::IsNullOrEmpty($global:tsRestApiConfig.ContentUrl) ? $global:tsRestApiConfig.ContentUrl : "default"
-                "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentURL\.$exportFormat"
+                "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentURL\.$Format"
             }
+        }
         if (!(Test-Path -Path $exportDirectory -PathType Container)) { New-Item -ItemType Directory -Path $exportDirectory | Out-Null }
 
-        $outFile = "$exportDirectory\$Name.$exportformat"
+        $outFile = "$exportDirectory\$Name.$Format"
 
         $outputObject = @()
 
@@ -40,49 +35,13 @@ function Export-TSObjectAsJson {
 
         if (!$outputObject) { return }
     
-        $json = $outputObject | ConvertFrom-XmlElement | ConvertTo-Json -Depth 10
-        Set-Content -Path $outFile -Value $json -Force
+        switch ($Format) {
+            default {
+                $exportObject = $outputObject | ConvertFrom-XmlElement | ConvertTo-Json -Depth 10
+            }
+        }
+        Set-Content -Path $outFile -Value $exportObject -Force
     
-    }
-
-}
-
-function Export-TSSiteObject {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(ValueFromPipeline)][Object[]]$InputObject,
-        [Parameter(Mandatory=$true)][string]$Name
-    )
-
-    begin {
-        $outputObject = @()
-    }
-    process {
-        $outputObject += $InputObject 
-    }
-    end {
-        $outputObject | Export-TSObjectAsJson -Name $Name -Site
-    }
-
-}
-
-function Export-TSServerObject {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(ValueFromPipeline)][Object[]]$InputObject,
-        [Parameter(Mandatory=$true)][string]$Name
-    )
-
-    begin {
-        $outputObject = @()
-    }
-    process {
-        $outputObject += $InputObject 
-    }
-    end {
-        $outputObject | Export-TSObjectAsJson -Name $Name -Server
     }
 
 }
@@ -95,8 +54,8 @@ function Write-Start {
         [switch]$NewLine
     )
 
-    $message = "Export $Name : PENDING"
-    Write-Host+ -NoTrace -NoNewLine:$(!($NewLine.IsPresent)) $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray -NoSeparator
+    $message = "<Export $Name <.>48> PENDING"
+    Write-Host+ -NoTrace -NoNewLine:$(!($NewLine.IsPresent)) -Parse $message -ForegroundColor Gray,DarkGray,DarkGray -NoSeparator
 
 }
 
@@ -109,8 +68,8 @@ function Write-End {
     )
 
     if ($NewLine) {
-        $message = "Export $Name : SUCCESS"
-        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen -NoSeparator
+        $message = "<Export $Name <.>48> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message-ForegroundColor Gray,DarkGray,DarkGreen -NoSeparator
     }
     else {
         $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
@@ -132,9 +91,10 @@ function global:Export-TSServer {
 
     $exportAllSites = $ContentUrl -eq "*"
     if ($exportAllSites -or (Get-Culture).TextInfo.ToTitleCase($ContentUrl) -eq "Default") {$ContentUrl = ""}
+
     Initialize-TSRestApiConfiguration -Server $Server -ContentUrl $ContentUrl -Credentials $Credentials
 
-    Write-Host+ -ResetIndentGlobal
+    Write-Host+ -ResetAll
     Write-Host+
     Write-Host+ -NoTrace "Server: $($global:tsRestApiConfig.Platform.Uri.Host) ($($global:tsRestApiConfig.Platform.Name))"
 
@@ -142,12 +102,12 @@ function global:Export-TSServer {
 
     Write-Start serverInfo
     $serverInfo = Get-TSServerInfo
-    $serverInfo | Export-TSServerObject -Name server
+    $serverInfo | Export-TSObject Server serverInfo
     Write-End serverInfo
 
     Write-Start sites
     $sites = $exportAllSites ? (Get-TSSites) : (Get-TSSite)
-    $sites | Export-TSServerObject -Name sites
+    $sites | Export-TSObject Server sites
     Write-End sites
 
     Write-Host+ -SetIndentGlobal -Indent -2
@@ -178,67 +138,67 @@ function global:Export-TSSite {
 
     Write-Start site
     $site = Get-TSSite
-    $site | Export-TSSiteObject -Name site
+    $site | Export-TSObject Site site
     Write-End site
     
     Write-Start users
     $users = Get-TSUsers+
-    $users | Export-TSSiteObject -Name users
+    $users | Export-TSObject Site users
     Write-End users
     
     Write-Start groups
     $groups = Get-TSGroups+
-    $groups | Export-TSSiteObject -Name groups
+    $groups | Export-TSObject Site groups
     Write-End groups
 
     Write-Start projects
     $projects = Get-TSProjects+ -Users $Users -Groups $Groups
-    $projects | Export-TSSiteObject -Name projects
+    $projects | Export-TSObject Site projects
     Write-End projects
 
     Write-Start workbooks
     $workbooks = Get-TSWorkbooks+ -Users $Users -Groups $Groups -Projects $Projects -Download
-    $workbooks | Export-TSSiteObject -Name workbooks
+    $workbooks | Export-TSObject Site workbooks
     Write-End workbooks
 
     Write-Start wiews
     $views = Get-TSViews+  -Users $Users -Groups $Groups -Projects $Projects -Workbooks $workbooks
-    $views | Export-TSSiteObject -Name views
+    $views | Export-TSObject Site views
     Write-End views
 
     Write-Start datasources
     $datasources = Get-TSDatasources+ -Users $Users -Groups $Groups -Projects $Projects -Download
-    $datasources | Export-TSSiteObject -Name datasources
+    $datasources | Export-TSObject Site datasources
     Write-End datasources
 
     Write-Start flows
     $flows = Get-TSFlows+ -Users $Users -Groups $Groups -Projects $Projects -Download
-    $flows | Export-TSSiteObject -Name flows
+    $flows | Export-TSObject Site flows
     Write-End flows
 
     Write-Start metrics
     $metrics = Get-TSMetrics
-    $metrics | Export-TSSiteObject -Name metrics
+    $metrics | Export-TSObject Site metrics
     Write-End metrics
 
     Write-Start favorites
     $favorites = Get-TSFavorites
-    $favorites | Export-TSSiteObject -Name favorites
+    $favorites | Export-TSObject Site favorites
     Write-End favorites
 
     Write-Start subscriptions
     $subscriptions = Get-TSSubscriptions
-    $subscriptions | Export-TSSiteObject -Name subscriptions
+    $subscriptions | Export-TSObject Site subscriptions
     Write-End subscriptions
 
     Write-Start schedules
     $schedules = Get-TSSchedules 
-    $schedules | Export-TSSiteObject -Name schedules
+    $schedules | Export-TSObject Site schedules
     Write-End schedules
 
     Write-Start dataAlerts
     $dataAlerts = Get-TSDataAlerts
-    $dataAlerts | Export-TSSiteObject -Name dataAlerts
+    $dataAlerts | Export-TSObject Site dataAlerts
     Write-End dataAlerts
 
 }

@@ -31,8 +31,8 @@ function global:Invoke-Preflight {
     if (Test-Path -Path $PreflightPath\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1) {
         
         Write-Host+ 
-        $message = "$Name $noun $Action : PENDING"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray 
+        $message = "<$Name $noun $Action <.>48> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
 
         Write-Log -Action $noun $Action -Target $Id
         
@@ -44,8 +44,8 @@ function global:Invoke-Preflight {
             $fail = $true
         }
 
-        $message = "$Name $noun $Action : $($fail ? "FAIL" : "PASS")"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
+        $message = "<$Name $noun $Action <.>48> $($fail ? "FAIL" : "PASS")"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
 
         Write-Log -verb "$noun $Action" -Target $Id -Status ($fail ? "FAIL" : "PASS") -EntryType ($fail ? "Error" : "Information")
 

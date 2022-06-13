@@ -180,8 +180,8 @@ function global:Get-RMTTableauServerStatus {
         $Environment = Get-RMTEnvironments -EnvironmentIdentifier $Environment
     }
 
-    $message = "Tableau Server $($Environment.Identifier): PENDING"
-    Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<Tableau Server $($Environment.Identifier) <.>48> PENDING"
+    Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $initialNode = $Environment.RepoServer
 
@@ -234,8 +234,8 @@ function global:Get-RMTStatus {
     $environmentStatus = @()
 
     Write-Host+ -MaxBlankLines 1
-    $message = "Getting Tableau RMT Status : PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<Getting Tableau RMT Status <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     Write-host+ -SetIndentGlobal -Indent 2
 
@@ -299,8 +299,8 @@ function global:Get-RMTStatus {
 
     Write-host+ -SetIndentGlobal -Indent -2
 
-    $message = "Getting Tableau RMT Status : SUCCESS"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+    $message = "<Getting Tableau RMT Status <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     $rmtStatus = [PSCustomObject]@{
         IsOK = $controllerStatus.IsOK
@@ -397,8 +397,8 @@ $StartupType = switch ($Command) {
 
 foreach ($node in $ComputerName) {
 
-    $message = "$Command $Alias on $node : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<$Command $Alias on $node <.>48> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     Set-PlatformService -ComputerName $ComputerName -Name $Name -StartupType $StartupType
 
@@ -453,8 +453,8 @@ function global:Request-Platform {
 
     foreach ($node in $ComputerName) {
     
-        $message = "$verbing RMT $Target on $node : PENDING"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<$verbing RMT $Target on $node <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         
         $psSession = Get-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
         $response = Invoke-Command -Session $psSession {
@@ -484,23 +484,23 @@ function global:Request-RMTController {
     )
 
     Write-Host+
-    $message = "$($Command.ToUpper()) Tableau RMT Controller : PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<$($Command.ToUpper()) Tableau RMT Controller <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     Write-Host+
 
     Write-Host+ -SetIndentGlobal -Indent 2
 
     $message = "Controller"
     Write-Host+ -NoTrace -NoSeparator $message -ForeGroundColor Gray
-    Write-Host+ -NoTrace (Write-Dots -Character "-" -Length $message.Length -NoIndent)
+    Write-Host+ -NoTrace (Format-Leader -Character "-" -Length $message.Length -NoIndent)
 
     Request-Platform -Command $Command -Target "Controller" -ComputerName $ComputerName
 
     Write-Host+ -SetIndentGlobal -Indent -2
 
     Write-Host+
-    $message = "$($Command.ToUpper()) Tableau RMT Controller : SUCCESS"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+    $message = "<$($Command.ToUpper()) Tableau RMT Controller <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
     Write-Host+
 
 }
@@ -567,8 +567,8 @@ function global:Request-RMTAgents {
     $environs = $rmtStatus.EnvironmentStatus.Environment
 
     if (!$controller.IsOK) {
-        $message = "$($Command.ToUpper()) Tableau RMT Agents : FAILURE"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,Red
+        $message = "<$($Command.ToUpper()) Tableau RMT Agents <.>48> FAILURE"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Red
         $message = "/","CONTROLLER:$($controller.RollupStatus.ToUpper())"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGray,Red
         return
@@ -584,8 +584,8 @@ function global:Request-RMTAgents {
     $environs = $environs | Where-Object {$_.Identifier -in $EnvironmentIdentifier}
     
     Write-Host+
-    $message = "$($Command.ToUpper()) Tableau RMT Agents : PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<$($Command.ToUpper()) Tableau RMT Agents <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     Write-Host+
 
     Write-Host+ -SetIndentGlobal -Indent 2
@@ -599,7 +599,7 @@ function global:Request-RMTAgents {
 
         $message = "$($environ.Identifier)"
         Write-Host+ -NoTrace -NoSeparator $message -ForeGroundColor Gray
-        Write-Host+ -NoTrace (Write-Dots -Character "-" -Length $message.Length -NoIndent)
+        Write-Host+ -NoTrace (Format-Leader -Character "-" -Length $message.Length -NoIndent)
 
         $targetAgents = ![string]::IsNullOrEmpty($ComputerName) ? ($agents | Where-Object {$_.Name -in $ComputerName}) : ($agents | Where-Object {$_.EnvironmentIdentifier -eq $environ.Identifier})
 
@@ -611,13 +611,11 @@ function global:Request-RMTAgents {
             }                 
         }
         if ($environ.Identifier -in $environsSkipped.Identifier) {
-            # $message = "$($environ.Identifier) environment : NOTREADY"
-            # Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray
             foreach ($agent in $targetAgents) {
-                $message = "$($Command -eq "Stop" ? "Disable" : "Enable") Tableau RMT Agent on $($agent.Name) : SKIPPED"
-                Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
-                $message = "$Command Tableau RMT Agent on $($agent.Name) : SKIPPED"
-                Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+                $message = "<$($Command -eq "Stop" ? "Disable" : "Enable") Tableau RMT Agent on $($agent.Name) <.>48> SKIPPED"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                $message = "<$Command Tableau RMT Agent on $($agent.Name) <.>48> SKIPPED"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             }
         }
         else {
@@ -633,8 +631,8 @@ function global:Request-RMTAgents {
 
     Write-Host+ -SetIndentGlobal -Indent -2
 
-    $message = "$($Command.ToUpper()) Tableau RMT Agents : SUCCESS"
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+    $message = "<$($Command.ToUpper()) Tableau RMT Agents <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
     Write-Host+
 
     $result = @{
@@ -858,22 +856,22 @@ function global:Show-PlatformStatus {
     Write-Host+
     $message = $global:Platform.DisplayName
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
-    Write-Host+ -NoTrace -NoTimestamp (Write-Dots -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
     Write-Host+
     Write-Host+ -SetIndentGlobal -Indent 2
 
     Write-Host+ -NoTrace -NoTimestamp "Controller"
     Write-Host+ -SetIndentGlobal -Indent 2
 
-    $message = "$($controller.Name) : $($controller.RollupStatus)"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
-    $message = "BuildVersion : $($controller.Controller.BuildVersion)"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
+    $message = "<$($controller.Name) <.>48> $($controller.RollupStatus)"
+    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
+    $message = "<BuildVersion <.>48> $($controller.Controller.BuildVersion)"
+    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
     Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
     Write-Host+ -SetIndentGlobal -Indent 2
     foreach ($service in $controller.Controller.Services) {
-        $message = "$($service.Name) : $($service.Status)"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
+        $message = "<$($service.Name) <.>48> $($service.Status)"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
     }
     Write-Host+ -SetIndentGlobal -Indent -2
     Write-Host+ -SetIndentGlobal -Indent -2
@@ -884,7 +882,7 @@ function global:Show-PlatformStatus {
 
         $message = $environ.Name
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
-        Write-Host+ -NoTrace -NoTimestamp (Write-Dots -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
         Write-Host+
 
         Write-Host+ -SetIndentGlobal -Indent 2
@@ -892,8 +890,8 @@ function global:Show-PlatformStatus {
         Write-Host+ -NoTrace -NoTimestamp "Tableau Server"
         Write-Host+ -SetIndentGlobal -Indent 2
         $tableauServer = $environ.TableauServer
-        $message = "$($tableauServer.Name) : $($tableauServer.RollupStatus)"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($tableauServer.IsOK ? "DarkGreen" : "Red")
+        $message = "<$($tableauServer.Name) <.>48> $($tableauServer.RollupStatus)"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($tableauServer.IsOK ? "DarkGreen" : "Red")
         Write-Host+ -SetIndentGlobal -Indent -2
 
         Write-Host+
@@ -903,15 +901,15 @@ function global:Show-PlatformStatus {
             Write-Host+ -NoTrace -NoTimestamp "Agent"
             Write-Host+ -SetIndentGlobal -Indent 2
             
-            $message = "$($agent.Name): $($agent.IsConnected -eq "True" ? "Connected" : "Connection Issue")"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($agent.IsConnected -eq "True" ? "DarkGreen" : "Red")
-            $message = "BuildVersion : $($agent.BuildVersion)"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,DarkGray
+            $message = "<$($agent.Name) <.>48> $($agent.IsConnected -eq "True" ? "Connected" : "Connection Issue")"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($agent.IsConnected -eq "True" ? "DarkGreen" : "Red")
+            $message = "<BuildVersion <.>48> $($agent.BuildVersion)"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
             Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
             Write-Host+ -SetIndentGlobal -Indent 2
             foreach ($service in $agent.Services) {
-                $message = "$($service.Name) : $($service.Status)"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
+                $message = "<$($service.Name) <.>48> $($service.Status)"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
             }
             Write-Host+ -SetIndentGlobal -Indent -2
             Write-Host+ -SetIndentGlobal -Indent -2

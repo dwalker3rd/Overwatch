@@ -1,6 +1,10 @@
 #Requires -RunAsAdministrator
 #Requires -Version 7
 
+param (
+    [switch]$Update
+)
+
 $emptyString = ""
 
 . $PSScriptRoot\source\core\definitions\classes.ps1
@@ -94,14 +98,17 @@ $overwatchInstallLocation = $PSScriptRoot
 
 $installedProducts = @()
 $installedProviders = @()
-$overwatchIsInstalled = $false
+$installOverwatch = $true
 try {
     . $PSScriptRoot\environ.ps1
     $installedProducts = Get-Product -ResetCache
     $installedProviders = Get-Provider -ResetCache
-    $overwatchIsInstalled = $true
+    $installOverwatch = $false
 }
 catch {}
+
+$updateOverwatch = $false
+if ($Update) { $updateOverwatch = $true }
 
 #region INSTALLATIONS
 
@@ -425,7 +432,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion PROVIDERS
 #region FILES
 
-    if ($productIds -or $providerIds -or !$overwatchIsInstalled) {
+    if ($productIds -or $providerIds -or $installOverwatch -or $updateOverwatch) {
         Write-Host+
         Write-Host+ -NoTrace -NoTimestamp "Configuration Files" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
@@ -433,7 +440,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
     #region CORE
 
-        if (!$overwatchIsInstalled) {
+        if ($installOverwatch -or $updateOverwatch) {
             $files = (Get-ChildItem $PSScriptRoot\source\core -File -Recurse).VersionInfo.FileName
             foreach ($file in $files) { Copy-File $file $file.replace("\source\core","")}
         }
@@ -444,7 +451,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
         $targetFile = "$PSScriptRoot\environ.ps1"
         $targetFileExists = Test-Path $targetFile
-        if (!$overwatchIsInstalled) {
+        if ($installOverwatch -or $updateOverwatch) {
             $environFile = Get-Content -Path $sourceFile
             $environFile = $environFile -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
             $environFile = $environFile -replace "<platformId>", ($platformId -replace " ","")
@@ -466,7 +473,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     #endregion ENVIRON
     #region PLATFORM INSTANCE DEFINITIONS
 
-        if (!$overwatchIsInstalled) {
+        if ($installOverwatch -or $updateOverwatch) {
             Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platform-$($platformId.ToLower()).ps1
 
@@ -489,7 +496,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     #endregion PLATFORM INSTANCE DEFINITIONS
     #region COPY
 
-        if (!$overwatchIsInstalled) {
+        if ($installOverwatch -or $updateOverwatch) {
             Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\services-$($operatingSystemId.ToLower())*.ps1 $PSScriptRoot\services
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services
         }
@@ -506,7 +513,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
         }
 
-        if (!$overwatchIsInstalled) {
+        if ($installOverwatch -or $updateOverwatch) {
             Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\initialize-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-os-$($operatingSystemId.ToLower()).ps1
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformId.ToLower()).ps1
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformInstanceId).ps1
@@ -545,10 +552,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion FILES
 #region MODULES-PACKAGES
 
-    if (!$overwatchIsInstalled) {
+    if ($installOverwatch -or $updateOverwatch) {
         Write-Host+ -MaxBlankLines 1
-        $message = "Powershell modules/packages : INSTALLING"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+        $message = "<Powershell modules/packages <.>48> INSTALLING"
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
         if (!(Get-PackageSource -ProviderName PowerShellGet)) {
             Register-PackageSource -Name PSGallery -Location "https://www.powershellgallery.com/api/v2" -ProviderName PowerShellGet -ErrorAction SilentlyContinue | Out-Null
@@ -578,19 +585,19 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion MODULES-PACKAGES
 #region REMOVE CACHE
 
-    if (!$overwatchIsInstalled) {
+    if ($installOverwatch -or $updateOverwatch) {
         Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache" -Quiet
     }
 
 #endregion REMOVE CACHE
 #region CREDENTIALS
 
-    if (!$overwatchIsInstalled) {
+    if ($installOverwatch -or $updateOverwatch) {
         . $PSScriptRoot\services\vault.ps1
         . $PSScriptRoot\services\credentials.ps1
 
-        $message = "Admin Credentials : VALIDATING"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+        $message = "<Admin Credentials <.>48> VALIDATING"
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
         if (!$(Test-Credentials -NoValidate "localadmin-$platformInstanceId")) { 
             Write-Host+
@@ -599,8 +606,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Request-Credentials -Message "  Enter the local admin credentials" -Prompt1 "  User" -Prompt2 "  Password" | Set-Credentials "localadmin-$($global:Platform.Instance)"
             
             Write-Host+
-            $message = "Admin Credentials : VALID"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+            $message = "<Admin Credentials <.>48> VALID"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
             Write-Host+
         }
         else {
@@ -612,10 +619,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion CREDENTIALS
 #region INITIALIZE OVERWATCH
 
-    if ($productIds -or $providerIds -or !$overwatchIsInstalled) {
+    if ($productIds -or $providerIds -or $installOverwatch -or $updateOverwatch) {
 
-        $message = "Overwatch : INITIALIZING"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+        $message = "<Overwatch <.>48> INITIALIZING"
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
         psPref -xpref -xpostf -xwhp -Quiet
 
@@ -632,7 +639,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion INITIALIZE OVERWATCH
 #region REMOTE DIRECTORIES
 
-    if (!$overwatchIsInstalled) {
+    if ($installOverwatch -or $updateOverwatch) {
         $requiredDirectories = @("data\$platformInstanceId")
 
         $missingDirectories = @()
@@ -658,9 +665,9 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion REMOTE DIRECTORIES
 #region CONTACTS
 
-    if (!$overwatchIsInstalled) {
-        $message = "Contacts : UPDATING"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+    if ($installOverwatch -or $updateOverwatch) {
+        $message = "<Contacts <.>48> UPDATING"
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
         if (!(Test-Path $ContactsDB)) {New-ContactsDB}
 
@@ -696,8 +703,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
 
             Write-Host+
-            $message = "Contacts : UPDATED"
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+            $message = "<Contacts <.>48> UPDATED"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
             Write-Host+
 
         }
@@ -710,9 +717,9 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion CONTACTS
 #region LOG
 
-    if (!$overwatchIsInstalled) {
-        $message = "Log files : CREATING"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+    if ($installOverwatch -or $updateOverwatch) {
+        $message = "<Log files <.>48> CREATING"
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
         if (!(Test-Log -Name $Platform.Instance)) {
             New-Log -Name $Platform.Instance | Out-Null
@@ -732,8 +739,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             if ($productIds) {
 
                 Write-Host+ -MaxBlankLines 1
-                $message = "Installing products : PENDING"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+                $message = "<Installing products <.>48> PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
                 Write-Host+
 
                 $message = "  Product             Publisher           Status              Task"
@@ -744,8 +751,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $productIds | ForEach-Object { Install-Product $_ }
                 
                 Write-Host+
-                $message = "Installing products : SUCCESS"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+                $message = "<Installing products <.>48> SUCCESS"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
 
             }
 
@@ -755,8 +762,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             if ($providerIds) {
                 
                 Write-Host+ -MaxBlankLines 1
-                $message = "Installing providers : PENDING"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGray
+                $message = "<Installing providers <.>48> PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
                 Write-Host+
 
                 $message = "  Provider            Publisher           Status"
@@ -767,8 +774,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $providerIds | ForEach-Object { Install-Provider $_ }
                 
                 Write-Host+ -MaxBlankLines 1
-                $message = "Installing providers : SUCCESS"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Blue,DarkGray,DarkGreen
+                $message = "<Installing providers <.>48> SUCCESS"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
 
             }
 
@@ -777,7 +784,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             $manualConfigFiles = @()
             $definitionsFilesPathPattern = "definitions\definitions-*.ps1"
-            if ($overwatchIsInstalled) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
+            if ($productIds -or $providerIds) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
             $definitionsFiles = Get-Item -Path $definitionsFilesPathPattern
             foreach ($definitionFile in $definitionsFiles) {
                 if (Select-String $definitionFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {

@@ -5,8 +5,8 @@ Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 Set-CursorInvisible
 
 Write-Host+
-$message = "Platform Initialization : PENDING"
-Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkBlue,DarkGray,DarkGray
+$message = "<Platform Initialization <.>48> PENDING"
+Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
 try {
 

@@ -189,10 +189,10 @@ Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
 Write-Host+
 Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
-$message = "  Command : $($Command.ToUpper())"
-Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
-$message = "  Reason : $Reason"
-Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkBlue
+$message = "<  Command <.>25> $($Command.ToUpper())"
+Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
+$message = "<  Reason <.>25> $Reason"
+Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkBlue
 
 Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
 
@@ -240,8 +240,8 @@ catch {
 
 Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
 
-$message = "  $($Command.ToUpper()) : $($commandStatus.ToUpper())"
-Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
+$message = "<  $($Command.ToUpper()) <.>25> $($commandStatus.ToUpper())"
+Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
 Write-Host+
 
 Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
@@ -628,9 +628,9 @@ function global:Show-TSSslProtocols {
     $protocols = $protocols.GetEnumerator() | Sort-Object -Property value -Descending | Sort-Object -Property name
 
     foreach ($protocol in $protocols) {
-        $message = "    $($protocol.name) : $($protocol.value.ToUpper())"
+        $message = "<    $($protocol.name) <.>25> $($protocol.value.ToUpper())"
         $color = $protocol.value -eq "ENABLED" ? "DarkGreen" : "DarkRed"
-        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 25 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,$color -NoSeparator
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$color -NoSeparator
     }
 
 }
@@ -688,27 +688,27 @@ function global:Show-PlatformLicenses {
     $isActiveColumnLength = ($isActiveColumnHeader.Length, 5 | Measure-Object -Maximum).Maximum
     # $expiredColumnLength = ($expiredColumnHeader.Length, 5 | Measure-Object -Maximum).Maximum
 
-    $productColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $productColumnHeader.Length) + (Write-Dots -Character " " -Length $productColumnLength -Adjust (-($productColumnHeader.Length)))
-    $serialColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $serialColumnHeader.Length) + (Write-Dots -Character " " -Length $serialColumnLength -Adjust (-($serialColumnHeader.Length)))
-    $numCoresColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $numCoresColumnHeader.Length) + (Write-Dots -Character " " -Length $numCoresColumnLength -Adjust (-($numCoresColumnHeader.Length)))
-    $userCountColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $userCountColumnHeader.Length) + (Write-Dots -Character " " -Length $userCountColumnLength -Adjust (-($userCountColumnHeader.Length)))
-    $expirationColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $expirationColumnHeader.Length) + (Write-Dots -Character " " -Length $expirationColumnLength -Adjust (-($expirationColumnHeader.Length)))
-    $maintenanceColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $maintenanceColumnHeader.Length) + (Write-Dots -Character " " -Length $maintenanceColumnLength -Adjust (-($maintenanceColumnHeader.Length)))
-    $validColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $validColumnHeader.Length) + (Write-Dots -Character " " -Length $validColumnLength -Adjust (-($validColumnHeader.Length)))
-    $isActiveColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $isActiveColumnHeader.Length) + (Write-Dots -Character " " -Length $isActiveColumnLength -Adjust (-($isActiveColumnHeader.Length)))
-    # $expiredColumnHeaderUnderscore = (Write-Dots -Character "-" -Length $expiredColumnHeader.Length) + (Write-Dots -Character " " -Length $expiredColumnLength -Adjust (-($expiredColumnHeader.Length)))
+    $productColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $productColumnHeader.Length) + (Format-Leader -Character " " -Length $productColumnLength -Adjust (($productColumnHeader.Length)))
+    $serialColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $serialColumnHeader.Length) + (Format-Leader -Character " " -Length $serialColumnLength -Adjust (($serialColumnHeader.Length)))
+    $numCoresColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $numCoresColumnHeader.Length) + (Format-Leader -Character " " -Length $numCoresColumnLength -Adjust (($numCoresColumnHeader.Length)))
+    $userCountColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $userCountColumnHeader.Length) + (Format-Leader -Character " " -Length $userCountColumnLength -Adjust (($userCountColumnHeader.Length)))
+    $expirationColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $expirationColumnHeader.Length) + (Format-Leader -Character " " -Length $expirationColumnLength -Adjust (($expirationColumnHeader.Length)))
+    $maintenanceColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $maintenanceColumnHeader.Length) + (Format-Leader -Character " " -Length $maintenanceColumnLength -Adjust (($maintenanceColumnHeader.Length)))
+    $validColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $validColumnHeader.Length) + (Format-Leader -Character " " -Length $validColumnLength -Adjust (($validColumnHeader.Length)))
+    $isActiveColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $isActiveColumnHeader.Length) + (Format-Leader -Character " " -Length $isActiveColumnLength -Adjust (($isActiveColumnHeader.Length)))
+    # $expiredColumnHeaderUnderscore = (Format-Leader -Character "-" -Length $expiredColumnHeader.Length) + (Format-Leader -Character " " -Length $expiredColumnLength -Adjust (($expiredColumnHeader.Length)))
 
-    $productColumnHeader += (Write-Dots -Character " " -Length $productColumnLength -Adjust (-($productColumnHeader.Length)))
-    $serialColumnHeader += (Write-Dots -Character " " -Length $serialColumnLength -Adjust (-($serialColumnHeader.Length)))
-    $numCoresColumnHeader += (Write-Dots -Character " " -Length $numCoresColumnLength -Adjust (-($numCoresColumnHeader.Length)))
-    $userCountColumnHeader += (Write-Dots -Character " " -Length $userCountColumnLength -Adjust (-($userCountColumnHeader.Length)))
-    $expirationColumnHeader += (Write-Dots -Character " " -Length $expirationColumnLength -Adjust (-($expirationColumnHeader.Length)))
-    $maintenanceColumnHeader += (Write-Dots -Character " " -Length $maintenanceColumnLength -Adjust (-($maintenanceColumnHeader.Length)))
-    $validColumnHeader += (Write-Dots -Character " " -Length $validColumnLength -Adjust (-($validColumnHeader.Length)))
-    $isActiveColumnHeader += (Write-Dots -Character " " -Length $isActiveColumnLength -Adjust (-($isActiveColumnHeader.Length)))
-    # $expiredColumnHeader += (Write-Dots -Character " " -Length $expiredColumnLength -Adjust (-($expiredColumnHeader.Length)))
+    $productColumnHeader += (Format-Leader -Character " " -Length $productColumnLength -Adjust (($productColumnHeader.Length)))
+    $serialColumnHeader += (Format-Leader -Character " " -Length $serialColumnLength -Adjust (($serialColumnHeader.Length)))
+    $numCoresColumnHeader += (Format-Leader -Character " " -Length $numCoresColumnLength -Adjust (($numCoresColumnHeader.Length)))
+    $userCountColumnHeader += (Format-Leader -Character " " -Length $userCountColumnLength -Adjust (($userCountColumnHeader.Length)))
+    $expirationColumnHeader += (Format-Leader -Character " " -Length $expirationColumnLength -Adjust (($expirationColumnHeader.Length)))
+    $maintenanceColumnHeader += (Format-Leader -Character " " -Length $maintenanceColumnLength -Adjust (($maintenanceColumnHeader.Length)))
+    $validColumnHeader += (Format-Leader -Character " " -Length $validColumnLength -Adjust (($validColumnHeader.Length)))
+    $isActiveColumnHeader += (Format-Leader -Character " " -Length $isActiveColumnLength -Adjust (($isActiveColumnHeader.Length)))
+    # $expiredColumnHeader += (Format-Leader -Character " " -Length $expiredColumnLength -Adjust (($expiredColumnHeader.Length)))
 
-    $indent = Write-Dots -Character " " -Length 6
+    $indent = Format-Leader -Character " " -Length 6
 
     Write-Host+ -NoTrace -NoTimestamp $indent,$productColumnHeader,$serialColumnHeader,$numCoresColumnHeader,$userCountColumnHeader,$expirationColumnHeader,$maintenanceColumnHeader,$validColumnHeader,$isActiveColumnHeader #,$expiredColumnHeader
     Write-Host+ -NoTrace -NoTimestamp $indent,$productColumnHeaderUnderscore,$serialColumnHeaderUnderscore,$numCoresColumnHeaderUnderscore,$userCountColumnHeaderUnderscore,$expirationColumnHeaderUnderscore,$maintenanceColumnHeaderUnderscore,$validColumnHeaderUnderscore,$isActiveColumnHeaderUnderscore #,$expiredColumnHeaderUnderscore         
@@ -723,15 +723,15 @@ function global:Show-PlatformLicenses {
         $maintenanceColumnColor = $maintenanceExpiryDays -le $30days ? 2 : ($maintenanceExpiryDays -le $90days ? 1 : 0)
         $productColumnColor = ($expirationColumnColor, $maintenanceColumnColor | Measure-Object -Maximum).Maximum
         
-        $productColumnValue = $license.product + (Write-Dots -Character " " -Length $productColumnLength -Adjust (-($license.product.Length)))
-        $serialColumnValue = $license.serial + (Write-Dots -Character " " -Length $serialColumnLength -Adjust (-($license.serial.Length)))
-        $numCoresColumnValue = (Write-Dots -Character " " -Length $numCoresColumnLength -Adjust (-($license.numCores.ToString().Length))) + $license.numCores.ToString()
-        $userCountColumnValue = (Write-Dots -Character " " -Length $userCountColumnLength -Adjust (-($license.userCount.ToString().Length))) + $license.userCount.ToString()
-        $expirationColumnValue = $license.expiration.ToString('u').Substring(0,10) + (Write-Dots -Character " " -Length $expirationColumnLength -Adjust (-($license.expiration.ToString('u').Substring(0,10).Length)))
-        $maintenanceColumnValue = $license.maintenance.ToString('u').Substring(0,10) + (Write-Dots -Character " " -Length $maintenanceColumnLength -Adjust (-($license.maintenance.ToString('u').Substring(0,10).Length)))
-        $validColumnValue = (Write-Dots -Character " " -Length $validColumnLength -Adjust (-($license.valid.ToString().Length))) + $license.valid.ToString()
-        $isActiveColumnValue = (Write-Dots -Character " " -Length $isActiveColumnLength -Adjust (-($license.isActive.ToString().Length))) + $license.isActive.ToString()
-        # $expiredColumnValue = $license.expired.ToString() + (Write-Dots -Character " " -Length $expiredColumnLength -Adjust (-($license.expired.ToString().Length)))
+        $productColumnValue = $license.product + (Format-Leader -Character " " -Length $productColumnLength -Adjust (($license.product.Length)))
+        $serialColumnValue = $license.serial + (Format-Leader -Character " " -Length $serialColumnLength -Adjust (($license.serial.Length)))
+        $numCoresColumnValue = (Format-Leader -Character " " -Length $numCoresColumnLength -Adjust (($license.numCores.ToString().Length))) + $license.numCores.ToString()
+        $userCountColumnValue = (Format-Leader -Character " " -Length $userCountColumnLength -Adjust (($license.userCount.ToString().Length))) + $license.userCount.ToString()
+        $expirationColumnValue = $license.expiration.ToString('u').Substring(0,10) + (Format-Leader -Character " " -Length $expirationColumnLength -Adjust (($license.expiration.ToString('u').Substring(0,10).Length)))
+        $maintenanceColumnValue = $license.maintenance.ToString('u').Substring(0,10) + (Format-Leader -Character " " -Length $maintenanceColumnLength -Adjust (($license.maintenance.ToString('u').Substring(0,10).Length)))
+        $validColumnValue = (Format-Leader -Character " " -Length $validColumnLength -Adjust (($license.valid.ToString().Length))) + $license.valid.ToString()
+        $isActiveColumnValue = (Format-Leader -Character " " -Length $isActiveColumnLength -Adjust (($license.isActive.ToString().Length))) + $license.isActive.ToString()
+        # $expiredColumnValue = $license.expired.ToString() + (Format-Leader -Character " " -Length $expiredColumnLength -Adjust (($license.expired.ToString().Length)))
 
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator $indent," ",$productColumnValue," "
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator $serialColumnValue," " -ForegroundColor $colors[$productColumnColor]
@@ -757,10 +757,10 @@ function global:Confirm-PlatformLicenses {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $indent = Write-Dots -Character " " -Length 6
+    $indent = Format-Leader -Character " " -Length 6
 
-    $dots = Write-Dots -Length 47 -Adjust (-(("  EULA Compliance").Length))
-    Write-Host+ -NoTrace "  EULA Compliance",$dots,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+    $leader = Format-Leader -Length 47 -Adjust ((("  EULA Compliance").Length))
+    Write-Host+ -NoTrace "  EULA Compliance",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
     $now = Get-Date
     $30days = New-TimeSpan -days 30
@@ -823,8 +823,8 @@ function global:Confirm-PlatformLicenses {
 
     }
 
-    $dots = Write-Dots -Length 47 -Adjust (-(("  EULA Compliance").Length))
-    Write-Host+ -NoTrace -NoNewLine "  EULA Compliance",$dots -ForegroundColor Gray,DarkGray
+    $leader = Format-Leader -Length 47 -Adjust ((("  EULA Compliance").Length))
+    Write-Host+ -NoTrace -NoNewLine "  EULA Compliance",$leader -ForegroundColor Gray,DarkGray
     
     if (!$pass) {
         Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
@@ -848,14 +848,14 @@ function global:Test-TsmController {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $dots = Write-Dots -Length 47 -Adjust (-(("  TSM Controller").Length))
-    Write-Host+ -NoTrace "  TSM Controller",$dots,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+    $leader = Format-Leader -Length 47 -Adjust ((("  TSM Controller").Length))
+    Write-Host+ -NoTrace "  TSM Controller",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
     $fail = $false
     try {
 
-        $dots = Write-Dots -Length 39 -Adjust (-(("    Connect to $($tsmApiConfig.Controller)").Length))
-        Write-Host+ -NoTrace -NoNewLine "    Connect to",$tsmApiConfig.Controller,$dots -ForegroundColor Gray,DarkBlue,DarkGray
+        $leader = Format-Leader -Length 39 -Adjust ((("    Connect to $($tsmApiConfig.Controller)").Length))
+        Write-Host+ -NoTrace -NoNewLine "    Connect to",$tsmApiConfig.Controller,$leader -ForegroundColor Gray,DarkBlue,DarkGray
     
         Initialize-TsmApiConfiguration
 
@@ -868,8 +868,8 @@ function global:Test-TsmController {
         Write-Host+ -NoTrace -NoTimestamp " UNKNOWN" -ForegroundColor DarkRed
     }
 
-    $dots = Write-Dots -Length 47 -Adjust (-(("  TSM Controller").Length))
-    Write-Host+ -NoTrace -NoNewLine "  TSM Controller",$dots -ForegroundColor Gray,DarkGray
+    $leader = Format-Leader -Length 47 -Adjust ((("  TSM Controller").Length))
+    Write-Host+ -NoTrace -NoNewLine "  TSM Controller",$leader -ForegroundColor Gray,DarkGray
 
     if ($fail) {
 
@@ -896,8 +896,8 @@ function global:Test-RepositoryAccess {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $dots = Write-Dots -Length 47 -Adjust (-(("  Postgres Access").Length))
-    Write-Host+ -NoNewline -NoTrace "  Postgres Access",$dots -ForegroundColor Gray,DarkGray
+    $leader = Format-Leader -Length 47 -Adjust ((("  Postgres Access").Length))
+    Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
 
     try {
 
@@ -908,8 +908,8 @@ function global:Test-RepositoryAccess {
     
             Write-Host+ -NoTimestamp -NoTrace  " PENDING" -ForegroundColor DarkGray
 
-            $subDots = Write-Dots -Length 35 -Adjust (-(("Updating pg_hba.conf.ftl").Length))
-            Write-Host+ -NoTrace -NoNewLine "    Updating pg_hba.conf.ftl",$subDots -ForegroundColor Gray,DarkGray
+            $subLeader = Format-Leader -Length 35 -Adjust ((("Updating pg_hba.conf.ftl").Length))
+            Write-Host+ -NoTrace -NoNewLine "    Updating pg_hba.conf.ftl",$subLeader -ForegroundColor Gray,DarkGray
 
             $regionBegin = $templateContent.Trim().IndexOf("# region Overwatch")
             $regionEnd = $templateContent.Trim().IndexOf("# endregion Overwatch")
@@ -950,7 +950,7 @@ function global:Test-RepositoryAccess {
             Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen
             Write-Log -Context "Preflight" -Action "Test" -Target "pg_hba.conf.ftl" -Status "PASS"
 
-            Write-Host+ -NoNewline -NoTrace "  Postgres Access",$dots -ForegroundColor Gray,DarkGray
+            Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
             Write-Host+ -NoTimestamp -NoTrace  " PASS" -ForegroundColor DarkGreen
 
         }
@@ -960,7 +960,7 @@ function global:Test-RepositoryAccess {
             Write-Log -Context "Preflight" -Action "Test" -Target "pg_hba.conf.ftl" -Status "FAIL" -EntryType "Error" -Message "Invalid format"
             # throw "Invalid format"
 
-            Write-Host+ -NoNewline -NoTrace "  Postgres Access",$dots -ForegroundColor Gray,DarkGray
+            Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
             Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed 
 
         }

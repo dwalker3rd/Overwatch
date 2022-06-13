@@ -38,8 +38,8 @@ function Send-MonitorMessage {
     Set-CursorInvisible
 
     Write-Host+
-    $message = "  Sending $($target.ToLower()) $($action.ToLower()) : PENDING"
-    Write-Host+ -NoTrace -NoNewLine $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray -NoSeparator
+    $message = "<  Sending $($target.ToLower()) $($action.ToLower()) <.>48> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     Write-Log -Context $global:Product.Id -Action $status -Target $target -Status $PlatformStatus.RollupStatus -Message $message -EntryType "Warning" -Force
 
@@ -118,26 +118,26 @@ Open-Monitor
     $entryType = $platformStatus.IsOK ? "Information" : "Error"
 
     Write-Host+ -NoTrace "  Platform Status" -ForegroundColor Gray
-    $message = "    Current | $($platformStatus.RollupStatus)"
-    Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 48 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" ) -NoSeparator
+    $message = "<    Current <.>48> $($platformStatus.RollupStatus)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" )
     if ($heartbeat.Current -ne [datetime]::MinValue) {
-        $message = "    $($heartbeat.Current.ToString("u")) | $($heartbeat.RollupStatus)"
-        Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 48 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" ) -NoSeparator
+        $message = "<    $($heartbeat.Current.ToString("u")) <.>48> $($heartbeat.RollupStatus)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" )
     }
     if ($heartbeat.Previous -ne [datetime]::MinValue) {
-        $message = "    $($heartbeat.Previous.ToString("u")) | $($heartbeat.RollupStatusPrevious)"
-        Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 48 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" ) -NoSeparator
+        $message = "<    $($heartbeat.Previous.ToString("u")) <.>48> $($heartbeat.RollupStatusPrevious)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" )
     } 
     Write-Host+
 
     $platformEventStatusColor = $platformStatus.Event ? ($platformStatus.EventStatus -and $platformStatus.EventStatus -ne $PlatformEventStatus.Completed ? "DarkYellow" : "DarkGreen") : "DarkGray"
     Write-Host+ -NoTrace "  Platform Event" -ForegroundColor Gray
-    $message = "    Event | $("$($platformStatus.Event ? $($platformStatus.Event.ToUpper()) : "None")")"
-    Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 48 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
-    $message = "    Status | $($($platformStatus.EventStatus ? $($platformStatus.EventStatus) : "None"))"
-    Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 48 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
-    $message = "    Update | $($platformStatus.EventHasCompleted ? $platformStatus.EventCompletedAt : ($platformStatus.Event ? $platformStatus.EventUpdatedAt : "None"))"
-    Write-Host+ -NoTrace $message.Split("|")[0],(Write-Dots -Length 48 -Adjust (-($message.Split("|")[0]).Length)),$message.Split("|")[1] -ForegroundColor Gray,DarkGray,$platformEventStatusColor -NoSeparator
+    $message = "<    Event <.>48> $("$($platformStatus.Event ? $($platformStatus.Event.ToUpper()) : "None")")"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$platformEventStatusColor
+    $message = "<    Status <.>48> $($($platformStatus.EventStatus ? $($platformStatus.EventStatus) : "None"))"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$platformEventStatusColor
+    $message = "<    Update <.>48> $($platformStatus.EventHasCompleted ? $platformStatus.EventCompletedAt : ($platformStatus.Event ? $platformStatus.EventUpdatedAt : "None"))"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$platformEventStatusColor
 
     # check if time to send scheduled heartbeat report
     $reportHeartbeat = $false
@@ -164,8 +164,8 @@ Open-Monitor
     if ($platformStatus.IsOK -and $heartbeat.IsOK -and $heartbeat.IsOKPrevious) {
 
         if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-            $message = "  State change (none) : OK => OK"
-            Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGreen -NoSeparator
+            $message = "<  State change (none) <.>48> OK => OK"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGreen
         }
 
         if ($reportHeartbeat) {
@@ -182,8 +182,8 @@ Open-Monitor
     }
 
     Write-Host+
-    $message = "  Flap Detection : $($global:Product.Config.FlapDetectionEnabled ? "Enabled" : "Disabled")"
-    Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,($global:Product.Config.FlapDetectionEnabled ? "DarkGreen" : "DarkYellow") -NoSeparator
+    $message = "<  Flap Detection <.>48> $($global:Product.Config.FlapDetectionEnabled ? "Enabled" : "Disabled")"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($global:Product.Config.FlapDetectionEnabled ? "DarkGreen" : "DarkYellow")
 
     # flap detection is enabled
     if ($global:Product.Config.FlapDetectionEnabled) {
@@ -196,8 +196,8 @@ Open-Monitor
         if ($platformStatus.IsOK -and $heartbeat.IsOK -and !$heartbeat.IsOKPrevious) {
 
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "  State change (none) : OK => OK"
-                Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGreen -NoSeparator
+                $message = "<  State change (none) <.>48> OK => OK"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGreen
             }
 
             Set-Heartbeat -PlatformStatus $platformStatus | Out-Null        
@@ -210,8 +210,8 @@ Open-Monitor
         if (!$platformStatus.IsOK -and $heartbeat.IsOK) {
 
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "  State change : OK => NOT OK"
-                Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
+                $message = "<  State change <.>48> OK => NOT OK"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
             }
 
             Set-Heartbeat -PlatformStatus $platformStatus | Out-Null
@@ -226,8 +226,8 @@ Open-Monitor
         if ($platformStatus.IsOK -and !$heartbeat.IsOK) {
             
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "  State change : NOT OK => OK"
-                Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen -NoSeparator
+                $message = "<  State change <.>48> NOT OK => OK"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
             }
 
             Set-Heartbeat -PlatformStatus $platformStatus | Out-Null
@@ -243,16 +243,16 @@ Open-Monitor
         if (!$platformStatus.IsOK -and !$heartbeat.IsOK) {
             
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "  State change (none) : NOT OK => NOT OK"
-                Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
+                $message = "<  State change (none) <.>48> NOT OK => NOT OK"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
             }
 
             # NOT OK state has NOT exceeded the flap detection period
             # no alert until NOT OK state duration exceeds flap detection period
             if ((Get-Date)-$heartbeat.Previous -lt $global:Product.Config.FlapDetectionPeriod) {
 
-                $message = "  State assertion : $(((Get-Date)-$heartbeat.Previous).Minutes)m $(((Get-Date)-$heartbeat.Previous).Seconds)s remaining"
-                Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
+                $message = "<  State assertion <.>48> $(((Get-Date)-$heartbeat.Previous).Minutes)m $(((Get-Date)-$heartbeat.Previous).Seconds)s remaining"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
                 Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status "Pending" -Message $message -EntryType $entryType -Force
                 
                 Close-Monitor
@@ -263,8 +263,8 @@ Open-Monitor
             # proceed with alert
             else {
 
-                $message = "  State assertion : NOT OK"
-                Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed -NoSeparator
+                $message = "<  State assertion <.>48> NOT OK"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
                 Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType $entryType -Force
 
             }
@@ -283,10 +283,10 @@ Open-Monitor
     # if stop has exceeded stop timeout, set intervention flag
     if ($platformStatus.IsStopped) {
 
-        $message = "  $($platformStatus.Event.ToUpper()) requested at : $($platformStatus.EventCreatedAt)"
-        Write-Host+ -NoTrace $message.Split(":",2)[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":",2)[0]).Length)),$message.Split(":",2)[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
-        $message = "  $($platformStatus.Event.ToUpper()) requested by : $($platformStatus.EventCreatedBy)"
-        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
+        $message = "<  $($platformStatus.Event.ToUpper()) requested at <.>48> $($platformStatus.EventCreatedAt)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+        $message = "<  $($platformStatus.Event.ToUpper()) requested by <.>48> $($platformStatus.EventCreatedBy)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
 
         if (!$platformStatus.IsStoppedTimeout) {
             Close-Monitor
@@ -300,17 +300,18 @@ Open-Monitor
 
     # message/log when platform event is active
     if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
-        $message = "  $($platformStatus.Event.ToUpper()) : $($platformStatus.EventStatus.ToUpper())"
-        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkYellow -NoSeparator
+        $message = "<  $($platformStatus.Event.ToUpper()) <.>48> $($platformStatus.EventStatus.ToUpper())"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
     }
 
     # if intervention flag has been set, request/signal intervention
     # intervention signal/request sent by Send-TaskMessage
     if ($platformStatus.Intervention) {
         $status = "Intervention Required!"
-        $message = "  $status : $($platformStatus.InterventionReason)"
-        Write-Log -Context $Product.Id -Action "Stop" -Target "Platform" -Status $status -Message $message -EntryType "Warning" -Force
-        Write-Host+ -NoTrace $message.Split(":")[0],(Write-Dots -Length 48 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed -NoSeparator
+        $logMessage = "  $status : $($platformStatus.InterventionReason)"
+        Write-Log -Context $Product.Id -Action "Stop" -Target "Platform" -Status $status -Message $logMessage -EntryType "Warning" -Force
+        $message = "<  $status <.>48> $($platformStatus.InterventionReason)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
         Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
         Close-Monitor
         return
