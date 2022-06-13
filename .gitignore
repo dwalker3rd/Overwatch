@@ -1,3 +1,5 @@
+.gitattributes
+.gitignore
 .VSCodeCounter
 Overwatch.code-workspace
 .vscode/settings.json
