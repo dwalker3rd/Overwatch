@@ -878,7 +878,8 @@ function global:Download-TSObject {
     $projects = Get-TSProjects
     $project = $projects | Where-Object {$_.id -eq $InputObject.project.id}
     do {
-        $projectPath = $project.Name + ($projectPath ? "\" : $null) + $projectPath
+        $projectName = $project.Name -replace $global:RegexPattern.Download.InvalidFileNameChars, ""
+        $projectPath = $projectName + ($projectPath ? "\" : $null) + $projectPath
         $project = $projects | Where-Object {$_.id -eq $project.parentProjectId}
     } until (!$project)
 
