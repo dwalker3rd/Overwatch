@@ -134,15 +134,24 @@ function global:Write-Host+ {
         Write-Host -NoNewLine -ForegroundColor $DefaultForeGroundColor[0] ($NoTrace ? "" : "$($caller)")
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Indent ? $emptyString.PadLeft($Indent," ") : "")
 
+        #+++
+        # Object Parser
+        #
+        #   Currently, only parses object for split messages with leader (see example below)
+        #   Format (regex): "^<(.*?)\s<(.)>(\d*)>\s(.*)$" (See $global:RegexPattern.WriteHostPlus.Parse)
+        #   Example: Write-Host+ -NoTrace -NoTimestamp -Parse "<Download <.>20> PENDING"
+        #   Output : "Download .......... PENDING"
+
         if ($Parse -and $Object.Count -eq 1) {
             if ($Object[0] -match $global:RegexPattern.WriteHostPlus.Parse) {
-                $Object = @($matches[1], (Format-Leader -Character $matches[2] -Length $matches[3] -Adjust ($matches[1].Length-2)), $matches[4])
+                $Object = @($matches[1], (Format-Leader -Character $matches[2] -Length $matches[3] -Adjust ($matches[1].Length+2)), $matches[4])
             }
             else {
                 Write-Error "Invalid format for object parser."
                 return
             }
         }
+
     }
 
     $i = 0
