@@ -6,16 +6,7 @@
     . $definitionsPath\classes.ps1
 
     $Provider = $null
-    $Provider = [Provider]@{
-        Id = "SMTP"
-        Name = "SMTP"
-        DisplayName = "SMTP"
-        Category = "Messaging"
-        SubCategory = "SMTP"
-        Description = "Overwatch messaging via SMTP"
-        Log = "$($global:Location.Logs)\$($Provider.Id).log"
-        Publisher = "Overwatch"
-    }
+    $Provider = $global:Catalog.Provider.SMTP
 
     $SmtpCredentials = Get-Credentials smtp
     $SmtpConfig = 

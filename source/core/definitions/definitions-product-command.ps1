@@ -5,12 +5,7 @@
     $definitionsPath = $global:Location.Definitions
     . $definitionsPath\classes.ps1
 
-    $global:Product = 
-    [Product]@{
-        Id = "Command"
-        Name = "Command"
-        Publisher = "Overwatch"
-    }
+    $global:Product = $global:Catalog.Product.Command
     $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.DisplayName)"
     $global:Product.TaskName = $global:Product.DisplayName
     $global:Product.Description = "A command interface for managing the $($global:Platform.DisplayName) platform."

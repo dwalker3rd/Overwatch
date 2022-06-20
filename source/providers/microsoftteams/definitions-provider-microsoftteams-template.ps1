@@ -6,15 +6,7 @@
     . $definitionsPath\classes.ps1
 
     $Provider = $null
-    $Provider = [Provider]@{
-        Id = "MicrosoftTeams"
-        Name = "Microsoft Teams"
-        DisplayName = "Microsoft Teams"
-        Category = "Messaging"
-        SubCategory = "Teams"
-        Description = "Overwatch messaging via Microsoft Teams"
-        Publisher = "Overwatch"
-    }
+    $Provider = $global:Catalog.Provider.MicrosoftTeams
 
     if (!$global:MicrosoftTeamsConfig) {
         throw "Microsoft Teams Connectors have not been defined."

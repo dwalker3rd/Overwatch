@@ -8,15 +8,7 @@
     $now = Get-Date
 
     $Provider = $null
-    $Provider = [Provider]@{
-        Id = "Views"
-        Name = "Views"
-        DisplayName = "Views"
-        Category = "Formatting"
-        SubCategory = "Views"
-        Description = "Predefined PowerShell Format-Table views for Overwatch functions"
-        Publisher = "Overwatch"
-    }
+    $Provider = $global:Catalog.Provider.Views
 
     $global:ViewSettings = @{
         MaxArrayElements = 1

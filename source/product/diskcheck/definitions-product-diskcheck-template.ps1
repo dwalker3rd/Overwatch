@@ -5,12 +5,7 @@
     $definitionsPath = $global:Location.Definitions
     . $definitionsPath\classes.ps1
 
-    $global:Product = 
-        [Product]@{
-            Id = "DiskCheck"
-            Name = "DiskCheck"
-            Publisher = "Overwatch"
-        }
+    $global:Product = $global:Catalog.Product.DiskCheck
     $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.Name)"
     $global:Product.TaskName = $global:Product.DisplayName
     $global:Product.Description = "Monitors storage devices critical to the $($global:Platform.Name) platform."

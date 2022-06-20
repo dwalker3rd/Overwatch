@@ -6,16 +6,7 @@
     . $definitionsPath\classes.ps1
 
     $Provider = $null
-    $Provider = [Provider]@{
-        Id = "TwilioSMS"
-        Name = "Twilio SMS"
-        DisplayName = "Twilio SMS"
-        Category = "Messaging"
-        SubCategory = "SMS"
-        Description = "Overwatch messaging via Twilio SMS"
-        Log = "$($global:Location.Logs)\$($Provider.Id).log"
-        Publisher = "Overwatch"
-    }
+    $Provider = $global:Catalog.Provider.TwilioSMS
 
     $SMSConfig = @{
         From = "<fromPhone>"
