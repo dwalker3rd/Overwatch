@@ -336,7 +336,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     $productHeaderWritten = $false
     foreach ($key in $global:Catalog.Product.Keys) {
         $product = $global:Catalog.Product.$key
-        if ([string]::IsNullOrEmpty($product.Installation.Flag) -or $product.Installation.Flag -notcontains "NoInstall") {
+        # if ([string]::IsNullOrEmpty($product.Installation.Flag) -or $product.Installation.Flag -notcontains "NoInstall") {
             if ([string]::IsNullOrEmpty($product.Installation.Prerequisite.Platform) -or $product.Installation.Prerequisite.Platform -contains $platformId) {
                 if ($product.Id -notin $installedProducts.Id) {
                     $productResponse = $null
@@ -383,7 +383,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                     }
                 }
             }
-        }
+        # }
     }
     $productIds = $productsSelected
 
@@ -404,7 +404,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     $_providerIds = @()
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
-        if ([string]::IsNullOrEmpty($provider.Installation.Flag) -or $provider.Installation.Flag -notcontains "NoInstall") {
+        # if ([string]::IsNullOrEmpty($provider.Installation.Flag) -or $provider.Installation.Flag -notcontains "NoInstall") {
             if ($provider.Id -notin $installedProviders.Id) {
                 if ($provider.Installation.Flag -contains "AlwaysInstall") {
                     $_providerIds += $provider.Id
@@ -425,7 +425,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                     }
                 }
             }
-        }
+        # }
     }
     $providerIds = $_providerIds
 

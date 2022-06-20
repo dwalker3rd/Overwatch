@@ -116,6 +116,8 @@ function Uninstall-Provider {
     )
 
     $providerToUninstall = Get-Provider $Provider
+    if ($providerToUninstall.Installation.Flag -eq "UninstallProtected") { return }
+
     $Name = $providerToUninstall.Name 
     $Publisher = $providerToUninstall.Publisher
 
@@ -141,6 +143,8 @@ function Uninstall-Product {
     )
 
     $productToUninstall = Get-Product $Product
+    if ($productToUninstall.Installation.Flag -eq "UninstallProtected") { return }
+    
     $Name = $productToUninstall.Name 
     $Publisher = $productToUninstall.Publisher
 
@@ -300,7 +304,7 @@ function Uninstall-Overwatch { Remove-CoreFiles }
             $message = "    -------             ---------           ----                ------"
             Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
 
-            $global:Environ.Product | Where-Object {$_ -ne "Command"} | ForEach-Object {Uninstall-Product $_}
+            $global:Environ.Product | ForEach-Object {Uninstall-Product $_}
             
             Write-Host+
             $message = "<  Uninstalling products <.>48> SUCCESS"
