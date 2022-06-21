@@ -39,7 +39,7 @@
             return
         }
 
-        if ($Once -and !($RepetitionInterval -and $RepetitionDuration)) {throw "RepetitionInterval and RepetitionDuration must be used together."}
+        # if ($Once -and !($RepetitionInterval -and $RepetitionDuration)) {throw "RepetitionInterval and RepetitionDuration must be used together."}
 
         $CimClass = $null
         if ($Once) {$CimClass = "MSFT_TaskTimeTrigger"}

@@ -35,7 +35,7 @@ function global:Initialize-PlatformTopology {
     }
 
     $controller = [string]$global:PlatformTopologyBase.Components.Controller.Nodes.Keys
-    $agents = Get-RMTAgents
+    $agents = Get-RMTAgents -Quiet
 
     $platformTopology.Nodes.$controller += @{ Components = @{ Controller = @{ Instances = @{} } }  }
     if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
@@ -241,7 +241,7 @@ function global:Get-RMTStatus {
 
     #region Controller
 
-        $controller = Get-RMTController
+        $controller = Get-RMTController -Quiet
         $controllerStatus = [PSCustomObject]@{
             Name = $controller.Name
             IsOK = $controller.IsOK
@@ -255,7 +255,7 @@ function global:Get-RMTStatus {
     
         #region Agents
 
-            $agents = Get-RMTAgents -Controller $controller
+            $agents = Get-RMTAgents -Controller $controller -Quiet
             $agentStatus = [PSCustomObject]@{
                 IsOK = $true
                 RollupStatus = ""

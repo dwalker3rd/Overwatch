@@ -113,6 +113,12 @@ function global:Write-Host+ {
     if ($Clear) { Clear-Host; return }
     if ($ResetIndentGlobal) { $global:WriteHostPlusIndentGlobal = 0; return }
     if ($SetIndentGlobal) { $global:WriteHostPlusIndentGlobal += $Indent; return }
+
+    if ($Parse -and $NoSeparator) {
+        throw "The `"NoSeparator`" switch cannot be used with the `"Parse`" switch"
+    }
+
+
     if ($NoIndent -or !$global:WriteHostPlusEndOfLine) {$Indent = 0}
 
     if ([string]::IsNullOrEmpty($Object)) {
