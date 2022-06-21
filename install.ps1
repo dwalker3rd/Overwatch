@@ -127,8 +127,13 @@ if ($Update) { $updateOverwatch = $true }
 
     $installedPlatforms = @()
     $services = Get-Service
-    if ($services.Name -contains "tabsvc_0") {$installedPlatforms += "TableauServer"}
-    if ($services.Name -contains "AlteryxService") {$installedPlatforms += "AlteryxServer"}
+    foreach ($key in $global:Catalog.Platform.Keys) { 
+        if ($services.Name -contains $global:Catalog.Platform.$key.Installation.discovery.Service) {
+            $installedPlatforms += $key
+        }
+    }
+    # if ($services.Name -contains "tabsvc_0") {$installedPlatforms += "TableauServer"}
+    # if ($services.Name -contains "AlteryxService") {$installedPlatforms += "AlteryxServer"}
     Write-Host+ -NoTrace -NoTimestamp "Platform: ","$($installedPlatforms -join ", ")" -ForegroundColor Gray, Blue
 
 #endregion INSTALLATIONS
@@ -166,7 +171,7 @@ Write-Host+ -NoTrace -NoTimestamp "----------------------" -ForegroundColor Dark
 #region PLATFORM ID
 
     # if ($installedPlatforms.count -eq 1) {
-        # $platformId = $installedPlatforms[0]
+        $platformId = $installedPlatforms[0]
     # }
     # else {
         do {
@@ -195,16 +200,16 @@ Write-Host+ -NoTrace -NoTimestamp "----------------------" -ForegroundColor Dark
         else {
             Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The path '$platformInstallLocation' is valid." -IfVerbose -ForegroundColor DarkGreen
         }
-        $platformInstallLocationBin = switch ($platformId) {
-            "TableauServer" {"$platformInstallLocation\packages\bin*"}
-            "AlteryxServer" {"$platformInstallLocation\bin"}
-        }
-        if (!(Test-Path -Path $platformInstallLocationBin)) {
-            Write-Host+ -NoTrace -NoTimestamp "[ERROR] Cannot find the $platformId bin directory, '$platformInstallLocationBin', because it does not exist." -ForegroundColor Red
-        }
-        else {
-            Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The bin directory for $platformId, '$platformInstallLocationBin', is valid." -IfVerbose -ForegroundColor DarkGreen
-        }
+        # $platformInstallLocationBin = switch ($platformId) {
+        #     "TableauServer" {"$platformInstallLocation\packages\bin*"}
+        #     "AlteryxServer" {"$platformInstallLocation\bin"}
+        # }
+        # if (!(Test-Path -Path $platformInstallLocationBin)) {
+        #     Write-Host+ -NoTrace -NoTimestamp "[ERROR] Cannot find the $platformId bin directory, '$platformInstallLocationBin', because it does not exist." -ForegroundColor Red
+        # }
+        # else {
+        #     Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The bin directory for $platformId, '$platformInstallLocationBin', is valid." -IfVerbose -ForegroundColor DarkGreen
+        # }
     } until ($platformInstallLocation)
     Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
 
@@ -245,8 +250,9 @@ do {
 Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
 
 #endregion PLATFORM INSTANCE URL
-#region PLATFORM INSTANCE URL
+#region PLATFORM INSTANCE DOMAIN
 
+    $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
     do {
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
         $platformInstanceDomainResponse = Read-Host
@@ -258,11 +264,12 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     } until ($platformInstanceDomain)
     Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceDomain" -IfDebug -ForegroundColor Yellow
 
-#endregion PLATFORM INSTANCE URL
+#endregion PLATFORM INSTANCE DOMAIN
 #region PLATFORM INSTANCE ID
 
+    $platformInstanceId ??= $platformInstanceUri.Host -replace "\.","-"
     do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId] " : "[$($platformInstanceUri.Host -replace "\.","-")]")", ": " -ForegroundColor Gray, Blue, Gray
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
         $platformInstanceIdResponse = Read-Host
         $platformInstanceId = ![string]::IsNullOrEmpty($platformInstanceIdResponse) ? $platformInstanceIdResponse : $platformInstanceId
         if ([string]::IsNullOrEmpty($platformInstanceId)) {
@@ -309,7 +316,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion IMAGES
 #region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("data","definitions","docs","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId")
+    $requiredDirectories = @("data","definitions","docs","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data")
 
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
@@ -451,7 +458,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
         $targetFile = "$PSScriptRoot\environ.ps1"
         $targetFileExists = Test-Path $targetFile
-        if ($installOverwatch -or $updateOverwatch) {
+        if ($installOverwatch) {
             $environFile = Get-Content -Path $sourceFile
             $environFile = $environFile -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
             $environFile = $environFile -replace "<platformId>", ($platformId -replace " ","")
@@ -497,8 +504,13 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     #region COPY
 
         if ($installOverwatch -or $updateOverwatch) {
+            
             Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\services-$($operatingSystemId.ToLower())*.ps1 $PSScriptRoot\services
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services
+
+            foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
+                Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services
+            }
         }
 
         foreach ($productSpecificService in $productSpecificServices) {
