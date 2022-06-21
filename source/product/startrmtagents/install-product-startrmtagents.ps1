@@ -12,12 +12,12 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0]
 
 Copy-File $PSScriptRoot\source\definitions\definitions-product-$($product.Id.ToLower())-template.ps1 -Quiet
 
-if ($(Get-PlatformTask -Id "StartRMTAgents")) {
-    Unregister-PlatformTask -Id "StartRMTAgents"
+$productTask = Get-PlatformTask -Id "StartRMTAgents"
+if (!$productTask) {
+    Register-PlatformTask -Id "StartRMTAgents" -execute $pwsh -Argument "$($global:Location.Scripts)\$("StartRMTAgents").ps1" -WorkingDirectory $global:Location.Scripts `
+        -Once -At $(Get-Date).AddMinutes(60) -ExecutionTimeLimit $(New-TimeSpan -Minutes 120) -RunLevel Highest -Disable
+    $productTask = Get-PlatformTask -Id "StartRMTAgents"
 }
 
-Register-PlatformTask -Id "StartRMTAgents" -execute $pwsh -Argument "$($global:Location.Scripts)\$("StartRMTAgents").ps1" -WorkingDirectory $global:Location.Scripts `
-    -Once -At $(Get-Date).AddMinutes(60) -ExecutionTimeLimit $(New-TimeSpan -Minutes 120) -RunLevel Highest -Disable
-
-$message = "$($emptyString.PadLeft(34,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","DISABLED"
-Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen, DarkRed
+$message = "$($emptyString.PadLeft(34,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())"
+Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "DarkRed")

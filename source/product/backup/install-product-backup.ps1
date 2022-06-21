@@ -9,15 +9,13 @@ Copy-File $PSScriptRoot\source\definitions\definitions-product-$($product.Id.ToL
 
 if (!(Test-Path -Path $Backup.Path)) {New-Item -ItemType Directory -Path $Backup.Path}
 
-if ($(Get-PlatformTask -Id "Backup")) {
-    Unregister-PlatformTask -Id "Backup"
+$productTask = Get-PlatformTask -Id "Backup"
+if (!$productTask) {
+    $at = get-date -date "6:00Z"
+    Register-PlatformTask -Id "Backup" -execute $pwsh -Argument "$($global:Location.Scripts)\$("Backup").ps1" -WorkingDirectory $global:Location.Scripts `
+        -Daily -At $at -ExecutionTimeLimit $(New-TimeSpan -Minutes 60) -RunLevel Highest -SyncAcrossTimeZones
+    $productTask = Get-PlatformTask -Id "Backup"
 }
 
-# scheduled time as UTC
-$at = get-date -date "6:00Z"
-
-Register-PlatformTask -Id "Backup" -execute $pwsh -Argument "$($global:Location.Scripts)\$("Backup").ps1" -WorkingDirectory $global:Location.Scripts `
-    -Daily -At $at -ExecutionTimeLimit $(New-TimeSpan -Minutes 60) -RunLevel Highest -SyncAcrossTimeZones
-
-$message = "$($emptyString.PadLeft(34,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","DISABLED"
-Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen, DarkRed
+$message = "$($emptyString.PadLeft(34,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())"
+Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "DarkRed")
