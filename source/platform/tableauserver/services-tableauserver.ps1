@@ -66,7 +66,7 @@ function global:Build-StatusFacts {
                     if ((!$component.IsOK -and (!$PlatformStatusOK.Contains($instance.processStatus) -and $instance.currentDeploymentState -eq "Enabled")) -or $ShowAll) {
                         @{
                             name = "$($component.name)" + ($component.instance.Count -gt 1 ? "_$($instance.instanceId)" : "")
-                            value = "$($instance.processStatus)" + ($msg ? ", $($msg)" : "")
+                            value = "$($instance.processStatus)" + ($($instance.message) ? ", $($instance.message)" : "")
                         }
                     }
                 }

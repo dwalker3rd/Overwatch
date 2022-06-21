@@ -371,13 +371,17 @@ function global:Get-TableauServerStatus {
                         switch ($service.serviceName) {
                             "backgrounder" {
                                 if ($instance.message -like "Error opening named pipe*") {
+
+                                    # this isn't an error, but a scheduled restart (occurs every 8 hours)
                                     $instance.message = "Scheduled restart"
                                     $service.rollupStatus = "Running"
+                                    
                                 }
                             }
                             "clientfileservice" {
                                 if ($instance.processStatus -eq "StatusUnavailable") {
 
+                                    # get the detailed message from the clientfileservice log file
                                     $installPath = $global:Platform.InstallPath -replace ":","$"
                                     $path = "\\$node\$installPath\data\tabsvc\logs\clientfileservice\clientfileservice_$nodeId-0.log"
                                     $pattern = "java.lang.RuntimeException: "
@@ -385,13 +389,14 @@ function global:Get-TableauServerStatus {
                                     $message = ($match[-1] -split $pattern)[-1]
                                     $instance | Add-Member -NotePropertyName "message" -NotePropertyValue $message
 
-                                    # $cimSession = New-CimSession -ComputerName $node
-                                    # $clientFileService = Get-CimInstance -ClassName "Win32_Service" -CimSession $cimSession -Property * | Where-Object {$_.Name -eq "clientfileservice_0"}
-                                    # $clientFileService | Invoke-CimMethod -Name "StopService" 
-                                    # $clientFileService | Invoke-CimMethod -Name "StartService"
-                                    # Remove-CimSession $cimSession
-
-                                    # $service.rollupStatus = "Running"
+                                    # restart the clientfileservice, but don't clear $instance.processStatus
+                                    # if restarting the clientfileservice resolves the error, Overwatch's flap detection 
+                                    # will not report the error.  otherwise, the alert needs to be sent
+                                    $cimSession = New-CimSession -ComputerName $node
+                                    $clientFileService = Get-CimInstance -ClassName "Win32_Service" -CimSession $cimSession -Property * | Where-Object {$_.Name -eq "clientfileservice_0"}
+                                    $clientFileService | Invoke-CimMethod -Name "StopService" 
+                                    $clientFileService | Invoke-CimMethod -Name "StartService"
+                                    Remove-CimSession $cimSession
                                 }
                             }
                         }
