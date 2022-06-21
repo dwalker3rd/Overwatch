@@ -15,7 +15,7 @@ $global:PreflightPreference = "SilentlyContinue"
 $global:PostflightPreference = "SilentlyContinue"
 $global:ConfirmPreference = "None"
 
-$global:Product = @{Id="Command"}
+$global:Product = @{Id="Uninstall"}
 . $PSScriptRoot\definitions.ps1
 
 function Remove-ProviderFiles {

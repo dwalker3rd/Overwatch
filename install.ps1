@@ -645,7 +645,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
         psPref -xpref -xpostf -xwhp -Quiet
 
-        $global:Product = @{Id="Command"}
+        $global:Product = @{Id="Install"}
         . $PSScriptRoot\definitions.ps1
 
         psPref -Quiet

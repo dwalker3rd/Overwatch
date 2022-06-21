@@ -74,7 +74,7 @@ switch ($PSVersionTable.PSVersion.Major) {
     $products | Out-Null
 
     # define active/current product (based on $global:Product.Id)
-    $global:Product = Get-Product -Id $global:Product.Id
+    $global:Product = (Get-Product -Id $global:Product.Id) ?? @{ Id = $global:Product.Id}
 
     # Write-Host+ "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
 
