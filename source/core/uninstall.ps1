@@ -2,8 +2,8 @@
 #Requires -Version 7
 
 param(
-    [Parameter(Mandatory=$false)][ValidateSet("Provider","Product")][Alias("Provider","Product")][string]$Type,
-    [Parameter(Mandatory=$false)][string]$Name
+    [Parameter(Mandatory=$false,Position=0)][ValidateSet("Provider","Product")][Alias("Provider","Product")][string]$Type,
+    [Parameter(Mandatory=$false,Position=1)][string]$Name
 )
 
 $global:DebugPreference = "SilentlyContinue"

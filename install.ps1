@@ -478,6 +478,12 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         . $PSScriptRoot\environ.ps1
 
     #endregion ENVIRON
+
+    if ($updateOverwatch) {
+        $productIds = $global:Environ.Product
+        $providerIds = $global:Environ.Provider
+    }
+
     #region PLATFORM INSTANCE DEFINITIONS
 
         if ($installOverwatch -or $updateOverwatch) {
@@ -543,6 +549,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\postflightupdates-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-os-$($operatingSystemId.ToLower()).ps1
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platform-$($platformId.ToLower()).ps1
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platforminstance-$($platformInstanceId).ps1
+
         }
 
         foreach ($product in $productIds) {
