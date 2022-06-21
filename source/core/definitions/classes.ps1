@@ -37,6 +37,7 @@ class Platform {
     [string]$Publisher
     [string]$InstallPath
     [object]$Api
+    [object]$Installation
 }
 
 class PlatformStatus {

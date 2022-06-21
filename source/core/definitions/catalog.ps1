@@ -14,6 +14,14 @@ $global:Catalog.Platform += @{ TableauServer =
             TsRestApiVersion = "3.15"
             TsmApiVersion = "0.5"
         }
+        Installation = @{
+            Discovery = @{
+                Service = @("tabsvc_0")
+            }
+            Prerequisite = @{
+                Service = @("TableauServer")
+            }
+        }
     }
 }
 
@@ -39,6 +47,14 @@ $global:Catalog.Platform += @{ TableauRMT =
         Image = "$($global:Location.Images)/tableau_rmt.png"
         Description = "Tableau Resource Monitoring Tool"
         Publisher = "Tableau Software, LLC, A Salesforce Company"
+        Installation = @{
+            Discovery = @{
+                Service = @("TableauResourceMonitoringTool")
+            }
+            Prerequisite = @{
+                Service = @("TableauServer")
+            }
+        }
     }
 }
 
@@ -50,6 +66,11 @@ $global:Catalog.Platform += @{ AlteryxServer =
         Image = "$($global:Location.Images)/alteryx_a_logo.png"
         Description = "Alteryx Server"
         Publisher = "Alteryx, Inc."
+        Installation = @{
+            Discovery = @{
+                Service = @("AlteryxService")
+            }
+        }
     }
 }
 
@@ -115,7 +136,9 @@ $global:Catalog.Product += @{ AzureADCache =
         Publisher = "Overwatch"
         Installation = @{
             Flag = @("NoPrompt")
-            Service = @("AzureAD")
+            Prerequisite = @{
+                Service = @("AzureAD")
+            }
         }
     }
 }
@@ -146,6 +169,7 @@ $global:Catalog.Product += @{ AzureADSyncB2C =
         Publisher = "Overwatch"
         Installation = @{
             Prerequisite = @{
+                Platform = @("TableauServer")
                 Service = @("AzureAD")
                 Product = @("AzureADCache")
             }
