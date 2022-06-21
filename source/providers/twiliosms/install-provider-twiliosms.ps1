@@ -12,6 +12,11 @@ if (!(Get-Log -Name "twiliosms")) {
 $cursorVisible = [console]::CursorVisible
 [console]::CursorVisible = $true
 
+$twilioSmsSettings = "$PSScriptRoot\data\twilioInstallSettings.ps1"
+if (Test-Path -Path $twilioSmsSettings) {
+    . $twilioSmsSettings
+}
+
 $interaction = $false
 $overwatchRoot = $PSScriptRoot -replace "\\install",""
 if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1 | Select-String "<fromPhone>" -Quiet) {
@@ -21,11 +26,34 @@ if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.
     Write-Host+; Write-Host+
     # Write-Host+ -NoTrace -NoTimestamp "    Twilio SMS Configuration"
     # Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
-    $fromPhone = Read-Host "    Twilio phone number"
 
-    $smtpDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1
-    $smtpDefinitionsFile = $smtpDefinitionsFile -replace "<fromPhone>", $fromPhone
-    $smtpDefinitionsFile | Set-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1
+    do {
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Twilio phone number ", "$($fromPhone ? "[$fromPhone] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+        $fromPhoneResponse = Read-Host
+        $fromPhone = ![string]::IsNullOrEmpty($fromPhoneResponse) ? $fromPhoneResponse : $fromPhone
+        $fromPhone = $fromPhone.Replace(" ","").Replace("-","")
+        if ([string]::IsNullOrEmpty($fromPhone)) {
+            Write-Host+ -NoTrace -NoTimestamp "NULL: Twilio phone number is required" -ForegroundColor Red
+            $fromPhone = $null
+        }
+        if ($fromPhone -notmatch "^\+{0,1}[0-9]*$") {
+            Write-Host+ -NoTrace -NoTimestamp "INVALID: Format must match `"^\+{0,1}[0-9]*$`"" -ForegroundColor Red
+            $fromPhone = $null
+        }
+    } until ($fromPhone)
+
+    $twilioSmsDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1
+    $twilioSmsDefinitionsFile = $twilioSmsDefinitionsFile -replace "<fromPhone>", $fromPhone
+    $twilioSmsDefinitionsFile | Set-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1
+
+    #region SAVE SETTINGS
+
+        if (Test-Path $twilioSmsSettings) {Clear-Content -Path $twilioSmsSettings}
+        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $twilioSmsSettings
+        "Param()" | Add-Content -Path $twilioSmsSettings
+        "`$fromPhone = `"$fromPhone`"" | Add-Content -Path $twilioSmsSettings
+
+    #endregion SAVE SETTINGS
     
 }
 
