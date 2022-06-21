@@ -1,13 +1,13 @@
 # OVERWATCH
 Overwatch is a PowerShell application which automates the monitoring and management of software platforms and systems. 
 
-Overwatch currently supports [Tableau Server][] and [Alteryx Server][] running on [Windows Server][]. Core functionality includes monitoring of software platforms and their host systems, alerting via multiple messaging providers, backup management, storage management, Azure AD and Azure AD B2C support (including AD synchronization for Azure AD B2C tenants and Azure Update Management integration) as well as numerous PowerShell cmdlets for querying and management of the environment.
+Overwatch currently supports [Tableau Server][], [Tableau Resource Monitoring Tool][] and [Alteryx Server][]. Core functionality includes monitoring of software platforms and their host systems, alerting via multiple messaging providers, backup management, storage management, Azure AD and Azure AD B2C support and Azure Update Management integration. Overwatch also includes numerous additional PowerShell cmdlets for querying and management of the environment.
 
-| Object | Supported/Available
+|  | Supported/Available
 |-|-
-| OS | WindowsServer
-| Platforms | TableauServer, AlteryxServer
-| Products | Monitor, Backup, Cleanup, DiskCheck, AzureADSync
+| OS | Windows Server
+| Platforms | [Tableau Server][], [Tableau Resource Monitoring Tool][], [Alteryx Server][]
+| Products | Monitor, Backup, Cleanup, DiskCheck, AzureADCache, AzureADSyncTS, AzureADSyncB2C, StartRMTAgents
 | Providers | MicrosoftTeams, TwilioSMS, SMTP
 
 _Overwatch is designed for extensibility.  Operating systems and software platforms can be added to the Overwatch service layer, and new functionality can be added by creating new products and providers._
@@ -22,21 +22,35 @@ This project is licensed under the terms of the [GNU GPLv3][] license.
 
 ## Requirements
 
-- [Windows Server][]
-- [PowerShell 7][]
-- [Visual Studio Code][] (Recommended)
-- Local/Domain account (with admin rights)
-- Admin account for each platform
+- [PowerShell 7.x][]
+- Admin accounts for local machines or AD domains
+- Platform-specific admin accounts
 
-## Installation
+## Recommendations
 
-- [Installation Guide][]
+- [Visual Studio Code][]
+
+## Installer
+
+- Automated installation and configuration of the Overwatch environment.
+- Persists installation and configuration settings for quick reinstallations/updates.
+- Additional products and providers can be installed at any time.
+- Capable of updating the installation with the latest versions of code.
+- See the [Installation Guide][] for more details.
+
+## Uninstaller
+
+- Automated uninstallation of the Overwatch environment.
+- Persists installation/configuration settings and all data for archival or quick reinstallations/updates.
+- Individual products and providers can be uninstalled at any time.
+- See the [Installation Guide][] for more details.
     
 [Overwatch on Github]: https://github.com/dwalker3rd/Overwatch
 [Microsoft Teams webhook]: https://docs.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook
-[PowerShell 7]: https://github.com/PowerShell/PowerShell
+[PowerShell 7.x]: https://github.com/PowerShell/PowerShell
 [Visual Studio Code]: https://code.visualstudio.com/
 [Tableau Server]: https://www.tableau.com/
+[Tableau Resource Monitoring Tool]: https://help.tableau.com/current/server/en-us/rmt-intro.htm
 [Alteryx Server]: https://www.alteryx.com/
 [Microsoft Teams]: https://www.microsoft.com/en-us/microsoft-365/microsoft-teams/group-chat-software
 [Twilio SMS]: https://www.twilio.com/sms
