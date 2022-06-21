@@ -87,7 +87,7 @@ function global:Send-PlatformStatusMessage {
             ActivityTitle = "**$($node.ToUpper())**"
             ActivitySubTitle = "$($serverInfo.WindowsProductName)"
             ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
-            ActivityImage = "$($global:Location.Images)/serverOffline500.png"
+            ActivityImage = $global:OS.Image
             Facts = @(
                 foreach ($component in (Get-PlatformTopology nodes.$node.components -Keys)) {
                     @{
@@ -129,7 +129,7 @@ function global:Send-PlatformStatusMessage {
                     ActivityTitle = "**$($node)**"
                     ActivitySubTitle = "$($serverInfo.WindowsProductName), $($serverInfo.Model)"
                     ActivityText = "Performance: $($global:NumberWords.($serverInfo.NumberOfLogicalProcessors.ToString())) ($($serverInfo.NumberOfLogicalProcessors)) cores at $($cpuUtil.Text) utilization; $($memAvailable.Text) of $($memTotal) available"
-                    ActivityImage = "$($global:Location.Images)/serverOnline.png"
+                    ActivityImage = $global:OS.Image
                     Facts = $facts
                 }
                 $sections += $section
