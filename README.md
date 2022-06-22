@@ -1,16 +1,20 @@
 # OVERWATCH
 Overwatch is a PowerShell application which automates the monitoring and management of software platforms and systems. 
 
-Overwatch currently supports [Tableau Server][], [Tableau Resource Monitoring Tool][] and [Alteryx Server][]. Core functionality includes monitoring of software platforms and their host systems, alerting via multiple messaging providers, backup management, storage management, Azure AD and Azure AD B2C support and Azure Update Management integration. Overwatch also includes numerous additional PowerShell cmdlets for querying and management of the environment.
+Core functionality includes monitoring of platforms and their host systems, alerting via messaging providers, backup and storage management.  Shared services includes support for Azure AD and Azure AD B2C tenants as well as integration with Azure Update Management. Overwatch also includes numerous cmdlets and utilities to support management of the environment.
 
-|  | Supported/Available
+|||
 |-|-
 | OS | Windows Server
-| Platforms | [Tableau Server][], [Tableau Resource Monitoring Tool][], [Alteryx Server][]
+| Platforms | Tableau Server, Tableau Resource Monitoring Tool, Alteryx Server
 | Products | Monitor, Backup, Cleanup, DiskCheck, AzureADCache, AzureADSyncTS, AzureADSyncB2C, StartRMTAgents
 | Providers | MicrosoftTeams, TwilioSMS, SMTP
 
 _Overwatch is designed for extensibility.  Operating systems and software platforms can be added to the Overwatch service layer, and new functionality can be added by creating new products and providers._
+
+## Architecture
+
+!(https://github.com/dwalker3rd/Overwatch/docs/img/overwatch_architecture.png "Overwatch Architecture")
 
 ## Contributions
 
@@ -22,27 +26,21 @@ This project is licensed under the terms of the [GNU GPLv3][] license.
 
 ## Requirements
 
+- [Windows Server][]
 - [PowerShell 7.x][]
-- Admin accounts for local machines or AD domains
-- Platform-specific admin accounts
+- Admin account for the OS/environ (Local/machine or domain)
+- Admin account for each installed platform
 
 ## Recommendations
 
 - [Visual Studio Code][]
 
-## Installer
+## Installer / Uninstaller
 
-- Automated installation and configuration of the Overwatch environment.
-- Persists installation and configuration settings for quick reinstallations/updates.
-- Additional products and providers can be installed at any time.
-- Capable of updating the installation with the latest versions of code.
-- See the [Installation Guide][] for more details.
-
-## Uninstaller
-
-- Automated uninstallation of the Overwatch environment.
-- Persists installation/configuration settings and all data for archival or quick reinstallations/updates.
-- Individual products and providers can be uninstalled at any time.
+- Automated install/uninstall of the Overwatch environment.
+- Persists installation data for easy reinstallations/updates.
+- Individual products and providers can be installed/uinstalled.
+- Installer option allows updating the installation with the latest versions of code.
 - See the [Installation Guide][] for more details.
     
 [Overwatch on Github]: https://github.com/dwalker3rd/Overwatch
