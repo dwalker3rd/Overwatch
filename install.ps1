@@ -621,6 +621,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
     if ($installOverwatch -or $updateOverwatch) {
         . $PSScriptRoot\services\vault.ps1
+        . $PSScriptRoot\services\encryption.ps1
         . $PSScriptRoot\services\credentials.ps1
 
         $message = "<Admin Credentials <.>48> VALIDATING"
@@ -860,6 +861,26 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $installSettings
 
         #endregion SAVE SETTINGS
+        #region INITIALIZE OVERWATCH
+
+            if ($productIds -or $providerIds -or $installOverwatch -or $updateOverwatch) {
+
+                $message = "<Overwatch <.>48> INITIALIZING"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+
+                psPref -xpref -xpostf -xwhp -Quiet
+
+                $global:Product = @{Id="Install"}
+                . $PSScriptRoot\definitions.ps1
+
+                psPref -Quiet
+
+                $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
+                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+            }
+
+        #endregion INITIALIZE OVERWATCH  
 
         Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."

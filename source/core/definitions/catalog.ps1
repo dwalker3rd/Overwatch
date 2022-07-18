@@ -197,7 +197,6 @@ $global:Catalog.Provider += @{ SMTP =
         Name = "SMTP"
         DisplayName = "SMTP"
         Category = "Messaging"
-        SubCategory = "SMTP"
         Description = "Overwatch messaging via SMTP"
         Publisher = "Overwatch"
     }
@@ -209,7 +208,6 @@ $global:Catalog.Provider += @{ TwilioSMS =
         Name = "Twilio SMS"
         DisplayName = "Twilio SMS"
         Category = "Messaging"
-        SubCategory = "SMS"
         Description = "Overwatch messaging via Twilio SMS"
         Publisher = "Overwatch"
     }
@@ -221,7 +219,6 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         Name = "Microsoft Teams"
         DisplayName = "Microsoft Teams"
         Category = "Messaging"
-        SubCategory = "Teams"
         Description = "Overwatch messaging via Microsoft Teams"
         Publisher = "Overwatch"
     }
@@ -233,11 +230,40 @@ $global:Catalog.Provider += @{ Views =
         Name = "Views"
         DisplayName = "Views"
         Category = "Formatting"
-        SubCategory = "Views"
         Description = "Predefined PowerShell Format-Table views for Overwatch functions"
         Publisher = "Overwatch"
         Installation = @{
             Flag = @("AlwaysInstall","UninstallProtected")
+        }
+    }
+}
+
+$global:Catalog.Provider += @{ Postgres = 
+    [Provider]@{
+        Id = "Postgres"
+        Name = "Postgres"
+        DisplayName = "Postgres"
+        Category = "Database"
+        Description = "Postgres database provider"
+        Publisher = "Overwatch"
+    }
+}
+
+$global:Catalog.Provider += @{ TableauServerWC = 
+    [Provider]@{
+        Id = "TableauServerWC"
+        Name = "TableauServerWC"
+        DisplayName = "Tableau Server Welcome Channel"
+        Category = "Messaging"
+        Description = "Tableau Server user notifications via the welcome channel (welcome banner)"
+        Publisher = "Overwatch"
+        Config = @{
+            MessageType = $PlatformMessageType.UserNotification
+        }
+        Installation = @{
+            Prerequisite = @{
+                Platform = @("TableauServer")
+            }
         }
     }
 }
