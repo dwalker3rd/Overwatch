@@ -6,6 +6,7 @@
 $servicesPath = $global:Location.Services
 
 . $servicesPath\vault.ps1
+. $servicesPath\encryption.ps1
 . $servicesPath\credentials.ps1
 
 if (Test-Path -Path $servicesPath\services-os-stubs.ps1) {. $servicesPath\services-os-stubs.ps1}
@@ -27,6 +28,8 @@ if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name).ps1) {. $se
 . $servicesPath\messaging.ps1
 . $servicesPath\contacts.ps1
 . $servicesPath\python.ps1
+. $servicesPath\connectionstrings.ps1
+. $servicesPath\odbc.ps1
 
 if (Test-Path -Path $servicesPath\services-$($global:Product.Id).ps1) {. $servicesPath\services-$($global:Product.Id).ps1}
 if (Test-Path -Path $servicesPath\services-$($global:Provider.Id).ps1) {. $servicesPath\services-$($global:Provider.Id).ps1}

@@ -25,25 +25,34 @@ function global:Show-PlatformStatus {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason,
-        [Parameter(Mandatory=$false)][string]$RunId
+        [switch]$All
     )
 
-    $Nodes = $true
-    $Components = $true
-
-    if ($Nodes) {
-        $nodeStatus = (Get-TableauServerStatus).Nodes
-        $nodeStatus = $nodeStatus | 
-            Select-Object -Property @{Name='NodeId';Expression={$_.nodeId}}, @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Status';Expression={$_.rollupstatus}}
-
-        $nodeStatus | Format-Table -Property Node, Status, NodeId
+    if ($All -and $Required) {
+        throw "The `"All`" and `"Required`" switches cannot be used together"
     }
 
-    if ($Components) {
-        Get-PlatformService | Where-Object -Property Required -EQ "True" | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, Name, Status, Required, Transient, IsOK
+    # check for platform events
+    $platformStatus = Get-PlatformStatus 
+    # notify if platform is stopped or if a platform event is in progress
+    if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+        Write-Host+
+        $message = "$($Platform.Name) $($platformStatus.Event.ToUpper()) is $($($PlatformStatus.IsStopped) ? "STOPPED" : $($platformStatus.EventStatus.ToUpper()))"
+        Write-Host+ -NoTrace -NoTimeStamp $message -ForegroundColor DarkRed
+        Write-Host+
     }
+
+    $platformstatus | Format-List *
+
+    $nodeStatus = (Get-TableauServerStatus).Nodes
+    $nodeStatus = $nodeStatus | 
+        Select-Object -Property @{Name='NodeId';Expression={$_.nodeId}}, @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Status';Expression={$_.rollupstatus}}
+    $nodeStatus | Format-Table -Property Node, Status, NodeId
+
+    $services = Get-PlatformService
+    if ($All) {} else { $services = $services | Where-Object {$_.Required} }
+    $services | Where-Object {!$_.StatusOK.Contains($_.Status)} | Sort-Object -Property Node, Name | Format-Table -Property Node, Name, Status, Required, Transient, IsOK
+    $services | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, Name, Status, Required, Transient, IsOK
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
@@ -891,7 +900,7 @@ function global:Test-RepositoryAccess {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName
+        [Parameter(Mandatory=$true)][string[]]$ComputerName
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -977,3 +986,8 @@ function global:Test-RepositoryAccess {
 }
 
 #endregion TESTS
+#region PLATFORM NOTIFICATION
+
+
+
+#endregion PLATFORM NOTIFICATION
