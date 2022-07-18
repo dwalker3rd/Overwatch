@@ -162,6 +162,8 @@ function global:Lock-Cache {
 
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][ValidateSet("Open","OpenOrCreate")][String]$Mode = "OpenOrCreate",
+        [Parameter(Mandatory=$false)][ValidateSet("Read","Write","ReadWrite")][String]$Access = ($Share -eq "None" ? "ReadWrite" : "Read"),
         [Parameter(Mandatory=$false)][ValidateSet("Read","None")][String]$Share = "Read"
     )
 
@@ -169,7 +171,7 @@ function global:Lock-Cache {
     $lockFile = $cache.FullPathName -replace $cache.Extension,".lock"
     
     $lockRetryAttempts = 0
-    while (!$FileStream.CanWrite) {
+    while (!($Access -eq "ReadWrite" -and $FileStream.CanWrite) -and !($Access -eq "Read" -and $FileStream.CanRead)) {
         # if (!(Test-Path -Path $lockFile)) {
         #     Set-Content -Path $lockFile -Value (Get-Date -AsUTC)
         # }
@@ -181,7 +183,7 @@ function global:Lock-Cache {
                 return $null
             }
             $lockRetryAttempts++
-            $FileStream = [System.IO.File]::Open($lockFile, 'OpenOrCreate', 'ReadWrite', $Share)
+            $FileStream = [System.IO.File]::Open($lockFile, $Mode, $Access, $Share)
         }
         catch {
             Start-Sleep -Milliseconds $lockRetryDelay.TotalMilliseconds
@@ -215,7 +217,7 @@ function global:Unlock-Cache {
 
     $Lock.Close()
     $Lock.Dispose()
-    Remove-Item -Path $Lock.Name -Force
+    Remove-Item -Path $Lock.Name -Force -ErrorAction SilentlyContinue
 
     # Write-Log -Action "UnlockCache" -Target $cache.FileNameWithoutExtension -Status "Success" -Force
 

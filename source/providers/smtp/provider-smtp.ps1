@@ -30,7 +30,7 @@ Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mimeKit.Nam
 
 Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-function global:Send-SMTP-Message {
+function global:Send-SMTP {
  
     [CmdletBinding()]
     param (

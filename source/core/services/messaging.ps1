@@ -42,7 +42,7 @@ function global:Send-Message {
 
     Get-Provider | Where-Object {$_.Category -eq 'Messaging'} | ForEach-Object {
         if ($_.Config.MessageType -contains $Message.Type) {
-            Invoke-Expression "Send-$($_.Id)-Message -json '$($json)'"
+            Invoke-Expression "Send-$($_.Id) -json '$($json)'"
         }
     }
 
@@ -505,6 +505,25 @@ function global:Send-ServerStatusMessage {
         Subject = "Overwatch $MessageType`: $($OS.DisplayName) $($Event) $($Status) on $($serverInfo.DisplayName)"
         Throttle = $NoThrottle ? [timespan]::Zero : [timespan]::Zero
         Source = "Send-ServerStatusMessage"
+    }
+
+    return Send-Message -Message $msg
+
+}
+
+function global:Send-UserNotification {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string]$Message,
+        [switch]$NoThrottle
+    )
+
+    $msg = @{ 
+        Type = $PlatformMessageType.UserNotification
+        Summary = $Message
+        Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-UserNotification"
     }
 
     return Send-Message -Message $msg

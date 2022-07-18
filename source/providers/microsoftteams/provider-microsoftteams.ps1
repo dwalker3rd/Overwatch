@@ -17,7 +17,7 @@ https://docs.microsoft.com/en-us/outlook/actionable-messages/message-card-refere
 
 Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-function global:Build-Section {
+function Build-Section {
 
     [CmdletBinding()]
     param (
@@ -46,7 +46,7 @@ Build-MessageCard creates a legacy actionable message card (as JSON) used with M
 .Link
 https://docs.microsoft.com/en-us/outlook/actionable-messages/message-card-reference
 #>
-function global:Build-MessageCard {
+function Build-MessageCard {
 
     [CmdletBinding()]
     param (
@@ -80,7 +80,7 @@ A Microsoft Teams legacy actionable message card
 .Link
 https://docs.microsoft.com/en-us/outlook/actionable-messages/message-card-reference
 #>
-function global:Send-MicrosoftTeams-Message {
+function global:Send-MicrosoftTeams {
 
     [CmdletBinding()] 
     param (

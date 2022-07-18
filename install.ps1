@@ -880,7 +880,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             }
 
-        #endregion INITIALIZE OVERWATCH  
+        #endregion INITIALIZE OVERWATCH        
 
         Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."

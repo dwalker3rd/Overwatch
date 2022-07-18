@@ -110,7 +110,7 @@ function global:Initialize-TsmApiConfiguration {
             HttpMethod = "GET"
             Response = @{Keys = "repositoryNodeInfo"}
         }
-        ConfigurationsRequestedVersion = @{
+        CurrentConfigurationVersion = @{
             Path = "$($global:tsmApiConfig.ApiUri)/configurations/requested/version"
             HttpMethod = "GET"
             Response = @{Keys = "version"}
@@ -717,5 +717,19 @@ function global:Wait-AsyncJob {
     $timeoutTimer.Stop()
 
     return $asyncJob, $timeout
+
+}
+
+function global:Get-TsmConfigurationKey {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Name
+    )
+
+    $currentConfigurationVersion = Invoke-TsmApiMethod -Method CurrentConfigurationVersion
+    $configurationKey =  Invoke-TsmApiMethod -Method ConfigurationKey -params @($currentConfigurationVersion,$Name)
+
+    return $configurationKey.$Name
 
 }
