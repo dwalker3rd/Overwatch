@@ -1,20 +1,20 @@
 # OVERWATCH
 Overwatch is a PowerShell application which automates the monitoring and management of software platforms and systems. 
 
-Core functionality includes monitoring of platforms and their host systems, alerting via messaging providers, backup and storage management.  Shared services includes support for Azure AD and Azure AD B2C tenants as well as integration with Azure Update Management. Overwatch also includes numerous cmdlets and utilities to support management of the environment.
+Core functionality includes monitoring of platforms and their host systems, alerting via messaging providers, backup management, storage management, support for platforms in Azure AD and Azure AD B2C tenants, as well as integration with Azure Update Management.
 
-|||
+|| Supported
 |-|-
 | OS | Windows Server
 | Platforms | Tableau Server, Tableau Resource Monitoring Tool, Alteryx Server
 | Products | Monitor, Backup, Cleanup, DiskCheck, AzureADCache, AzureADSyncTS, AzureADSyncB2C, StartRMTAgents
 | Providers | MicrosoftTeams, TwilioSMS, SMTP
 
-_Overwatch is designed for extensibility.  Operating systems and software platforms can be added to the Overwatch service layer, and new functionality can be added by creating new products and providers._
+_Overwatch is designed for extensibility.  Support for additional operating systems and software platforms can be added to the Overwatch service layer, and new functionality can be added by creating new products and providers._
 
 ## Architecture
 
-!(https://github.com/dwalker3rd/Overwatch/docs/img/overwatch_architecture.png "Overwatch Architecture")
+
 
 ## Contributions
 
