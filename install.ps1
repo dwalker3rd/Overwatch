@@ -516,6 +516,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
                 Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services
+                $definitionsServices = "$PSScriptRoot\definitions\definitions-services.ps1"
+                Get-Item $servicesPath\services-$($platformPrerequisiteService.ToLower())*.ps1 | 
+                    Foreach-Object {
+                        $contentLine = ". `$servicesPath\$($_.Name)"
+                        if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
+                            Add-Content -Path $definitionsServices -Value $contentLine
+                        }
+                    }
             }
         }
 

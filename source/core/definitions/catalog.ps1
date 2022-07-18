@@ -44,7 +44,6 @@ $global:Catalog.Platform += @{ TableauRMT =
         Id = "TableauRMT"
         Name = "Tableau RMT"
         DisplayName = "Tableau Resource Monitoring Tool"
-        Image = "$($global:Location.Images)/tableau_rmt.png"
         Description = "Tableau Resource Monitoring Tool"
         Publisher = "Tableau Software, LLC, A Salesforce Company"
         Installation = @{

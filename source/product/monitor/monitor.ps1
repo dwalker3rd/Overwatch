@@ -41,7 +41,7 @@ function Send-MonitorMessage {
     $message = "<  Sending $($target.ToLower()) $($action.ToLower()) <.>48> PENDING"
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    Write-Log -Context $global:Product.Id -Action $status -Target $target -Status $PlatformStatus.RollupStatus -Message $message -EntryType "Warning" -Force
+    Write-Log -Context $global:Product.Id -Action $status -Target $target -Status $PlatformStatus.RollupStatus -Message "Sending $($target.ToLower()) $($action.ToLower())" -EntryType "Warning" -Force
 
     # send platform status message
     Send-PlatformStatusMessage -PlatformStatus $PlatformStatus -MessageType $MessageType -NoThrottle:$ReportHeartbeat.IsPresent

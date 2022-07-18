@@ -84,4 +84,4 @@ $message = "<All agents/environments <.>48> Connected"
 Write-Host+ -Iff (!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen    
 Write-Host+
 
-Write-Log -Context StartRMTAgents -Status Success -Message $message.Replace(":","are") -Force
+Write-Log -Context StartRMTAgents -Status Success -Message "All agents/environments are connected" -Force
