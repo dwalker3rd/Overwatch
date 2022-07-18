@@ -6,11 +6,6 @@ This script provides file-based caching for Overwatch objects via Powershell's I
 and Export-Clixml cmdlets.
 #>
 
-$global:Vault = @{
-    Secret = @{ Name = "secret" }
-    Key = @{ Name = "key" }
-}
-
 $global:lockRetryDelay = New-Timespan -Seconds 1
 $global:lockRetryMaxAttempts = 5
 
@@ -34,6 +29,27 @@ function global:Get-Vault {
     $vault = [VaultObject]::new($path)
 
     return $vault
+}
+
+<# 
+.Synopsis
+Tests whether or not the specified vault exists.
+.Description
+Tests whether or not the specified vault exists.
+.Parameter Name
+The name of the vault.  If the named vault does not exist, then a stubbed vault object is returned to
+the caller.  If Name is not specified, then the properties of ALL Overwatch vaults are returned.  
+.Outputs
+Boolean. $true: the vault exists. $false: the vault does not exist.
+#>
+function global:Test-Vault {
+    param (
+        [Parameter(Mandatory=$true,Position=0)][String]$Name
+    ) 
+
+    $vault = Get-Vault $Name
+    
+    return $null -ne $vault.FileInfo
 }
 
 <# 
@@ -287,7 +303,7 @@ function global:Add-ToVault {
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Vault,
         [Parameter(Mandatory=$true,Position=1)][string]$Name,
-        [Parameter(Mandatory=$true)][Alias("Key","Secret")][object]$InputObject
+        [Parameter(Mandatory=$true)][object]$InputObject
     )
 
     $Name = $Name.ToLower()
@@ -299,26 +315,6 @@ function global:Add-ToVault {
     $vaultContent | Write-Vault $Vault
 
 }
-
-function global:Add-ToKeyVault {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name,
-        [Parameter(Mandatory=$true)][Alias("Key","Secret")][object]$InputObject
-    )
-    Add-ToVault -Vault $global:Vault.Key.Name -Name $Name -InputObject $InputObject
-}
-Set-Alias -Name Save-EncryptionKey -Value Add-ToKeyVault -Scope Global
-
-function global:Add-ToSecretVault {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name,
-        [Parameter(Mandatory=$true)][Alias("Key","Secret")][object]$InputObject
-    )
-    Add-ToVault -Vault $global:Vault.Secret.Name -Name $Name -InputObject $InputObject
-}
-Set-Alias -Name Save-Secret -Value Add-ToSecretVault -Scope Global
 
 <# 
 .Synopsis
@@ -346,22 +342,6 @@ function global:Get-FromVault {
     return $vaultContent.$Name
 
 }
-function global:Get-FromKeyVault {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
-    )
-    Get-FromVault -Vault $global:Vault.Key.Name -Name $Name
-}
-Set-Alias -Name Get-EncryptionKey -Value Get-FromKeyVault -Scope Global
-function global:Get-FromSecretVault {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
-    )
-    Get-FromVault -Vault $global:Vault.Secret.Name -Name $Name
-}
-Set-Alias -Name Get-Secret -Value Get-FromSecretVault -Scope Global
 
 <# 
 .Synopsis
@@ -388,19 +368,3 @@ function global:Remove-FromVault {
     $vaultContent | Write-Vault $Vault
 
 }
-function global:Remove-FromKeyVault {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
-    )
-    Remove-FromVault -Vault $global:Vault.Key.Name -Name $Name
-}
-Set-Alias -Name Remove-EncryptionKey -Value Remove-FromKeyVault -Scope Global
-function global:Remove-FromSecretVault {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
-    )
-    Remove-FromVault -Vault $global:Vault.Secret.Name -Name $Name
-}
-Set-Alias -Name Remove-Secret -Value Remove-FromSecretVault -Scope Global

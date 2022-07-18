@@ -25,7 +25,7 @@ https://www.twilio.com/docs/glossary/what-e164
 
 Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-function global:Send-TwilioSMS-Message {
+function global:Send-TwilioSMS {
 
     [CmdletBinding()] 
     param (

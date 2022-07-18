@@ -13,7 +13,7 @@ $global:Product.HasTask = $true
 
 $global:Product.Config = @{}
 
-$global:imgAzureADCache = "$($global:Location.Images)/AzureADCache.png"
+$global:imgAzureADSync = "$($global:Location.Images)/AzureADSync.png"
 
 return $global:Product
 

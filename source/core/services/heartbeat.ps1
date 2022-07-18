@@ -46,7 +46,7 @@ function global:Get-Heartbeat {
     }
 
     $heartbeat.Current = Get-Date
-    $heartbeat.SincePreviousReport = (Get-Date).Subtract($heartbeat.Previous)
+    $heartbeat.SincePreviousReport = (Get-Date).Subtract($heartbeat.PreviousReport)
 
     return $heartbeat
 }

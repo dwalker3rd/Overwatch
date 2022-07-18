@@ -51,8 +51,8 @@
         Information = 'Information'
         Warning = 'Warning'
         Alert = 'Alert'
-        # Task = 'Task'
         AllClear = 'AllClear'
+        UserNotification = 'UserNotification'
     }
 
     $global:ContactsDB = "$($global:Location.Data)\contacts.csv"

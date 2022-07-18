@@ -86,8 +86,8 @@ function global:Set-Credentials {
     $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
     $PasswordEncrypted = $Credentials.Password | ConvertFrom-SecureString -Key $Key
 
-    Save-EncryptionKey $Name -Key $Key 
-    Save-Secret $Name -Secret @{ $Credentials.UserName = $PasswordEncrypted } 
+    Add-ToVault -Vault Key -Name $Name -InputObject $Key 
+    Add-ToVault -Vault Secret -Name $Name -InputObject @{ $Credentials.UserName = $PasswordEncrypted } 
 
     return
 
@@ -116,15 +116,14 @@ function global:Get-Credentials {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][object]$Key,
-        [Parameter(Mandatory=$false)][object]$Location = $global:Location.Credentials
+        [Parameter(Mandatory=$false)][object]$Key
     )
 
     $Name = $Name.ToLower()
 
-    $Key = $Key ?? (Get-EncryptionKey $Name)
+    $Key = $Key ?? (Get-FromVault -Vault Key -Name $Name)
 
-    $creds = Get-Secret $Name
+    $creds = Get-FromVault -Vault Secret -Name $Name
     if (!$creds) {return}
 
     $UserName = $creds.keys[0]
@@ -153,8 +152,8 @@ function global:Remove-Credentials {
     )
 
     if($PSCmdlet.ShouldProcess($Name)) {
-        Remove-EncryptionKey $Name
-        Remove-Secret $Name
+        Remove-FromVault -Vault Key -Name $Name
+        Remove-FromVault -Vault Secret -Name $Name
     }
 
 }
@@ -188,12 +187,13 @@ function global:Test-Credentials {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][object]$Key,
         [switch]$NoValidate
     )
 
     $Name = $Name.ToLower()
 
-    $Key = $Key ?? (Get-EncryptionKey $Name)
+    $Key = $Key ?? (Get-FromVault -Vault Key -Name $Name)
 
     # if (!$(Test-Path -path $credentialFile)) {return $false}
     
@@ -213,58 +213,6 @@ function global:Test-Credentials {
     Write-Host+ -IfVerbose
 
     return $validated
-
-}
-
-<# 
-.Synopsis
-Creates a 256-bit AES encryption key.
-.Description
-Creates a 256-bit AES encryption key for use with credential files.
-.Outputs
-256-bit AES encryption key.
-#>
-function global:New-EncryptionKey {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
-    )
-
-    $Name = $Name.ToLower()
-    
-    $key = New-Object Byte[] 32
-    [Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($key)
-    
-    Save-EncryptionKey $Name -Key $key
-
-    return $key
-
-}
-
-<# 
-.Synopsis
-Replaces encryption keys.
-.Description
-Replaces encryption keys for the specified credential or for all credentials.
-.Parameter Name
-Credential name.
-#>
-function global:Replace-EncryptionKey {
-
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name
-    )
-
-    $credentialNames = ![string]::IsNullOrEmpty($Name) ? $Name : (Get-VaultKeys)
-    foreach ($credentialName in $credentialNames) {
-        Get-Credentials $credentialName | Set-Credentials $credentialName
-    }
-
-    return
 
 }
 
