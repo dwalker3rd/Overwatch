@@ -316,7 +316,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion IMAGES
 #region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("data","definitions","docs","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data")
+    $requiredDirectories = @("data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data")
 
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
