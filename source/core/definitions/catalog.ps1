@@ -25,13 +25,13 @@ $global:Catalog.Platform += @{ TableauServer =
     }
 }
 
-$global:Catalog.Platform += @{ TableauOnline = 
+$global:Catalog.Platform += @{ TableauCloud = 
     [Platform]@{
-        Id = "TableauOnline"
-        Name = "Tableau Online"
-        DisplayName = "Tableau Online"
+        Id = "TableauCloud"
+        Name = "Tableau Cloud"
+        DisplayName = "Tableau Cloud"
         Image = "$($global:Location.Images)/tableau_sparkle.png"
-        Description = "Tableau Online"
+        Description = "Tableau Cloud"
         Publisher = "Tableau Software, LLC, A Salesforce Company"
         Api = @{
             TsRestApiVersion = "3.16"

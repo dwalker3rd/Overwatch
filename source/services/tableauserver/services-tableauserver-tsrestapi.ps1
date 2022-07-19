@@ -90,11 +90,11 @@ function Get-TSServerType {
     )
     $params = @{}
     if ($Server) { $params += @{Server = $Server} }
-    return (IsTableauOnline @params) ? "TableauOnline" : "TableauServer"
+    return (IsTableauCloud @params) ? "TableauCloud" : "TableauServer"
 }
 
 
-function IsTableauOnline {
+function IsTableauCloud {
     param(
         [Parameter(Mandatory=$false,Position=0)][string]$Server
     )
@@ -103,7 +103,7 @@ function IsTableauOnline {
         return
     }
     if ($Server) { return $Server -like "*online.tableau.com" }
-    return $global:tsRestApiConfig.Platform.Id -eq "TableauOnline"
+    return $global:tsRestApiConfig.Platform.Id -eq "TableauCloud"
 }
 
 function IsPlatformServer {
@@ -1391,7 +1391,7 @@ function global:Switch-TSSite {
         [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = ""
     )
 
-    # if (IsTableauOnline) { return }
+    # if (IsTableauCloud) { return }
 
     if ($ContentUrl -notin (Get-TSSites).contentUrl) {    
         $message = "Site `"$ContentUrl`" is not a valid contentURL for a site on $($global:tsRestApiConfig.Server)"
@@ -1449,7 +1449,7 @@ function global:Get-TSSites {
     [CmdletBinding()]
     param()
 
-    if (IsTableauOnline) { return Get-TSSite }
+    if (IsTableauCloud) { return Get-TSSite }
 
     return Get-TSObjects -Method GetSites
 }
