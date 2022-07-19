@@ -12,7 +12,7 @@ _Overwatch is designed for extensibility.  Support for additional operating syst
 
 ## Architecture
 
-![Overwatch Architecture](https://github.com/dwalker3rd/Overwatch/blob/main/docs/img/overwatch_architecture.png?raw=true)
+![Overwatch Architecture](https://github.com/dwalker3rd/Overwatch/blob/main/source/core/docs/img/overwatch_architecture.png?raw=true)
 
 ## Contributions
 
