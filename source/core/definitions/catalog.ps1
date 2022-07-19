@@ -57,6 +57,10 @@ $global:Catalog.Platform += @{ TableauRMT =
         Name = "Tableau RMT"
         DisplayName = "Tableau Resource Monitoring Tool"
         Description = "Tableau Resource Monitoring Tool"
+        Api = @{
+            TableauServerRestApi = @{ Version = "3.15" }
+            TsmApi = @{ Version = "0.5" }
+        }
         Publisher = "Tableau Software, LLC, A Salesforce Company"
         Installation = @{
             Discovery = @{
