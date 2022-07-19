@@ -111,8 +111,8 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
                 Information = @("<Microsoft Teams Information Webhook>")
                 Warning = @("<Microsoft Teams Warning Webhook>")
             }
-            MessageType = $MicrosoftTeamsConfig.Connector.Keys
         }
+        $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
 
     #endregion MICROSOFT-TEAMS
 
