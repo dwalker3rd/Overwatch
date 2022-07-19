@@ -20,7 +20,17 @@ try {
         throw $message
     }
 
+    # check TSM REST API prerequisites
+    foreach ($prerequisite in $global:Catalog.Platform.TableauServer.Api.TsmApi.Prerequisite) {
+        $serviceIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -Name $($prerequisite.Service) -Status $($prerequisite.Status)"
+        if (!$serviceIsRunning) {
+            $message = "The $($Platform.Name) service $($prerequisite.Service) is $($prerequisite.Status):$($prerequisite.Message)"
+            throw $message
+        }
+    }
+
     Initialize-TsmApiConfiguration
+
     $platformTopology = Initialize-PlatformTopology -ResetCache
     $platformTopology | Out-Null
 
@@ -28,8 +38,17 @@ try {
     $platformStatus = Get-PlatformStatus 
     # abort if platform is stopped or if a platform event is in progress
     if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-        $message = "$($Platform.Name) is $($($PlatformStatus.IsStopped) ? "STOPPED" : $($platformStatus.EventStatus.ToUpper())):The Tableau Server REST API is unavailable."
+        $message = "$($Platform.Name) $($Platform.Event ? ("$Platform.Event ") : $null)is $($PlatformStatus.IsStopped ? "STOPPED" : $platformStatus.EventStatus.ToUpper()):The Tableau Server REST API is unavailable."
         throw $message
+    }
+
+    # check Tableau Server REST API prerequisites
+    foreach ($prerequisite in $global:Catalog.Platform.TableauServer.Api.TableauServerRestApi.Prerequisite) {
+        $serviceIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -Name $($prerequisite.Service) -Status $($prerequisite.Status)"
+        if (!$serviceIsRunning) {
+            $message = "The $($Platform.Name) service $($prerequisite.Service) is $($prerequisite.Status):$($prerequisite.Message)"
+            throw $message
+        }
     }
 
     Initialize-TSRestApiConfiguration

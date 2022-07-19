@@ -25,6 +25,7 @@ $global:RegexPattern = @{
     }
     WriteHostPlus = @{
         Parse = "^<(.*?)\s<(.)>(\d*)>\s(.*)$"
+        UnParse = "^(<\s+)(.*?)(\s*<.*>\s*)(.*)$"
     }
     Download = @{
         ValidFileNameChars = "[0-9a-zA-Z\-_]"

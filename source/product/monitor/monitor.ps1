@@ -44,7 +44,8 @@ function Send-MonitorMessage {
     Write-Log -Context $global:Product.Id -Action $status -Target $target -Status $PlatformStatus.RollupStatus -Message "Sending $($target.ToLower()) $($action.ToLower())" -EntryType "Warning" -Force
 
     # send platform status message
-    Send-PlatformStatusMessage -PlatformStatus $PlatformStatus -MessageType $MessageType -NoThrottle:$ReportHeartbeat.IsPresent
+    $messagingStatus = Send-PlatformStatusMessage -PlatformStatus $PlatformStatus -MessageType $MessageType -NoThrottle:$ReportHeartbeat.IsPresent
+    $messagingStatus | Out-Null
 
     $message = "$($emptyString.PadLeft(8,"`b")) TRANSMITTED$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DARKGREEN
@@ -115,7 +116,7 @@ Open-Monitor
             return
         }
     
-    $entryType = $platformStatus.IsOK ? "Information" : "Error"
+    # $entryType = $platformStatus.IsOK ? "Information" : "Error"
 
     Write-Host+ -NoTrace "  Platform Status" -ForegroundColor Gray
     $message = "<    Current <.>48> $($platformStatus.RollupStatus)"
@@ -253,7 +254,7 @@ Open-Monitor
 
                 $message = "<  State assertion <.>48> $(((Get-Date)-$heartbeat.Previous).Minutes)m $(((Get-Date)-$heartbeat.Previous).Seconds)s remaining"
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-                Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status "Pending" -Message $message -EntryType $entryType -Force
+                # Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status "Pending" -Message $message -EntryType $entryType -Force
                 
                 Close-Monitor
                 return 
@@ -265,7 +266,7 @@ Open-Monitor
 
                 $message = "<  State assertion <.>48> NOT OK"
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
-                Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType $entryType -Force
+                # Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType $entryType -Force
 
             }
 
@@ -323,12 +324,12 @@ Open-Monitor
     if (!$global:Product.Config.FlapDetectionEnabled -and $platformStatus.IsOK -and !$heartbeat.IsOK) { $messageType = $PlatformMessageType.AllClear }
     if (!$platformStatus.IsOK) { $messageType = $PlatformMessageType.Alert }
 
-    $entryType = switch ($messageType) {
-        $PlatformMessageType.Information { "Information" }
-        $PlatformMessageType.AllClear { "Information" }
-        $PlatformMessageType.Warning { "Warning" }
-        $PlatformMessageType.Alert { "Error" }
-    }
+    # $entryType = switch ($messageType) {
+    #     $PlatformMessageType.Information { "Information" }
+    #     $PlatformMessageType.AllClear { "Information" }
+    #     $PlatformMessageType.Warning { "Warning" }
+    #     $PlatformMessageType.Alert { "Error" }
+    # }
 
     Send-MonitorMessage -PlatformStatus $platformStatus -MessageType $messageType
 

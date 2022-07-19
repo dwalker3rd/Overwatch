@@ -11,12 +11,22 @@ $global:Catalog.Platform += @{ TableauServer =
         Description = "Tableau Server"
         Publisher = "Tableau Software, LLC, A Salesforce Company"
         Api = @{
-            TsRestApiVersion = "3.15"
-            TsmApiVersion = "0.5"
+            TableauServerRestApi = @{
+                Version = "3.15"
+                Prerequisite = @(
+                    @{ Type = "PlatformService"; Service = "vizportal"; Status = "Running"; Message = "The Tableau Server REST API is unavailable."}
+                )
+            }
+            TsmApi = @{
+                Version = "0.5"
+                Prerequisite = @(
+                    @{ Type = "Service"; Service = "tabadmincontroller_0"; Status = "Running"; Message = "The TSM REST API is unavailable."}
+                )
+            }
         }
         Installation = @{
             Discovery = @{
-                Service = @("tabsvc_0")
+                Service = @("tabadmincontroller_0")
             }
             Prerequisite = @{
                 Service = @("TableauServer")
@@ -34,7 +44,9 @@ $global:Catalog.Platform += @{ TableauCloud =
         Description = "Tableau Cloud"
         Publisher = "Tableau Software, LLC, A Salesforce Company"
         Api = @{
-            TsRestApiVersion = "3.16"
+            TableauServerRestApi = @{
+                Version = "3.16"
+            }
         }
     }
 }

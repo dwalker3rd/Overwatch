@@ -128,7 +128,7 @@ if ($Update) { $updateOverwatch = $true }
     $installedPlatforms = @()
     $services = Get-Service
     foreach ($key in $global:Catalog.Platform.Keys) { 
-        if ($services.Name -contains $global:Catalog.Platform.$key.Installation.discovery.Service) {
+        if ($services.Name -contains $global:Catalog.Platform.$key.Installation.Discovery.Service) {
             $installedPlatforms += $key
         }
     }
@@ -812,7 +812,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             $manualConfigFiles = @()
             $definitionsFilesPathPattern = "definitions\definitions-*.ps1"
-            if ($productIds -or $providerIds) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
+            # if ($productIds -or $providerIds) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
             $definitionsFiles = Get-Item -Path $definitionsFilesPathPattern
             foreach ($definitionFile in $definitionsFiles) {
                 if (Select-String $definitionFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
@@ -836,8 +836,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                             $manualConfigObjectType = $manualConfigMeta[1]
                             $manualConfigObjectId = $manualConfigMeta[2]
                             $manualConfigAction = $manualConfigMeta[3]
-                            $message = "$manualConfigObjectType > $manualConfigObjectId > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
-                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
+                            if ($manualConfigObjectType -notin ("Product","Provider") -or (Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId")) {
+                                $message = "$manualConfigObjectType > $manualConfigObjectId > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
+                                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
+                            }
                         }
                     }
                 }
@@ -865,12 +867,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             if ($productIds -or $providerIds -or $installOverwatch -or $updateOverwatch) {
 
+                Write-Host+ -MaxBlankLines 1
+
                 $message = "<Overwatch <.>48> INITIALIZING"
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
                 psPref -xpref -xpostf -xwhp -Quiet
 
-                $global:Product = @{Id="Install"}
+                $global:Product = @{Id="Command"}
                 . $PSScriptRoot\definitions.ps1
 
                 psPref -Quiet

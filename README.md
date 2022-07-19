@@ -12,7 +12,7 @@ _Overwatch is designed for extensibility.  Support for additional operating syst
 
 ## Architecture
 
-![Overwatch Architecture](https://github.com/dwalker3rd/Overwatch/blob/main/source/core/docs/img/overwatch_architecture.png?raw=true)
+Refer to the [Overwatch Architecture Diagram][] for a visual of Overwatch's architecture.
 
 ## Contributions
 
@@ -55,3 +55,4 @@ This project is licensed under the terms of the [GNU GPLv3][] license.
 [David Walker]: https://www.linkedin.com/in/dwalker3rd/
 [GNU GPLv3]: https://github.com/dwalker3rd/Overwatch/blob/main/LICENSE
 [Installation Guide]: https://github.com/dwalker3rd/Overwatch/blob/main/docs/install.md
+[Overwatch Architecture Diagram]: https://github.com/dwalker3rd/Overwatch/blob/main/source/core/docs/img/overwatch_architecture.png?raw=true

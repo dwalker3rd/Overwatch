@@ -2,6 +2,7 @@
 
 $trustedHosts = @()
 if ($trustedHosts) {
+
     Test-Connections $trustedHosts
 
     $platformStatus = Get-PlatformStatus
@@ -11,6 +12,7 @@ if ($trustedHosts) {
     else {
         $global:PreflightChecksCompleted = $false
     }
+
 }
 
 #endregion PREFLIGHT

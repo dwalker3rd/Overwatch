@@ -12,8 +12,8 @@ $global:Platform =
     }    
 
 $global:Platform.Api = @{
-    TsRestApiVersion = "3.6"
-    TsmApiVersion = "0.5"
+    TsRestApiVersion = $global:Catalog.Platform.TableauServer.Api.TableauServerRestApi.Version
+    TsmApiVersion = $global:Catalog.Platform.TableauServer.Api.TsmApi.Version
 }
 
 $global:PlatformStatusNotOK = @(

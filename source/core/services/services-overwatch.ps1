@@ -253,6 +253,73 @@
         }
 
     #endregion STATUS
+    #region SERVICES
+
+        function global:Wait-PlatformService {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+                [Parameter(Mandatory=$true)][string]$Name,
+                [Parameter(Mandatory=$false)][string]$Status = "Running",
+                [Parameter(Mandatory=$false)][int]$WaitTimeInSeconds = 60,
+                [Parameter(Mandatory=$false)][int]$TimeOutInSeconds = 0
+            )
+            
+            $totalWaitTimeInSeconds = 0
+            $service = Get-PlatformService -ComputerName $ComputerName | Where-Object {$_.Name -eq $Name}
+            if (!$service) {
+                throw "`"$Name`" is not a valid $($global:Platform.Name) platform service name."
+            }
+
+            $currentStatus = $service.Status | Sort-Object -Unique
+            while ($currentStatus -ne $Status) {
+                Start-Sleep -Seconds $WaitTimeInSeconds
+                $totalWaitTimeInSeconds += $WaitTimeInSeconds
+                if ($TimeOutInSeconds -gt 0 -and $totalWaitTimeInSeconds -ge $TimeOutInSeconds) {
+                    # throw "ERROR: Timeout ($totalWaitTimeInSeconds seconds) waiting for platform service `"$Name`" to transition from status `"$currentStatus`" to `"$Status`""
+                    return $false
+                }
+                $service = Get-PlatformService -ComputerName $ComputerName | Where-Object {$_.Name -eq $Name}
+                $currentStatus = $service.Status | Sort-Object -Unique
+            }
+        
+            return $true
+        
+        }
+
+        function global:Wait-Service {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+                [Parameter(Mandatory=$true)][string]$Name,
+                [Parameter(Mandatory=$false)][string]$Status = "Running",
+                [Parameter(Mandatory=$false)][int]$WaitTimeInSeconds = 60,
+                [Parameter(Mandatory=$false)][int]$TimeOutInSeconds = 0
+            )
+
+            $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+            
+            $totalWaitTimeInSeconds = 0
+            $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
+            $currentStatus = $service.Status | Sort-Object -Unique
+            while ($currentStatus -ne $Status) {
+                Start-Sleep -Seconds $WaitTimeInSeconds
+                $totalWaitTimeInSeconds += $WaitTimeInSeconds
+                if ($TimeOutInSeconds -gt 0 -and $totalWaitTimeInSeconds -ge $TimeOutInSeconds) {
+                    # throw "ERROR: Timeout ($totalWaitTimeInSeconds seconds) waiting for platform service `"$Name`" to transition from status `"$currentStatus`" to `"$Status`""
+                    return $false
+                }
+                $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
+                $currentStatus = $service.Status | Sort-Object -Unique
+            }
+        
+            return $true
+        
+        }
+
+    #endregion SERVICES
     #region EVENT
 
         function global:Set-PlatformEvent {

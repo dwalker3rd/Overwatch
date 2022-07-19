@@ -275,14 +275,14 @@ Request-Platform -Command Start -Context $Context -Reason $Reason
 }
 function global:Stop-Platform {
 
-[CmdletBinding()] param (
-    [Parameter(Mandatory=$false)][string]$Context = "Command",
-    [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
-)
+    [CmdletBinding()] param (
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
+    )
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-Request-Platform -Command Stop -Context $Context -Reason $Reason
+    Request-Platform -Command Stop -Context $Context -Reason $Reason
 }
 function global:Restart-Platform {
 

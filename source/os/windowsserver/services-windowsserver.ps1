@@ -757,7 +757,7 @@ param (
     [Parameter(Mandatory=$true)][ValidateSet("Manual","Automatic","AutomaticDelayedStart","Disabled")][Microsoft.PowerShell.Commands.ServiceStartupType]$StartupType
 )
 
-$psSession = Get-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
+$psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
 Invoke-Command -Session $psSession {
     Get-Service -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {

@@ -11,7 +11,7 @@ function global:Initialize-TsmApiConfiguration {
     $global:tsmApiConfig = @{
         Server = $Server ? $Server : "localhost"
         Port = "8850"
-        ApiVersion = "0.5"
+        ApiVersion = "$($global:Catalog.Platform.$($global:Platform.Id).Api.TsmApi.Version)"
         Credentials = "localadmin-$($global:Platform.Instance)"
         Async = @{
             Status = @{
