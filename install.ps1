@@ -401,57 +401,63 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     $productDependencies = @()
     $productHeaderWritten = $false
     foreach ($key in $global:Catalog.Product.Keys) {
+
         $product = $global:Catalog.Product.$key
-        # if ([string]::IsNullOrEmpty($product.Installation.Flag) -or $product.Installation.Flag -notcontains "NoInstall") {
-            if ([string]::IsNullOrEmpty($product.Installation.Prerequisite.Platform) -or $product.Installation.Prerequisite.Platform -contains $platformId) {
-                if ($product.Id -notin $installedProducts.Id) {
-                    $productResponse = $null
-                    if ($product.Installation.Flag -contains "AlwaysInstall") {
-                        $productsSelected += $product.id
-                        $productResponse = "Y"
+        
+        if ([string]::IsNullOrEmpty($product.Installation.Prerequisite.Platform) -or $product.Installation.Prerequisite.Platform -contains $platformId) {
+
+            if ($product.Id -notin $installedProducts.Id) {
+
+                $productResponse = $null
+
+                if ($product.Installation.Flag -contains "AlwaysInstall") {
+                    $productsSelected += $product.id
+                    $productResponse = "Y"
+                }
+                elseif ($product.Installation.Flag -notcontains "NoPrompt") {
+                    if (!$productHeaderWritten) {
+                        Write-Host+
+                        Write-Host+ -NoTrace -NoTimestamp "Select Products" -ForegroundColor DarkGray
+                        Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
+                        $productHeaderWritten = $true
                     }
-                    elseif ($product.Installation.Flag -notcontains "NoPrompt") {
-                        if (!$productHeaderWritten) {
-                            Write-Host+
-                            Write-Host+ -NoTrace -NoTimestamp "Select Products" -ForegroundColor DarkGray
-                            Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
-                            $productHeaderWritten = $true
-                        }
-                        $productResponseDefault = $product.id -in $productIds ? "Y" : "N"
-                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-                        $productResponse = Read-Host
-                        if ([string]::IsNullOrEmpty($productResponse)) {$productResponse = $productResponseDefault}
-                        if ($productResponse -eq "Y") {
-                            $productsSelected += $product.id
-                        }
-                    }
+                    $productResponseDefault = $product.id -in $productIds ? "Y" : "N"
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
+                    $productResponse = Read-Host
+                    if ([string]::IsNullOrEmpty($productResponse)) {$productResponse = $productResponseDefault}
                     if ($productResponse -eq "Y") {
-                        if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Product)) {
-                            foreach ($prerequisiteProduct in $product.Installation.Prerequisite.Product) {
-                                if ($prerequisiteProduct -notin $installedProducts.Id) {
-                                    if ($prerequisiteProduct -notin $productsSelected) {
-                                        $productsSelected += $prerequisiteProduct
-                                        $productDependencies += @{
-                                            Product = $product.id
-                                            Dependency = $prerequisiteProduct
-                                        }
+                        $productsSelected += $product.id
+                    }
+                }
+
+                if ($productResponse -eq "Y") {
+                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Product)) {
+                        foreach ($prerequisiteProduct in $product.Installation.Prerequisite.Product) {
+                            if ($prerequisiteProduct -notin $installedProducts.Id) {
+                                if ($prerequisiteProduct -notin $productsSelected) {
+                                    $productsSelected += $prerequisiteProduct
+                                    $productDependencies += @{
+                                        Product = $product.id
+                                        Dependency = $prerequisiteProduct
                                     }
                                 }
                             }
                         }
                     }
                 }
-                else {
-                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
-                        foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
-                            if ($prerequisiteService -notin $productSpecificServices) {
-                                $productSpecificServices += $prerequisiteService
-                            }
-                        }
+            }
+
+            # always check for product service prerequisites
+            if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
+                foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
+                    if ($prerequisiteService -notin $productSpecificServices) {
+                        $productSpecificServices += $prerequisiteService
                     }
                 }
             }
-        # }
+
+        }
+        
     }
     $productIds = $productsSelected
 
