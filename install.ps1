@@ -440,24 +440,34 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                                         Product = $product.id
                                         Dependency = $prerequisiteProduct
                                     }
+                                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
+                                        foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
+                                            if ($prerequisiteService -notin $productSpecificServices) {
+                                                $productSpecificServices += $prerequisiteService
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-
-            # always check for product service prerequisites
-            if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
-                foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
-                    if ($prerequisiteService -notin $productSpecificServices) {
-                        $productSpecificServices += $prerequisiteService
+            else {
+                # code repeat necessary to catch product service prerequisites when using -Update switch
+                if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
+                    foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
+                        if ($prerequisiteService -notin $productSpecificServices) {
+                            $productSpecificServices += $prerequisiteService
+                        }
                     }
                 }
             }
 
+
+
         }
-        
+
     }
     $productIds = $productsSelected
 
