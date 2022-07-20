@@ -78,7 +78,9 @@ function global:Set-Credentials {
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
         [Parameter(Mandatory=$false,ValueFromPipeline)][System.Management.Automation.PsCredential]$Credentials,
         [Parameter(Mandatory=$false)][Alias("Id")][string]$UserName,
-        [Parameter(Mandatory=$false)][Alias("Token")][string]$Password
+        [Parameter(Mandatory=$false)][Alias("Token")][string]$Password,
+        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
+        [Parameter(Mandatory=$false)][object]$KeyVault = "key"
     )
     
     $Name = $Name.ToLower()
@@ -86,8 +88,8 @@ function global:Set-Credentials {
     $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
     $PasswordEncrypted = $Credentials.Password | ConvertFrom-SecureString -Key $Key
 
-    Add-ToVault -Vault Key -Name $Name -InputObject $Key 
-    Add-ToVault -Vault Secret -Name $Name -InputObject @{ $Credentials.UserName = $PasswordEncrypted } 
+    Add-ToVault -Vault $KeyVault -Name $Name -InputObject $Key 
+    Add-ToVault -Vault $SecretVault -Name $Name -InputObject @{ $Credentials.UserName = $PasswordEncrypted } 
 
     return
 
@@ -116,14 +118,16 @@ function global:Get-Credentials {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][object]$Key
+        [Parameter(Mandatory=$false)][object]$Key,
+        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
+        [Parameter(Mandatory=$false)][object]$KeyVault = "key"
     )
 
     $Name = $Name.ToLower()
 
-    $Key = $Key ?? (Get-FromVault -Vault Key -Name $Name)
+    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name)
 
-    $creds = Get-FromVault -Vault Secret -Name $Name
+    $creds = Get-FromVault -Vault $SecretVault -Name $Name
     if (!$creds) {return}
 
     $UserName = $creds.keys[0]
@@ -148,12 +152,14 @@ function global:Remove-Credentials {
         ConfirmImpact = 'High'
     )]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name
+        [Parameter(Mandatory=$false,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
+        [Parameter(Mandatory=$false)][object]$KeyVault = "key"
     )
 
     if($PSCmdlet.ShouldProcess($Name)) {
-        Remove-FromVault -Vault Key -Name $Name
-        Remove-FromVault -Vault Secret -Name $Name
+        Remove-FromVault -Vault $KeyVault -Name $Name
+        Remove-FromVault -Vault $SecretVault -Name $Name
     }
 
 }
@@ -163,11 +169,15 @@ function global:Copy-Credentials {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Source,
-        [Parameter(Mandatory=$true,Position=1)][string]$Target
+        [Parameter(Mandatory=$true,Position=1)][string]$Target,
+        [Parameter(Mandatory=$false)][object]$SourceSecretVault = "secret",
+        [Parameter(Mandatory=$false)][object]$SourceKeyVault = "key",
+        [Parameter(Mandatory=$false)][object]$TargetSecretVault = "secret",
+        [Parameter(Mandatory=$false)][object]$TargetKeyVault = "key"
     )
 
-    $creds = Get-Credentials $Source
-    Set-Credentials $Target -Credentials $creds
+    $creds = Get-Credentials $Source -SecretVault $SourceSecretVault -KeyVault $SourceKeyVault
+    Set-Credentials $Target -Credentials $creds -SecretVault $TargetSecretVault -KeyVault $TargetKeyVault
 
 }
 
@@ -188,16 +198,18 @@ function global:Test-Credentials {
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][object]$Key,
+        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
+        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
         [switch]$NoValidate
     )
 
     $Name = $Name.ToLower()
 
-    $Key = $Key ?? (Get-FromVault -Vault Key -Name $Name)
+    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name)
 
     # if (!$(Test-Path -path $credentialFile)) {return $false}
     
-    $Credentials = Get-Credentials -Name $Name
+    $Credentials = Get-Credentials -Name $Name -SecretVault $SecretVault -KeyVault $KeyVault
     if (!$Credentials) {return $false}
 
     if ($NoValidate) {return $Credentials ? $true : $false}
