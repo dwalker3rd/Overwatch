@@ -101,13 +101,15 @@ function Update-Environ {
 
 function global:Show-PostInstallConfig {
 
+    $templateFiles = @()
     $manualConfigFiles = @()
-    $definitionsFilesPathPattern = "definitions\definitions-*.ps1"
-    # if ($productIds -or $providerIds) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
-    $definitionsFiles = Get-Item -Path $definitionsFilesPathPattern
-    foreach ($definitionFile in $definitionsFiles) {
-        if (Select-String $definitionFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
-            $manualConfigFiles += $definitionFile
+    $templateFiles += Get-Item -Path "definitions\definitions-*.ps1"
+    $templateFiles += Get-Item -Path "initialize\initialize*.ps1"
+    $templateFiles += Get-Item -Path "preflight\preflight*.ps1"
+    $templateFiles += Get-Item -Path "postflight\postflight*.ps1"
+    foreach ($templateFile in $templateFiles) {
+        if (Select-String $templateFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
+            $manualConfigFiles += $templateFile
         }
     }
 
