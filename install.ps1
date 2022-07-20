@@ -92,6 +92,50 @@ function Update-Environ {
 
 }
 
+function global:Show-PostInstallConfig {
+
+    $manualConfigFiles = @()
+    $definitionsFilesPathPattern = "definitions\definitions-*.ps1"
+    # if ($productIds -or $providerIds) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
+    $definitionsFiles = Get-Item -Path $definitionsFilesPathPattern
+    foreach ($definitionFile in $definitionsFiles) {
+        if (Select-String $definitionFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
+            $manualConfigFiles += $definitionFile
+        }
+    }
+
+    if ($manualConfigFiles) {
+
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "Post-Installation Configuration" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "-------------------------------" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Start disabled tasks"
+        
+        foreach ($manualConfigFile in $manualConfigFiles) {
+            $manualConfigStrings = Select-String $manualConfigFile -Pattern "Manual Configuration > " -SimpleMatch -NoEmphasis -Raw
+            foreach ($manualConfigString in $manualConfigStrings) {
+                $manualConfigMeta = $manualConfigString -split " > "
+                if ($manualConfigMeta) {
+                    $manualConfigObjectType = $manualConfigMeta[1]
+                    $manualConfigObjectId = $manualConfigMeta[2]
+                    $manualConfigAction = $manualConfigMeta[3]
+                    if ($manualConfigObjectType -in ("Product","Provider")) {
+                        # if the file belongs to a Product or Provider that is NOT installed, ignore the post-installation configuration
+                        if (!(Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId")) { continue }
+                    }
+                    $message = "$manualConfigObjectType > $manualConfigObjectId > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
+                }
+            }
+        }
+
+        Write-Host+
+
+    }
+
+}
+Set-Alias -Name postInstallConfig -Value Show-PostInstallConfig -Scope Global
+
 Clear-Host
 
 $overwatchInstallLocation = $PSScriptRoot
@@ -810,41 +854,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         #endregion PROVIDERS
         #region POST-INSTALLATION CONFIG
 
-            $manualConfigFiles = @()
-            $definitionsFilesPathPattern = "definitions\definitions-*.ps1"
-            # if ($productIds -or $providerIds) { $definitionsFilesPathPattern = "definitions\definitions-pro*.ps1" }
-            $definitionsFiles = Get-Item -Path $definitionsFilesPathPattern
-            foreach ($definitionFile in $definitionsFiles) {
-                if (Select-String $definitionFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
-                    $manualConfigFiles += $definitionFile
-                }
-            }
-
-            if ($manualConfigFiles) {
-
-                Write-Host+
-                Write-Host+ -NoTrace -NoTimestamp "Post-Installation Configuration" -ForegroundColor DarkGray
-                Write-Host+ -NoTrace -NoTimestamp "-------------------------------" -ForegroundColor DarkGray
-                Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Start disabled tasks"
-                
-                foreach ($manualConfigFile in $manualConfigFiles) {
-
-                    $manualConfigStrings = Select-String $manualConfigFile -Pattern "Manual Configuration > " -SimpleMatch -NoEmphasis -Raw
-                    foreach ($manualConfigString in $manualConfigStrings) {
-                        $manualConfigMeta = $manualConfigString -split " > "
-                        if ($manualConfigMeta) {
-                            $manualConfigObjectType = $manualConfigMeta[1]
-                            $manualConfigObjectId = $manualConfigMeta[2]
-                            $manualConfigAction = $manualConfigMeta[3]
-                            if ($manualConfigObjectType -notin ("Product","Provider") -or (Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId")) {
-                                $message = "$manualConfigObjectType > $manualConfigObjectId > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
-                                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
-                            }
-                        }
-                    }
-                }
-
-            }
+            Show-PostInstallConfig
 
         #endregion POST-INSTALLATION CONFIG
         #region SAVE SETTINGS

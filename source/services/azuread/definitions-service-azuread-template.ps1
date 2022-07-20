@@ -1,5 +1,6 @@
 # The following line indicates a post-installation configuration to the installer
-# Manual Configuration > Service > AzureAD > Update Data
+# Manual Configuration > Service > AzureAD > Configure Azure AD tenants
+# Manual Configuration > Service > AzureAD > Add MsGraph credentials to vault
 
 function global:Initialize-AzureAD {
 

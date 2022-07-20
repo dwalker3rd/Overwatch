@@ -43,6 +43,10 @@ function global:Connect-AzureAD {
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $appCredentials = Get-Credentials $global:AzureAD.$tenantKey.MsGraph.Credentials
+    if (!$appCredentials) {
+        throw "Unable to find the MSGraph credentials `"$($global:AzureAD.$tenantKey.MsGraph.Credentials)`""
+    }
+    
     $appId = $appCredentials.UserName
     $appSecret = $appCredentials.GetNetworkCredential().Password
     $scope = $global:AzureAD.$tenantKey.MsGraph.Scope

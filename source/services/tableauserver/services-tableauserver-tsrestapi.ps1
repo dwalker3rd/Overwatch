@@ -3457,7 +3457,7 @@ function global:Sync-TSGroups {
     $message = "Getting Azure AD groups and users"
     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Gray
 
-    $message = "  Group updates : PENDING"
+    $message = "<  Group updates <.>48> PENDING"
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $azureADGroupUpdates,$cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray -After $lastStartTime
@@ -3486,7 +3486,7 @@ function global:Sync-TSGroups {
 
     Write-Host+
     $message = "<Syncing Tableau Server groups <.>48> PENDING"
-    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Gray,DarkGray,DarkGray
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
 
@@ -3636,7 +3636,7 @@ function global:Sync-TSUsers {
 
         Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) $($tsUsers.Count)$($emptyString.PadRight(7-$tsUsers.Count.ToString().Length)," ")" -ForegroundColor DarkGreen
 
-        $lastOp = $null
+        # $lastOp = $null
 
         $tsUsers | Foreach-Object {
 
@@ -3645,9 +3645,9 @@ function global:Sync-TSUsers {
             $azureADUserAccountState = "AzureAD:$($azureADUser.accountEnabled ? "Enabled" : $(!$azureADUser ? "None" : "Disabled"))"
             Write-Host+ -NoTrace "      PROFILE: $($tsUser.id) $($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | $($azureADUserAccountState)" -ForegroundColor DarkGray
 
-            if ($lastOp -eq "NOOP") {
-                Write-Host+ -NoTrace -NoNewLine -NoTimeStamp -Prefix "`r"
-            }
+            # if ($lastOp -eq "NOOP") {
+            #     Write-Host+ -NoTrace -NoNewLine -NoTimeStamp -Prefix "`r"
+            # }
 
             $fullName = $azureADUser.displayName ?? $tsUser.fullName
             $email = $azureADUser.mail ?? $tsUser.email
@@ -3677,7 +3677,7 @@ function global:Sync-TSUsers {
                         Write-Host+ -NoTrace "      Disable: $($tsUser.id) $($tsUser.name): $($tsUser.siteRole) >> $siteRole" -ForegroundColor Red
                     }
 
-                    $lastOp = "Disable"
+                    # $lastOp = "Disable"
 
                 }
 
@@ -3698,12 +3698,12 @@ function global:Sync-TSUsers {
                     Write-Host+ -NoTrace "      Update: $($tsUser.id) $($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor DarkGreen
                 }
                 
-                $lastOp = "Update"
+                # $lastOp = "Update"
             }
             else {
                 # # no update
                 # Write-Host+ -NoTrace "    NOOP: $($tsUser.id) $($tsUser.name)" -ForegroundColor DarkGray
-                $lastOp = "NOOP"
+                # $lastOp = "NOOP"
             }
         
         }
