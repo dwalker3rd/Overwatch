@@ -345,6 +345,24 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     Write-Host+ -NoTrace -NoTimestamp "Platform Instance ID: $platformInstanceId" -IfDebug -ForegroundColor Yellow
 
 #endregion PLATFORM INSTANCE ID
+#region PLATFORM INSTANCE NODES
+
+    if ($platformId -eq "AlteryxServer") {
+        do {
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Nodes ", "$($platformInstanceNodes ? "[$($platformInstanceNodes -join ", ")] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            $platformInstanceNodesResponse = Read-Host
+            $platformInstanceNodes = ![string]::IsNullOrEmpty($platformInstanceNodesResponse) ? $platformInstanceNodesResponse : $platformInstanceNodes
+            if ([string]::IsNullOrEmpty($platformInstanceNodes)) {
+                Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance Nodes is required" -ForegroundColor Red
+                $platformInstanceNodes = $null
+            }
+        } until ($platformInstanceNodes)
+        $platformInstanceNodes = $platformInstanceNodes -split ","
+        # $platformInstanceNodes = '"' + ($platformInstanceNodesArray -join '", "') + '"'
+        Write-Host+ -NoTrace -NoTimestamp "Platform Instance Nodes: $platformInstanceNodes" -IfDebug -ForegroundColor Yellow
+    }
+
+#endregion PLATFORM INSTANCE NODES 
 #region IMAGES
 
     do {
@@ -466,8 +484,6 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 }
             }
 
-
-
         }
 
     }
@@ -490,7 +506,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     $_providerIds = @()
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
-        # if ([string]::IsNullOrEmpty($provider.Installation.Flag) -or $provider.Installation.Flag -notcontains "NoInstall") {
+        if ([string]::IsNullOrEmpty($provider.Installation.Prerequisite.Platform) -or $provider.Installation.Prerequisite.Platform -contains $platformId) {
             if ($provider.Id -notin $installedProviders.Id) {
                 if ($provider.Installation.Flag -contains "AlwaysInstall") {
                     $_providerIds += $provider.Id
@@ -511,7 +527,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                     }
                 }
             }
-        # }
+        }
     }
     $providerIds = $_providerIds
 
@@ -581,6 +597,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceId>", $platformInstanceId
             $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceUrl>", $platformInstanceUri
             $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceDomain>", $platformInstanceDomain
+            $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace '"<platformInstanceNodes>"', "@('$($platformInstanceNodes -join "', '")')"
             $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
             Write-Host+ -NoTrace -NoTimestamp "$($isSourceFileTemplate ? "Created" : "Updated") $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
         }
@@ -906,6 +923,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $installSettings
             "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $installSettings
             "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $installSettings
+            "`$platformInstanceNodes = @('$($platformInstanceNodes -join "', '")')" | Add-Content -Path $installSettings
 
         #endregion SAVE SETTINGS
         #region INITIALIZE OVERWATCH
