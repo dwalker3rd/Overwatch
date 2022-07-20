@@ -26,7 +26,13 @@ function Copy-File {
     #     $Destination = $Destination.replace("-template","")
     # }
     if (Test-Path -Path $Path) {
+        
         $overwrite = $true
+
+        if (!(Select-String $Path -Pattern "<.*>" -Quiet) -and !(Select-String $Path -Pattern "Manual Configuration >" -SimpleMatch -Quiet)) {
+            $ConfirmOverwrite = $false
+        }
+
         if ($ConfirmOverwrite -and (Test-Path -Path $Destination -PathType Leaf)) {
             Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Overwrite $($Destination)? [Y] Yes [N] No (default is `"No`"): " -ForegroundColor DarkYellow
             $overwrite = (Read-Host) -eq "Y" 
@@ -41,6 +47,7 @@ function Copy-File {
             if (!$Quiet) {
                 Split-Path -Path $Path -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "[NOOVERWRITE] Not copying $_" -ForegroundColor DarkGray}
             }
+        
         }
     }
 }
@@ -104,13 +111,17 @@ function global:Show-PostInstallConfig {
         }
     }
 
-    if ($manualConfigFiles) {
+    Write-Host+
+    Write-Host+ -NoTrace -NoTimestamp "Post-Installation Configuration" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "-------------------------------" -ForegroundColor DarkGray
 
-        Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "Post-Installation Configuration" -ForegroundColor DarkGray
-        Write-Host+ -NoTrace -NoTimestamp "-------------------------------" -ForegroundColor DarkGray
+    $postInstallConfig = $false
+    if ((Get-PlatformTask).status -contains "Disabled") {
         Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Start disabled tasks"
-        
+        $postInstallConfig = $true
+    }
+
+    if ($manualConfigFiles) {
         foreach ($manualConfigFile in $manualConfigFiles) {
             $manualConfigStrings = Select-String $manualConfigFile -Pattern "Manual Configuration > " -SimpleMatch -NoEmphasis -Raw
             foreach ($manualConfigString in $manualConfigStrings) {
@@ -128,10 +139,14 @@ function global:Show-PostInstallConfig {
                 }
             }
         }
-
-        Write-Host+
-
+        $postInstallConfig = $true
     }
+
+    if (!$postInstallConfig) {
+        Write-Host+ -NoTrace -NoTimeStamp "None"
+    }
+    
+    Write-Host+
 
 }
 Set-Alias -Name postInstallConfig -Value Show-PostInstallConfig -Scope Global
@@ -420,15 +435,17 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                                             Product = $product.id
                                             Dependency = $prerequisiteProduct
                                         }
-                                        if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
-                                            foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
-                                                if ($prerequisiteService -notin $productSpecificServices) {
-                                                    $productSpecificServices += $prerequisiteService
-                                                }
-                                            }
-                                        }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+                else {
+                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
+                        foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
+                            if ($prerequisiteService -notin $productSpecificServices) {
+                                $productSpecificServices += $prerequisiteService
                             }
                         }
                     }
