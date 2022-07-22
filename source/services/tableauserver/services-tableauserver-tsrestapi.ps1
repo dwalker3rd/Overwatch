@@ -329,7 +329,7 @@ function global:Update-TSRestApiMethods {
         #region USER METHODS
 
             GetUsers = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users"
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users?fields=_all_"
                 HttpMethod = "GET"
                 Response = @{Keys = "users.user"}
             }
@@ -753,12 +753,13 @@ function global:Invoke-TSRestApiMethod {
     $responseRoot = (IsRestApiVersioning -Method $Method) ? "tsResponse" : $null
     
     $pageFilter = "pageNumber=$($PageNumber)&pageSize=$($PageSize)"
-    $filter = $FilterExpression ? "?filter=$($FilterExpression)&$($pageFilter)" : "?$($pageFilter)"
+    $filter = $FilterExpression ? "filter=$($FilterExpression)&$($pageFilter)" : "$($pageFilter)"
 
     $httpMethod = $global:tsRestApiConfig.Method.$Method.HttpMethod
 
     $uri = "$($global:tsRestApiConfig.Method.$Method.Uri)"
-    $uri += (IsRestApiVersioning -Method $Method) -and $httpMethod -eq "GET" ? $filter : $null
+    $questionMarkOrAmpersand = $uri.Contains("?") ? "&" : "?"
+    $uri += (IsRestApiVersioning -Method $Method) -and $httpMethod -eq "GET" ? "$($questionMarkOrAmpersand)$($filter)" : $null
 
     $body = $global:tsRestApiConfig.Method.$Method.Body
 
@@ -1611,7 +1612,7 @@ function global:Add-TSUser {
         $response = Update-TSSiteUser -User $tsSiteUser -FullName $FullName -Email $Email -SiteRole $SiteRole
         if (!$response.error.code) {
             # $response is an update object (NOT a user object) or an error object
-            $response = Update-TSSiteUserPassword -User $tsSiteUser -Password (New-RandomPassword -ExcludeSpecialCharacters)
+            $response = Update-TSUserPassword -User $tsSiteUser -Password (New-RandomPassword -ExcludeSpecialCharacters)
         }
     }
 
@@ -1676,7 +1677,7 @@ function global:Update-TSUserPassword {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$User,
-        [Parameter(Mandatory=$false)][string]$Password
+        [Parameter(Mandatory=$true)][string]$Password
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -1697,7 +1698,6 @@ function global:Update-TSUserPassword {
     return $response
 
 }
-Set-Alias -Name Update-TSSiteUserPassword -Value Update-TSUserPassword -Scope Global
 
 function global:Remove-TSUser {
 
@@ -3582,8 +3582,6 @@ function global:Sync-TSUsers {
         [switch]$Delta
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $emptyString = ""
     $startTime = Get-Date -AsUTC
 
@@ -3620,6 +3618,7 @@ function global:Sync-TSUsers {
     $message = "<Syncing Tableau Server users <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
+    $tsUsersToBeDisabled = @()
     foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
 
         Switch-TSSite $contentUrl
@@ -3643,7 +3642,7 @@ function global:Sync-TSUsers {
             $tsUser = Get-TSUser -Id $_.id
             $azureADUser = $azureADUsers | Where-Object {$_.userPrincipalName -eq $tsUser.name}
             $azureADUserAccountState = "AzureAD:$($azureADUser.accountEnabled ? "Enabled" : $(!$azureADUser ? "None" : "Disabled"))"
-            Write-Host+ -NoTrace "      PROFILE: $($tsUser.id) $($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | $($azureADUserAccountState)" -ForegroundColor DarkGray
+            Write-Host+ -NoTrace "      PROFILE: $($tsSite.contentUrl)\$($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | $($azureADUserAccountState)" -ForegroundColor DarkGray
 
             # if ($lastOp -eq "NOOP") {
             #     Write-Host+ -NoTrace -NoNewLine -NoTimeStamp -Prefix "`r"
@@ -3659,28 +3658,11 @@ function global:Sync-TSUsers {
                 $siteRole = $tsUser.siteRole
             }
 
-            # if the users' Azure AD account has been disabled and they're not in an admin role, set them to unlicensed
-            # ignore users that are already unlicensed
-            # TODO: remove unlicensed users from their groups? 
-
-            if ($tsUser.siteRole -notin $global:TSSiteAdminRoles -and !$azureADUser.accountEnabled) {
-
-                if ($tsUser.SiteRole -ne "Unlicensed") {
-
-                    $response, $responseError = Update-TSUser -User $tsUser -SiteRole "Unlicensed" | Out-Null
-                    if ($responseError) {
-                        Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
-                        Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
-                    }
-                    else {
-                        # Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$siteRole" -EntryType "Information" -Force
-                        Write-Host+ -NoTrace "      Disable: $($tsUser.id) $($tsUser.name): $($tsUser.siteRole) >> $siteRole" -ForegroundColor Red
-                    }
-
-                    # $lastOp = "Disable"
-
-                }
-
+            # if the users' Azure AD account has been disabled, add them to tsUsersToBeDisabled
+            # disabledUsers are handled after all other sync ops
+            if (!$azureADUser.accountEnabled -and $tsUser.siteRole -ne "Unlicensed") {
+                $tsUsersToBeDisabled += $tsUser
+                Write-Host+ -NoTrace "      Disable: $($tsSite.contentUrl)\$($tsUser.name): $($tsUser.siteRole) >> Unlicensed (PENDING)" -ForegroundColor Red
             }
             
             # Update-tsUser replaces both apostrophe characters ("'" and "’") in fullName and email with "&apos;" (which translates to "'")
@@ -3695,7 +3677,7 @@ function global:Sync-TSUsers {
                 else {
                     # Write-Log -Context "AzureADSyncTS" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$fullName | $email | $siteRole" -EntryType "Information" -Force
                     # Write-Host+ -NoTrace "      Update: $($tsUser.id) $($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole)" -ForegroundColor DarkYellow
-                    Write-Host+ -NoTrace "      Update: $($tsUser.id) $($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor DarkGreen
+                    Write-Host+ -NoTrace "      Update: $($tsSite.contentUrl)\$($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor DarkGreen
                 }
                 
                 # $lastOp = "Update"
@@ -3708,6 +3690,49 @@ function global:Sync-TSUsers {
         
         }
 
+    }
+
+    # if a user's AzureAD account is disabled, 
+    # disable their Tableau Server user accounts for each site of which they are a member
+    
+    $tsSites = Get-TSSites
+    foreach ($tsSite in $tsSites) {
+
+        Switch-TSSite $tsSite.contentUrl
+
+        $tsSiteUsers = Get-TSUsers
+
+        foreach ($tsUserToBeDisabled in $tsUsersToBeDisabled) {
+        
+            $tsUser = Find-TSUser -Name $tsUserToBeDisabled.Name -Users $tsSiteUsers
+            if ($tsUser -and $tsUser.siteRole -ne "Unlicensed") {
+
+                Write-Host+ -NoTrace "      PROFILE: $($tsSite.contentUrl)\$($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | AzureAD:Disabled" -ForegroundColor DarkGray
+            
+                # # remove user from their groups before disabling
+                # # if the user is a member of groups with a minimum site role, then updating the user's siterole to Unlicensed will fail
+                # # so this must be done BEFORE updateing the user's siterole to Unlicensed$
+                $tsUserGroupMembership = Get-TSUserMembership -User $tsUser | where-object {$_.name -notin $global:tsRestApiConfig.SpecialGroups}
+                foreach ($tsUserGroup in $tsUserGroupMembership) {
+                    Remove-TSUserFromGroup -Group $tsUserGroup -User $tsUser
+                }
+
+                $response, $responseError = Update-TSUser -User $tsUser -SiteRole "Unlicensed" | Out-Null
+                if ($responseError) {
+                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
+                    Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
+                }
+                else {
+                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "Unlicensed" -EntryType "Information" -Force
+                    Write-Host+ -NoTrace "      Disable: $($tsSite.contentUrl)\$($tsUser.name): $($tsUser.siteRole) >> Unlicensed" -ForegroundColor Red
+                }
+
+                $response = Update-TSUserPassword -User $tsUser -Password (New-RandomPassword -ExcludeSpecialCharacters)
+    
+            }
+    
+        }
+    
     }
 
     @{LastStartTime = $startTime} | Write-Cache "AzureADSyncUsers"
