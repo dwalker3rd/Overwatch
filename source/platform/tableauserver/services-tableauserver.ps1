@@ -6,13 +6,13 @@ function global:Get-PlatformStatusRollup {
         
     [CmdletBinding()]
     param (
-        [switch]$NoCache
+        [switch]$ResetCache
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $params = @{}
-    if ($NoCache) {$params += @{NoCache = $true}}
+    if ($ResetCache) {$params += @{ResetCache = $true}}
     $tableauServerStatus = Get-TableauServerStatus @params
 
     Write-Verbose "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)"

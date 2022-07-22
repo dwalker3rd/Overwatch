@@ -189,7 +189,7 @@ function global:Get-RMTTableauServerStatus {
 
     try{
         Initialize-TsmApiConfiguration -Server $initialNode
-        $tsStatus = Get-TableauServerStatus -NoCache
+        $tsStatus = Get-TableauServerStatus -ResetCache
 
         $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
         Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
@@ -218,11 +218,10 @@ function global:Get-RMTStatus {
 
     [CmdletBinding()]
     param (
-        [switch]$ResetCache,
-        [switch]$NoCache
+        [switch]$ResetCache
     )
     
-    if ((get-cache rmtstatus).Exists() -and !$ResetCache -and !$NoCache) {
+    if ((get-cache rmtstatus).Exists() -and !$ResetCache) {
         $rmtStatus = Read-Cache rmtstatus -MaxAge $(New-TimeSpan -Seconds 60)
         if ($rmtStatus) {
             return $rmtStatus

@@ -131,13 +131,12 @@
                 
             [CmdletBinding()]
             param (
-                # [switch]$NoCache,  <=== do NOT use this as it loses track of the current platform event!
                 [switch]$ResetCache
             )
 
             Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-            if ((get-cache platformstatus).Exists() -and !$ResetCache) { # -and !$NoCache) {
+            if ((get-cache platformstatus).Exists() -and !$ResetCache) {
                 $platformStatus = [PlatformStatus](Read-Cache platformStatus)
             }
 
@@ -149,7 +148,7 @@
             # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "Read-Cache" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
 
             $params = @{}
-            if ($ResetCache) {$params += @{Reset = $true}}
+            if ($ResetCache) {$params += @{ResetCache = $true}}
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
 
             if ($platformStatus.RollupStatus -in @("Stopping","Starting","Restarting") -and !$platformStatus.Event) {

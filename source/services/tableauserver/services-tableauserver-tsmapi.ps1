@@ -273,8 +273,7 @@ function global:Get-TableauServerStatus {
 
     [CmdletBinding()] 
     param (
-        [switch]$ResetCache,
-        [switch]$NoCache
+        [switch]$ResetCache
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -285,7 +284,7 @@ function global:Get-TableauServerStatus {
     $target = "clusterstatus"
     $attemptMessage = ""
 
-    if ((get-cache clusterstatus).Exists() -and !$ResetCache -and !$NoCache) {
+    if ((get-cache clusterstatus).Exists() -and !$ResetCache) {
         
         Write-Debug "$($action) $($target): Pending"
 

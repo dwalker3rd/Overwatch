@@ -355,7 +355,7 @@ function global:Get-PlatformStatusRollup {
     
     [CmdletBinding()]
     param (
-        [switch]$NoCache
+        [switch]$ResetCache
     )
 
     $alteryxServerStatus = Get-AlteryxServerStatus
