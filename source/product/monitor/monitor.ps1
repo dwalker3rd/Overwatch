@@ -27,8 +27,8 @@ function Close-Monitor {
 function Send-MonitorMessage {
 
     param (
-        [Parameter(Mandatory=$true)][PlatformStatus]$PlatformStatus,
-        [Parameter(Mandatory=$true)][string]$MessageType,
+        [Parameter(Mandatory=$true)][object]$PlatformStatus,
+        [Parameter(Mandatory=$false)][string]$MessageType = $ReportHeartbeat ? $global:PlatformMessageType.Heartbeat : $global:PlatformMessageType.Information,
         [switch]$ReportHeartbeat
     )
 
@@ -171,7 +171,7 @@ Open-Monitor
 
         if ($reportHeartbeat) {
             Set-Heartbeat -PlatformStatus $platformStatus -Reported | Out-Null
-            Send-MonitorMessage -PlatformStatus $platformStatus -MessageType $global:PlatformMessageType.Information -ReportHeartbeat
+            Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat
         }
         else {
             Set-Heartbeat -PlatformStatus $platformStatus | Out-Null        
