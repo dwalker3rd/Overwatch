@@ -71,7 +71,7 @@ If using the Microsoft Teams provider, it must be configured here.
     # use the REMOVE or OFFLINE functions.
 
     $global:PlatformTopologyBase = @{
-        Nodes = @() # enter Alteryx Server nodes here
+        Nodes = "<platformInstanceNodes>"
         Components = @("Controller", "Database", "Gallery", "Worker")
     }
 
@@ -115,8 +115,8 @@ If using the Microsoft Teams provider, it must be configured here.
                 Information = @("<Microsoft Teams Information Webhook>")
                 Warning = @("<Microsoft Teams Warning Webhook>")
             }
-            MessageType = $MicrosoftTeamsConfig.Connector.Keys
         }
+        $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
 
     #endregion MICROSOFT-TEAMS
 
