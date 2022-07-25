@@ -27,7 +27,7 @@ function Copy-File {
 
         foreach ($pathFile in $pathFiles) {
             $destinationFile = $destinationIsDirectory ? "$Destination\$(Split-Path $pathFile -Leaf -Resolve)" : $Destination
-            if ((Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFile).hash) {
+            if (!(Test-Path -Path $Destination) -or (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFile).hash) {
                 $overwrite = $true
                 if ($ConfirmOverwrite -and (Test-Path -Path $destinationFile -PathType Leaf)) {
                     Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Overwrite $($destinationFile)? [Y] Yes [N] No (default is `"No`"): " -ForegroundColor DarkYellow
@@ -410,7 +410,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion IMAGES
 #region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data")
+    $requiredDirectories = @("config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data")
 
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
@@ -641,6 +641,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
         }
 
+        Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\config-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1 -ConfirmOverwrite
+        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\config-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1 -ConfirmOverwrite
+        Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\config-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\config\config-platform-$($platformInstanceId).ps1 -ConfirmOverwrite
+
         Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\initialize-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-os-$($operatingSystemId.ToLower()).ps1 -ConfirmOverwrite
         Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformId.ToLower()).ps1 -ConfirmOverwrite
         Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformInstanceId).ps1 -ConfirmOverwrite
@@ -858,6 +862,18 @@ Write-Host+ -ResetAll
 #region MAIN
 
     [console]::CursorVisible = $false
+
+        #region CONFIG
+
+            if ($Update) {
+
+                if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower())") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower())" }
+                if (Test-Path "$PSScriptRoot\config\config-platform-$($platformId.ToLower())") {. "$PSScriptRoot\config\config-platform-$($platformId.ToLower())" }
+                if (Test-Path "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower())") {. "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower())" }
+
+            }
+
+        #endregion CONFIG
 
         #region PRODUCTS
 

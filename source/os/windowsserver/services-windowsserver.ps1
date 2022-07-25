@@ -391,8 +391,8 @@ param (
 $results = @()
 $psSession = Get-PSSession+ -ComputerName $ComputerName
 $results = Invoke-Command -Session $psSession {
-    secedit /export /cfg "c:\secpol.cfg" | Out-Null
-    $secpolcfg = get-content "c:\secpol.cfg"
+    secedit /export /cfg "$($global:Location.Data)\secpol.cfg" | Out-Null
+    $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
     $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith($using:Policy)}
     [PSCustomObject]@{
         ComputerName = $env:COMPUTERNAME
@@ -401,7 +401,7 @@ $results = Invoke-Command -Session $psSession {
         Name = $using:Name
         IsOK = $seServiceLogonRight.IndexOf($using:Name) -gt -1
     }
-    Remove-Item -force c:\secpol.cfg -confirm:$false
+    Remove-Item -force "$($global:Location.Data)\secpol.cfg" -confirm:$false
 } 
 
 return $results | Select-Object -Property ComputerName, Policy, Setting, Name, IsOK | Sort-Object ComputerName
@@ -417,19 +417,19 @@ param (
 
 $psSession = Get-PSSession+ -ComputerName $ComputerName
 Invoke-Command -Session $psSession {
-    secedit /export /cfg "c:\secpol.cfg" | Out-Null
-    Copy-Item "c:\secpol.cfg" -Destination "c:\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $secpolcfg = get-content "c:\secpol.cfg"
+    secedit /export /cfg "$($global:Location.Data)\secpol.cfg" | Out-Null
+    Copy-Item "$($global:Location.Data)\secpol.cfg" -Destination "c:\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
+    $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
     $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
     Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
     if ($seServiceLogonRight.IndexOf($using:Name) -eq -1) {
-        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight + "," + $using:Name) | Out-File "c:\secpol.cfg"
-        $secpolcfg = get-content "c:\secpol.cfg"
+        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight + "," + $using:Name) | Out-File "$($global:Location.Data)\secpol.cfg"
+        $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
         $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
         Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-        secedit /configure /db c:\windows\security\local.sdb /cfg "c:\secpol.cfg" /areas User_Rights | Out-Null
+        secedit /configure /db c:\windows\security\local.sdb /cfg "$($global:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
     }
-    # Remove-Item -force c:\secpol.cfg -confirm:$false
+    # Remove-Item -force "$($global:Location.Data)\secpol.cfg" -confirm:$false
 }
 }
 
@@ -443,19 +443,19 @@ param (
 
 $psSession = Get-PSSession+ -ComputerName $ComputerName
 Invoke-Command -Session $psSession {
-    secedit /export /cfg "c:\secpol.cfg" | Out-Null
-    Copy-Item "c:\secpol.cfg" -Destination "c:\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $secpolcfg = get-content "c:\secpol.cfg"
+    secedit /export /cfg "$($global:Location.Data)\secpol.cfg" | Out-Null
+    Copy-Item "$($global:Location.Data)\secpol.cfg" -Destination "c:\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
+    $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
     $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
     Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
     if ($seServiceLogonRight.IndexOf($using:Name) -gt -1) {
-        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight.replace($using:Name,"").replace(",,",",").replace("= ,","= ")) | Out-File "c:\secpol.cfg"
-        $secpolcfg = get-content "c:\secpol.cfg"
+        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight.replace($using:Name,"").replace(",,",",").replace("= ,","= ")) | Out-File "$($global:Location.Data)\secpol.cfg"
+        $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
         $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
         Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-        secedit /configure /db c:\windows\security\local.sdb /cfg "c:\secpol.cfg" /areas User_Rights | Out-Null
+        secedit /configure /db c:\windows\security\local.sdb /cfg "$($global:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
     }
-    # Remove-Item -force c:\secpol.cfg -confirm:$false
+    # Remove-Item -force "$($global:Location.Data)\secpol.cfg" -confirm:$false
 }
 }
 
@@ -568,118 +568,119 @@ else
 }
 }
 
-function global:Update-GroupPolicy {
+# function global:Update-GroupPolicy {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$false)][ValidateSet("Machine","User")][string]$Profile = "Machine",
-    [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-    [switch]$Update,
-    [switch]$Force
-)
+# [CmdletBinding()]
+# param (
+#     [Parameter(Mandatory=$false)][ValidateSet("Machine","User")][string]$Profile = "Machine",
+#     [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+#     [switch]$Update,
+#     [switch]$Force
+# )
 
-$emptyString = ""
+# $emptyString = ""
 
-Set-CursorInvisible
+# Set-CursorInvisible
 
-$message = "<  Group Policy <.>48> PENDING"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+# $message = "<  Group Policy <.>48> PENDING"
+# Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-$sourceFileName = "$($Platform.Instance)-registry.pol"
-$sourcePath= "$($global:Location.Data)\$sourceFileName"
-$targetPathLocal = "C:\Windows\System32\GroupPolicy\$Profile\Registry.pol"
-$targetPathUnc = $targetPathLocal.replace(":","$")
+# $sourceFileName = "$($Platform.Instance)-registry.pol"
+# $sourcePath= "$($global:Location.Data)\$sourceFileName"
+# $targetPathLocal = "C:\Windows\System32\GroupPolicy\$Profile\Registry.pol"
+# $targetPathUnc = $targetPathLocal.replace(":","$")
 
-if (!(Test-Path $sourcePath)) {
-    Write-Host+ -NoTrace "ERROR: The file '$sourcePath' could not be found." -ForegroundColor Red
-    return
-}
+# if (!(Test-Path $sourcePath)) {
+#     Write-Host+ -NoTrace "ERROR: The file '$sourcePath' could not be found." -ForegroundColor Red
+#     return
+# }
 
-Write-Host+ -NoTrace "    Source: $sourcePath" -ForegroundColor DarkGray -IfVerbose
-Write-Host+ -NoTrace "    Target: $targetPathLocal" -ForegroundColor DarkGray -IfVerbose
-Write-Host+ -IfVerbose
+# Write-Host+ -NoTrace "    Source: $sourcePath" -ForegroundColor DarkGray -IfVerbose
+# Write-Host+ -NoTrace "    Target: $targetPathLocal" -ForegroundColor DarkGray -IfVerbose
+# Write-Host+ -IfVerbose
 
-$fail = $false
-foreach ($node in $ComputerName) {
+# $fail = $false
+# foreach ($node in $ComputerName) {
 
-    $message = "<    $($node) <.>40> PENDING"
-    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+#     $message = "<    $($node) <.>40> PENDING"
+#     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    $thisFail = $false 
+#     $thisFail = $false 
 
-    $targetPath = "\\$node\$targetPathUnc"
-    $targetPathExists = Test-Path $targetPath -ErrorAction SilentlyContinue
+#     $targetPath = "\\$node\$targetPathUnc"
+#     $targetPathExists = Test-Path $targetPath -ErrorAction SilentlyContinue
     
-    $hashIsDifferent = $false
-    if ($targetPathExists) {
-        $hashIsDifferent = (Get-FileHash $sourcePath).Hash -ne (Get-FileHash $targetPath).Hash
-    }
+#     $hashIsDifferent = $false
+#     if ($targetPathExists) {
+#         $hashIsDifferent = (Get-FileHash $sourcePath).Hash -ne (Get-FileHash $targetPath).Hash
+#     }
     
-    if ($hashIsDifferent -or !$targetPathExists -or $Force) {
+#     if ($hashIsDifferent -or !$targetPathExists -or $Force) {
 
-        $thisFail = $true
+#         $thisFail = $true
         
-        if ($Update -or $Force) {
+#         if ($Update -or $Force) {
 
-            Write-Host+ -NoTrace -Iff (!$targetPathExists) "    $($node): Group policy file does not exist." -ForegroundColor Red -IfVerbose
-            Write-Host+ -NoTrace -Iff $hashIsDifferent "    $($node): Group policy does not match $($Platform.Instance) group policy." -ForegroundColor Red -IfVerbose
+#             Write-Host+ -NoTrace -Iff (!$targetPathExists) "    $($node): Group policy file does not exist." -ForegroundColor Red -IfVerbose
+#             Write-Host+ -NoTrace -Iff $hashIsDifferent "    $($node): Group policy does not match $($Platform.Instance) group policy." -ForegroundColor Red -IfVerbose
 
-            Write-Host+ -NoTrace "    $($node): Copying group policy file ... " -ForegroundColor DarkGray -IfVerbose
-            Copy-Files $sourcePath -Destination $targetPathLocal -ComputerName $node 
+#             Write-Host+ -NoTrace "    $($node): Copying group policy file ... " -ForegroundColor DarkGray -IfVerbose
+#             Copy-Files $sourcePath -Destination $targetPathLocal -ComputerName $node 
             
-            $psSession = Get-PSSession+ -ComputerName $node
+#             $psSession = Get-PSSession+ -ComputerName $node
             
-            Write-Host+ -NoTrace "    $($node): Updating group policy ... " -ForegroundColor Gray -IfVerbose
+#             Write-Host+ -NoTrace "    $($node): Updating group policy ... " -ForegroundColor Gray -IfVerbose
             
-            $result = Invoke-Command -Session $psSession { . gpupdate /target:computer /force } 
-            # $resultUserPolicy = $result | Select-String -Pattern "User Policy" -NoEmphasis | Select-String -Pattern "success" -NoEmphasis
-            $resultComputerPolicy = $result | Select-String -Pattern "Computer Policy" -NoEmphasis  | Select-String -Pattern "success" -NoEmphasis
-            $resultSuccess = $resultComputerPolicy # -and $resultUserPolicy
-            if ($resultSuccess) { $thisFail = $false }
+#             $result = Invoke-Command -Session $psSession { . gpupdate /target:computer /force } 
+#             # $resultUserPolicy = $result | Select-String -Pattern "User Policy" -NoEmphasis | Select-String -Pattern "success" -NoEmphasis
+#             $resultComputerPolicy = $result | Select-String -Pattern "Computer Policy" -NoEmphasis  | Select-String -Pattern "success" -NoEmphasis
+#             $resultSuccess = $resultComputerPolicy # -and $resultUserPolicy
+#             if ($resultSuccess) { $thisFail = $false }
             
-            Remove-PSSession $psSession
+#             Remove-PSSession $psSession
 
-            Write-Host+ -IfVerbose
+#             Write-Host+ -IfVerbose
             
-        }
+#         }
 
-    }
+#     }
     
-    $message = " $($emptyString.PadLeft($message.Split(":")[1].Length,"`b"))$($thisFail ? "FAIL" : "PASS")    "
-    Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($thisFail ? "Red" : "Green")
+#     $message = " $($emptyString.PadLeft($message.Split(":")[1].Length,"`b"))$($thisFail ? "FAIL" : "PASS")    "
+#     Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($thisFail ? "Red" : "Green")
 
-    $fail = $fail -or $thisFail
-}
+#     $fail = $fail -or $thisFail
+# }
 
-$message = "<  Group Policy <.>48> $($fail ? "FAIL" : "PASS")"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
+# $message = "<  Group Policy <.>48> $($fail ? "FAIL" : "PASS")"
+# Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
 
-if ($fail -and !$Update) {
-    Write-Host+ -NoTrace "  INFO:  Use `"-Update`" switch to update group policy." -ForegroundColor DarkGray
-}
+# if ($fail -and !$Update) {
+#     Write-Host+ -NoTrace "  INFO:  Use `"-Update`" switch to update group policy." -ForegroundColor DarkGray
+# }
 
-Set-CursorVisible
+# Set-CursorVisible
 
-}
+# }
 
 function global:Enable-CredSspDoubleHop {
 
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    [Parameter(Mandatory=$false)][string]$ComputerName = "*"
 )
 
-if ($ComputerName -ne $env:COMPUTERNAME) {
-    Write-Host+ -NoTrace -NoTimestamp "ERROR: CredSSP 'double-hop' cannot be configured for a remote computer." -ForegroundColor Red
-    return
-}
+# if ($ComputerName -ne $env:COMPUTERNAME) {
+#     Write-Host+ -NoTrace -NoTimestamp "ERROR: CredSSP 'double-hop' cannot be configured for a remote computer." -ForegroundColor Red
+#     return
+# }
 
 $message = "<  CredSSP Double-Hop Enabled <.>40> PENDING"
 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-$configured = Get-WSManCredSSP | Select-String -Pattern "is configured" -NoEmphasis
+$configured = $null
+$notConfigured = Get-WSManCredSSP | Select-String -Pattern "is not configured" -NoEmphasis
 
-if (!$configured) {
+if ($notConfigured) {
     $clientWSManCredSSP = Enable-WSManCredSSP -Role Client -DelegateComputer $ComputerName -Force
     $clientWSManCredSSP | Out-Null
     $serverWSManCredSSP = Enable-WSManCredSSP -Role Server –Force
