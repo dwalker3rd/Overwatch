@@ -680,12 +680,14 @@ Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,D
 $configured = Get-WSManCredSSP | Select-String -Pattern "is configured" -NoEmphasis
 
 if (!$configured) {
-    Enable-WSManCredSSP -Role Client -DelegateComputer $ComputerName -Force
-    Enable-WSManCredSSP -Role Server –Force
+    $clientWSManCredSSP = Enable-WSManCredSSP -Role Client -DelegateComputer $ComputerName -Force
+    $clientWSManCredSSP | Out-Null
+    $serverWSManCredSSP = Enable-WSManCredSSP -Role Server –Force
+    $serverWSManCredSSP | Out-Null
     $configured = Get-WSManCredSSP | Select-String -Pattern "is configured" -NoEmphasis
 }
 
-$message = " $($emptyString.PadLeft($message.Split(":")[1].Length,"`b"))$($configured ? "PASS" : "FAIL")    "
+$message = " $($emptyString.PadLeft(8,"`b"))$($configured ? "PASS" : "FAIL")    "
 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($configured ? "Green" : "Red")
 
 Write-Host+

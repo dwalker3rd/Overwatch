@@ -120,7 +120,8 @@ function global:Get-Credentials {
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][object]$Key,
         [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$KeyVault = "key"
+        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
+        [switch]$Credssp
     )
 
     $Name = $Name.ToLower()
@@ -132,6 +133,19 @@ function global:Get-Credentials {
 
     $UserName = $creds.keys[0]
     $PasswordEncrypted = $creds.$($username)
+
+    if ($Credssp) {
+        if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine) { 
+            if ($creds.UserName -notlike ".\*" -and $creds.UserName -notlike "$($env:COMPUTERNAME)\*") {
+                $UserName = ".\$UserName"
+            }
+        }
+        if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Domain) {
+            if ($creds.UserName -notlike "$($global:Platform.Domain)\*") {
+                $UserName = "$($global:Platform.Domain)\$UserName"
+            }
+        }
+    }
 
     try {
         $Password = $Key ? $($PasswordEncrypted | ConvertTo-SecureString -Key $Key) : $($PasswordEncrypted | ConvertTo-SecureString)

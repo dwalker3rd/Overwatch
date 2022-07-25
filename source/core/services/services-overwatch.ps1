@@ -885,20 +885,38 @@
         foreach ($node in $ComputerName) {
             $psSession = $null
             $nodeIsLocalhost = $node.ToLower() -eq "localhost" -or $node.ToLower() -eq $env:COMPUTERNAME.ToLower()
-            $psSessions = $nodeIsLocalhost ? (Get-PSSession | Where-Object {$_.ComputerName.ToLower() -eq "localhost"}) : (Get-PSSession -ComputerName $node)
+            # $psSessions = $nodeIsLocalhost ? (Get-PSSession | Where-Object {$_.ComputerName.ToLower() -eq "localhost"}) : (Get-PSSession -ComputerName $node)
+            $psSessions = @()
+            if ($nodeIsLocalhost) {
+                $psSessions = Get-PSSession | Where-Object {$_.ComputerName.ToLower() -eq "localhost"}
+            }
+            elseif ($global:UseCredssp) {
+                $creds = Get-Credentials "localadmin-$($Platform.Instance)" -Credssp
+                $psSessions += Get-PSSession -ComputerName $node -Credential $creds -Authentication Credssp
+            }
+            else {
+                $psSessions += Get-PSSession -ComputerName $node
+            }
             $psSessions = $psSessions | Sort-Object -Property @{Expression = "State"; Descending = $true}, @{Expression = "Availability"; Descending = $false}
             foreach ($nodePSSession in $psSessions) {
                 if ($null -ne $nodePSSession -and 
                     ($nodePSSession.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::Available)) {
-                    #   -or $nodePSSession.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::None)) {
                         $psSession = $nodePSSession
+                        # we have a psSession, so break out of the loop
                         break
                 }
             }
+            # dealing with a single psSession, not an array
             if ($null -eq $psSession) {
-                $psSession = New-PSSession -ComputerName $node -ErrorAction SilentlyContinue
-                if ($null -eq $psSession -and $nodeIsLocalhost) {
-                    $psSession = New-PSSession -EnableNetworkAccess
+                if ($global:UseCredssp) {
+                    $creds = Get-Credentials "localadmin-$($Platform.Instance)" -Credssp
+                    $psSession = New-PSSession -ComputerName $node -Credential $creds -Authentication Credssp
+                }
+                else {
+                    $psSession = New-PSSession -ComputerName $node -ErrorAction SilentlyContinue
+                    if ($null -eq $psSession -and $nodeIsLocalhost) {
+                        $psSession = New-PSSession -EnableNetworkAccess
+                    }
                 }
             }
             # if ($psSession.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Disconnected) {
