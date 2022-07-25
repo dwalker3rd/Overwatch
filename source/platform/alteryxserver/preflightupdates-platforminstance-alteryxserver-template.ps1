@@ -30,7 +30,4 @@
         Install-PythonPackage -Package $requiredPythonPackages -Pip $global:Location.Pip -ComputerName (Get-PlatformTopology nodes -keys)
     }
 
-    # enable powershell 'double-hop' with credssp on controller
-    Enable-CredSspDoubleHop -ComputerName (pt components.controller.nodes -k)
-
 #endregion PREFLIGHT
