@@ -368,7 +368,7 @@ function global:Build-StatusFacts {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)][PlatformStatus]$PlatformStatus,
+        [Parameter(Mandatory=$true)][object]$PlatformStatus,
         [Parameter(Mandatory=$true)][string]$Node,
         [switch]$ShowAll
     )

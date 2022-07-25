@@ -55,7 +55,7 @@ function global:Send-PlatformStatusMessage {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Information,
-        [Parameter(Mandatory=$false)][PlatformStatus]$PlatformStatus = (Get-PlatformStatus),
+        [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus),
         [switch]$ShowAll,
         [switch]$NoThrottle
     )
@@ -272,7 +272,7 @@ function global:Send-PlatformEventMessage {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Alert,
-        [Parameter(Mandatory=$false)][PlatformStatus]$PlatformStatus = (Get-PlatformStatus),
+        [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus),
         [switch]$Reset,
         [switch]$NoThrottle
     )

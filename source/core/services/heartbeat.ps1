@@ -55,7 +55,7 @@ function global:Set-Heartbeat {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)][PlatformStatus]$PlatformStatus,
+        [Parameter(Mandatory=$true)][object]$PlatformStatus,
         [switch]$Reported
     )
 
