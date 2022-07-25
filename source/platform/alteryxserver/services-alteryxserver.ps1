@@ -151,7 +151,7 @@ function global:Get-PlatformService {
     # $services = Invoke-Command -Session $psSession {&{
     #     Get-Service -Name "AlteryxService" -InformationAction SilentlyContinue
     # }}
-    $cimSession = New-CimSession -ComputerName $ComputerName -Credential (Get-Credentials "localadmin-$($Platform.Instance)") -Authentication CredSsp
+    $cimSession = New-CimSession -ComputerName $ComputerName -Credential (Get-Credentials "localadmin-$($Platform.Instance)" -Credssp) -Authentication CredSsp
     $services = Get-CimInstance -ClassName Win32_Service -CimSession $cimSession -Property * |
         Where-Object {$_.Name -eq $PlatformServiceConfig.Name} 
     Remove-CimSession $cimSession
