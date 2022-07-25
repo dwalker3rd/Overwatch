@@ -757,7 +757,7 @@ Write-Host+ -ResetAll
 
     psPref -xpref -xpostf -xwhp -Quiet
 
-    $global:Product = @{Id="Install"}
+    $global:Product = @{Id="Command"}
     . $PSScriptRoot\definitions.ps1
 
     psPref -Quiet
