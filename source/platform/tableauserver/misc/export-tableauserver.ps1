@@ -214,8 +214,7 @@ function global:Export-TSSite {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = $global:tsRestApiConfig.ContentUrl,
-        [Parameter(Mandatory=$false)][string[]]$Project
+        [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = $global:tsRestApiConfig.ContentUrl
     )
 
     $callStack = Get-PSCallStack
@@ -279,16 +278,7 @@ function global:Export-TSSite {
         Write-End groups
 
         Write-Start projects
-        $projectParams = @{
-            Users = $Users
-            Groups = $Groups
-        }
-        if ($Project) {
-            $projectParams += @{
-                FilterExpression = "name:in:[$([System.Web.HttpUtility]::UrlDecode($Project -join ", "))]"
-            }
-        }
-        $projects = Get-TSProjects+ @params
+        $projects = Get-TSProjects+ @projectParams
         $projects | Export-TSObject Site projects
         Write-End projects
 
