@@ -125,8 +125,9 @@ class Heartbeat {
     # [bool]$ReportEnabled 
     [DateTime]$PreviousReport
     [TimeSpan]$SincePreviousReport    
-    [bool]$IsOK
+    [bool]$IsOKCurrent
     [bool]$IsOKPrevious
+    [bool]$IsOK
     # [bool]$FlapDetectionEnabled
     # [timespan]$FlapDetectionPeriod
     [string]$RollupStatus

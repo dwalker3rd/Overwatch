@@ -37,6 +37,7 @@ $action = $null; $target = $null; $status = $null
     }
 
     $platformStatus = Get-PlatformStatus 
+    $heartbeat = Get-Heartbeat
 
     # abort if platform is stopped or if a platform event is in progress
     if ($platformStatus.IsStopped -or ($platformStatus.Event -and !$platformStatus.EventHasCompleted)) {
@@ -54,8 +55,8 @@ $action = $null; $target = $null; $status = $null
         return
     }
 
-    # abort if platform status is not ok
-    If (!$platformStatus.IsOK) {
+    # abort if heartbeat indicates status is not ok
+    If (!$heartbeat.IsOK) {
         $action = "Cache"; $target = "AzureAD\$($tenantKeys[0])"; $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force

@@ -63,9 +63,6 @@ function global:Send-PlatformStatusMessage {
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     Write-Log -EntryType "Debug" -Action "Send-PlatformStatusMessage" -Target "Platform" -Message ($MessageType | ConvertTo-Json)
 
-    # $platformStatus = Get-PlatformStatus
-    # $platformTopology = Get-PlatformTopology
-
     $sections = @(
         @{
             ActivityTitle = $global:Platform.DisplayName
@@ -104,40 +101,36 @@ function global:Send-PlatformStatusMessage {
         $sections += $section
 
     }
-
-    # if (!$PlatformStatus.IsOK -or $ShowAll) {
         
-        foreach ($node in (Get-PlatformTopology nodes -Online -Keys)) {
+    foreach ($node in (Get-PlatformTopology nodes -Online -Keys)) {
 
-            $serverInfo = Get-ServerInfo -ComputerName $node
+        $serverInfo = Get-ServerInfo -ComputerName $node
 
-            $serverPerf = Measure-ServerPerformance $node -MaxSamples 5
-            $cpuUtil = $serverPerf | Where-Object {$_.Counter -eq "PercentProcessorTime"}
-            $memTotal = "$([math]::Round($serverInfo.TotalPhysicalMemory/1gb,0)) GB"
-            $memAvailable = $serverPerf | Where-Object {$_.Counter -eq "AvailableBytes"}
-            # $memUtil = [math]::Round((($memTotal-$memAvailable.Value)/$memTotal)*100,0)
+        $serverPerf = Measure-ServerPerformance $node -MaxSamples 5
+        $cpuUtil = $serverPerf | Where-Object {$_.Counter -eq "PercentProcessorTime"}
+        $memTotal = "$([math]::Round($serverInfo.TotalPhysicalMemory/1gb,0)) GB"
+        $memAvailable = $serverPerf | Where-Object {$_.Counter -eq "AvailableBytes"}
+        # $memUtil = [math]::Round((($memTotal-$memAvailable.Value)/$memTotal)*100,0)
 
-            $facts = @(
+        $facts = @(
 
-                # status facts are platform-dependent
-                Build-StatusFacts -PlatformStatus $PlatformStatus -Node $node -ShowAll:$ShowAll
+            # status facts are platform-dependent
+            Build-StatusFacts -PlatformStatus $PlatformStatus -Node $node -ShowAll:$ShowAll
 
-            )  
+        )  
 
-            if ($facts) {
-                $section = @{
-                    ActivityTitle = "**$($node)**"
-                    ActivitySubTitle = "$($serverInfo.WindowsProductName), $($serverInfo.Model)"
-                    ActivityText = "Performance: $($global:NumberWords.($serverInfo.NumberOfLogicalProcessors.ToString())) ($($serverInfo.NumberOfLogicalProcessors)) cores at $($cpuUtil.Text) utilization; $($memAvailable.Text) of $($memTotal) available"
-                    ActivityImage = $global:OS.Image
-                    Facts = $facts
-                }
-                $sections += $section
+        if ($facts) {
+            $section = @{
+                ActivityTitle = "**$($node)**"
+                ActivitySubTitle = "$($serverInfo.WindowsProductName), $($serverInfo.Model)"
+                ActivityText = "Performance: $($global:NumberWords.($serverInfo.NumberOfLogicalProcessors.ToString())) ($($serverInfo.NumberOfLogicalProcessors)) cores at $($cpuUtil.Text) utilization; $($memAvailable.Text) of $($memTotal) available"
+                ActivityImage = $global:OS.Image
+                Facts = $facts
             }
+            $sections += $section
         }
-
-    # }
-
+    }
+    
     $msg = @{
         Sections = $sections
         Title = $global:Product.TaskName

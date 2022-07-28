@@ -63,6 +63,7 @@ function Assert-SyncError {
     }
 
     $platformStatus = Get-PlatformStatus 
+    $heartbeat = Get-Heartbeat
 
     # abort if platform is stopped or if a platform event is in progress
     if ($platformStatus.IsStopped -or ($platformStatus.Event -and !$platformStatus.EventHasCompleted)) {
@@ -80,8 +81,8 @@ function Assert-SyncError {
         return
     }
 
-    # abort if platform status is not ok
-    If (!$platformStatus.IsOK) {
+    # abort if heartbeat indicates status is not ok
+    If (!$heartbeat.IsOK) {
         $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force

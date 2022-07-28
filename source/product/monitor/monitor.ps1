@@ -121,14 +121,14 @@ Open-Monitor
 
     Write-Host+ -NoTrace "  Platform Status" -ForegroundColor Gray
     $message = "<    Current <.>48> $($platformStatus.RollupStatus)"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" )
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOKCurrent ? "DarkGreen" : "DarkRed" )
     if ($heartbeat.Current -ne [datetime]::MinValue) {
         $message = "<    $($heartbeat.Current.ToString("u")) <.>48> $($heartbeat.RollupStatus)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" )
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOKCurrent ? "DarkGreen" : "DarkRed" )
     }
     if ($heartbeat.Previous -ne [datetime]::MinValue) {
         $message = "<    $($heartbeat.Previous.ToString("u")) <.>48> $($heartbeat.RollupStatusPrevious)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "DarkRed" )
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOKCurrent ? "DarkGreen" : "DarkRed" )
     } 
     Write-Host+
 
@@ -163,7 +163,7 @@ Open-Monitor
     
     # current status OK, previous status OK, previous status before that OK
     # set heartbeat and return
-    if ($platformStatus.IsOK -and $heartbeat.IsOK -and $heartbeat.IsOKPrevious) {
+    if ($platformStatus.IsOK -and $heartbeat.IsOKCurrent -and $heartbeat.IsOKPrevious) {
 
         if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
             $message = "<  State change (none) <.>48> OK => OK"
@@ -195,7 +195,7 @@ Open-Monitor
 
         # current status OK, previous status OK, previous status before that NOTOK
         # set heartbeat, proceed with all clear
-        if ($platformStatus.IsOK -and $heartbeat.IsOK -and !$heartbeat.IsOKPrevious) {
+        if ($platformStatus.IsOK -and $heartbeat.IsOKCurrent -and !$heartbeat.IsOKPrevious) {
 
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
                 $message = "<  State change (none) <.>48> OK => OK"
@@ -209,7 +209,7 @@ Open-Monitor
         # OK => NOT OK
         # platform state is flapping (even if this is the first state transition)
         # no alert until NOT OK state duration exceeds flap detection period
-        if (!$platformStatus.IsOK -and $heartbeat.IsOK) {
+        if (!$platformStatus.IsOK -and $heartbeat.IsOKCurrent) {
 
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
                 $message = "<  State change <.>48> OK => NOT OK"
@@ -225,7 +225,7 @@ Open-Monitor
         # NOT OK => OK
         # althought this is a state transition from NOT OK => OK, the platform state is still flapping
         # no all clear required
-        if ($platformStatus.IsOK -and !$heartbeat.IsOK) {
+        if ($platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
             
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
                 $message = "<  State change <.>48> NOT OK => OK"
@@ -242,7 +242,7 @@ Open-Monitor
         # platform state is no longer flapping but is consistent
         # check if NOT OK state duration exceeds flap detection period
         # no alert until NOT OK state duration exceeds flap detection period
-        if (!$platformStatus.IsOK -and !$heartbeat.IsOK) {
+        if (!$platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
             
             if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
                 $message = "<  State change (none) <.>48> NOT OK => NOT OK"
@@ -276,7 +276,7 @@ Open-Monitor
     else { 
         # no flap detection, state transition from NOT OK => OK
         # set heartbeat, proceed with all clear
-        if ($platformStatus.IsOK -and !$heartbeat.IsOK) {
+        if ($platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
             Set-Heartbeat -PlatformStatus $platformStatus | Out-Null
         }    
     }
@@ -321,8 +321,8 @@ Open-Monitor
 
     # determine message type
     $messageType = $PlatformMessageType.Information
-    if ($global:Product.Config.FlapDetectionEnabled -and $platformStatus.IsOK -and $heartbeat.IsOK -and !$heartbeat.IsOKPrevious) { $messageType = $PlatformMessageType.AllClear }
-    if (!$global:Product.Config.FlapDetectionEnabled -and $platformStatus.IsOK -and !$heartbeat.IsOK) { $messageType = $PlatformMessageType.AllClear }
+    if ($global:Product.Config.FlapDetectionEnabled -and $platformStatus.IsOK -and $heartbeat.IsOKCurrent -and !$heartbeat.IsOKPrevious) { $messageType = $PlatformMessageType.AllClear }
+    if (!$global:Product.Config.FlapDetectionEnabled -and $platformStatus.IsOK -and !$heartbeat.IsOKCurrent) { $messageType = $PlatformMessageType.AllClear }
     if (!$platformStatus.IsOK) { $messageType = $PlatformMessageType.Alert }
 
     # $entryType = switch ($messageType) {

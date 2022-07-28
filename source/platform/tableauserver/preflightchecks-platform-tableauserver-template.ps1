@@ -5,8 +5,8 @@ Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 Test-Connections
 Test-PSRemoting
 
-$platformStatus = Get-PlatformStatus
-if ($platformStatus.IsOK) {
+$heartbeat = Get-Heartbeat
+if ($heartbeat.IsOK) {
     Test-TsmController
     Confirm-PlatformLicenses
     Test-SslProtocol $global:Platform.Uri.Host 

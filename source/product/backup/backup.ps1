@@ -31,14 +31,20 @@ $global:Product = @{Id="Backup"}
 #endregion SERVER
 #region PLATFORM
 
-    # check for platform stop/start/restart events
-    $return = $false
-    $platformStatus = Get-PlatformStatus 
-    $return = $platformStatus.RollupStatus -in @("Stopped","Stopping","Starting","Restarting") -or $platformStatus.Event
-    if ($return) {
-        $message = "Exiting due to platform status: $($platformStatus.RollUpStatus)"
+$platformStatus = Get-PlatformStatus 
+
+    # abort if platform is stopped or if a platform event is in progress
+    if ($platformStatus.IsStopped -or ($platformStatus.Event -and !$platformStatus.EventHasCompleted)) {
+        $action = "Cleanup"; $target = $global.Platform.Id; $status = "Aborted"
+        $message = "$($global:Product.Id) $($status.ToLower()) because "
+        if ($platformStatus.IsStopped) {
+            $message += "$($Platform.Name) is STOPPED"
+        }
+        else {
+            $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
+        }
+        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
         return
     }
 

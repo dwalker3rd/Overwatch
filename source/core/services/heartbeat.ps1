@@ -17,10 +17,12 @@ Maintains heartbeat timers and status.
 [datetime] The time at which the previous status report occurred.
 .Parameter SincePreviousReport
 [timespan] The time since the previous status report occurred.
-.Parameter IsOK
-[bool] [bool] Flag which indicates whether the platform status was OK or NOTOK during the previous Monitor check.
+.Parameter IsOKCurrent
+[bool] [bool] Flag which indicates whether the current platform status was OK or NOTOK during the previous Monitor check.
 .Parameter IsOKPrevious
 Flag which indicates whether the previous platform status was OK or NOTOK during the previous Monitor check.
+.Parameter IsOK
+Flag which is the logical AND of IsOKCurrent and IsOKPrevious
 .Parameter FlapDetectionEnabled
 [bool] Flag which indicates whether Overwatch uses flap detection to avoid reporting rapid state changes.  
 .Parameter FlapDetectionPeriod
@@ -61,8 +63,9 @@ function global:Set-Heartbeat {
 
     $heartbeat = Get-Heartbeat
     $heartbeat.Previous = Get-Date
-    $heartbeat.IsOKPrevious = $heartbeat.IsOK
-    $heartbeat.IsOK = $PlatformStatus.IsOK
+    $heartbeat.IsOKPrevious = $heartbeat.IsOKCurrent
+    $heartbeat.IsOKCurrent = $PlatformStatus.IsOK
+    $heartbeat.IsOK = $heartbeat.IsOKCurrent -and $heartbeat.IsOKPrevious
     $heartbeat.RollupStatusPrevious = $heartbeat.RollupStatus
     $heartbeat.RollupStatus = $PlatformStatus.RollupStatus
 

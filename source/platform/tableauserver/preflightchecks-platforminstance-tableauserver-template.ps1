@@ -5,8 +5,8 @@ if ($trustedHosts) {
 
     Test-Connections $trustedHosts
 
-    $platformStatus = Get-PlatformStatus
-    if ($platformStatus.IsOK) {
+    $heartbeat = Get-Heartbeat
+    if ($heartbeat.IsOK) {        
         Test-RepositoryAccess $trustedHosts
     }
     else {
