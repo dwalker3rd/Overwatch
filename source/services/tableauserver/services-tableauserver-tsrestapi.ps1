@@ -806,8 +806,8 @@ function global:Invoke-TSRestApiMethod {
         }
         Write-Host+ $errorMessage -ForegroundColor Red
         Write-Log -Action $Method -Status "Error" -EntryType "Error" -Message $errorMessage
-        # return $response, $null, $responseError
-        throw $errorMessage
+        return $response, $null, $responseError
+        # throw $errorMessage
     }
 
     $pagination = [ordered]@{
