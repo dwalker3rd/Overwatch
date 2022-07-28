@@ -1853,12 +1853,14 @@ function global:Get-TSProjects+ {
     param(
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
-        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects)
+        [Parameter(Mandatory=$false)][object]$Projects,
+        [Parameter(Mandatory=$false)][string]$FilterExpression
     )
 
     if (!$Projects) {
-        # Write-Host+ "No projects found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
-        return
+        $params = @{}
+        if ($FilterExpression) { $params += @{ FilterExpression = $FilterExpression } }
+        $Projects = Get-TSProjects @params
     }
 
     $projectPermissions = Get-TSProjectPermissions+ -Users $Users -Groups $Groups -Projects $Projects
@@ -1882,9 +1884,11 @@ function global:Get-TSProjects+ {
 function global:Get-TSProjects {
 
     [CmdletBinding()]
-    param()
+    param(
+        [Parameter(Mandatory=$false)][string]$FilterExpression
+    )
 
-    return Get-TSObjects -Method GetProjects
+    return Get-TSObjects -Method GetProjects -FilterExpression $FilterExpression
 
 }
 

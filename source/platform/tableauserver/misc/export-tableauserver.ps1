@@ -146,9 +146,9 @@ function global:Export-TSServer {
     )
 
     # is the server export/download directory locked?
-    if (Test-Path "$($global:Location.Data)\.export\inuse.lock") {
+    if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock") {
 
-        $inuseMeta = Get-Content "$($global:Location.Data)\.export\inuse.lock"
+        $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock"
         $inuseDateTime = ($inuseMeta.Split(","))[0]
         $inuseUsername = ($inuseMeta.Split(","))[1]
         
@@ -159,9 +159,9 @@ function global:Export-TSServer {
 
     # is any site's export/downlaod directory locked?
     foreach ($site in Get-TSSites) {
-        if (Test-Path "$($global:Location.Data)\.export\$($site.contentUrl)\inuse.lock") {
+        if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$($site.contentUrl)\inuse.lock") {
 
-            $inuseMeta = Get-Content "$($global:Location.Data)\.export\$($site.contentUrl)\inuse.lock"
+            $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$($site.contentUrl)\inuse.lock"
             $inuseDateTime = ($inuseMeta.Split(","))[0]
             $inuseUsername = ($inuseMeta.Split(","))[1]
             
@@ -174,10 +174,10 @@ function global:Export-TSServer {
     try {
 
         # remove all files from the server's export/download directory
-        Remove-Item "$($global:Location.Data)\.export\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\*" -Recurse -Force -ErrorAction SilentlyContinue
 
         # set the server lock file with the current datetime and user
-        Set-Content "$($global:Location.Data)\.export\inuse.lock" -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
+        Set-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock" -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
 
         Write-Host+ -ResetAll
         Write-Host+
@@ -203,7 +203,7 @@ function global:Export-TSServer {
     catch {}
     finally {
         # remove the server's export/download directory lock file
-        Remove-Item "$($global:Location.Data)\.export\inuse.lock" -force
+        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock" -force
     }
 
 }
@@ -214,7 +214,8 @@ function global:Export-TSSite {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = $global:tsRestApiConfig.ContentUrl
+        [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = $global:tsRestApiConfig.ContentUrl,
+        [Parameter(Mandatory=$false)][string[]]$Project
     )
 
     $callStack = Get-PSCallStack
@@ -222,9 +223,9 @@ function global:Export-TSSite {
     if ($caller -ne "Export-TSServer") {
 
         # is the server's export/download directory locked?
-        if (Test-Path "$($global:Location.Data)\.export\inuse.lock") {
+        if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock") {
 
-            $inuseMeta = Get-Content "$($global:Location.Data)\.export\inuse.lock"
+            $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock"
             $inuseDateTime = ($inuseMeta.Split(","))[0]
             $inuseUsername = ($inuseMeta.Split(","))[1]
             
@@ -236,9 +237,9 @@ function global:Export-TSSite {
     }
 
     # is this site's export/download directory locked?
-    if (Test-Path "$($global:Location.Data)\.export\$(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")\inuse.lock") {
+    if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")\inuse.lock") {
 
-        $inuseMeta = Get-Content "$($global:Location.Data)\.export\$ContentUrl\inuse.lock"
+        $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\inuse.lock"
         $inuseDateTime = ($inuseMeta.Split(","))[0]
         $inuseUsername = ($inuseMeta.Split(","))[1]
         
@@ -250,11 +251,11 @@ function global:Export-TSSite {
     try {
 
         # remove all files from this site's download/export directory
-        Remove-Item "$($global:Location.Data)\.export\$ContentUrl\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\*" -Recurse -Force -ErrorAction SilentlyContinue
 
         # set this site's export/download directory's lock file with current datetime and user
-        if (!(Test-Path "$($global:Location.Data)\.export\$ContentUrl")) { New-Item -ItemType Directory -Path "$($global:Location.Data)\.export\$ContentUrl" | Out-Null }
-        Set-Content "$($global:Location.Data)\.export\$ContentUrl\inuse.lock" -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
+        if (!(Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl")) { New-Item -ItemType Directory -Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl" | Out-Null }
+        Set-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\inuse.lock" -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
         
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace "Site: $(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")"
@@ -278,7 +279,16 @@ function global:Export-TSSite {
         Write-End groups
 
         Write-Start projects
-        $projects = Get-TSProjects+ -Users $Users -Groups $Groups
+        $projectParams = @{
+            Users = $Users
+            Groups = $Groups
+        }
+        if ($Project) {
+            $projectParams += @{
+                FilterExpression = "name:in:[$([System.Web.HttpUtility]::UrlDecode($Project -join ", "))]"
+            }
+        }
+        $projects = Get-TSProjects+ @params
         $projects | Export-TSObject Site projects
         Write-End projects
 
@@ -334,7 +344,7 @@ function global:Export-TSSite {
     finally {
 
         # remove this site's export/download directory lock file
-        Remove-Item "$($global:Location.Data)\.export\$ContentUrl\inuse.lock" -force
+        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\inuse.lock" -force
 
     }
 }
