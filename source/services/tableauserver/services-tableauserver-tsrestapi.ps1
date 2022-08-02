@@ -744,9 +744,9 @@ function global:Invoke-TSRestApiMethod {
             summary = "Unauthorized Access"
             detail = "Invalid authentication credentials were provided"
         }
-        $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        Write-Host+ $errorMessage -ForegroundColor Red
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
+        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        # Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
         return $null, $null, $responseError
     }
 
@@ -800,12 +800,12 @@ function global:Invoke-TSRestApiMethod {
     }
 
     if ($responseError) {
-        $errorMessage = $responseError
-        if ($responseError.code) {
-            $errorMessage = "Error $($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
-        }
-        Write-Host+ $errorMessage -ForegroundColor Red
-        Write-Log -Action $Method -Status "Error" -EntryType "Error" -Message $errorMessage
+        # $errorMessage = $responseError
+        # if ($responseError.code) {
+        #     $errorMessage = "Error $($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
+        # }
+        # Write-Host+ $errorMessage -ForegroundColor Red
+        # Write-Log -Action $Method -Status "Error" -EntryType "Error" -Message $errorMessage
         return $response, $null, $responseError
         # throw $errorMessage
     }
@@ -870,7 +870,7 @@ function global:Download-TSObject {
     }
 
     if (!$InputObject -and !$Params) {
-        throw "One of the `"InputObject`" or `"Params`" parameters must be specified"
+        throw "ERROR: `"InputObject`" or `"Params`" parameters must be specified"
     }
 
     $objectType = $global:tsRestApiConfig.Method.$Method.Response.Keys.Split(".")[-1]
@@ -1475,12 +1475,17 @@ function global:Get-TSCurrentSite {
 
 function global:Find-TSSite {
     param(
-        [Parameter(Mandatory=$false)][object]$Sites = (Get-TSSites),
+        [Parameter(Mandatory=$false)][object]$Site,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$ContentUrl,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($ContentUrl)) {
+        Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$ContentUrl are null." -ForegroundColor Red
+        return
+    }
+    if (!$Site) { $Site = Get-TSSites }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -1544,11 +1549,16 @@ function global:Get-TSCurrentUser {
 
 function global:Find-TSUser {
     param(
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Users,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name)) {
+        Write-Host+ "ERROR: The search parameters `$Id and `$Name are null." -ForegroundColor Red
+        return
+    }
+    if (!$Users) { $Users  = Get-TSUsers }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -1762,11 +1772,16 @@ function global:Get-TSGroups {
 
 function global:Find-TSGroup {
     param(
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Groups,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name)) {
+        Write-Host+ "ERROR: The search parameters `$Id and `$Name are null." -ForegroundColor Red
+        return
+    }
+    if (!$Groups) { $Groups = Get-TSGroups }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -1893,16 +1908,24 @@ function global:Get-TSProjects {
 }
 
 function global:Find-TSProject {
+    
     param(
-        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][object]$Projects,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name)) {
+        Write-Host+ "ERROR: The search parameters `$Id and `$Name are null." -ForegroundColor Red
+        return
+    }
+    if (!$Projects) { $Projects = Get-TSProjects+ }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
     return Find-TSObject -Type "Project" -Projects $Projects @params
+
 }
 
 function global:Get-TSProjectPermissions+ {
@@ -2357,12 +2380,17 @@ function global:Get-TSWorkbookConnections {
 
 function global:Find-TSWorkbook {
     param(
-        [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks),
+        [Parameter(Mandatory=$false)][object]$Workbooks,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][object]$Owner,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($Owner)) {
+        Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$Owner are null." -ForegroundColor Red
+        return
+    }
+    if (!$Workbooks) { $Workbooks  = Get-TSWorkbooks }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -2411,7 +2439,9 @@ function global:Get-TSWorkbookPermissions {
         [Parameter(Mandatory=$true,Position=0)][object]$Workbook
     )
 
+    if ($Workbook.location.type -eq "PersonalSpace") { return }
     return Get-TSObjects -Method GetWorkbookPermissions -Params @($Workbook.Id)
+
 }
 
 function global:Add-TSWorkbookPermissions {
@@ -2559,12 +2589,17 @@ function global:Get-TSViews {
 
 function global:Find-TSView {
     param(
-        [Parameter(Mandatory=$false)][object]$Views = (Get-TSViews),
+        [Parameter(Mandatory=$false)][object]$Views,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][object]$Owner,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($Owner)) {
+        Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$Owner are null." -ForegroundColor Red
+        return
+    }
+    if (!$Views) { $Views = Get-TSViews }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -2775,12 +2810,17 @@ function global:Get-TSDataSourceConnections {
 
 function global:Find-TSDatasource {
     param(
-        [Parameter(Mandatory=$false)][object]$Datasources = (Get-TSDatasources),
+        [Parameter(Mandatory=$false)][object]$Datasources,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][object]$Owner,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($Owner)) {
+        Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$Owner are null." -ForegroundColor Red
+        return
+    }
+    if (!$Datasources) { $Datasources = Get-TSDatasources }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -2963,12 +3003,17 @@ function global:Get-TSFlow {
 
 function global:Find-TSFlow {
     param(
-        [Parameter(Mandatory=$false)][object]$Flows = (Get-TSFlows),
+        [Parameter(Mandatory=$false)][object]$Flows,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][object]$Owner,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($Owner)) {
+        Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$Owner are null." -ForegroundColor Red
+        return
+    }
+    if (!$Flows) { $Flows = Get-TSFlows }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -3174,6 +3219,10 @@ function global:Find-TSFavorite {
         [Parameter(Mandatory=$false)][Alias("Label")][string]$Name,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
+    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name)) {
+        Write-Host+ "ERROR: The search parameters `$Id and `$Name are null." -ForegroundColor Red
+        return
+    }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
