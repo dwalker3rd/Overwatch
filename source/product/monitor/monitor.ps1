@@ -112,7 +112,7 @@ Open-Monitor
             Write-Host+ -MaxBlankLines 1
             Write-Host+ -NoTrace "  Heartbeat has been reset and is initializing"
             Write-Host+ -NoTrace "  Heartbeat initialization will complete in $passesRemaining cycle[s]"
-            Set-Heartbeat -PlatformStatus $platformStatus | Out-Null
+            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
             Close-Monitor
             return
         }
@@ -160,28 +160,6 @@ Open-Monitor
         }
     
     }
-    
-    # current status OK, previous status OK, previous status before that OK
-    # set heartbeat and return
-    if ($platformStatus.IsOK -and $heartbeat.IsOKCurrent -and $heartbeat.IsOKPrevious) {
-
-        if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-            $message = "<  State change (none) <.>48> OK => OK"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGreen
-        }
-
-        if ($reportHeartbeat) {
-            Set-Heartbeat -PlatformStatus $platformStatus -Reported | Out-Null
-            Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat
-        }
-        else {
-            Set-Heartbeat -PlatformStatus $platformStatus | Out-Null        
-        }
-
-        Close-Monitor
-        return
-        
-    }
 
     Write-Host+
     $message = "<  Flap Detection <.>48> $($global:Product.Config.FlapDetectionEnabled ? "Enabled" : "Disabled")"
@@ -193,6 +171,28 @@ Open-Monitor
         # when flap detection is enabled, ignore state flapping (OK => NOT OK; NOT OK => OK)
         # alerts are only triggered when the state has been NOT OK for the flap detection period
 
+        # current status OK, previous status OK, previous status before that OK
+        # set heartbeat and return
+        if ($platformStatus.IsOK -and $heartbeat.IsOKCurrent -and $heartbeat.IsOKPrevious) {
+
+            if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
+                $message = "<  State change (none) <.>48> OK => OK"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGreen
+            }
+
+            if ($reportHeartbeat) {
+                Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true -Reported | Out-Null
+                Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat
+            }
+            else {
+                Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null        
+            }
+
+            Close-Monitor
+            return
+            
+        }
+
         # current status OK, previous status OK, previous status before that NOTOK
         # set heartbeat, proceed with all clear
         if ($platformStatus.IsOK -and $heartbeat.IsOKCurrent -and !$heartbeat.IsOKPrevious) {
@@ -202,7 +202,7 @@ Open-Monitor
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGreen
             }
 
-            Set-Heartbeat -PlatformStatus $platformStatus | Out-Null        
+            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null        
             
         }
 
@@ -216,7 +216,7 @@ Open-Monitor
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
             }
 
-            Set-Heartbeat -PlatformStatus $platformStatus | Out-Null
+            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
             Close-Monitor
             return
 
@@ -232,7 +232,7 @@ Open-Monitor
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
             }
 
-            Set-Heartbeat -PlatformStatus $platformStatus | Out-Null
+            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
             Close-Monitor
             return 
 
@@ -269,16 +269,28 @@ Open-Monitor
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
                 # Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType $entryType -Force
 
+                Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $false | Out-Null
+
             }
 
         }          
     }
-    else { 
-        # no flap detection, state transition from NOT OK => OK
+    else {
+        
+        # no flap detection
+
+        # state transition from OK => NOT OK
         # set heartbeat, proceed with all clear
         if ($platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
-            Set-Heartbeat -PlatformStatus $platformStatus | Out-Null
+            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $false | Out-Null
         }    
+
+        # state transition from NOT OK => OK
+        # set heartbeat, proceed with all clear
+        if ($platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
+            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
+        }   
+
     }
 
     # platform is stopped

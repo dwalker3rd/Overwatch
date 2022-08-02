@@ -33,6 +33,24 @@ Flag which is the logical AND of IsOKCurrent and IsOKPrevious
 [string] Previous platform status description
 #>
 
+function Get-HeartbeatSettings {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][object]$Heartbeat
+    )
+
+    $monitor = Get-Product "Monitor"
+    
+    $Heartbeat.ReportEnabled = $monitor.Config.ReportEnabled
+    $Heartbeat.ReportSchedule = $monitor.Config.ReportEnabled ? $monitor.Config.ReportSchedule :  [timespan]::Zero
+    $Heartbeat.FlapDetectionEnabled = $monitor.Config.FlapDetectionEnabled
+    $Heartbeat.FlapDetectionPeriod = $monitor.Config.FlapDetectionPeriod
+
+    return $Heartbeat
+
+}
+
 function global:Get-Heartbeat {
 
     [CmdletBinding()]
@@ -58,14 +76,19 @@ function global:Set-Heartbeat {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)][object]$PlatformStatus,
+        [Parameter(Mandatory=$true)][bool]$PlatformIsOK,
         [switch]$Reported
     )
 
     $heartbeat = Get-Heartbeat
+
+    # Refresh monitor config settings related to heartbeat
+    $heartbeat = Get-HeartbeatSettings -Heartbeat $heartbeat
+
     $heartbeat.Previous = Get-Date
     $heartbeat.IsOKPrevious = $heartbeat.IsOKCurrent
     $heartbeat.IsOKCurrent = $PlatformStatus.IsOK
-    $heartbeat.IsOK = $heartbeat.IsOKCurrent -and $heartbeat.IsOKPrevious
+    $heartbeat.IsOK = $PlatformIsOK
     $heartbeat.RollupStatusPrevious = $heartbeat.RollupStatus
     $heartbeat.RollupStatus = $PlatformStatus.RollupStatus
 
@@ -83,21 +106,17 @@ function global:Initialize-Heartbeat {
     [CmdletBinding()]
     param()
 
-    $now = Get-Date
-    # $monitor = Get-Product "Monitor"
-
     $heartbeat = [Heartbeat]@{
-        # ReportEnabled = $monitor.Config.ReportEnabled
-        # ReportSchedule = $monitor.Config.ReportEnabled ? $monitor.Config.ReportSchedule :  [timespan]::Zero
-        # FlapDetectionEnabled = $monitor.Config.FlapDetectionEnabled
-        # FlapDetectionPeriod = $monitor.Config.FlapDetectionPeriod
         PreviousReport = [datetime]::MinValue
-        Current = $now
+        Current = [datetime]::Now
         IsOK = $true
         IsOKPrevious = $true
         RollupStatus = "Pending"
         RollupStatusPrevious = "Pending"
     }
+
+    # Add monitor config settings related to heartbeat
+    $heartbeat = Get-HeartbeatSettings -Heartbeat $heartbeat
 
     $heartbeat | Write-Cache heartbeat
 

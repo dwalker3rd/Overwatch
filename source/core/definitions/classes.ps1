@@ -119,19 +119,19 @@ class Provider {
 }
 
 class Heartbeat {
-    [DateTime]$Current   
-    [DateTime]$Previous
-    # [object[]]$ReportSchedule
-    # [bool]$ReportEnabled 
-    [DateTime]$PreviousReport
-    [TimeSpan]$SincePreviousReport    
+    [bool]$IsOK 
+    [DateTime]$Current  
     [bool]$IsOKCurrent
-    [bool]$IsOKPrevious
-    [bool]$IsOK
-    # [bool]$FlapDetectionEnabled
-    # [timespan]$FlapDetectionPeriod
     [string]$RollupStatus
+    [DateTime]$Previous  
+    [bool]$IsOKPrevious
     [string]$RollupStatusPrevious
+    [bool]$FlapDetectionEnabled
+    [timespan]$FlapDetectionPeriod
+    [bool]$ReportEnabled 
+    [object[]]$ReportSchedule
+    [DateTime]$PreviousReport
+    [TimeSpan]$SincePreviousReport  
 }
     
 class PerformanceMeasurement {
