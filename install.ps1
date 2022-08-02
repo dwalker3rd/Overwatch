@@ -1,9 +1,13 @@
 #Requires -RunAsAdministrator
 #Requires -Version 7
 
+[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
 param (
     # [Parameter()][Alias("Update")][switch]$UpdateOverwatch
 )
+
+$global:WriteHostPlusPreference = "Continue"
 
 $emptyString = ""
 
@@ -164,12 +168,15 @@ Clear-Host
         $message = "<Control <.>24> SEARCHING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-        psPref -xpref -xpostf -xwhp -Quiet
-
-        $global:Product = @{Id="Install"}
-        . $PSScriptRoot\definitions.ps1
-
-        psPref -Quiet
+        try{
+            psPref -xpref -xpostf -xwhp -Quiet
+            $global:Product = @{Id="Command"}
+            . $PSScriptRoot\definitions.ps1
+        }
+        catch {}
+        finally {
+            psPref -Quiet
+        }
 
         $message = "$($emptyString.PadLeft(9,"`b"))$($Overwatch.DisplayName) "
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Blue
@@ -617,14 +624,17 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\services-$($operatingSystemId.ToLower())*.ps1 $PSScriptRoot\services
         Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services
 
+        $definitionsServices = "$PSScriptRoot\definitions\definitions-services.ps1"
+        $definitionsServicesUpdated = $false
+
         foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
             Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services
-            $definitionsServices = "$PSScriptRoot\definitions\definitions-services.ps1"
             Get-Item $servicesPath\services-$($platformPrerequisiteService.ToLower())*.ps1 | 
                 Foreach-Object {
                     $contentLine = ". `$servicesPath\$($_.Name)"
                     if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
                         Add-Content -Path $definitionsServices -Value $contentLine
+                        $definitionsServicesUpdated = $true
                     }
                 }
         }
@@ -632,13 +642,17 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         foreach ($productSpecificService in $productSpecificServices) {
             Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1 -ConfirmOverwrite
             Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\services-$($productSpecificService.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1
-            $definitionsServices = "$PSScriptRoot\definitions\definitions-services.ps1"
             $contentLine1 = ". `$definitionsPath\definitions-service-$($productSpecificService.ToLower()).ps1"
             $contentLine2 = ". `$servicesPath\services-$($productSpecificService.ToLower()).ps1"
             if (!(Select-String -Path $definitionsServices -Pattern $contentLine1 -SimpleMatch -Quiet)) {
                 Add-Content -Path $definitionsServices -Value $contentLine1
                 Add-Content -Path $definitionsServices -Value $contentLine2
+                $definitionsServicesUpdated = $true
             }
+        }
+
+        if ($definitionsServicesUpdated) {
+            Write-Host+ -NoTrace -NoTimestamp "Updated $definitionsServices" -ForegroundColor DarkGreen
         }
 
         Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\config-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1 -ConfirmOverwrite
@@ -755,12 +769,15 @@ Write-Host+ -ResetAll
     $message = "<Overwatch <.>48> INITIALIZING"
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-    psPref -xpref -xpostf -xwhp -Quiet
-
-    $global:Product = @{Id="Command"}
-    . $PSScriptRoot\definitions.ps1
-
-    psPref -Quiet
+    try{
+        psPref -xpref -xpostf -xwhp -Quiet
+        $global:Product = @{Id="Command"}
+        . $PSScriptRoot\definitions.ps1
+    }
+    catch {}
+    finally {
+        psPref -Quiet
+    }
 
     $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -950,12 +967,15 @@ Write-Host+ -ResetAll
                 $message = "<Overwatch <.>48> INITIALIZING"
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
             
-                psPref -xpref -xpostf -xwhp -Quiet
-            
-                $global:Product = @{Id="Install"}
-                . $PSScriptRoot\definitions.ps1
-            
-                psPref -Quiet
+                try{
+                    psPref -xpref -xpostf -xwhp -Quiet
+                    $global:Product = @{Id="Command"}
+                    . $PSScriptRoot\definitions.ps1
+                }
+                catch {}
+                finally {
+                    psPref -Quiet
+                }
             
                 $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
