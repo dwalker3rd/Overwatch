@@ -230,15 +230,12 @@
             [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60)
         ) 
 
-        Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
         $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
         $task = Get-PlatformTask -Id $Id 
         Write-Verbose "$($Id) $($task.Status)"
 
         # check if task is disabled
         if ($task.Status -in "Disabled") {
-            Write-Warning "$($Id) is already disabled."
             return $true
         }
 
@@ -278,7 +275,6 @@
 
         # check if task is disabled
         if ($task.Status -notin "Disabled") {
-            Write-Error "$($Id) is already enabled."
             return $true
         }
 
