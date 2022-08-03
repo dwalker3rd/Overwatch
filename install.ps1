@@ -69,6 +69,53 @@ function Install-Product {
     if (Test-Path -Path $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1) {. $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1}
 }
 
+function Disable-Product {
+    [CmdletBinding()]
+    Param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Context
+    )
+
+    $productToStop = Get-Product $Context -ResetCache     
+    $Name = $productToStop.Name 
+    $Publisher = $productToStop.Publisher
+
+    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))","PENDING"
+    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor Gray,DarkGray,DarkGray
+
+    $productIsStopped = Stop-PlatformTask -Id $productToStop.Id
+    $productIsDisabled = Disable-PlatformTask -Id $productToStop.Id
+    $productStatus = (Get-PlatformTask -Id $productToStop.Id).Status
+
+    $message = "$($emptyString.PadLeft(27,"`b"))$($productIsStopped ? "STOPPED" : "$($productStatus.ToUpper())")$($emptyString.PadLeft($($productIsStopped ? 13 : 20-$productStatus.Length)," "))PENDING"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor ($productIsStopped ? "DarkGreen" : "Red"),DarkGray
+
+    $message = "$($emptyString.PadLeft(7,"`b"))$($productStatus.ToUpper())"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($productIsDisabled ? "DarkGreen" : "Red")
+}
+
+function Enable-Product {
+    [CmdletBinding()]
+    Param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Context
+    )
+
+    $productToStart = Get-Product $Context -ResetCache     
+    $Name = $productToStart.Name 
+    $Publisher = $productToStart.Publisher
+
+    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","INSTALLED$($emptyString.PadLeft(11," "))","PENDING"
+    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor Gray,DarkGreen,DarkGray
+
+    $productIsEnabled = Enable-PlatformTask -Id $productToStart.Id
+    $productStatus = (Get-PlatformTask -Id $productToStart.Id).Status
+
+    $message = "$($emptyString.PadLeft(27,"`b"))INSTALLED$($emptyString.PadLeft(11," "))PENDING"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red"),DarkGray
+
+    $message = "$($emptyString.PadLeft(7,"`b"))$($productStatus.ToUpper())$($emptyString.PadLeft(20-$productStatus.Length)," ")"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red")
+}
+
 function Install-Provider {
     [CmdletBinding()]
     Param (
@@ -150,6 +197,7 @@ function global:Show-PostInstallConfig {
 }
 Set-Alias -Name postInstallConfig -Value Show-PostInstallConfig -Scope Global
 
+pspref -Quiet
 Clear-Host
 
 #region INSTALLATIONS
@@ -554,9 +602,34 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     $providerIds = $_providerIds
 
 #endregion PROVIDERS
+#region STOP INSTALLED PRODUCTS
+
+    if ($InstalledProducts) {
+
+        Write-Host+ -MaxBlankLines 1
+
+        $message = "<Installed Products <.>48> PENDING"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+        Write-Host+
+
+        $message = "  Product             Publisher           Status              Task"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+        $message = "  -------             ---------           ------              ----"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+
+        $installedProductsToDisable = $installedProducts | Where-Object {$_.HasTask}
+        $installedProductsToDisable | ForEach-Object { Disable-Product $_.Id }
+
+        Write-Host+
+        $message = "<Installed Products <.>48> SUCCESS"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+
+    }
+
+#endregion STOP INSTALLED PRODUCTS
 #region FILES
 
-    Write-Host+
+    Write-Host+ -MaxBlankLines 1
     Write-Host+ -NoTrace -NoTimestamp "Configuration Files" -ForegroundColor DarkGray
     Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
 
@@ -891,10 +964,9 @@ Write-Host+ -ResetAll
             }
 
         #endregion CONFIG
-
         #region PRODUCTS
 
-            if ($productIds) {
+            if ($productIds -or $installedProductsToDisable) {
 
                 Write-Host+ -MaxBlankLines 1
                 $message = "<Installing products <.>48> PENDING"
@@ -907,6 +979,7 @@ Write-Host+ -ResetAll
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
                 $productIds | ForEach-Object { Install-Product $_ }
+                $installedProductsToDisable | ForEach-Object { Enable-Product $_.Id }
                 
                 Write-Host+
                 $message = "<Installing products <.>48> SUCCESS"
@@ -938,11 +1011,6 @@ Write-Host+ -ResetAll
             }
 
         #endregion PROVIDERS
-        #region POST-INSTALLATION CONFIG
-
-            Show-PostInstallConfig
-
-        #endregion POST-INSTALLATION CONFIG
         #region SAVE SETTINGS
 
             if (Test-Path $installSettings) {Clear-Content -Path $installSettings}
@@ -982,7 +1050,12 @@ Write-Host+ -ResetAll
 
             }
         
-        #endregion INITIALIZE OVERWATCH        
+        #endregion INITIALIZE OVERWATCH 
+        #region POST-INSTALLATION CONFIG
+
+            Show-PostInstallConfig
+
+        #endregion POST-INSTALLATION CONFIG
 
         Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."

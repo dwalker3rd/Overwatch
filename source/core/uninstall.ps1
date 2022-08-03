@@ -213,6 +213,9 @@ function Uninstall-Overwatch { Remove-CoreFiles }
 
     if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
 
+        # this ensures the case is correct for the product
+        $Name = (Get-Product $Name).Id
+
         if ($global:Catalog.$Type.$Name.Installation.Flag -contains "UninstallProtected") {
             Write-Host+ -NoTrace "WARN: $Type `"$Name`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
             return
