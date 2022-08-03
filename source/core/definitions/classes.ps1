@@ -43,6 +43,7 @@ class Platform {
 class PlatformStatus {
     [bool]$IsOK
     [string]$RollupStatus
+    [object[]]$Issues
 
     [string]$Event
     [string]$EventReason
@@ -119,19 +120,18 @@ class Provider {
 }
 
 class Heartbeat {
-    [bool]$IsOK 
-    [DateTime]$Current  
-    [bool]$IsOKCurrent
-    [string]$RollupStatus
-    [DateTime]$Previous  
-    [bool]$IsOKPrevious
-    [string]$RollupStatusPrevious
+    [bool]$IsOK
+    [bool]$PlatformIsOK
+    [string]$PlatformRollupStatus
+    [bool]$PlatformAlert
+    [datetime]$TimeStamp
     [bool]$FlapDetectionEnabled
     [timespan]$FlapDetectionPeriod
     [bool]$ReportEnabled 
     [object[]]$ReportSchedule
     [DateTime]$PreviousReport
     [TimeSpan]$SincePreviousReport  
+    [object[]]$History
 }
     
 class PerformanceMeasurement {

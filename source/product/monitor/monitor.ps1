@@ -20,9 +20,9 @@ function Open-Monitor {
 }
 
 function Close-Monitor {
-    Write-Host+ -NoTrace ""
+    Write-Host+ -MaxBlankLines 1
     Write-Host+ -NoTrace "$($Product.Id)","...","DONE" -ForegroundColor DarkBlue,DarkGray,DarkGray
-    Write-Host+ -NoTrace ""
+    Write-Host+
 }
 
 function global:Send-MonitorMessage {
@@ -84,62 +84,78 @@ Open-Monitor
     $heartbeat = Get-Heartbeat
 
 #endregion GET STATUS
-#region PLATFORM CHECK
+#region PLATFORM EVENT
 
-    # abort if platform is stopped or if a platform event is in progress
-    if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-        $status = "Aborted"
-        $message = "$($global:Product.Id) $($status.ToLower()) because "
-        if ($platformStatus.IsStopped) {
-            $message += "$($Platform.Name) is STOPPED"
-        }
-        else {
-            $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
-        }
-        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
-        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
-        return
-    }
+    # platform is stopped
+    # if stop has exceeded stop timeout, call for intervention
+    if ($platformStatus.IsStopped) {
 
-#endregion PLATFORM CHECK
-#region MAIN
+        $message = "<  $($platformStatus.Event.ToUpper()) requested at <.>48> $($platformStatus.EventCreatedAt)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+        $message = "<  $($platformStatus.Event.ToUpper()) requested by <.>48> $($platformStatus.EventCreatedBy)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
 
-    # heartbeat is initializing:  set heartbeat, exit Monitor
-    if (($global:Product.Config.FlapDetectionEnabled -and $heartbeat.RollupStatusPrevious -eq "Pending") -or 
-        (!$global:Product.Config.FlapDetectionEnabled -and $heartbeat.RollupStatus -eq "Pending")) {
-            $passesRemaining = $global:Product.Config.FlapDetectionEnabled -and $heartbeat.RollupStatus -eq "Pending" ? 2 : 1
-            Write-Host+ -MaxBlankLines 1
-            Write-Host+ -NoTrace "  Heartbeat has been reset and is initializing"
-            Write-Host+ -NoTrace "  Heartbeat initialization will complete in $passesRemaining cycle[s]"
-            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
+        if (!$platformStatus.IsStoppedTimeout) {
+            Close-Monitor
+            return
+        } 
+        else {            
+            $status = "Intervention Required!"
+            $logMessage = "  $status : $($platformStatus.InterventionReason)"
+            Write-Log -Context $Product.Id -Action "Stop" -Target "Platform" -Status $status -Message $logMessage -EntryType "Warning" -Force
+            $message = "<  $status <.>48> $($platformStatus.InterventionReason)"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,Red
+            Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
             Close-Monitor
             return
         }
-    
-    # $entryType = $platformStatus.IsOK ? "Information" : "Error"
 
-    Write-Host+ -NoTrace "  Platform Status" -ForegroundColor Gray
-    $message = "<    Current <.>48> $($platformStatus.RollupStatus)"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOKCurrent ? "DarkGreen" : "DarkRed" )
-    if ($heartbeat.Current -ne [datetime]::MinValue) {
-        $message = "<    $($heartbeat.Current.ToString("u")) <.>48> $($heartbeat.RollupStatus)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOKCurrent ? "DarkGreen" : "DarkRed" )
     }
-    if ($heartbeat.Previous -ne [datetime]::MinValue) {
-        $message = "<    $($heartbeat.Previous.ToString("u")) <.>48> $($heartbeat.RollupStatusPrevious)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOKCurrent ? "DarkGreen" : "DarkRed" )
-    } 
+
+    # abort if platform is stopped or if a platform event is in progress
+    if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
+        $status = "Aborted"
+        $message = "$($global:Product.Id) $($status.ToLower()) because "
+        $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
+        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        return
+    }
+
+#endregion PLATFORM EVENT
+#region HEARTBEAT INIT
+
+    # heartbeat is initializing:  set heartbeat, exit Monitor
+    if ($heartbeat.PlatformRollupStatus -eq "Pending") {
+        $passesRemaining = $global:Product.Config.FlapDetectionEnabled -and $heartbeat.PlatformRollupStatus -eq "Pending" ? 2 : 1
+        Write-Host+ -MaxBlankLines 1
+        Write-Host+ -NoTrace "  Heartbeat has been reset and is initializing"
+        Write-Host+ -NoTrace "  Heartbeat initialization will complete in $passesRemaining cycle[s]"
+        Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null
+        Close-Monitor
+        return
+    }
+
+#endregion HEARTBEAT INIT
+#region MAIN
+
+    Write-Host+ -NoTrace "  Platform Status (Current)" -ForegroundColor Gray
+    $message = "<    IsOK <.>48> $($platformStatus.IsOK)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($platformStatus.IsOK ? "DarkGreen" : "Red" )
+    $message = "<    RollupStatus <.>48> $($platformStatus.RollupStatus)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($platformStatus.IsOK ? "DarkGreen" : "Red" )  
     Write-Host+
 
-    $platformEventStatusColor = $platformStatus.Event ? ($platformStatus.EventStatus -and $platformStatus.EventStatus -ne $PlatformEventStatus.Completed ? "DarkYellow" : "DarkGreen") : "DarkGray"
-    Write-Host+ -NoTrace "  Platform Event" -ForegroundColor Gray
-    $message = "<    Event <.>48> $("$($platformStatus.Event ? $($platformStatus.Event.ToUpper()) : "None")")"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$platformEventStatusColor
-    $message = "<    Status <.>48> $($($platformStatus.EventStatus ? $($platformStatus.EventStatus) : "None"))"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$platformEventStatusColor
-    $message = "<    Update <.>48> $($platformStatus.EventHasCompleted ? $platformStatus.EventCompletedAt : ($platformStatus.Event ? $platformStatus.EventUpdatedAt : "None"))"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$platformEventStatusColor
+    Write-Host+ -NoTrace "  Heartbeat (Previous)" -ForegroundColor Gray
+    $message = "<    IsOK <.>48> $($heartbeat.IsOK)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "Red" )
+    $message = "<    PlatformIsOK <.>48> $($heartbeat.PlatformIsOK)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
+    $message = "<    PlatformRollupStatus <.>48> $($heartbeat.PlatformRollupStatus)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
+    $message = "<    PlatformAlert <.>48> $($heartbeat.PlatformAlert ? "Alert" : "AllClear")"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformAlert ? "Red" : "DarkGreen" )
+    Write-Host+
 
     # check if time to send scheduled heartbeat report
     $reportHeartbeat = $false
@@ -148,7 +164,7 @@ Open-Monitor
         switch ($global:Product.Config.ReportSchedule.GetType().Name) {
             "ArrayList" {
                 foreach ($slot in $global:Product.Config.ReportSchedule) {
-                    if ($slot -gt $heartbeat.PreviousReport -and $slot -le $heartbeat.Current) {
+                    if ($slot -gt $heartbeat.PreviousReport -and $slot -le $heartbeat.TimeStamp) {
                         $reportHeartbeat = $true
                         break
                     }
@@ -161,7 +177,6 @@ Open-Monitor
     
     }
 
-    Write-Host+
     $message = "<  Flap Detection <.>48> $($global:Product.Config.FlapDetectionEnabled ? "Enabled" : "Disabled")"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($global:Product.Config.FlapDetectionEnabled ? "DarkGreen" : "DarkYellow")
 
@@ -171,21 +186,20 @@ Open-Monitor
         # when flap detection is enabled, ignore state flapping (OK => NOT OK; NOT OK => OK)
         # alerts are only triggered when the state has been NOT OK for the flap detection period
 
-        # current status OK, previous status OK, previous status before that OK
-        # set heartbeat and return
-        if ($platformStatus.IsOK -and $heartbeat.IsOKCurrent -and $heartbeat.IsOKPrevious) {
+        # HEARTBEAT
+        # platform status OK, heartbeat status OK, NOT in alert
+        # set heartbeat, send HEARTBEAT [report] at scheduled time
+        if ($platformStatus.IsOK -and $heartbeat.PlatformIsOK -and !$heartbeat.PlatformAlert) {
 
-            if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "<  State change (none) <.>48> OK => OK"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGreen
-            }
+            $message = "<  State assertion <.>48> OK"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
             if ($reportHeartbeat) {
-                Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true -Reported | Out-Null
+                Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true -Reported | Out-Null
                 Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat
             }
             else {
-                Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null        
+                Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null        
             }
 
             Close-Monitor
@@ -193,85 +207,43 @@ Open-Monitor
             
         }
 
-        # current status OK, previous status OK, previous status before that NOTOK
-        # set heartbeat, proceed with all clear
-        if ($platformStatus.IsOK -and $heartbeat.IsOKCurrent -and !$heartbeat.IsOKPrevious) {
+        # ALLCLEAR
+        # in alert, platform status OK, heartbeat status OK
+        # set heartbeat, send ALLCLEAR message
+        if ($platformStatus.IsOK -and $heartbeat.PlatformIsOK -and $heartbeat.PlatformAlert) {
 
-            if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "<  State change (none) <.>48> OK => OK"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGreen
-            }
+            $message = "<  State assertion <.>48> OK (ALLCLEAR)"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
-            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null        
+            Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null       
+            $messageType = $PlatformMessageType.AllClear
             
         }
 
-        # OK => NOT OK
-        # platform state is flapping (even if this is the first state transition)
-        # no alert until NOT OK state duration exceeds flap detection period
-        if (!$platformStatus.IsOK -and $heartbeat.IsOKCurrent) {
+        # FLAPPING
+        # set heartbeat, return
+        if ($platformStatus.IsOK -ne $heartbeat.PlatformIsOK) {
 
-            if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "<  State change <.>48> OK => NOT OK"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-            }
+            $message =  "<  State change <.>48> $($platformStatus.IsOK ? "NOT OK => OK" : "OK => NOT OK")"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
 
-            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
+            Set-Heartbeat -PlatformStatus $platformStatus -IsOK $heartbeat.IsOK | Out-Null
             Close-Monitor
             return
 
         }
 
-        # NOT OK => OK
-        # althought this is a state transition from NOT OK => OK, the platform state is still flapping
-        # no all clear required
-        if ($platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
-            
-            if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "<  State change <.>48> NOT OK => OK"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-            }
-
-            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
-            Close-Monitor
-            return 
-
-        } 
-
-        # current status NOT OK, previous status NOT OK 
+        # ALERT
+        # platform status NOT OK, heartbeat status NOT OK 
         # platform state is no longer flapping but is consistent
-        # check if NOT OK state duration exceeds flap detection period
-        # no alert until NOT OK state duration exceeds flap detection period
-        if (!$platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
-            
-            if ($VerbosePreference -eq "Continue" -or $global:DebugPreference -eq "Continue") {
-                $message = "<  State change (none) <.>48> NOT OK => NOT OK"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-            }
+        # set heartbeat, send alert
+        if (!$platformStatus.IsOK -and !$heartbeat.PlatformIsOK) {
 
-            # NOT OK state has NOT exceeded the flap detection period
-            # no alert until NOT OK state duration exceeds flap detection period
-            if ((Get-Date)-$heartbeat.Previous -lt $global:Product.Config.FlapDetectionPeriod) {
+            $message = "<  State assertion <.>48> NOT OK (ALERT)"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,Red
 
-                $message = "<  State assertion <.>48> $(((Get-Date)-$heartbeat.Previous).Minutes)m $(((Get-Date)-$heartbeat.Previous).Seconds)s remaining"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-                # Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status "Pending" -Message $message -EntryType $entryType -Force
-                
-                Close-Monitor
-                return 
-
-            }
-            # NOT OK state has exceeded the flap detection period
-            # proceed with alert
-            else {
-
-                $message = "<  State assertion <.>48> NOT OK"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
-                # Write-Log -Context $Product.Id -Action "Flap Detection" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType $entryType -Force
-
-                Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $false | Out-Null
-
-            }
+            Set-Heartbeat -PlatformStatus $platformStatus -IsOK $false | Out-Null
+            $messageType = $PlatformMessageType.Alert
 
         }          
     }
@@ -279,73 +251,59 @@ Open-Monitor
         
         # no flap detection
 
+        # HEARTBEAT
+        # platform status OK
+        # set heartbeat, send HEARTBEAT [report] at scheduled time
+        if ($platformStatus.IsOK -and $heartbeat.PlatformIsOK) {
+
+            $message = "<  State assertion <.>48> OK"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+            if ($reportHeartbeat) {
+                Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true -Reported | Out-Null
+                Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat
+            }
+            else {
+                Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null        
+            }
+
+            Close-Monitor
+            return
+            
+        }
+
         # state transition from OK => NOT OK
-        # set heartbeat, proceed with all clear
-        if ($platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
-            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $false | Out-Null
-        }    
+        # set heartbeat, proceed with alert
+        if (!$platformStatus.IsOK -and $heartbeat.PlatformIsOK) {
+            Set-Heartbeat -PlatformStatus $platformStatus -IsOK $false | Out-Null
+            $messageType = $PlatformMessageType.Alert
+        }   
 
         # state transition from NOT OK => OK
         # set heartbeat, proceed with all clear
-        if ($platformStatus.IsOK -and !$heartbeat.IsOKCurrent) {
-            Set-Heartbeat -PlatformStatus $platformStatus -PlatformIsOK $true | Out-Null
-        }   
+        if ($platformStatus.IsOK -and !$heartbeat.PlatformIsOK) {
+            Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null
+            $messageType = $PlatformMessageType.AllClear
+        }    
 
     }
 
-    # platform is stopped
-    # if stop has exceeded stop timeout, set intervention flag
-    if ($platformStatus.IsStopped) {
-
-        $message = "<  $($platformStatus.Event.ToUpper()) requested at <.>48> $($platformStatus.EventCreatedAt)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-        $message = "<  $($platformStatus.Event.ToUpper()) requested by <.>48> $($platformStatus.EventCreatedBy)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-
-        if (!$platformStatus.IsStoppedTimeout) {
-            Close-Monitor
-            return
-        } 
-        else {
-            $platformStatus.Intervention = $true
-        }
-
+    $heartbeat = Get-Heartbeat
+    if (compare-object $heartbeat.history[0] $heartbeat.history[1] -property IsOK,PlatformIsOK,PlatformRollupStatus) {
+        Write-Host+ -MaxBlankLines 1
+        Write-Host+ -NoTrace "  Heartbeat (Current)" -ForegroundColor Gray
+        $message = "<    IsOK <.>48> $($heartbeat.IsOK)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.IsOK ? "DarkGreen" : "Red" )
+        $message = "<    PlatformIsOK <.>48> $($heartbeat.PlatformIsOK)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
+        $message = "<    PlatformRollupStatus <.>48> $($heartbeat.PlatformRollupStatus)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
+        $message = "<    PlatformAlert <.>48> $($heartbeat.PlatformAlert ? "Alert" : "AllClear")"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformAlert ? "Red" : "DarkGreen" )
     }
-
-    # message/log when platform event is active
-    if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
-        $message = "<  $($platformStatus.Event.ToUpper()) <.>48> $($platformStatus.EventStatus.ToUpper())"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-    }
-
-    # if intervention flag has been set, request/signal intervention
-    # intervention signal/request sent by Send-TaskMessage
-    if ($platformStatus.Intervention) {
-        $status = "Intervention Required!"
-        $logMessage = "  $status : $($platformStatus.InterventionReason)"
-        Write-Log -Context $Product.Id -Action "Stop" -Target "Platform" -Status $status -Message $logMessage -EntryType "Warning" -Force
-        $message = "<  $status <.>48> $($platformStatus.InterventionReason)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
-        Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
-        Close-Monitor
-        return
-    }
-
-    # determine message type
-    $messageType = $PlatformMessageType.Information
-    if ($global:Product.Config.FlapDetectionEnabled -and $platformStatus.IsOK -and $heartbeat.IsOKCurrent -and !$heartbeat.IsOKPrevious) { $messageType = $PlatformMessageType.AllClear }
-    if (!$global:Product.Config.FlapDetectionEnabled -and $platformStatus.IsOK -and !$heartbeat.IsOKCurrent) { $messageType = $PlatformMessageType.AllClear }
-    if (!$platformStatus.IsOK) { $messageType = $PlatformMessageType.Alert }
-
-    # $entryType = switch ($messageType) {
-    #     $PlatformMessageType.Information { "Information" }
-    #     $PlatformMessageType.AllClear { "Information" }
-    #     $PlatformMessageType.Warning { "Warning" }
-    #     $PlatformMessageType.Alert { "Error" }
-    # }
 
     Send-MonitorMessage -PlatformStatus $platformStatus -MessageType $messageType
 
     Close-Monitor
 
-#endregion MAIN
+#endregion MAI
