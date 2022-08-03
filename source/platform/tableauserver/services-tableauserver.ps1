@@ -15,22 +15,47 @@ function global:Get-PlatformStatusRollup {
     if ($ResetCache) {$params += @{ResetCache = $true}}
     $tableauServerStatus = Get-TableauServerStatus @params
 
+    $issues = @()
+    foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
+        foreach ($service in ($tableauServerStatus.nodes | Where-Object {$_.nodeid -eq $nodeId}).services) { 
+            if ($service.rollupRequestedDeploymentState -eq "Enabled" -and !$PlatformStatusOK.Contains($service.rollupStatus)) {
+                foreach ($instance in $service.instances) {
+                    if ($instance.currentDeploymentState -eq "Enabled" -and !$PlatformStatusOK.Contains($instance.processStatus)) {
+                        $issues += @{
+                            nodeId = $nodeId
+                            component = "Service"
+                            name = $service.serviceName
+                            rollupStatus = $service.rollupStatus
+                            instanceId = $instance.instanceId
+                            processStatus = $instance.processStatus
+                            message = $instance.message
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Write-Verbose "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)"
     # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "Get-TableauServerStatus" -EntryType "Information" -Message "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)" -Force  
     
-    return $PlatformStatusOK.Contains($tableauServerStatus.rollupStatus), $tableauServerStatus.rollupStatus, $tableauServerStatus
+    return $PlatformStatusOK.Contains($tableauServerStatus.rollupStatus), $tableauServerStatus.rollupStatus, $issues, $tableauServerStatus
 }
 
 function global:Show-PlatformStatus {
 
     [CmdletBinding()]
     param(
-        [switch]$All
+        [switch]$All,
+        [switch]$Required,
+        [switch]$Issues
     )
 
     if ($All -and $Required) {
         throw "The `"All`" and `"Required`" switches cannot be used together"
     }
+
+    if (!$All) { $Required = $true }
 
     # check for platform events
     $platformStatus = Get-PlatformStatus 
@@ -42,20 +67,28 @@ function global:Show-PlatformStatus {
         Write-Host+
     }
 
-    $platformstatus | Format-List *
+    # $platformstatus | Format-List *
 
     $nodeStatus = (Get-TableauServerStatus).Nodes
     $nodeStatus = $nodeStatus | 
         Select-Object -Property @{Name='NodeId';Expression={$_.nodeId}}, @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Status';Expression={$_.rollupstatus}}
     $nodeStatus | Format-Table -Property Node, Status, NodeId
 
+    $platformIssues = $platformStatus.platformIssues
+    if ($platformIssues) {
+        $platformIssues = $platformIssues | 
+            Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Service';Expression={"$($_.name)_$($_.instanceId)"}}, @{Name='Status';Expression={$_.processStatus}}, @{Name='Message';Expression={$_.message}}
+        $platformIssues | Format-Table -Property Node, Service, Status, Message
+    }
+
     $services = Get-PlatformService
-    if ($All) {} else { $services = $services | Where-Object {$_.Required} }
-    $services | Where-Object {!$_.StatusOK.Contains($_.Status)} | Sort-Object -Property Node, Name | Format-Table -Property Node, Name, Status, Required, Transient, IsOK
+    if ($Required) { $services = $services | Where-Object {$_.Required} }
+    if ($Issues) { $services = $services | Where-Object {!$_.StatusOK.Contains($_.Status)} }
     $services | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, Name, Status, Required, Transient, IsOK
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
+
 function global:Build-StatusFacts {
 
     [CmdletBinding()]
