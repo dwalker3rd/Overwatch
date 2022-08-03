@@ -26,7 +26,7 @@ function global:Send-Message {
         [Parameter(Mandatory=$false,Position=0)][object]$Message
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    # Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $json = $Message | ConvertTo-Json -Depth 99
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
@@ -40,13 +40,19 @@ function global:Send-Message {
         return "Disabled"
     }
 
+    $status = @()
+    $providerAndStatus = @()
     Get-Provider | Where-Object {$_.Category -eq 'Messaging'} | ForEach-Object {
         if ($_.Config.MessageType -contains $Message.Type) {
-            Invoke-Expression "Send-$($_.Id) -json '$($json)'"
+            $status += Invoke-Expression "Send-$($_.Id) -json '$($json)'"
+            $providerAndStatus += "$($_.Id):$result"
         }
     }
+    $status = $status | Sort-Object -Unique
+    if (!$status) { return "Ignored"}
+    if ($status.Count -gt 1) { $status = $providerAndStatus -join ", " }
 
-    return # "Sent"
+    return $status
     
 }
 

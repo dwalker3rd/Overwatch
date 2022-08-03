@@ -88,12 +88,9 @@ function global:Send-MicrosoftTeams {
         [Parameter(Mandatory=$false)][string]$json
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $Message = $json | ConvertFrom-Json -Depth 99
-    # Write-Log -EntryType "Debug" -Target "Platform" -Action "Send-MicrosoftTeams-Message" -Message $Message -Force
 
-    $provider = get-provider -id "MicrosoftTeams"  # TODO: pass this in from Send-Message?
+    $provider = get-provider -id "MicrosoftTeams" # TODO: pass this in from Send-Message?
 
     $messageCard = Build-MessageCard -Title $Message.Title -Text $($Message.Text ? $Message.Text : " ") -Sections $Message.Sections
 
@@ -102,19 +99,12 @@ function global:Send-MicrosoftTeams {
 
     if (!$throttle) {
         foreach ($connector in $provider.Config.Connector.$($Message.Type)) {
-            Invoke-RestMethod -uri $Connector -Method Post -body $messageCard -ContentType "application/json" -TimeoutSec 60 | Out-Null
-        }
-    }
-    else {
-        $unthrottle = New-Timespan -Seconds ([math]::Round($Message.Throttle.TotalSeconds - ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds,0))
-        Write-Host+ -NoTrace "Throttled $($Provider.DisplayName) message"
-        If ($VerbosePreference -eq [System.Management.Automation.ActionPreference]::Continue) {
-            Write-Host+ -NoTrace -ForegroundColor DarkYellow "VERBOSE: Throttle period: $($Message.Throttle.TotalSeconds) seconds"
-            Write-Host+ -NoTrace -ForegroundColor DarkYellow "VERBOSE: Throttle period remaining: $($unthrottle.TotalSeconds) seconds"
+            $result = Invoke-RestMethod -uri $Connector -Method Post -body $messageCard -ContentType "application/json" -TimeoutSec 60 | Out-Null
+            $result | Out-Null
         }
     }
     
-    Write-Log -Name $Provider.Id -Context "MicrosoftTeams" -Message $Message.Summary -Status $($throttle ? "Throttled" : "Sent") -Force
+    Write-Log -Name $Provider.Id -Context "MicrosoftTeams" -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
 
-    return
+    return $throttle ? "Throttled" : "Transmitted"
 }

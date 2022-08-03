@@ -42,10 +42,7 @@ function global:Send-SMTP {
         [Parameter(Mandatory=$false)][string]$json
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $Message = $json | ConvertFrom-Json -Depth 99
-    # Write-Log -EntryType "Debug" -Target "Platform" -Action "Send-SMTP-Message" -Message $Message -Force
 
     $provider = get-provider -id 'SMTP'  # TODO: pass this in from Send-Message?
     if (!$From) {$From = $provider.Config.From}
@@ -67,34 +64,20 @@ function global:Send-SMTP {
     $SMTPMessage.To.Add($To)
     $SMTPMessage.Subject = $Subject
     $SMTPMessage.Body = $builder.ToMessageBody()
-    $SMTPMessage.HTML
-
-    # $SMTPClient = New-Object Net.Mail.SmtpClient($Provider.Config.Server,$Provider.Config.Port)
-    # $SMTPClient.EnableSsl = $Provider.Config.UseSSL
-    # $SMTPClient.Credentials = $Provider.Config.Credentials
 
     $logEntry = read-log $Provider.Id -Context "SMTP" -Action $To -Status "Sent" -Message $Message.Summary -Newest 1
     $throttle = $logEntry -and $logEntry.Message -eq $Message.Summary ? ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds -le $Message.Throttle.TotalSeconds : $null
 
     if (!$throttle) {
-        # $result += $SMTPClient.Send($From, $To, $Subject, $Body)
         $SMTP.Connect($Provider.Config.Server,$Provider.Config.Port, [MailKit.Security.SecureSocketOptions]::StartTls)
         $SMTP.Authenticate($Provider.Config.Credentials)
-        $SMTP.Send($SMTPMessage)
+        $SMTP.Send($SMTPMessage) | Out-Null
         $SMTP.Disconnect($true)
         $SMTP.Dispose()
     }
-    else {
-        $unthrottle = New-Timespan -Seconds ([math]::Round($Message.Throttle.TotalSeconds - ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds,0))
-        Write-Host+ -NoTrace "Throttled $($Provider.DisplayName) message to $($To)"
-        If ($VerbosePreference -eq [System.Management.Automation.ActionPreference]::Continue) {
-            Write-Host+ -NoTrace -ForegroundColor DarkYellow "VERBOSE: Throttle period: $($Message.Throttle.TotalSeconds) seconds"
-            Write-Host+ -NoTrace -ForegroundColor DarkYellow "VERBOSE: Throttle period remaining: $($unthrottle.TotalSeconds) seconds"
-        }
-    }
     
-    Write-Log -Name $Provider.Id -Context "SMTP" -Action $To -Message $Message.Summary -Status $($throttle ? "Throttled" : "Sent") -Force
+    Write-Log -Name $Provider.Id -Context "SMTP" -Action $To -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
 
-    return 
+    return $throttle ? "Throttled" : "Transmitted"
 
 }

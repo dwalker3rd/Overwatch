@@ -35,10 +35,7 @@ function global:Send-TwilioSMS {
         [Parameter(Mandatory=$false)][object]$To
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $Message = $json | ConvertFrom-Json -Depth 99
-    # Write-Log -EntryType "Debug" -Target "Platform" -Action "Send-TwilioSMS-Message" -Message $Message -Force
 
     $provider = get-provider -id "TwilioSMS" # TODO: pass this in from Send-Message?
     if (!$From) {$From = $provider.Config.From}
@@ -54,18 +51,10 @@ function global:Send-TwilioSMS {
         if (!$throttle) {
             $result += Invoke-WebRequest $provider.Config.RestEndpoint -Method Post -Credential $provider.Config.Credentials -Body $params | ConvertFrom-Json 
         }
-        else {
-            $unthrottle = New-Timespan -Seconds ([math]::Round($Message.Throttle.TotalSeconds - ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds,0))
-            Write-Host+ -NoTrace "Throttled $($Provider.DisplayName) message to $($To)"
-            If ($VerbosePreference -eq [System.Management.Automation.ActionPreference]::Continue) {
-                Write-Host+ -NoTrace -ForegroundColor DarkYellow "VERBOSE: Throttle period: $($Message.Throttle.TotalSeconds) seconds"
-                Write-Host+ -NoTrace -ForegroundColor DarkYellow "VERBOSE: Throttle period remaining: $($unthrottle.TotalSeconds) seconds"
-            }
-        }
         
-        Write-Log -Name $Provider.Id -Context "SMS" -Action $t -Message $Message.Summary -Status $($throttle ? "Throttled" : "Sent") -Force
+        Write-Log -Name $Provider.Id -Context "SMS" -Action $t -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
     
     }
 
-    return
+    return $throttle ? "Throttled" : "Transmitted"
 }
