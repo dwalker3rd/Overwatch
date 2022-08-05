@@ -360,7 +360,11 @@ function global:Get-PlatformStatusRollup {
 
     $alteryxServerStatus = Get-AlteryxServerStatus
     
-    return $alteryxServerStatus.IsOK, $alteryxServerStatus.Status
+    $platformCimInstance = Get-PlatformCimInstance
+    $issues = $platformCimInstance | Where-Object {$_.Required -and $_.Class -in ("Service","Process") -and !$_.IsOK} | 
+        Select-Object -Property Node, Class, Name, Status, @{Name="Component";Expression={$_.Component -join ", "}}, ParentName
+    
+    return $alteryxServerStatus.IsOK, $alteryxServerStatus.Status, $issues
 
 }
 
