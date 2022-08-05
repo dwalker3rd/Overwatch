@@ -44,7 +44,6 @@ class PlatformStatus {
     [bool]$IsOK
     [string]$RollupStatus
     [object[]]$Issues
-
     [string]$Event
     [string]$EventReason
     [string]$EventStatus
@@ -54,13 +53,11 @@ class PlatformStatus {
     [datetime]$EventCompletedAt
     [bool]$EventHasCompleted
     [string]$EventStatusTarget
-
+    [object[]]$EventHistory
     [PlatformCim[]]$ByCimInstance
     [object]$StatusObject
-
     [bool]$IsStopped 
     [bool]$IsStoppedTimeout
-
     [bool]$Intervention
     [string]$InterventionReason
 }
@@ -121,9 +118,11 @@ class Provider {
 
 class Heartbeat {
     [bool]$IsOK
+    [string]$Status
     [bool]$PlatformIsOK
     [string]$PlatformRollupStatus
-    [bool]$PlatformAlert
+    [bool]$Alert
+    [object[]]$Issues
     [datetime]$TimeStamp
     [bool]$FlapDetectionEnabled
     [timespan]$FlapDetectionPeriod

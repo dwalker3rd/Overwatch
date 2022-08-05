@@ -25,6 +25,7 @@ if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name).ps1) {. $se
 . $servicesPath\cache.ps1
 . $servicesPath\tasks.ps1
 . $servicesPath\events.ps1
+. $servicesPath\topology.ps1
 . $servicesPath\messaging.ps1
 . $servicesPath\contacts.ps1
 . $servicesPath\python.ps1

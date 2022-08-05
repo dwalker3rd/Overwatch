@@ -1,85 +1,126 @@
-#region SERVICES
+$EventHistoryMax = 72 # 6 hours if the interval is 5 minutes
 
-function global:Register-CimInstanceEvent {
+function global:Show-PlatformEvent {
 
-    [CmdletBinding()] 
-    param (
-        [Parameter(Mandatory=$true)][string][ValidateSet("Win32_Process","Win32_Service")]$Class,
-        [Parameter(Mandatory=$true)][string]$Name,
-        [Parameter(Mandatory=$true)][string][ValidateSet("__InstanceCreationEvent","__InstanceModificationEvent","__InstanceDeletionEvent")]$Event,
-        [Parameter(Mandatory=$true)][CimSession[]]$CimSession,
-        [Parameter(Mandatory=$false)][string]$LogFilePath  = "$($global:Location.Logs)\$($global:Product.Id).log"
-    )
+    $platformStatus = Get-PlatformStatus
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    $properties = $platformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory"}
+    $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}
+    $maxLength = ($propertyNameLengths | Measure-Object -Maximum).Maximum
 
-    switch ($global:Product.Id) {
-        "Watcher" { continue }
-        default { throw "Invalid product $($global:Product.Id)" }
+    Write-Host+
+    foreach ($property in $properties) {
+        $message = "<$($property.Name) < >$($maxLength+2)> "
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Green,DarkGray
+        $value = switch ($property.Value.GetType().Name) {
+            default { $property.Value}
+            "ArrayList" {
+                "{$($property.Value -join ", ")}"
+            }
+        }
+        Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor Green,Gray
     }
 
-    $WQLQuery =  "SELECT * FROM " + $Event + " WITHIN 5 WHERE TargetInstance ISA '" + $Class + "'"
-    $WQLQuery += $Name ? " AND TargetInstance.Name like '%" + $Name + "%'" : $null
+    [PlatformStatus[]]$platformStatus.EventHistory | Format-Table -Property Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventUpdatedAt, EventCompletedAt, EVentHasCompleted, EventStatusTarget
 
-    $CimSession | ForEach-Object {
+}
 
-        $CimEventFilter = New-CimInstance -CIMSession $_ -ClassName __EventFilter -Namespace "root\Subscription" -Property @{
-            Name = $Class + "__" + $Name + $Event + "__Filter"
-            EventNameSpace = "root\cimv2"
-            QueryLanguage = "WQL"
-            Query = $WQLQuery
+function Push-EventHistory {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][object]$PlatformStatus
+    )
+
+    if (!$PlatformStatus.Event) { return }
+
+    # if the current event and the last historical entry are identical, 
+    # don't push the event onto the stack.  instead, just update the timestamp $PlatformStatus.EventHistory[0].EventUpdatedAt
+    # this allows tracking longer periods of event data without using as much cache storage
+    if ($PlatformStatus.EventHistory.Count -gt 0) {
+        $eventUpdate = Compare-Object $PlatformStatus $PlatformStatus.EventHistory[0] -Property Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventCompletedAt, EVentHasCompleted, EventStatusTarget
+        if (!$eventUpdate) {
+            $PlatformStatus.EventHistory[0].EventUpdatedAt = $PlatformStatus.EventUpdatedAt
+            return
         }
+    }
 
-        $CimLogFileEventConsumer = New-CimInstance -CIMSession $_ -ClassName LogFileEventConsumer -Namespace "root\Subscription" -Property @{
-            Name = $Class + "__" + $Name + $Event + "__Consumer"
-            Text = "-1,%TIME_CREATED%," + $Class + ",%TargetInstance.Name%," + $Event + ",,,"
-            FileName = $LogFilePath
-        }
-
-        New-CimInstance -CIMSession $_ -ClassName __FilterToConsumerBinding -Namespace "root\Subscription" -Property @{
-            Filter = [Ref] $CimEventFilter
-            Consumer = [Ref] $CimLogFileEventConsumer
-        }
-
+    if ($PlatformStatus.EventHistory.Count -lt $EventHistoryMax) {
+        $PlatformStatus.EventHistory += @{}
+    }
+    for ($i = $PlatformStatus.EventHistory.Count-1; $i -gt 0; $i--) {
+        $PlatformStatus.EventHistory[$i] = $PlatformStatus.EventHistory[$i-1]
     }
     
+    $PlatformStatus.EventHistory[0] = @{
+        Event = $PlatformStatus.Event
+        EventStatus = $PlatformStatus.EventStatus
+        EventReason = $PlatformStatus.EventReason
+        EventStatusTarget = $PlatformStatus.EventStatusTarget
+        EventCreatedAt = $PlatformStatus.EventCreatedAt
+        EventCreatedBy = $PlatformStatus.EventCreatedBy
+        EventUpdatedAt = $PlatformStatus.EventUpdatedAt
+        EventCompletedAt = $PlatformStatus.EventCompletedAt
+        EventHasCompleted = $PlatformStatus.EventHasCompleted
+    }
+
     return
 
 }
 
-function global:Unregister-CimInstanceEvent {
-
-    [CmdletBinding()] 
+function global:Set-PlatformEvent {
+            
+    [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)][string][ValidateSet("Win32_Process","Win32_Service")]$Class,
-        [Parameter(Mandatory=$true)][string]$Name,
-        [Parameter(Mandatory=$true)][string][ValidateSet("__InstanceCreationEvent","__InstanceModificationEvent","__InstanceDeletionEvent")]$Event,
-        [Parameter(Mandatory=$true)][CimSession[]]$CimSession
-    )
+        [Parameter(Mandatory=$true)][string]$Event,
+        [Parameter(Mandatory=$false)][string]$Context,
+        [Parameter(Mandatory=$false)][string]$EventReason,
+        [Parameter(Mandatory=$false)][ValidateSet('In Progress','Completed','Failed','Reset','Testing')][string]$EventStatus,
+        [Parameter(Mandatory=$false)][string]$EventStatusTarget,
+        [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus)
 
-    Get-CimInstance -CIMSession $CimSession -Namespace "root\Subscription" -ClassName __EventFilter -Filter "Name = '$($Class)__$($Name)$($Event)__Filter'" | Remove-CimInstance
-    Get-CimInstance -CIMSession $CimSession -Namespace "root\Subscription" -ClassName LogFileEventConsumer -Filter "Name = '$($Class)__$($Name)$($Event)__Consumer'" | Remove-CimInstance
-    Get-CimInstance -CIMSession $CimSession -Namespace "root\Subscription" -ClassName __FilterToConsumerBinding -Filter "__Path like '%$($Class)__$($Name)$($Event)%'" | Remove-CimInstance
+    )
+    
+    $PlatformStatus.Event = $Event
+    $PlatformStatus.EventStatus = $EventStatus
+    $PlatformStatus.EventReason = $EventReason
+    $PlatformStatus.EventStatusTarget = $EventStatusTarget ? $EventStatusTarget : $PlatformEventStatusTarget.$($Event)
+    $PlatformStatus.EventCreatedAt = [datetime]::Now
+    $PlatformStatus.EventCreatedBy = $Context ?? $global:Product.Id
+    $PlatformStatus.EventHasCompleted = $EventStatus -eq "Completed" ? $true : $false
+
+    Push-EventHistory -PlatformStatus $PlatformStatus
+
+    $PlatformStatus | Write-Cache platformstatus
+
+    $result = Send-PlatformEventMessage -PlatformStatus $PlatformStatus -NoThrottle
+    $result | Out-Null
 
     return
 
 }
 
-function global:Show-CimInstanceEvent {
+function global:Reset-PlatformEvent {
 
-    [CmdletBinding()] 
-    param (
-        [Parameter(Mandatory=$true)][string][ValidateSet("Win32_Process","Win32_Service")]$Class,
-        [Parameter(Mandatory=$true)][string]$Name,
-        [Parameter(Mandatory=$true)][string][ValidateSet("__InstanceCreationEvent","__InstanceModificationEvent","__InstanceDeletionEvent")]$Event,
-        [Parameter(Mandatory=$false)][CimSession[]]$CimSession
-    )
+    [CmdletBinding()]
+    param ()
 
-    Get-CimInstance -CIMSession $CimSession -Namespace "root\Subscription" -ClassName __EventFilter -Filter "Name = '$($Class)__$($Name)$($Event)__Filter'"
-    Get-CimInstance -CIMSession $CimSession -Namespace "root\Subscription" -ClassName LogFileEventConsumer -Filter "Name = '$($Class)__$($Name)$($Event)__Consumer'"
-    Get-CimInstance -CIMSession $CimSession -Namespace "root\Subscription" -ClassName __FilterToConsumerBinding -Filter "__Path like '%$($Class)__$($Name)$($Event)%'" 
+    $platformStatus = Get-PlatformStatus
 
-    return
+    $platformStatus.Event = $null
+    $platformStatus.EventReason = $null
+    $platformStatus.EventStatus = $null
+    $platformStatus.EventStatusTarget = $null
+    $platformStatus.EventCreatedAt = [datetime]::MinValue
+    $platformStatus.EventUpdatedAt = [datetime]::MinValue
+    $platformStatus.EventCreatedBy = $null
+    $platformStatus.EventHasCompleted = $false
+    $platformStatus.EventHistory = @()
+
+    $platformStatus | Write-Cache platformstatus
+
+    return $platformStatus
+
 }
 
-#endregion SERVICES
+#endregion EVENT
