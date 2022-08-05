@@ -9,7 +9,7 @@ Flag (set by the Monitor product) which indicates the overall status of the plat
 Flag (set by the platform) which indicates the current status of the platform.
 .Parameter PlatformRollupStatus
 [string] Status description (set by the platform).
-.Parameter PlatformAlert
+.Parameter Alert
 Flag which indicates whether the platform has an active alert.
 .Parameter PlatformTimeStamp
 [datetime] Heartbeat timestamp.
@@ -26,6 +26,8 @@ Flag which indicates whether the platform has an active alert.
 .Parameter FlapDetectionPeriod
 [timespan] When flap detection is enabled, the period required before Overwatch reports a NOT OK status.
 #>
+
+$HeartbeatHistoryMax = 72 # 6 hours if the interval is 5 minutes
 
 function Get-HeartbeatSettings {
 
@@ -67,9 +69,24 @@ function global:Get-Heartbeat {
 function global:Show-Heartbeat {
 
     $heartbeat = Get-Heartbeat
-    $heartbeat | Select-Object -ExcludeProperty History
+    $properties = $heartbeat.psobject.Properties | Where-Object {$_.name -ne "History"}
+    $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}
+    $maxLength = ($propertyNameLengths | Measure-Object -Maximum).Maximum
 
-    [Heartbeat[]]$heartbeat.History | Select-Object -Property TimeStamp, IsOK, PlatformIsOK, PlatformRollupStatus, PlatformAlert | Format-Table
+    Write-Host+
+    foreach ($property in $properties) {
+        $message = "<$($property.Name) < >$($maxLength+2)> "
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Green,DarkGray
+        $value = switch ($property.Value.GetType().Name) {
+            default { $property.Value}
+            "ArrayList" {
+                "{$($property.Value -join ", ")}"
+            }
+        }
+        Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor Green,Gray
+    }
+
+    [Heartbeat[]]$heartbeat.History | Select-Object -Property TimeStamp, IsOK, Status, PlatformIsOK, PlatformRollupStatus, Alert, Issues | Format-Table
 
 }
 
@@ -80,15 +97,31 @@ function Push-HeartbeatHistory {
         [Parameter(Mandatory=$true)][object]$Heartbeat
     )
 
+    # if the current heartbeat and the last historical entry are identical, 
+    # don't push the heartbeat onto the stack.  instead, just update the timestamp of $Heartbeat.History[0]
+    # this allows tracking longer periods of heartbeat data without using as much cache storage
+    if ($Heartbeat.History.Count -gt 0) {
+        $heartbeatUpdate = Compare-Object $heartbeat $heartbeat.History[0] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
+        if (!$heartbeatUpdate) {
+            $Heartbeat.History[0].TimeStamp = $Heartbeat.TimeStamp
+            return
+        }
+    }
+
+    if ($Heartbeat.History.Count -lt $HeartbeatHistoryMax) {
+        $Heartbeat.History += @{}
+    }
     for ($i = $Heartbeat.History.Count-1; $i -gt 0; $i--) {
         $Heartbeat.History[$i] = $Heartbeat.History[$i-1]
     }
     
     $Heartbeat.History[0] = @{
         IsOK = $Heartbeat.IsOK
+        Status = $Heartbeat.Status
         PlatformIsOK = $Heartbeat.PlatformIsOK
         PlatformRollupStatus = $Heartbeat.PlatformRollupStatus
-        PlatformAlert = $Heartbeat.PlatformAlert
+        Alert = $Heartbeat.Alert
+        Issues = $Heartbeat.Issues
         TimeStamp = $Heartbeat.TimeStamp
     }
 
@@ -111,9 +144,11 @@ function global:Set-Heartbeat {
     $heartbeat = Get-HeartbeatSettings -Heartbeat $heartbeat
 
     $heartbeat.IsOK = $IsOK
+    $heartbeat.Status = $PlatformStatus.RollupStatus
     $heartbeat.PlatformIsOK = $PlatformStatus.IsOK
     $heartbeat.PlatformRollupStatus = $PlatformStatus.RollupStatus
-    $heartbeat.PlatformAlert = !$IsOK
+    $heartbeat.Alert = !$IsOK
+    $heartbeat.Issues = $PlatformStatus.Issues
     $heartbeat.TimeStamp = Get-Date
 
     if ($Reported) { $heartbeat.PreviousReport = Get-Date }
@@ -133,12 +168,24 @@ function global:Initialize-Heartbeat {
 
     $heartbeat = [Heartbeat]@{
         IsOK = $true
+        Status = "Initializing"
         PlatformIsOK = $true
-        PlatformRollupStatus = "Pending"
-        PlatformAlert = $false
-        TimeStamp = [datetime]::MinValue
-        History = [object[]]::new(10)
+        PlatformRollupStatus = "Unknown"
+        Alert = $false
+        Issues = @()
+        TimeStamp = [datetime]::Now
+        History = @()
         PreviousReport = [datetime]::MinValue
+    }
+
+    $heartbeat.History += @{
+        IsOK = $Heartbeat.IsOK
+        Status = $Heartbeat.Status
+        PlatformIsOK = $Heartbeat.PlatformIsOK
+        PlatformRollupStatus = $Heartbeat.PlatformRollupStatus
+        Alert = $Heartbeat.Alert
+        Issues = $Heartbeat.Issues
+        TimeStamp = $Heartbeat.TimeStamp
     }
 
     # Add monitor config settings related to heartbeat
