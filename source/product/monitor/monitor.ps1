@@ -153,8 +153,8 @@ Open-Monitor
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
     $message = "<    PlatformRollupStatus <.>48> $($heartbeat.PlatformRollupStatus)"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
-    $message = "<    PlatformAlert <.>48> $($heartbeat.PlatformAlert ? "Alert" : "AllClear")"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformAlert ? "Red" : "DarkGreen" )
+    $message = "<    Alert <.>48> $($heartbeat.Alert ? "Alert" : "AllClear")"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.Alert ? "Red" : "DarkGreen" )
     Write-Host+
 
     # check if time to send scheduled heartbeat report
@@ -189,7 +189,7 @@ Open-Monitor
         # HEARTBEAT
         # platform status OK, heartbeat status OK, NOT in alert
         # set heartbeat, send HEARTBEAT [report] at scheduled time
-        if ($platformStatus.IsOK -and $heartbeat.PlatformIsOK -and !$heartbeat.PlatformAlert) {
+        if ($platformStatus.IsOK -and $heartbeat.PlatformIsOK -and !$heartbeat.Alert) {
 
             $message = "<  State assertion <.>48> OK"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
@@ -210,7 +210,7 @@ Open-Monitor
         # ALLCLEAR
         # in alert, platform status OK, heartbeat status OK
         # set heartbeat, send ALLCLEAR message
-        if ($platformStatus.IsOK -and $heartbeat.PlatformIsOK -and $heartbeat.PlatformAlert) {
+        if ($platformStatus.IsOK -and $heartbeat.PlatformIsOK -and $heartbeat.Alert) {
 
             $message = "<  State assertion <.>48> OK (ALLCLEAR)"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
@@ -298,8 +298,8 @@ Open-Monitor
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
         $message = "<    PlatformRollupStatus <.>48> $($heartbeat.PlatformRollupStatus)"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformIsOK ? "DarkGreen" : "Red" )
-        $message = "<    PlatformAlert <.>48> $($heartbeat.PlatformAlert ? "Alert" : "AllClear")"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.PlatformAlert ? "Red" : "DarkGreen" )
+        $message = "<    Alert <.>48> $($heartbeat.Alert ? "Alert" : "AllClear")"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.Alert ? "Red" : "DarkGreen" )
     }
 
     Send-MonitorMessage -PlatformStatus $platformStatus -MessageType $messageType
