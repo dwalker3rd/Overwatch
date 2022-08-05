@@ -328,7 +328,9 @@ function global:Get-PlatformStatusRollup {
     if ($ResetCache) { $params = @{ ResetCache = $ResetCache } }
     $tableauRMTStatus = Get-RMTStatus @params
 
-    return $tableauRMTStatus.IsOK, $tableauRMTStatus.RollupStatus, $tableauRMTStatus
+    $issues = $null
+
+    return $tableauRMTStatus.IsOK, $tableauRMTStatus.RollupStatus, $issues, $tableauRMTStatus
 }
 
 function global:Build-StatusFacts {
