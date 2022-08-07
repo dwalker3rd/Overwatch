@@ -432,8 +432,8 @@ function global:Request-Platform {
         [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
         [Parameter(Mandatory=$true)][ValidateSet("Controller","Agent")][string]$Target,
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][string]$Context = (Get-Product $global:Product.Id),
-        [Parameter(Mandatory=$false)][string]$Reason = "$Command $Target requested"
+        [Parameter(Mandatory=$true)][string]$Context,
+        [Parameter(Mandatory=$true)][string]$Reason
     )
 
     $rmtAdmin = switch ($Target) {
@@ -459,7 +459,7 @@ function global:Request-Platform {
         
         $psSession = Get-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
         $response = Invoke-Command -Session $psSession {
-            . $using:rmtAdmin $using:Command
+            . $using:rmtAdmin $using:Command | Out-Null
         }
 
         $result = ($response | Select-String -Pattern $successPattern -Quiet) ? "Success" : "Failure"
@@ -480,8 +480,8 @@ function global:Request-RMTController {
     param (
         [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
         [Parameter(Mandatory=$true)][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][string]$Context = (Get-Product $global:Product.Id),
-        [Parameter(Mandatory=$false)][string]$Reason = "$Command $Target requested"
+        [Parameter(Mandatory=$true)][string]$Context,
+        [Parameter(Mandatory=$true)][string]$Reason
     )
 
     Write-Host+
@@ -511,11 +511,11 @@ function global:Stop-RMTController {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $global:PlatformTopologyBase.Components.Controller.Nodes.Keys,
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop RMT Controller"
     )
 
-    Request-RMTController -Command "Stop" -ComputerName $ComputerName
+    Request-RMTController -Command "Stop" -ComputerName $ComputerName -Context $Context -Reason $Reason
 
 }
 
@@ -524,11 +524,11 @@ function global:Start-RMTController {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $global:PlatformTopologyBase.Components.Controller.Nodes.Keys,
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Start RMT Controller"
     )
 
-    Request-RMTController -Command "Start" -ComputerName $ComputerName
+    Request-RMTController -Command "Start" -ComputerName $ComputerName -Context $Context -Reason $Reason
     
 }
 
@@ -537,12 +537,12 @@ function global:Restart-RMTController {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $global:PlatformTopologyBase.Components.Controller.Nodes.Keys,
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$true)][string]$Reason
     )
     
-    Stop-RMTController -ComputerName $ComputerName
-    Start-RMTController -ComputerName $ComputerName
+    Stop-RMTController -ComputerName $ComputerName -Context $Context -Reason $Reason
+    Start-RMTController -ComputerName $ComputerName -Context $Context -Reason $Reason
 
 }
 
@@ -553,8 +553,8 @@ function global:Request-RMTAgents {
         [Parameter(Mandatory=$false)][ValidateSet("Stop","Start")][string]$Command,
         [Parameter(Mandatory=$false)][string[]]$EnvironmentIdentifier,
         [Parameter(Mandatory=$false)][Alias("Agent")][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason,
+        [Parameter(Mandatory=$true)][string]$Context,
+        [Parameter(Mandatory=$true)][string]$Reason,
         [switch]$IfTableauServerIsRunning
     )
 
@@ -660,8 +660,8 @@ function global:Stop-RMTAgents {
     param (
         [Parameter(Mandatory=$false)][string[]]$EnvironmentIdentifier,
         [Parameter(Mandatory=$false)][Alias("Agent")][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop RMT Agents"
     )
 
     Set-CursorInvisible
@@ -684,8 +684,8 @@ function global:Start-RMTAgents {
     param (
         [Parameter(Mandatory=$false,Position=0)][Alias("Agent")][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][string[]]$EnvironmentIdentifier,
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason,
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Start RMT Agents",
         [switch]$IfTableauServerIsRunning
     )
 
@@ -715,8 +715,8 @@ function global:Restart-RMTAgents {
     param (
         [Parameter(Mandatory=$false)][string[]]$EnvironmentIdentifier,
         [Parameter(Mandatory=$false)][Alias("Agent")][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason,
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$true)][string]$Reason,
         [switch]$IfTableauServerIsRunning
     )
 
@@ -746,8 +746,8 @@ function global:Stop-Platform {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
-        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform requested"
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
     )
 
     Set-CursorInvisible
@@ -777,8 +777,8 @@ function global:Start-Platform {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
-        [Parameter(Mandatory=$false)][string]$Reason = "Start platform requested",
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Start platform",
         [switch]$IfTableauServerIsRunning
     )
 
@@ -819,7 +819,7 @@ function global:Restart-Platform {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
         [Parameter(Mandatory=$false)][string]$Reason,
         [switch]$IfTableauServerIsRunning
     )
