@@ -63,7 +63,11 @@ function global:Invoke-Postflight {
 
 function global:Confirm-Postflight {
 
-    if ($global:PostflightPreference -ne "Continue" -and $global:PreflightChecksCompleted) {
+    param(
+        [switch]$Force
+    )
+
+    if ($global:PostflightPreference -ne "Continue" -and !$Force -and $global:PreflightChecksCompleted) {
         return
     }
 
@@ -78,9 +82,11 @@ Set-Alias -Name Check-Postflight -Value Confirm-Postflight -Scope Global
 
 function global:Update-Postflight {
 
-    param()
+    param(
+        [switch]$Force
+    )
 
-    if ($global:PostflightPreference -ne "Continue" -and $global:PreflightChecksCompleted) {
+    if ($global:PostflightPreference -ne "Continue" -and !$Force -and $global:PreflightChecksCompleted) {
         return
     }
 

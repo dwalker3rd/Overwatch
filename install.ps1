@@ -4,7 +4,8 @@
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
 param (
-    # [Parameter()][Alias("Update")][switch]$UpdateOverwatch
+    [switch]$SkipProductStop,
+    [switch]$NoOverwrite
 )
 
 $global:WriteHostPlusPreference = "Continue"
@@ -31,16 +32,27 @@ function Copy-File {
 
         foreach ($pathFile in $pathFiles) {
             $destinationFile = $destinationIsDirectory ? "$Destination\$(Split-Path $pathFile -Leaf -Resolve)" : $Destination
-            if (!(Test-Path -Path $Destination) -or (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFile).hash) {
-                $overwrite = $true
-                if ($ConfirmOverwrite -and (Test-Path -Path $destinationFile -PathType Leaf)) {
-                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Overwrite $($destinationFile)? [Y] Yes [N] No (default is `"No`"): " -ForegroundColor DarkYellow
-                    $overwrite = (Read-Host) -eq "Y" 
+            if (!(Test-Path -Path $Destination -PathType Leaf)) {
+                Copy-Item -Path $pathFile $destinationFile
+                if (!$Quiet) {
+                    Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "Copied $_ to $destinationFile" -ForegroundColor DarkGray}
                 }
-                if ($overwrite) {
-                    Copy-Item -Path $pathFile $destinationFile
-                    if (!$Quiet) {
-                        Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "Copied $_ to $destinationFile" -ForegroundColor DarkGray}
+            }
+            else {
+                $overwrite = (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFile).hash
+                if ($ConfirmOverwrite -and $NoOverwrite) {
+                    # don't copy the file
+                }
+                else {
+                    if ($ConfirmOverwrite) {
+                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Overwrite $($destinationFile)? [Y] Yes [N] No (default is `"No`"): " -ForegroundColor DarkYellow
+                        $overwrite = (Read-Host) -eq "Y" 
+                    }
+                    if ($overwrite) {
+                        Copy-Item -Path $pathFile $destinationFile
+                        if (!$Quiet) {
+                            Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "Copied $_ to $destinationFile" -ForegroundColor DarkGray}
+                        }
                     }
                 }
             }
@@ -604,7 +616,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion PROVIDERS
 #region STOP INSTALLED PRODUCTS
 
-    if ($InstalledProducts) {
+    if ($InstalledProducts -and !$SkipProductStop) {
 
         Write-Host+ -MaxBlankLines 1
 
@@ -966,7 +978,7 @@ Write-Host+ -ResetAll
         #endregion CONFIG
         #region PRODUCTS
 
-            if ($productIds -or $installedProductsToDisable) {
+            if ($productIds -or ($installedProductsToDisable -and !$SkipProductStop)) {
 
                 Write-Host+ -MaxBlankLines 1
                 $message = "<Installing products <.>48> PENDING"
@@ -979,7 +991,9 @@ Write-Host+ -ResetAll
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
                 $productIds | ForEach-Object { Install-Product $_ }
-                $installedProductsToDisable | ForEach-Object { Enable-Product $_.Id }
+                if (!$SkipProductStop) {
+                    $installedProductsToDisable | ForEach-Object { Enable-Product $_.Id }
+                }
                 
                 Write-Host+
                 $message = "<Installing products <.>48> SUCCESS"

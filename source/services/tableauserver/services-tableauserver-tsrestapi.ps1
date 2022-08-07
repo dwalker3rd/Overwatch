@@ -179,7 +179,14 @@ function global:Initialize-TSRestApiConfiguration {
     $creds = Get-Credentials $global:tsRestApiConfig.Credentials
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$global:tsRestApiConfig.ContentUrl)
-    if ($responseError) {throw $responseError}
+    if ($responseError) {
+        if ($responseError.code) {
+            throw "$($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+        }
+        else {
+            throw $responseError
+        }
+    }
 
     $global:tsRestApiConfig.Token = $response.token
     $global:tsRestApiConfig.SiteId = $response.site.id

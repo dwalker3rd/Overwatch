@@ -73,7 +73,7 @@ function global:Set-PlatformEvent {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)][string]$Event,
-        [Parameter(Mandatory=$false)][string]$Context,
+        [Parameter(Mandatory=$true)][string]$Context,
         [Parameter(Mandatory=$false)][string]$EventReason,
         [Parameter(Mandatory=$false)][ValidateSet('In Progress','Completed','Failed','Reset','Testing')][string]$EventStatus,
         [Parameter(Mandatory=$false)][string]$EventStatusTarget,
@@ -86,7 +86,7 @@ function global:Set-PlatformEvent {
     $PlatformStatus.EventReason = $EventReason
     $PlatformStatus.EventStatusTarget = $EventStatusTarget ? $EventStatusTarget : $PlatformEventStatusTarget.$($Event)
     $PlatformStatus.EventCreatedAt = [datetime]::Now
-    $PlatformStatus.EventCreatedBy = $Context ?? $global:Product.Id
+    $PlatformStatus.EventCreatedBy = $Context
     $PlatformStatus.EventHasCompleted = $EventStatus -eq "Completed" ? $true : $false
 
     Push-EventHistory -PlatformStatus $PlatformStatus
