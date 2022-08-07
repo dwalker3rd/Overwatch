@@ -220,113 +220,109 @@ return $platformServices | Select-Object -Property $($View ? $CimView.$($View) :
 
 function global:Request-Platform {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
-    [Parameter(Mandatory=$false)][string]$Context = "Command",
-    [Parameter(Mandatory=$false)][string]$Reason = "$Command requested."
-)
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
+        [Parameter(Mandatory=$true)][string]$Context,
+        [Parameter(Mandatory=$true)][string]$Reason
+    )
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+
+    Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
+    $message = "<  Command <.>25> $($Command.ToUpper())"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
+    $message = "<  Reason <.>25> $Reason"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkBlue
 
-Write-Host+
-Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
-$message = "<  Command <.>25> $($Command.ToUpper())"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
-$message = "<  Reason <.>25> $Reason"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkBlue
+    Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
 
-Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
-
-$commandStatus = $PlatformEventStatus.InProgress
-Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
-
-# preflight checks
-if ($Command -eq "Start") {
-    Update-Preflight
-}
-
-try {
-
-    $asyncJob = Invoke-TsmApiMethod -Method $Command
-    Watch-AsyncJob -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
-    $asyncJob = Wait-AsyncJob -Id $asyncJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
-
-    if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
-        $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
-        Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
-        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
-        throw
-    } 
-    elseif ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
-        $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) was $($asyncJob.status). $($asyncJob.errorMessage)"
-        Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
-        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
-    }
-    elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
-        $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
-        Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
-        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
-    }
-
-    $commandStatus = $PlatformEventStatus.Completed
+    $commandStatus = $PlatformEventStatus.InProgress
+    Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
 
     # preflight checks
     if ($Command -eq "Start") {
-        Confirm-PostFlight
+        Update-Preflight -Force
     }
-}
-catch {
-    $commandStatus = $PlatformEventStatus.Failed
-}
 
-Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
+    try {
 
-$message = "<  $($Command.ToUpper()) <.>25> $($commandStatus.ToUpper())"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
-Write-Host+
+        $asyncJob = Invoke-TsmApiMethod -Method $Command
+        Watch-AsyncJob -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
+        $asyncJob = Wait-AsyncJob -Id $asyncJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
 
-Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
+        if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
+            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
+            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
+            throw
+        } 
+        elseif ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
+            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) was $($asyncJob.status). $($asyncJob.errorMessage)"
+            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
+        }
+        elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
+            $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
+            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
+        }
 
-Write-Log -Context $Context -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
+        $commandStatus = $PlatformEventStatus.Completed
 
-if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
+        # preflight checks
+        if ($Command -eq "Start") {
+            Confirm-PostFlight -Force
+        }
+    }
+    catch {
+        $commandStatus = $PlatformEventStatus.Failed
+    }
 
-return
-}
+    Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
 
-function global:Start-Platform {
+    $message = "<  $($Command.ToUpper()) <.>25> $($commandStatus.ToUpper())"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
+    Write-Host+
 
-[CmdletBinding()] param (
-    [Parameter(Mandatory=$false)][string]$Context = "Command",
-    [Parameter(Mandatory=$false)][string]$Reason = "Start Platform"
-)
+    Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Log -Context $Context -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
 
-Request-Platform -Command Start -Context $Context -Reason $Reason
-}
-function global:Stop-Platform {
+    if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
 
-    [CmdletBinding()] param (
-        [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
-    )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    Request-Platform -Command Stop -Context $Context -Reason $Reason
-}
-function global:Restart-Platform {
-
-[CmdletBinding()] param ()
-
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-Stop-Platform
-Start-Platform
+    return
 
 }
+
+    function global:Start-Platform {
+
+        [CmdletBinding()] param (
+            [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id ?? "Command",
+            [Parameter(Mandatory=$false)][string]$Reason = "Start platform"
+        )
+
+        Request-Platform -Command Start -Context $Context -Reason $Reason
+    }
+    function global:Stop-Platform {
+
+        [CmdletBinding()] param (
+            [Parameter(Mandatory=$false)][string]$Context = "Command",
+            [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
+        )
+        
+        Request-Platform -Command Stop -Context $Context -Reason $Reason
+    }
+
+    function global:Restart-Platform {
+
+        [CmdletBinding()] param (
+            [Parameter(Mandatory=$false)][string]$Context = "Command",
+            [Parameter(Mandatory=$false)][string]$Reason
+        )
+
+        Stop-Platform -Context $Context -Reason $Reason
+        Start-Platform -Context $Context -Reason $Reason
+    }
 
 #endregion SERVICE
 #region PROCESS
