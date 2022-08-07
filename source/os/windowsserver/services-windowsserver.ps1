@@ -391,8 +391,8 @@ param (
 $results = @()
 $psSession = Get-PSSession+ -ComputerName $ComputerName
 $results = Invoke-Command -Session $psSession {
-    secedit /export /cfg "$($global:Location.Data)\secpol.cfg" | Out-Null
-    $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
+    secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
+    $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
     $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith($using:Policy)}
     [PSCustomObject]@{
         ComputerName = $env:COMPUTERNAME
@@ -401,7 +401,7 @@ $results = Invoke-Command -Session $psSession {
         Name = $using:Name
         IsOK = $seServiceLogonRight.IndexOf($using:Name) -gt -1
     }
-    Remove-Item -force "$($global:Location.Data)\secpol.cfg" -confirm:$false
+    Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
 } 
 
 return $results | Select-Object -Property ComputerName, Policy, Setting, Name, IsOK | Sort-Object ComputerName
@@ -417,19 +417,19 @@ param (
 
 $psSession = Get-PSSession+ -ComputerName $ComputerName
 Invoke-Command -Session $psSession {
-    secedit /export /cfg "$($global:Location.Data)\secpol.cfg" | Out-Null
-    Copy-Item "$($global:Location.Data)\secpol.cfg" -Destination "c:\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
+    secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
+    Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
+    $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
     $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
     Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
     if ($seServiceLogonRight.IndexOf($using:Name) -eq -1) {
-        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight + "," + $using:Name) | Out-File "$($global:Location.Data)\secpol.cfg"
-        $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
+        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight + "," + $using:Name) | Out-File "$($using:Location.Data)\secpol.cfg"
+        $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
         $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
         Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-        secedit /configure /db c:\windows\security\local.sdb /cfg "$($global:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
+        secedit /configure /db c:\windows\security\local.sdb /cfg "$($using:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
     }
-    # Remove-Item -force "$($global:Location.Data)\secpol.cfg" -confirm:$false
+    # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
 }
 }
 
@@ -443,19 +443,19 @@ param (
 
 $psSession = Get-PSSession+ -ComputerName $ComputerName
 Invoke-Command -Session $psSession {
-    secedit /export /cfg "$($global:Location.Data)\secpol.cfg" | Out-Null
-    Copy-Item "$($global:Location.Data)\secpol.cfg" -Destination "c:\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
+    secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
+    Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
+    $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
     $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
     Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
     if ($seServiceLogonRight.IndexOf($using:Name) -gt -1) {
-        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight.replace($using:Name,"").replace(",,",",").replace("= ,","= ")) | Out-File "$($global:Location.Data)\secpol.cfg"
-        $secpolcfg = get-content "$($global:Location.Data)\secpol.cfg"
+        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight.replace($using:Name,"").replace(",,",",").replace("= ,","= ")) | Out-File "$($using:Location.Data)\secpol.cfg"
+        $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
         $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
         Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-        secedit /configure /db c:\windows\security\local.sdb /cfg "$($global:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
+        secedit /configure /db c:\windows\security\local.sdb /cfg "$($using:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
     }
-    # Remove-Item -force "$($global:Location.Data)\secpol.cfg" -confirm:$false
+    # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
 }
 }
 
@@ -586,7 +586,7 @@ else
 # Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
 # $sourceFileName = "$($Platform.Instance)-registry.pol"
-# $sourcePath= "$($global:Location.Data)\$sourceFileName"
+# $sourcePath= "C:\$sourceFileName"
 # $targetPathLocal = "C:\Windows\System32\GroupPolicy\$Profile\Registry.pol"
 # $targetPathUnc = $targetPathLocal.replace(":","$")
 
@@ -677,7 +677,7 @@ param (
 $message = "<  CredSSP Double-Hop Enabled <.>40> PENDING"
 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-$configured = $null
+$configured = $true
 $notConfigured = Get-WSManCredSSP | Select-String -Pattern "is not configured" -NoEmphasis
 
 if ($notConfigured) {
