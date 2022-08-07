@@ -16,8 +16,11 @@
     #region ALTERYXSERVICE-RUNAS
 
     # ensure that the AlteryxService service is disabled for offline nodes
-    $standbyNodes = foreach ($component in (pt components -k)) {pt components.$component.Standby}
-    Set-PlatformService -Name "AlteryxService" -StartupType "Disabled" -Computername $standbyNodes
+    try{
+        $offlineNodes = foreach ($component in (pt components -k)) {pt components.$component.Offline}
+        Set-PlatformService -Name "AlteryxService" -StartupType "Disabled" -Computername $offlineNodes
+    }
+    catch{}
 
     # confirm that the required crypto/ssl files are in the DLLs directory
     # see https://github.com/conda/conda/issues/8273
@@ -29,5 +32,8 @@
     if ($requiredPythonPackages) {
         Install-PythonPackage -Package $requiredPythonPackages -Pip $global:Location.Pip -ComputerName (Get-PlatformTopology nodes -keys)
     }
+
+    # enable powershell 'double-hop' with credssp on controller
+    Enable-CredSspDoubleHop -ComputerName (pt components.controller.nodes -k)
 
 #endregion PREFLIGHT
