@@ -37,7 +37,7 @@ function ConvertTo-PostgresConnectionString {
     return $connectionString
 
 }
-function global:New-PostgresConnectionString {
+function global:Set-PostgresConnectionString {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
 
@@ -60,7 +60,7 @@ function global:New-PostgresConnectionString {
     
     )
 
-    $odbcDriver = Get-OdbcDataDriver -Name $Driver
+    $odbcDriver = Get-OdbcDriver -Name $Driver
     if (!$odbcDriver) {
         throw "ERROR: No ODBC driver found with the name `"$Driver`""
     }
