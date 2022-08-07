@@ -33,11 +33,17 @@ function Copy-File {
         foreach ($pathFile in $pathFiles) {
             $destinationFile = $destinationIsDirectory ? "$Destination\$(Split-Path $pathFile -Leaf -Resolve)" : $Destination
             if (!(Test-Path -Path $Destination -PathType Leaf)) {
+                Copy-Item -Path $pathFile $destinationFile
+                if (!$Quiet) {
+                    Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "Copied $_ to $destinationFile" -ForegroundColor DarkGray}
+                }
+            }
+            else {
+                $overwrite = (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFile).hash
                 if ($ConfirmOverwrite -and $NoOverwrite) {
                     # don't copy the file
                 }
                 else {
-                    $overwrite = (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFile).hash
                     if ($ConfirmOverwrite) {
                         Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Overwrite $($destinationFile)? [Y] Yes [N] No (default is `"No`"): " -ForegroundColor DarkYellow
                         $overwrite = (Read-Host) -eq "Y" 
