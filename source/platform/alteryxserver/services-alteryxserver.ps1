@@ -742,8 +742,8 @@ function global:Request-Platform {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][ValidateSet("Stop","Start")][string]$Command,
-        [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason = "$Command requested."
+        [Parameter(Mandatory=$true)][string]$Context,
+        [Parameter(Mandatory=$true)][string]$Reason
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -798,13 +798,13 @@ function global:Request-Platform {
                         5. Start workers
                     #>      
 
-                    Update-Preflight
+                    Update-Preflight -Force
                     Start-Database
                     Start-Controller
                     Enable-PassiveController
                     Start-Gallery
                     Start-Worker
-                    Confirm-Postflight
+                    Confirm-Postflight -Force
 
                 }
 
@@ -835,8 +835,8 @@ function global:Request-Platform {
 function global:Start-Platform {
 
     [CmdletBinding()] param (
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id ?? "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Start platform"
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -846,8 +846,8 @@ function global:Start-Platform {
 function global:Stop-Platform {
 
     [CmdletBinding()] param (
-        [Parameter(Mandatory=$false)][string]$Context,
-        [Parameter(Mandatory=$false)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -856,8 +856,14 @@ function global:Stop-Platform {
 }
 
 function global:Restart-Platform {
-    Stop-Platform
-    Start-Platform
+
+    [CmdletBinding()] param (
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason
+    )
+
+    Stop-Platform -Context $Context -Reason $Reason
+    Start-Platform -Context $Context -Reason $Reason
 }
 
 function global:Start-Database {
@@ -930,7 +936,7 @@ function global:Backup-Platform {
 
     try {
         $step = "Platform STOP"
-        Stop-Platform
+        Stop-Platform -Context "Backup"
     }
     catch {
         $fail = $true
@@ -961,7 +967,7 @@ function global:Backup-Platform {
 
     try {
         $step = "Platform START"
-        Start-Platform
+        Start-Platform -Context "Backup"
     }
     catch {
         $fail = $true
