@@ -58,7 +58,11 @@ function global:Invoke-Preflight {
 
 function global:Confirm-Preflight {
 
-    if ($global:PreflightPreference -ne "Continue") {
+    param(
+        [switch]$Force
+    )
+
+    if ($global:PreflightPreference -ne "Continue" -and !$Force) {
         return
     }
 
@@ -73,9 +77,11 @@ Set-Alias -Name Check-Preflight -Value Confirm-Preflight -Scope Global
 
 function global:Update-Preflight {
 
-    param()
+    param(
+        [switch]$Force
+    )
 
-    if ($global:PreflightPreference -ne "Continue") {
+    if ($global:PreflightPreference -ne "Continue" -and !$Force) {
         return
     }
 
