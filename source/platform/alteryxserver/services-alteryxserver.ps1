@@ -82,7 +82,7 @@ function global:Get-PlatformProcess {
             "noop" | out-null
             $PlatformProcessConfig | ForEach-Object {
                 if ($process.Name.Replace(".exe","") -eq $_.Name) {
-                    $orphaned = !$parent -and $null -ne $_.ParentName
+                    $orphaned = !$parent -and $null -ne $_.ParentName -and "" -notin $_.ParentName
                     [PlatformCim]@{
                         Class = $_.Class
                         Id = $process.ProcessId

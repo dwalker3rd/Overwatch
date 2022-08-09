@@ -75,7 +75,7 @@ class PlatformCim {
     [string]$Class
     [object]$Instance
     [string]$Description
-    [string]$ParentName
+    [string[]]$ParentName
     [object]$ParentInstance
     [int]$ParentId
     [string]$ProductID

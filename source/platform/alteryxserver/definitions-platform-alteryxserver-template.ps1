@@ -116,7 +116,7 @@
             StatusOK = $PlatformProcessUpState
             Required = $true
             Class = "Process"
-            ParentName = "AlteryxService"
+            ParentName = @("AlteryxService","")
             Component = "Controller","Gallery", "Worker"
         },
         [PlatformCim]@{
