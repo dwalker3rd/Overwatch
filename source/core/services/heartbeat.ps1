@@ -148,7 +148,7 @@ function global:Set-Heartbeat {
     $heartbeat.PlatformIsOK = $PlatformStatus.IsOK
     $heartbeat.PlatformRollupStatus = $PlatformStatus.RollupStatus
     $heartbeat.Alert = !$IsOK
-    $heartbeat.Issues = $PlatformStatus.Issues
+    $heartbeat.Issues = $PlatformStatus.Issues ?? @()
     $heartbeat.TimeStamp = Get-Date
 
     if ($Reported) { $heartbeat.PreviousReport = Get-Date }
