@@ -12,24 +12,26 @@ function global:Install-PythonPackage {
 
     if (!$Pip.toLower().EndsWith('\pip')) {$Pip += '\pip'}
 
-    $pipOptions = ""
-    if ($Upgrade) {
-        $pipOptions += "--upgrade"
-    }
-
     $psSessions = Get-PSSession+ -ComputerName $ComputerName
 
     foreach ($psSession in $psSessions) {
+
         Write-Host+ -Iff (!$Quiet) -MaxBlankLines 1
         $message = "Installing Python Package[s] on $($psSession.ComputerName)"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp $message
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp $emptyString.PadLeft($message.Length,"-")
+
+        $pipExpression = ". '$Pip' install $Package --no-warn-script-location"
+        if ($Upgrade) {
+            $pipExpression += " --upgrade --upgrade-strategy $UpgradeStrategy"
+        }
         if ($Quiet) { 
-            Invoke-Command -Session $psSession { . $using:Pip install $using:Package $using:pipOptions | Out-Null }
+            Invoke-Command -Session $psSession { Invoke-Expression -Command $using:pipExpression | Out-Null }
         }
         else {
-            Invoke-Command -Session $psSession { . $using:Pip install $using:Package $using:pipOptions }
+            Invoke-Command -Session $psSession { Invoke-Expression -Command $using:pipExpression }
         }
+        
     }
     Write-Host+ -Iff (!$Quiet)
 

@@ -431,7 +431,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $platformInstanceNodes = $null
             }
         } until ($platformInstanceNodes)
-        $platformInstanceNodes = $platformInstanceNodes -split ","
+        $platformInstanceNodes = $platformInstanceNodes -split "," | ForEach-Object { $_.Trim(" ") }
         # $platformInstanceNodes = '"' + ($platformInstanceNodesArray -join '", "') + '"'
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance Nodes: $platformInstanceNodes" -IfDebug -ForegroundColor Yellow
     }
@@ -451,7 +451,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
             $requiredPythonPackagesResponse = Read-Host
             $requiredPythonPackages = ![string]::IsNullOrEmpty($requiredPythonPackagesResponse) ? $requiredPythonPackagesResponse : $requiredPythonPackages
-            $requiredPythonPackages = $requiredPythonPackages -split ","
+            $requiredPythonPackages = $requiredPythonPackages -split "," | ForEach-Object { $_.Trim(" ") }
             Write-Host+ -NoTrace -NoTimestamp "Required Python Packages: $requiredPythonPackages" -IfDebug -ForegroundColor Yellow
         }
         default {$null}
