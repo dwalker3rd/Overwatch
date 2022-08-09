@@ -28,6 +28,4 @@ $global:Location +=
     Credentials = "$($global:Location.Root)\data\$($global:Environ.Instance)"
     Logs = "$($global:Location.Root)\logs"
     Temp = "$($global:Location.Root)\temp\$($global:Environ.Instance)"
-
-    Pip = "<pipLocation>"
 }

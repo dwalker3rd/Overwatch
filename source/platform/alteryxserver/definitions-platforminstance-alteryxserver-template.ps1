@@ -51,55 +51,50 @@ If using the Microsoft Teams provider, it must be configured here.
     $global:Platform.Domain = "<platformInstanceDomain>"
     $global:Platform.InstallPath = "<platformInstallLocation>"
 
-#endregion PLATFORM-OBJECT
+    #endregion PLATFORM-OBJECT
+    #region PLATFORMTOPOLOGY
 
-#region PLATFORMTOPOLOGY
-
-    $global:RegexPattern += @{
-        PlatformTopology = @{
-            Alias = @{
-                Match = ""
-                Groups = @()
+        $global:RegexPattern += @{
+            PlatformTopology = @{
+                Alias = @{
+                    Match = ""
+                    Groups = @()
+                }
             }
         }
-    }
 
-    # ATTENTION!
-    # Nodes should ONLY be removed from the hard-coded nodes definition below 
-    # IFF Alteryx Server has been uninstalled, reconfigured for another instance of
-    # Alteryx Server or the node has been decommissioned.  For temporary removal,
-    # use the REMOVE or OFFLINE functions.
+        # ATTENTION!
+        # Nodes should ONLY be removed from the hard-coded nodes definition below 
+        # IFF Alteryx Server has been uninstalled, reconfigured for another instance of
+        # Alteryx Server or the node has been decommissioned.  For temporary removal,
+        # use the REMOVE or OFFLINE functions.
 
-    $global:PlatformTopologyBase = @{
-        Nodes = "<platformInstanceNodes>"
-        Components = @("Controller", "Database", "Gallery", "Worker")
-    }
+        $global:PlatformTopologyBase = @{
+            Nodes = "<platformInstanceNodes>"
+            Components = @("Controller", "Database", "Gallery", "Worker")
+        }
 
-#endregion PLATFORMTOPOLOGY
+    #endregion PLATFORMTOPOLOGY
+    #region PLATFORM-TIMEOUTS
 
-#region PLATFORM-TIMEOUTS
+        $global:PlatformComponentTimeout = 300
+        $global:PlatformShutdownMax = New-TimeSpan -Minutes 75   
 
-    $global:PlatformComponentTimeout = 300
-    $global:PlatformShutdownMax = New-TimeSpan -Minutes 75   
+    #endregion PLATFORM-TIMEOUTS
+    #region PRINCIPAL-CONTEXT
 
-#endregion PLATFORM-TIMEOUTS
+        $global:PrincipalContextType = [System.DirectoryServices.AccountManagement.ContextType]::Machine  
+        $global:PrincipalContextName = $env:COMPUTERNAME
 
-#region PRINCIPAL-CONTEXT
+    #endregion PRINCIPAL-CONTEXT
+    #region DISKS
 
-    $global:PrincipalContextType = [System.DirectoryServices.AccountManagement.ContextType]::Machine  
-    $global:PrincipalContextName = $env:COMPUTERNAME
+        $global:diskSpaceLowThreshold = 15
+        $global:diskSpaceCriticalThreshold = 10
+        $global:ignoreDriveType = @(2,5)
+        $global:ignoreDisks = @("D:")
 
-#endregion PRINCIPAL-CONTEXT
-
-#region DISKS
-
-    $global:diskSpaceLowThreshold = 15
-    $global:diskSpaceCriticalThreshold = 10
-    $global:ignoreDriveType = @(2,5)
-    $global:ignoreDisks = @("D:")
-
-#endregion DISKS
-
+    #endregion DISKS
     #region MICROSOFT-TEAMS
 
         # The following line indicates a post-installation configuration to the installer
@@ -119,5 +114,17 @@ If using the Microsoft Teams provider, it must be configured here.
         $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
 
     #endregion MICROSOFT-TEAMS
+    #region PYTHON
+
+        $global:Location += @{
+            Python = @{
+                Pip = "<pythonPipLocation>"
+                SitePackages = "<pythonSitePackagesLocation>"
+            }
+        }
+
+        $global:RequiredPythonPackages = "<requiredPythonPackages>"
+
+    #endregion PYTHON
 
 #endregion INSTANCE-DEFINITIONS

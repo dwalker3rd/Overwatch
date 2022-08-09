@@ -32,13 +32,19 @@ function Copy-File {
 
         foreach ($pathFile in $pathFiles) {
             $destinationFile = $destinationIsDirectory ? "$Destination\$(Split-Path $pathFile -Leaf -Resolve)" : $Destination
-            if (!(Test-Path -Path $Destination -PathType Leaf)) {
+            if (!(Test-Path -Path $destinationFile -PathType Leaf)) {
+                Copy-Item -Path $pathFile $destinationFile
+                if (!$Quiet) {
+                    Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "Copied $_ to $destinationFile" -ForegroundColor DarkGray}
+                }
+            }
+            else {
                 if ($ConfirmOverwrite -and $NoOverwrite) {
                     # don't copy the file
                 }
                 else {
                     $overwrite = (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFile).hash
-                    if ($ConfirmOverwrite) {
+                    if ($ConfirmOverwrite -and $overwrite) {
                         Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Overwrite $($destinationFile)? [Y] Yes [N] No (default is `"No`"): " -ForegroundColor DarkYellow
                         $overwrite = (Read-Host) -eq "Y" 
                     }
@@ -351,14 +357,6 @@ Write-Host+ -NoTrace -NoTimestamp "----------------------" -ForegroundColor Dark
     Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
 
 #endregion PLATFORM INSTALL LOCATION
-#region PIP
-
-    $pipLocation = switch ($platformId) {
-        "AlteryxServer" {"$platformInstallLocation\Miniconda3\envs\DesignerBaseTools_vEnv\Scripts"}
-        default {$null}
-    }
-
-#region PIP
 #region PLATFORM INSTANCE URL
 
 do {
@@ -439,6 +437,27 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     }
 
 #endregion PLATFORM INSTANCE NODES 
+#region PYTHON
+
+    $pythonEnvLocation = $null
+    $pythonPipLocation = $null
+    $pythonSitePackagesLocation = $null
+    switch ($platformId) {
+        "AlteryxServer" {
+            $pythonEnvLocation = "$platformInstallLocation\bin\Miniconda3\envs\DesignerBaseTools_vEnv"
+            $pythonPipLocation = "$pythonEnvLocation\Scripts"
+            $pythonSitePackagesLocation = "$pythonEnvLocation\Lib\site-packages"
+
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            $requiredPythonPackagesResponse = Read-Host
+            $requiredPythonPackages = ![string]::IsNullOrEmpty($requiredPythonPackagesResponse) ? $requiredPythonPackagesResponse : $requiredPythonPackages
+            $requiredPythonPackages = $requiredPythonPackages -split ","
+            Write-Host+ -NoTrace -NoTimestamp "Required Python Packages: $requiredPythonPackages" -IfDebug -ForegroundColor Yellow
+        }
+        default {$null}
+    }
+
+#region PYTHON
 #region IMAGES
 
     do {
@@ -659,7 +678,6 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $environFile = ($environFile -replace "<productIds>", "'$($productIds -join "', '")'") -replace "'",'"'
             $environFile = ($environFile -replace "<providerIds>", "'$($providerIds -join "', '")'") -replace "'",'"'
             $environFile = $environFile -replace "<imagesUri>", $imagesUri
-            $environFile = $environFile -replace "<pipLocation>", $pipLocation
             $environFile | Set-Content -Path $targetFile
             Write-Host+ -NoTrace -NoTimestamp "$($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
         }
@@ -683,7 +701,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
         $isSourceFileTemplate = $false
         $sourceFile = "$PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1"
-        if (!(Test-Path $sourceFile) -or (Get-Content -Path $sourceFile | Select-String "<platformId>" -SimpleMatch -Quiet)) {
+        if (!(Test-Path $sourceFile) -or (Get-Content -Path $sourceFile | Select-String "<platformInstanceId>" -SimpleMatch -Quiet)) {
             $sourceFile = "$PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platforminstance-$platformId-template.ps1"
             $isSourceFileTemplate = $true
         }
@@ -694,6 +712,9 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceUrl>", $platformInstanceUri
         $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<platformInstanceDomain>", $platformInstanceDomain
         $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace '"<platformInstanceNodes>"', "@('$($platformInstanceNodes -join "', '")')"
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<pythonPipLocation>", $pythonPipLocation
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<pythonSitePackagesLocation>", $pythonSitePackagesLocation
+        $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace '"<requiredPythonPackages>"', "@('$($requiredPythonPackages -join "', '")')"
         $platformInstanceDefinitionsFile | Set-Content -Path $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1
         Write-Host+ -NoTrace -NoTimestamp "$($isSourceFileTemplate ? "Created" : "Updated") $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1" -ForegroundColor DarkGreen
 
@@ -808,6 +829,26 @@ Write-Host+ -ResetAll
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
 #endregion MODULES-PACKAGES
+#region PYTHON-PACKAGES
+
+    switch ($platformId) {
+        "AlteryxServer" {
+            if ($requiredPythonPackages) {
+
+                $message = "<Required Python Packages <.>48> INSTALLING"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+
+                Install-PythonPackage -Package $requiredPythonPackages -Pip $pythonPipLocation -ComputerName $platformInstanceNodes -Quiet
+
+                $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
+                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+            }
+        }
+        default {}
+    }
+
+#region PYTHON-PACKAGES
 #region REMOVE CACHE
 
     if ($installOverwatch) {
@@ -1034,6 +1075,7 @@ Write-Host+ -ResetAll
             "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $installSettings
             "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $installSettings
             "`$platformInstanceNodes = @('$($platformInstanceNodes -join "', '")')" | Add-Content -Path $installSettings
+            "`$requiredPythonPackages = @('$($requiredPythonPackages -join "', '")')" | Add-Content -Path $installSettings
 
         #endregion SAVE SETTINGS
         #region INITIALIZE OVERWATCH

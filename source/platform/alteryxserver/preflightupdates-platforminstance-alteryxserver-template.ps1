@@ -26,11 +26,11 @@
     # see https://github.com/conda/conda/issues/8273
     Repair-PythonSSL -ComputerName (Get-PlatformTopology nodes -keys)
 
-    # confirm that required python packages have been installed
-    # these packages are in addition to those installed by Alteryx
-    $requiredPythonPackages = @()
+    # install any additional python packages required for your Alteryx Server environment
+    # these are in addition to those python packages installed by Alteryx Server
+    $requiredPythonPackages = @(<requiredPythonPackages>)
     if ($requiredPythonPackages) {
-        Install-PythonPackage -Package $requiredPythonPackages -Pip $global:Location.Pip -ComputerName (Get-PlatformTopology nodes -keys)
+        Install-PythonPackage -Package $requiredPythonPackages -Pip $global:Location.Python.Pip -ComputerName (Get-PlatformTopology nodes -keys)
     }
 
     # enable powershell 'double-hop' with credssp on controller
