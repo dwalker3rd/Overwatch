@@ -2,7 +2,7 @@ $EventHistoryMax = 72 # 6 hours if the interval is 5 minutes
 
 function global:Show-PlatformEvent {
 
-    $platformStatus = Get-PlatformStatus
+    $platformStatus = Get-PlatformStatus -CacheOnly
 
     $properties = $platformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory"}
     $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}

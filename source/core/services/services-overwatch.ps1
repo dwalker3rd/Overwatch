@@ -131,22 +131,25 @@
                 
             [CmdletBinding()]
             param (
-                [switch]$ResetCache
+                [switch]$ResetCache,
+                [switch]$CacheOnly
             )
 
-            Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-            if ((get-cache platformstatus).Exists() -and !$ResetCache) {
+            # The $ResetCache switch is only for the platform-specific Get-PlatformStatusRollup
+            # function and is *** NOT *** to be used for the platformstatus cache
+            if ((get-cache platformstatus).Exists()) {
                 $platformStatus = [PlatformStatus](Read-Cache platformStatus)
+                # The $CacheOnly switch allows a faster return for those callers that 
+                # don't need updated platform-specific status. par example:  Show-PlatformEvent
+                if ($CacheOnly) { return $platformStatus }
             }
 
             if (!$platformStatus) {
                 $platformStatus = [PlatformStatus]::new()
             }
 
-            Write-Verbose "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)"
-            # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "Read-Cache" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
-
+            # The $ResetCache switch is only for the platform-specific Get-PlatformStatusRollup
+            # function and is *** NOT *** to be used for the platformstatus cache
             $params = @{}
             if ($ResetCache) {$params += @{ResetCache = $true}}
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.Issues, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
@@ -159,9 +162,6 @@
                 Set-PlatformEvent -Event $command -Context "Unknown" -EventReason "Unknown" -EventStatus $global:PlatformEventStatus.InProgress -PlatformStatus $platformStatus
             }
 
-            Write-Verbose "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)"
-            # Write-Log -Context "$($MyInvocation.MyCommand)" -Action"Get-PlatformStatusRollup" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
-
             $platformCimInstance = Get-PlatformCimInstance
             
             $isOK = $platformStatus.IsOK
@@ -170,9 +170,6 @@
                     ForEach-Object {
                         $isOK = $isOK -and ($_.Required ? $_.IsOK : $true)
                     }
-
-            Write-Verbose "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)"
-            # Write-Log -Context "$($MyInvocation.MyCommand)" -Action"Get-PlatformCimInstance" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force
 
             $IsStoppedTimeout = $false
             if (!$isOK) {
@@ -222,32 +219,9 @@
                     $platformStatus.EventCompletedAt = [datetime]::Now
             }
 
-            if ($ResetCache) {
-
-                Write-Verbose "Reset Platform Status"
-                # Write-Log -Action "Reset" -Target "Platform Status" -EntryType "Warning" -Status $isOK
-
-                $platformStatus.Event = $null
-                $platformStatus.EventReason = $null
-                $platformStatus.EventStatus = $null
-                $platformStatus.EventStatusTarget = $null
-                $platformStatus.EventCreatedAt = [datetime]::MinValue
-                $platformStatus.EventUpdatedAt = [datetime]::MinValue
-                $platformStatus.EventCreatedBy = $null
-                $platformStatus.EventHasCompleted = $false
-                $platformStatus.Intervention = $false
-                $platformStatus.InterventionReason = $null
-                $platformStatus.ByCimInstance = $null
-                $platformStatus.StatusObject = $null
-                
-            }
-
             $platformStatus | Write-Cache platformstatus
 
-            Write-Verbose "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)"
-            # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "return" -EntryType "Information" -Message "IsOK: $($platformStatus.IsOK), Status: $($platformStatus.RollupStatus)" -Force  
-
-            return $platformStatus # .IsOK
+            return $platformStatus
 
         }
 
