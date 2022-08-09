@@ -28,9 +28,8 @@
 
     # install any additional python packages required for your Alteryx Server environment
     # these are in addition to those python packages installed by Alteryx Server
-    $requiredPythonPackages = @(<requiredPythonPackages>)
     if ($requiredPythonPackages) {
-        Install-PythonPackage -Package $requiredPythonPackages -Pip $global:Location.Python.Pip -ComputerName (Get-PlatformTopology nodes -keys)
+        Install-PythonPackage -Package $requiredPythonPackages -Pip $global:Location.Python.Pip -ComputerName (Get-PlatformTopology nodes -keys) -Upgrade -UpgradeStrategy "only-if-needed" -Quiet
     }
 
     # enable powershell 'double-hop' with credssp on controller

@@ -5,10 +5,17 @@ function global:Install-PythonPackage {
         [Parameter(Mandatory=$true)][string[]]$Package,
         [Parameter(Mandatory=$true)][string]$Pip,
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME,
+        [switch]$Upgrade,
+        [Parameter(Mandatory=$false)][ValidateSet("only-if-needed","eager")][string]$UpgradeStrategy = "only-if-needed",
         [switch]$Quiet
     )
 
     if (!$Pip.toLower().EndsWith('\pip')) {$Pip += '\pip'}
+
+    $pipOptions = ""
+    if ($Upgrade) {
+        $pipOptions += "--upgrade"
+    }
 
     $psSessions = Get-PSSession+ -ComputerName $ComputerName
 
@@ -18,10 +25,10 @@ function global:Install-PythonPackage {
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp $message
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp $emptyString.PadLeft($message.Length,"-")
         if ($Quiet) { 
-            Invoke-Command -Session $psSession { . $using:Pip install $using:Package | Out-Null }
+            Invoke-Command -Session $psSession { . $using:Pip install $using:Package $using:pipOptions | Out-Null }
         }
         else {
-            Invoke-Command -Session $psSession { . $using:Pip install $using:Package }
+            Invoke-Command -Session $psSession { . $using:Pip install $using:Package $using:pipOptions }
         }
     }
     Write-Host+ -Iff (!$Quiet)
