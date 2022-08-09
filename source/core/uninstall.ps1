@@ -2,7 +2,7 @@
 #Requires -Version 7
 
 param(
-    [Parameter(Mandatory=$false,Position=0)][ValidateSet("Provider","Product")][Alias("Provider","Product")][string]$Type,
+    [Parameter(Mandatory=$false,Position=0)][ValidateSet("Provider","Product")][string]$Type,
     [Parameter(Mandatory=$false,Position=1)][string]$Name
 )
 
@@ -214,7 +214,8 @@ function Uninstall-Overwatch { Remove-CoreFiles }
     if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
 
         # this ensures the case is correct for the product
-        $Name = (Get-Product $Name).Id
+        if ($Type -eq "Product") { $Name = (Get-Product $Name).Id }
+        if ($Type -eq "Provider") { $Name = (Get-Provider $Name).Id }
 
         if ($global:Catalog.$Type.$Name.Installation.Flag -contains "UninstallProtected") {
             Write-Host+ -NoTrace "WARN: $Type `"$Name`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
