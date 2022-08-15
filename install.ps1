@@ -5,6 +5,7 @@
 
 param (
     [switch]$SkipProductStop,
+    [switch]$SkipProductStart,
     [switch]$NoOverwrite
 )
 
@@ -1013,7 +1014,7 @@ Write-Host+ -ResetAll
         #endregion CONFIG
         #region PRODUCTS
 
-            if ($productIds -or ($installedProductsToDisable -and !$SkipProductStop)) {
+            if ($productIds -or ($installedProductsToDisable -and !$SkipProductStop -and !$SkipProductStart)) {
 
                 Write-Host+ -MaxBlankLines 1
                 $message = "<Installing products <.>48> PENDING"
@@ -1026,7 +1027,7 @@ Write-Host+ -ResetAll
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
                 $productIds | ForEach-Object { Install-Product $_ }
-                if (!$SkipProductStop) {
+                if (!$SkipProductStop -and !$SkipProductStart) {
                     $installedProductsToDisable | ForEach-Object { Enable-Product $_.Id }
                 }
                 
