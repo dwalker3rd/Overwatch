@@ -126,7 +126,7 @@ Open-Monitor
 #region HEARTBEAT INIT
 
     # heartbeat is initializing:  set heartbeat, exit Monitor
-    if ($heartbeat.PlatformRollupStatus -eq "Pending") {
+    if ($heartbeat.PlatformRollupStatus -eq "Unknown") {
         $passesRemaining = $global:Product.Config.FlapDetectionEnabled -and $heartbeat.PlatformRollupStatus -eq "Pending" ? 2 : 1
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace "  Heartbeat has been reset and is initializing"
