@@ -278,7 +278,7 @@ function global:Export-TSSite {
         Write-End groups
 
         Write-Start projects
-        $projects = Get-TSProjects+ @projectParams
+        $projects = Get-TSProjects+
         $projects | Export-TSObject Site projects
         Write-End projects
 
