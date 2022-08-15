@@ -219,6 +219,26 @@ function global:Wait-PlatformTask {
 }
 Set-Alias -Name taskWait -Value Wait-PlatformTask -Scope Global
 
+function global:Disable-PlatformTasks {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60)
+    ) 
+
+    Write-Host+
+
+    $productsWithTask = Get-Product | Where-Object {$_.HasTask}
+    foreach ($productWithTask in $productsWithTask) {
+        $disabled = Disable-PlatformTask -Id $productWithTask.Id -Timeout $Timeout
+        $message = "<$($productWithTask.Id) <.>32> $($disabled ? "DISABLED" : "ENABLED")"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($disabled ? "Red" : "DarkGreen")
+    }
+
+    Write-Host+
+
+}
+
 function global:Disable-PlatformTask {
 
     # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")        
