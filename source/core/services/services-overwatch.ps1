@@ -265,27 +265,22 @@
 
             [CmdletBinding()]
             param (
-                [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+                [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
                 [Parameter(Mandatory=$true)][string]$Name,
                 [Parameter(Mandatory=$false)][string]$Status = "Running",
                 [Parameter(Mandatory=$false)][int]$WaitTimeInSeconds = 60,
                 [Parameter(Mandatory=$false)][int]$TimeOutInSeconds = 0
             )
-
-            $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
             
             $totalWaitTimeInSeconds = 0
-            $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
-            $currentStatus = $service.Status | Sort-Object -Unique
-            while ($currentStatus -ne $Status) {
+            $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+            while ($service.Status -ne $Status) {
                 Start-Sleep -Seconds $WaitTimeInSeconds
                 $totalWaitTimeInSeconds += $WaitTimeInSeconds
                 if ($TimeOutInSeconds -gt 0 -and $totalWaitTimeInSeconds -ge $TimeOutInSeconds) {
-                    # throw "ERROR: Timeout ($totalWaitTimeInSeconds seconds) waiting for platform service `"$Name`" to transition from status `"$currentStatus`" to `"$Status`""
                     return $false
                 }
-                $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
-                $currentStatus = $service.Status | Sort-Object -Unique
+                $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
             }
         
             return $true

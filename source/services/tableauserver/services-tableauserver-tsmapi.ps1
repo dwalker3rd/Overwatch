@@ -195,7 +195,9 @@ Set-Alias -Name tsmApiInit -Value Initialize-TsmApiConfiguration -Scope Global
 function global:New-TsmApiSession {
 
     [CmdletBinding()]
-    param ()
+    param (
+        [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
+    )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
@@ -206,7 +208,7 @@ function global:New-TsmApiSession {
     $httpMethod = $global:tsmApiConfig.Method.Login.HttpMethod
 
     # must assign the response from this Invoke-Method to a variable or $session does not get set
-    $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -TimeoutSec 15 -SkipCertificateCheck -SessionVariable session -Verbose:$false
+    $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -TimeoutSec $TimeoutSec -SkipCertificateCheck -SessionVariable session -Verbose:$false
     $response | Out-Null
     return $session
 
@@ -230,7 +232,8 @@ function global:Invoke-TsmApiMethod {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Method,
-        [Parameter(Mandatory=$false,Position=1)][string[]]$Params
+        [Parameter(Mandatory=$false,Position=1)][string[]]$Params,
+        [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -245,12 +248,12 @@ function global:Invoke-TsmApiMethod {
     }   
     
     try {
-        $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec 15 -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
+        $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec $TimeoutSec -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
     }
     catch {
         if ($_.Exception.Response.StatusCode -eq [System.Net.HttpStatusCode]::Unauthorized) {
             $global:tsmApiConfig.Session = New-TsmApiSession
-            $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec 15 -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
+            $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec $TimeoutSec -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
         }
         # else {
         #     Write-Error -Message $_.Exception.Message
@@ -370,11 +373,9 @@ function global:Get-TableauServerStatus {
                         switch ($service.serviceName) {
                             "backgrounder" {
                                 if ($instance.message -like "Error opening named pipe*") {
-
                                     # this isn't an error, but a scheduled restart (occurs every 8 hours)
                                     $instance.message = "Scheduled restart"
                                     $service.rollupStatus = "Running"
-                                    
                                 }
                             }
                             "clientfileservice" {
