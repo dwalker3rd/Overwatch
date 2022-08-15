@@ -4,7 +4,7 @@ function global:Show-PlatformEvent {
 
     $platformStatus = Get-PlatformStatus -CacheOnly
 
-    $properties = $platformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory"}
+    $properties = $platformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory" -or $_.name -like "IsStopped*" -or $_.name -like "Intervention*"}
     $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}
     $maxLength = ($propertyNameLengths | Measure-Object -Maximum).Maximum
 
