@@ -8,6 +8,9 @@ Write-Host+
 $message = "<Platform Initialization <.>48> PENDING"
 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
+$tsRestApiAvailable = $true
+$tsmRestApiAvailable = $true
+
 try {
 
     # check for server shutdown/startup events
@@ -16,16 +19,19 @@ try {
     $serverStatus = Get-ServerStatus -ComputerName $computerName
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
-        $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper()):The TSM and Tableau Server REST APIs are unavailable."
-        throw $message
+        $tsRestApiAvailable = $tsmRestApiAvailable = $false
+        $errormessage = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
+        throw $errormessage
     }
 
     # check TSM REST API prerequisites
     foreach ($prerequisite in $global:Catalog.Platform.TableauServer.Api.TsmApi.Prerequisite) {
         $serviceIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -Name $($prerequisite.Service) -Status $($prerequisite.Status)"
         if (!$serviceIsRunning) {
-            $message = "The $($Platform.Name) service $($prerequisite.Service) is $($prerequisite.Status):$($prerequisite.Message)"
-            throw $message
+            $tsmRestApiAvailable = $false
+            $service = Get-Service $prerequisite.Service
+            $errormessage = "The $($Platform.Name) service `"$($prerequisite.Service)`" is $($service.Status.ToUpper())"
+            throw $errormessage
         }
     }
 
@@ -36,18 +42,24 @@ try {
 
     # check for platform events
     $platformStatus = Get-PlatformStatus 
-    # abort if platform is stopped or if a platform event is in progress
-    if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-        $message = "$($Platform.Name) $($Platform.Event ? ("$Platform.Event ") : $null)is $($PlatformStatus.IsStopped ? "STOPPED" : $platformStatus.EventStatus.ToUpper()):The Tableau Server REST API is unavailable."
-        throw $message
+    if ($platformStatus.IsStopped) {
+        $tsRestApiAvailable = $false
+        $errormessage = "$($Platform.Name) is STOPPED"
+        throw $errormessage
+    }
+    if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
+        $tsRestApiAvailable = $false
+        $errormessage = "$($Platform.Name) $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper())"
+        throw $errormessage
     }
 
     # check Tableau Server REST API prerequisites
     foreach ($prerequisite in $global:Catalog.Platform.TableauServer.Api.TableauServerRestApi.Prerequisite) {
-        $serviceIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -Name $($prerequisite.Service) -Status $($prerequisite.Status)"
+        $serviceIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -Name $($prerequisite.Service) -Status $($prerequisite.Status) -TimeoutInSeconds 15"
         if (!$serviceIsRunning) {
-            $message = "The $($Platform.Name) service $($prerequisite.Service) is $($prerequisite.Status):$($prerequisite.Message)"
-            throw $message
+            $tsRestApiAvailable = $false
+            $errormessage = "The $($Platform.Name) service `"$($prerequisite.Service)`" is NOT $($prerequisite.Status.ToUpper())"
+            throw $errormessage
         }
     }
 
@@ -59,12 +71,22 @@ try {
 }
 catch {
 
-    $message = "$($emptyString.PadLeft(8,"`b")) FAIL   $($emptyString.PadLeft(8," "))"
+    $message = "$($emptyString.PadLeft(8,"`b")) WARNING$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed 
 
-    Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message.Split(":")[0])" -ForegroundColor DarkRed
-    Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message.Split(":")[1])" -ForegroundColor DarkRed
-    Write-Log -Action "Initialize" -Target "Platform" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message.Replace(":",". ")
+    Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message)" -ForegroundColor DarkRed
+    
+    If (!$tsmRestApiAvailable) { 
+        $errorMessage = "  The TSM REST API is unavailable."
+        Write-Log -Action "Initialize" -Target "TSM REST API" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message
+        Write-Host+ -NoTrace -NoSeparator $errorMessage -ForegroundColor DarkRed
+    }
+    If (!$tsRestApiAvailable) {
+        $errorMessage = "  The Tableau Server REST API is unavailable."
+        Write-Log -Action "Initialize" -Target "Tableau Server REST API" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message
+        Write-Host+ -NoTrace -NoSeparator $errorMessage -ForegroundColor DarkRed
+    }
+    
 }
 
 Write-Host+
