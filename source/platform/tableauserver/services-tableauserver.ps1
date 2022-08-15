@@ -62,12 +62,15 @@ function global:Show-PlatformStatus {
     # notify if platform is stopped or if a platform event is in progress
     if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         Write-Host+
-        $message = "$($Platform.Name) $($platformStatus.Event.ToUpper()) is $($($PlatformStatus.IsStopped) ? "STOPPED" : $($platformStatus.EventStatus.ToUpper()))"
+        if ($platformStatus.IsStopped) {
+            $message = "$($Platform.Name) is STOPPED"
+        }
+        if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+            $message = "$($Platform.Name) $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper())"
+        }
         Write-Host+ -NoTrace -NoTimeStamp $message -ForegroundColor DarkRed
-        Write-Host+
+        Write-Host+ -NoTrace -NoTimeStamp "The Tableau Server REST API is unavailable." -ForegroundColor DarkRed
     }
-
-    # $platformstatus | Format-List *
 
     $nodeStatus = (Get-TableauServerStatus).Nodes
     $nodeStatus = $nodeStatus | 
@@ -185,29 +188,47 @@ if ($(get-cache platformservices).Exists() -and !$ResetCache) {
 }
 
 $platformTopology = Get-PlatformTopology
+$platformStatus = Read-Cache platformstatus
 $tableauServerStatus = Get-TableauServerStatus
+
+$eventVerb = $null
+$serviceStatusOK = @("Active","Running")
+if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
+    switch ($platformStatus.Event) {
+        "Stop" {
+            $eventVerb = "Stopping"
+            $serviceStatusOK += "Stopping"
+            $serviceStatusOK += "Stopped"
+        }
+        "Start" {
+            $eventVerb = "Starting"
+            $serviceStatusOK += "Starting"
+        }
+    }
+}
 
 Write-Debug "Processing PlatformServices"
 if ($tableauServerStatus) {
-    $platformServices = 
+    $platformServices = @()
         foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
             $node = $platformTopology.Alias.$nodeId                   
             $services = ($tableauServerStatus.nodes | Where-Object {$_.nodeid -eq $nodeId}).services
             $services | Foreach-Object {
                 $service = $_
-                @(
+                $platformService = @(
                     [PlatformCim]@{
                         Name = $service.ServiceName
                         DisplayName = $service.ServiceName
                         Class = "Service"
                         Node = $node
                         Required = $service.rollupRequestedDeploymentState -eq "Enabled"
-                        Status = $service.rollupStatus
-                        StatusOK = @("Active","Running")
-                        IsOK = @("Active","Running").Contains($service.rollupStatus)
+                        Status = $service.rollupStatus -eq "Error" -or [string]::IsNullOrEmpty($service.rollupStatus) ? $eventVerb : $service.rollupStatus
+                        StatusOK = $serviceStatusOK
+                        IsOK = $serviceStatusOK.Contains($service.rollupStatus)
                         Instance = $service.instances
                     }
                 )
+                $platformServices += $platformService
             }
         }
 }      
