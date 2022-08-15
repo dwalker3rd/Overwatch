@@ -263,7 +263,7 @@ function global:Enable-PlatformTasks {
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60)
     ) 
 
-    Write-Host+ -MaxBlankLines 1
+    Write-Host+
 
     $productsWithTask = Get-Product | Where-Object {$_.HasTask}
     foreach ($productWithTask in $productsWithTask) {
