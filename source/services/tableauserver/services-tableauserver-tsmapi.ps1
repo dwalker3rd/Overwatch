@@ -255,10 +255,9 @@ function global:Invoke-TsmApiMethod {
             $global:tsmApiConfig.Session = New-TsmApiSession
             $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec $TimeoutSec -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
         }
-        # else {
-        #     Write-Error -Message $_.Exception.Message
-        #     Write-Log -Context $Method -Message $_.Exception.Message -EntryType "Error" -Action Invoke-RestMethod -Target $path -Status "Failure"
-        # }
+        else {
+            throw $_.Exception.Message
+        }
     }
 
     if ($keys) {
@@ -343,15 +342,16 @@ function global:Get-TableauServerStatus {
         catch {
 
             if ($attempt -eq $maxAttempts) {
-                Write-Error -Message $_.Exception
-                Write-Error "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure"
+                # Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor Red
+                # Write-Host+ -NoTrace "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure" -ForegroundColor Red
                 Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
                 Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
             }
-
-            # give the TSM API a moment to think it over
-            Write-Debug "Waiting $($sleepSeconds) before retrying ... "
-            Start-Sleep -Seconds $sleepSeconds
+            else {
+                # give the TSM API a moment to think it over
+                Write-Debug "Waiting $($sleepSeconds) before retrying ... "
+                Start-Sleep -Seconds $sleepSeconds
+            }
 
         }
 

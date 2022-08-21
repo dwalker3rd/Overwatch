@@ -154,6 +154,10 @@
             if ($ResetCache) {$params += @{ResetCache = $true}}
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.Issues, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
 
+            if ($platformStatus.RollupStatus -eq "Unavailable") {
+                return $platformStatus
+            }
+
             if ($platformStatus.RollupStatus -in @("Stopping","Starting","Restarting") -and !$platformStatus.Event) {
                 $command = switch ($platformStatus.RollupStatus) {
                     "Stopping" {"Stop"}
