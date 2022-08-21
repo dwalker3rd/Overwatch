@@ -230,9 +230,10 @@ function global:Disable-PlatformTasks {
 
     $productsWithTask = Get-Product | Where-Object {$_.HasTask}
     foreach ($productWithTask in $productsWithTask) {
-        $disabled = Disable-PlatformTask -Id $productWithTask.Id -Timeout $Timeout
-        $message = "<$($productWithTask.Id) <.>32> $($disabled ? "DISABLED" : "ENABLED")"
+        $disabled,$taskStatus = Disable-PlatformTask -Id $productWithTask.Id -Timeout $Timeout -Quiet
+        $message = "<$($productWithTask.Id) <.>32> $($taskStatus.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($disabled ? "Red" : "DarkGreen")
+        Write-Log -EntryType "Warning" -Action "Disable-PlatformTasks" -Target $productWithTask.Id -Status $taskStatus -Force
     }
 
     Write-Host+
@@ -247,31 +248,32 @@ function global:Disable-PlatformTask {
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName,
-        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60)
+        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [switch]$Quiet
     ) 
 
     $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
     $task = Get-PlatformTask -Id $Id 
-    Write-Verbose "$($Id) $($task.Status)"
 
     # check if task is disabled
     if ($task.Status -in "Disabled") {
-        return $true
+        return $true, $task.Status
     }
 
     # check if task is running
     if ($task.Status -in "Running","Queued") {
-        Write-Error "$($Id) is running."
-        return $false
+        Write-Host+ -Iff (!$Quiet) -NoTrace "$($Id) is running." -ForegroundColor Red
+        return $false, $task.Status
     }
 
-    Write-Verbose "Disable $($Id) ... "
     $task = Disable-ScheduledTask -TaskName $TaskName 
 
     # wait for task to be disabled
     $isTargetState = Wait-PlatformTask -Id $Id -TaskName $TaskName -State "Disabled" -Timeout $Timeout
 
-    return $isTargetState
+    $task = Get-PlatformTask -Id $Id 
+
+    return $isTargetState, $task.Status
 
 }
 Set-Alias -Name taskDisable -Value Disable-PlatformTask -Scope Global
@@ -287,9 +289,10 @@ function global:Enable-PlatformTasks {
 
     $productsWithTask = Get-Product | Where-Object {$_.HasTask}
     foreach ($productWithTask in $productsWithTask) {
-        $enabled = Enable-PlatformTask -Id $productWithTask.Id -Timeout $Timeout
-        $message = "<$($productWithTask.Id) <.>32> $($enabled ? "ENABLED" : "DISABLED")"
+        $enabled, $taskStatus = Enable-PlatformTask -Id $productWithTask.Id -Timeout $Timeout
+        $message = "<$($productWithTask.Id) <.>32> $($taskStatus.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($enabled ? "DarkGreen" : "Red")
+        Write-Log -EntryType "Information" -Action "Enable-PlatformTasks" -Target $productWithTask.Id -Status $taskStatus -Force
     }
 
     Write-Host+
@@ -307,25 +310,24 @@ function global:Enable-PlatformTask {
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
     $task = Get-PlatformTask -Id $Id 
-    Write-Verbose "$($Id) $($task.Status)"
 
     # check if task is disabled
     if ($task.Status -notin "Disabled") {
-        return $true
+        return $true, $task.Status
     }
 
     # enable task
-    Write-Verbose "Enable $($Id) ... "
     $task = Enable-ScheduledTask -TaskName $TaskName
 
     # wait for task to be enabled
     $isTargetState = Wait-PlatformTask -Id $Id -TaskName $TaskName -State "Ready" -Timeout $Timeout
 
-    return $isTargetState
+    $task = Get-PlatformTask -Id $Id 
+
+    return $isTargetState, $task.Status
+
 }
 Set-Alias -Name taskEnable -Value Enable-PlatformTask -Scope Global
 
