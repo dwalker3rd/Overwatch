@@ -25,13 +25,11 @@ $agents = $rmtStatus.AgentStatus.Agents | Where-Object {!$_.Services.IsOK}
 if ($agents) {
 
     $params = @{ 
-        Command = "Start"
         ComputerName = $agents.Name
         IfTableauServerIsRunning = $true
+        Context = $Product.Id
     }
-    if ($Context) { $params += @{ Context = $Context } }
-    if ($Reason) { $params += @{ Reason = $Reason } }
-    $result = Request-RMTAgents @params
+    $result = Start-RMTAgents @params
 
     $skippedEnvironments = $result.Skipped.Environments
     Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($skippedEnvironments.Identifier | ConvertTo-Json -Compress) ?? "None") -Force
@@ -59,13 +57,11 @@ if ($agents) {
 
             if ($tableauServerStatus.IsOK) {
                 $params = @{ 
-                    Command = "Start"
                     EnvironmentIdentifier = $environ.Identifier
                     IfTableauServerIsRunning = $true
+                    Context = $Product.Id
                 }
-                if ($Context) { $params += @{ Context = $Context } }
-                if ($Reason) { $params += @{ Reason = $Reason } }
-                $result = Request-RMTAgents @params
+                $result = Start-RMTAgents @params
 
                 if ($result.Skipped.Agents.Count -eq 0) {
                     $skippedEnvironments = $skippedEnvironments | Where-Object {$_.Identifier -ne $environ.Identifier}
