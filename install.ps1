@@ -176,7 +176,7 @@ function global:Show-PostInstallConfig {
 
     $postInstallConfig = $false
     if ((Get-PlatformTask).status -contains "Disabled") {
-        Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Start disabled tasks"
+        Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Enable disabled tasks"
         $postInstallConfig = $true
     }
 
