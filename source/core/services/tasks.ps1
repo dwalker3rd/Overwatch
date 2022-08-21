@@ -493,4 +493,24 @@ function global:Unregister-PlatformTask {
 }
 Set-Alias -Name taskUnRegister -Value Unregister-PlatformTask -Scope Global
 
+function global:Show-PlatformTasks {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60)
+    ) 
+
+    Write-Host+
+
+    $productsWithTask = Get-Product | Where-Object {$_.HasTask}
+    foreach ($productWithTask in $productsWithTask) {
+        $task = Get-PlatformTask -Id $productWithTask.Id
+        $message = "<$($productWithTask.Id) <.>32> $($task.Status.ToUpper())"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -in ("Ready","Running") ? "DarkGreen" : "Red")
+    }
+
+    Write-Host+
+
+}
+
 #endregion TASKS
