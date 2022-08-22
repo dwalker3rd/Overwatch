@@ -3601,7 +3601,7 @@ function global:Sync-TSGroups {
                 if ($timeout) {
                     # Watch-AsyncJob -Id $rebuildSearchIndex.id -Callback "Write-AsyncJobStatusToLog" -NoMessaging
                 }
-                Write-AsyncJobStatusToLog -Id $rebuildSearchIndex.id
+                # Write-AsyncJobStatusToLog -Id $rebuildSearchIndex.id
 
             }
 

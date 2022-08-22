@@ -42,7 +42,7 @@ function global:Send-MonitorMessage {
     $message = "<  Sending $($target.ToLower()) $($action.ToLower()) <.>48> PENDING"
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    Write-Log -Context $global:Product.Id -Action $status -Target $target -Status $PlatformStatus.RollupStatus -Message "Sending $($target.ToLower()) $($action.ToLower())" -EntryType "Warning" -Force
+    Write-Log -Context $global:Product.Id -Action $action -Target $target -Status $PlatformStatus.RollupStatus -Message "Sending $($target.ToLower()) $($action.ToLower())" -EntryType "Warning" -Force
 
     # send platform status message
     $messagingStatus = Send-PlatformStatusMessage -PlatformStatus $PlatformStatus -MessageType $MessageType -NoThrottle:$ReportHeartbeat.IsPresent
@@ -66,7 +66,7 @@ Open-Monitor
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $status = "Aborted"
         $message = "$($Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
-        Write-Log -Context $($Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Context $($Product.Id) -Action "EventCheck" -Target "Server" -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
         return
@@ -102,7 +102,7 @@ Open-Monitor
         else {            
             $status = "Intervention Required!"
             $logMessage = "  $status : $($platformStatus.InterventionReason)"
-            Write-Log -Context $Product.Id -Action "Stop" -Target "Platform" -Status $status -Message $logMessage -EntryType "Warning" -Force
+            Write-Log -Context $Product.Id -Action "EventCheck" -Target "Platform" -Status $status -Message $logMessage -EntryType "Warning" -Force
             $message = "<  $status <.>48> $($platformStatus.InterventionReason)"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,Red
             Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
@@ -117,7 +117,7 @@ Open-Monitor
         $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because "
         $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
-        Write-Log -Context $($global:Product.Id) -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Context $($global:Product.Id) -Action "EventCheck" -Target "Platform" -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         return
     }

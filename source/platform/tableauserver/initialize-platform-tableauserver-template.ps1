@@ -78,12 +78,12 @@ catch {
     
     If (!$tsmRestApiAvailable) { 
         $errorMessage = "  The TSM REST API is unavailable."
-        Write-Log -Action "Initialize" -Target "TSM REST API" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message
+        # Write-Log -Action "Initialize" -Target "TSM REST API" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message
         Write-Host+ -NoTrace -NoSeparator $errorMessage -ForegroundColor DarkRed
     }
     If (!$tsRestApiAvailable) {
         $errorMessage = "  The Tableau Server REST API is unavailable."
-        Write-Log -Action "Initialize" -Target "Tableau Server REST API" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message
+        # Write-Log -Action "Initialize" -Target "Tableau Server REST API" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message
         Write-Host+ -NoTrace -NoSeparator $errorMessage -ForegroundColor DarkRed
     }
     
