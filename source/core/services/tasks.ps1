@@ -168,7 +168,7 @@ function global:Wait-PlatformTask {
         [switch]$Not
     ) 
 
-    $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
+    $Id = $global:Catalog.Product.$Id.Id
     $State = $State | ForEach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}
     $task = Get-PlatformTask -Id $Id
 
@@ -230,7 +230,7 @@ function global:Disable-PlatformTask {
         [switch]$Force
     ) 
 
-    $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
+    $Id = $global:Catalog.Product.$Id.Id
     $task = Get-PlatformTask -Id $Id 
 
     # check if task is disabled
@@ -306,7 +306,7 @@ function global:Enable-PlatformTask {
         [switch]$Quiet
     )
 
-    $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
+    $Id = $global:Catalog.Product.$Id.Id
     $task = Get-PlatformTask -Id $Id 
 
     # check if task is disabled
@@ -346,7 +346,7 @@ function global:Start-PlatformTask {
         [switch]$Force
     ) 
 
-    $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
+    $Id = $global:Catalog.Product.$Id.Id
     $task = Get-PlatformTask -Id $Id 
     Write-Verbose "$($Id) $($task.Status)"
 
@@ -400,7 +400,7 @@ function global:Stop-PlatformTask {
         [switch]$Quiet
     ) 
 
-    $Id =  (Get-Culture).TextInfo.ToTitleCase($Id)
+    $Id = $global:Catalog.Product.$Id.Id
     $task = Get-PlatformTask -Id $Id 
 
     # check if task is already stopped
