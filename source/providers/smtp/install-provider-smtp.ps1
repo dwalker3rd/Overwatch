@@ -2,98 +2,99 @@ $Provider = Get-Provider -Id 'SMTP'
 $Name = $Provider.Name 
 $Publisher = $Provider.Publisher
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING"
-Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
-
-if (!(Test-Log -Name $Provider.Id.ToLower())) {
-    New-Log -Name $Provider.Id.ToLower() | Out-Null
-}
+$interaction = $false
 
 $cursorVisible = [console]::CursorVisible
 [console]::CursorVisible = $true
 
-$smtpSettings = "$PSScriptRoot\data\smtpInstallSettings.ps1"
-if (Test-Path -Path $smtpSettings) {
-    . $smtpSettings
-}
+$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING"
+Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
 
-$interaction = $false
-$overwatchRoot = $PSScriptRoot -replace "\\install",""
-if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1 | Select-String "<server>" -Quiet) {
+#region PRODUCT-SPECIFIC INSTALLATION
 
-    $interaction = $true
+    $smtpSettings = "$PSScriptRoot\data\smtpInstallSettings.ps1"
+    if (Test-Path -Path $smtpSettings) {
+        . $smtpSettings
+    }
 
-    Write-Host+; Write-Host+
-    # Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
-    # Write-Host+ -NoTrace -NoTimestamp "      -----------------"
+    $overwatchRoot = $PSScriptRoot -replace "\\install",""
+    if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1 | Select-String "<server>" -Quiet) {
 
-    do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Server ", "$($server ? "[$server] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        $serverResponse = Read-Host
-        $server = ![string]::IsNullOrEmpty($serverResponse) ? $serverResponse : $server
-        if ([string]::IsNullOrEmpty($server)) {
-            Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP server is required" -ForegroundColor Red
-            $server = $null
-        }
-    } until ($server)
-    do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Port ", "$($port ? "[$port] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        $portResponse = Read-Host
-        $port = ![string]::IsNullOrEmpty($portResponse) ? $portResponse : $port
-        if ([string]::IsNullOrEmpty($port)) {
-            Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP port is required" -ForegroundColor Red
-            $port = $null
-        }
-    } until ($port)
-    $useSslDefault = "Y"
-    $useSslChar = $useSsl ? "Y" : "N"
-    do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Use SSL? (Y/N) ", "$($useSslChar ? "[$useSslChar] " : $useSslDefault)", ": " -ForegroundColor Gray, Blue, Gray
-        $useSslResponse = Read-Host
-        $useSslChar = ![string]::IsNullOrEmpty($useSslResponse) ? $useSslResponse : $useSslChar
-        if ([string]::IsNullOrEmpty($useSslChar)) {
-            $useSslChar = $useSslDefault
-        }
-        if ($useSslChar -notmatch "^(Y|N)$") {
-            Write-Host+ -NoTrace -NoTimestamp "INVALID: Response must be `"Y`" or `"N`"" -ForegroundColor Red
-            $useSslChar = $null
-        }
-    } until ($useSslChar -match "^(Y|N)$")
-    $useSsl = $useSslChar -eq "Y" ? "`$true" : "`$false"
+        $interaction = $true
 
-    # $server =  Read-Host "    Server"
-    # $port =    Read-Host "    Port"
-    # $useSsl = (Read-Host "    Use SSL? (Y/N)") -eq "Y" ? "`$true" : "`$false"
-
-
-    $smtpDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1
-    $smtpDefinitionsFile = $smtpDefinitionsFile -replace "<server>", $server
-    $smtpDefinitionsFile = $smtpDefinitionsFile -replace "<port>", $port
-    $smtpDefinitionsFile = $smtpDefinitionsFile -replace '"<useSsl>"', $useSsl
-    $smtpDefinitionsFile | Set-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1
-
-    #region SAVE SETTINGS
-
-        if (Test-Path $smtpSettings) {Clear-Content -Path $smtpSettings}
-        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $smtpSettings
-        "Param()" | Add-Content -Path $smtpSettings
-        "`$server = `"$server`"" | Add-Content -Path $smtpSettings
-        "`$port = `"$port`"" | Add-Content -Path $smtpSettings
-        "`$useSSL = $useSSL" | Add-Content -Path $smtpSettings
-
-    #endregion SAVE SETTINGS
-
-}
-
-if (!$(Test-Credentials $Provider.Id -NoValidate)) {
-    if(!$interaction) {
-        Write-Host+
+        Write-Host+; Write-Host+
         # Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
         # Write-Host+ -NoTrace -NoTimestamp "      -----------------"
+
+        do {
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Server ", "$($server ? "[$server] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            $serverResponse = Read-Host
+            $server = ![string]::IsNullOrEmpty($serverResponse) ? $serverResponse : $server
+            if ([string]::IsNullOrEmpty($server)) {
+                Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP server is required" -ForegroundColor Red
+                $server = $null
+            }
+        } until ($server)
+        do {
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Port ", "$($port ? "[$port] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            $portResponse = Read-Host
+            $port = ![string]::IsNullOrEmpty($portResponse) ? $portResponse : $port
+            if ([string]::IsNullOrEmpty($port)) {
+                Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP port is required" -ForegroundColor Red
+                $port = $null
+            }
+        } until ($port)
+        $useSslDefault = "Y"
+        $useSslChar = $useSsl ? "Y" : "N"
+        do {
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Use SSL? (Y/N) ", "$($useSslChar ? "[$useSslChar] " : $useSslDefault)", ": " -ForegroundColor Gray, Blue, Gray
+            $useSslResponse = Read-Host
+            $useSslChar = ![string]::IsNullOrEmpty($useSslResponse) ? $useSslResponse : $useSslChar
+            if ([string]::IsNullOrEmpty($useSslChar)) {
+                $useSslChar = $useSslDefault
+            }
+            if ($useSslChar -notmatch "^(Y|N)$") {
+                Write-Host+ -NoTrace -NoTimestamp "INVALID: Response must be `"Y`" or `"N`"" -ForegroundColor Red
+                $useSslChar = $null
+            }
+        } until ($useSslChar -match "^(Y|N)$")
+        $useSsl = $useSslChar -eq "Y" ? "`$true" : "`$false"
+
+        # $server =  Read-Host "    Server"
+        # $port =    Read-Host "    Port"
+        # $useSsl = (Read-Host "    Use SSL? (Y/N)") -eq "Y" ? "`$true" : "`$false"
+
+
+        $smtpDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1
+        $smtpDefinitionsFile = $smtpDefinitionsFile -replace "<server>", $server
+        $smtpDefinitionsFile = $smtpDefinitionsFile -replace "<port>", $port
+        $smtpDefinitionsFile = $smtpDefinitionsFile -replace '"<useSsl>"', $useSsl
+        $smtpDefinitionsFile | Set-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1
+
+        #region SAVE SETTINGS
+
+            if (Test-Path $smtpSettings) {Clear-Content -Path $smtpSettings}
+            '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $smtpSettings
+            "Param()" | Add-Content -Path $smtpSettings
+            "`$server = `"$server`"" | Add-Content -Path $smtpSettings
+            "`$port = `"$port`"" | Add-Content -Path $smtpSettings
+            "`$useSSL = $useSSL" | Add-Content -Path $smtpSettings
+
+        #endregion SAVE SETTINGS
+
     }
-    $interaction = $true
-    Request-Credentials -Prompt1 "    Account" -Prompt2 "    Password" | Set-Credentials $Provider.Id
-}
+
+    if (!$(Test-Credentials $Provider.Id -NoValidate)) {
+        if(!$interaction) {
+            Write-Host+
+            # Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
+            # Write-Host+ -NoTrace -NoTimestamp "      -----------------"
+        }
+        $interaction = $true
+        Request-Credentials -Prompt1 "    Account" -Prompt2 "    Password" | Set-Credentials $Provider.Id
+    }
+
+#endregion PRODUCT-SPECIFIC INSTALLATION
 
 if ($interaction) {
     Write-Host+

@@ -1,6 +1,6 @@
-$Provider = Get-Provider -Id 'Postgres'
-$Name = $Provider.Name 
-$Publisher = $Provider.Publisher
+$Product = Get-Product -Id 'Command'
+$Name = $Product.Name 
+$Publisher = $Product.Publisher
 
 $interaction = $false
 
