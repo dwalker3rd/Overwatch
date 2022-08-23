@@ -96,7 +96,7 @@ function global:Register-PlatformTask {
         -Action $action -RunLevel $RunLevel -Trigger $triggers -Settings $settings `
         -Description $Description
     if ($Start) {
-        $isStarted = Start-PlatformTask -TaskName $TaskName
+        $isStarted = Start-PlatformTask -TaskName $TaskName -Quiet
         $isStarted | Out-Null
     }
 
@@ -434,31 +434,29 @@ function global:Suspend-PlatformTask {
     
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [switch]$Quiet
     ) 
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $task = Get-PlatformTask -Id $Id
     
     # stop task if running
     $isStopped = !($task.Status -in "Queued","Running")
-    if (!$isStopped) {$isStopped = Stop-PlatformTask -Id $Id}
+    if (!$isStopped) {$isStopped = Stop-PlatformTask -Id $Id -Quiet:$Quiet.IsPresent}
 
     $isDisabled = $false
     if ($isStopped) {
         $isDisabled = Disable-PlatformTask -Id $Id
         $task = Get-PlatformTask -Id $Id
         if (!$isDisabled) {
-            Write-Warning "[$([datetime]::Now)] $($Id) $($task.Status)"
+            Write-Host+ -NoTrace "$($Id) $($task.Status)" -ForegroundColor DarkYellow
             Write-Log -Context $Id -Action "Disable" -EntryType "Warning" -Status $task.Status
         } else {
-            Write-Verbose "[$([datetime]::Now)] $($Id) $($task.Status)"
             Write-Log -Context $Id -Action "Disable" -EntryType "Information" -Status $task.Status
             Send-TaskMessage -Id $Id -Status "Disabled"
         }
     } else {
-        Write-Warning "[$([datetime]::Now)] $($Id) $($task.Status)"
+        Write-Host+ -NoTrace "$($Id) $($task.Status)"
         Write-Log -Context $Id -Action "Stop" -EntryType "Warning" -Status "Failure" -Message "$($Id) $($task.Status)"
     }
 
@@ -473,20 +471,18 @@ function global:Resume-PlatformTask {
     
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [switch]$Quiet
     ) 
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $task = Get-PlatformTask -Id $Id
 
-    $isEnabled = Enable-PlatformTask -Id $Id
+    $isEnabled = Enable-PlatformTask -Id $Id -Quiet:$Quiet.IsPresent
     if (!$isEnabled) {
-        Write-Warning "[$([datetime]::Now)] $($Id) $($task.Status)"
+        Write-Host+ -NoTrace "$($Id) $($task.Status)"
         Write-Log -Context $Id -Action "Enable" -EntryType "Warning" -Status $task.Status
         Send-TaskMessage -Id $Id -Status "Disabled" -MessageType $PlatformMessageType.Alert
     } else {
-        Write-Verbose "[$([datetime]::Now)] $($Id) $($task.Status)"
         Write-Log -Context $Id -Action "Enable" -EntryType "Information" -Status $task.Status
         Send-TaskMessage -Id $Id -Status "Enabled"
     }

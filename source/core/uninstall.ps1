@@ -158,7 +158,7 @@ function Uninstall-Product {
         $message = "$($emptyString.PadLeft(40,"`b"))STOPPING$($emptyString.PadLeft(12," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor DarkYellow
 
-        $isStopped = Stop-PlatformTask -Id $Product
+        $isStopped = Stop-PlatformTask -Id $Product -Quiet
         $isStopped | Out-Null
 
         $message = "$($emptyString.PadLeft(20,"`b"))STOPPED$($emptyString.PadLeft(13," "))"

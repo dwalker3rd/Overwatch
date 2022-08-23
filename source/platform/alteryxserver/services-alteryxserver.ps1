@@ -932,7 +932,7 @@ function global:Backup-Platform {
     $step = ""
 
     # suspend Monitor
-    Suspend-PlatformTask -Id "Monitor" | Out-Null
+    Suspend-PlatformTask -Id "Monitor" -Quiet | Out-Null
 
     try {
         $step = "Platform STOP"
@@ -976,7 +976,7 @@ function global:Backup-Platform {
     }
 
     # resume Monitor
-    Resume-PlatformTask -Id "Monitor" | Out-Null
+    Resume-PlatformTask -Id "Monitor" -Quiet | Out-Null
 
     if ($fail) {
         $message = "Backup failed at $step"

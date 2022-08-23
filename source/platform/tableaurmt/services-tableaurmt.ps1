@@ -715,7 +715,7 @@ function global:Start-RMTAgents {
 
     if ($Context -and $Context -like "Azure*") {
         Write-Log -Context "StartRMTAgents" -Action "Start-PlatformTask -Id StartRMTAgents" -Target "Platform" -Message $Reason -Force
-        $isStarted = Start-PlatformTask -Id StartRMTAgents
+        $isStarted = Start-PlatformTask -Id StartRMTAgents -Quiet
         $isStarted | Out-Null
         return
     }
