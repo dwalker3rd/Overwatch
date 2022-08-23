@@ -78,7 +78,14 @@ function Install-Product {
     Param (
         [Parameter(Mandatory=$true,Position=0)][string]$Context
     )
+
     $productToInstall = Get-Product $Context -ResetCache
+
+    $productLogFile = ((Get-Catalog $productToInstall.Id -Type "Product").Log).ToLower()
+    if (!(Test-Log -Name $productLogFile)) {
+        New-Log -Name $productLogFile | Out-Null
+    }
+
     if (Test-Path -Path $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1) {. $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1}
 }
 
@@ -95,8 +102,8 @@ function Disable-Product {
     $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))","PENDING"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor Gray,DarkGray,DarkGray
 
-    $productIsStopped = Stop-PlatformTask -Id $productToStop.Id
-    $productIsDisabled = Disable-PlatformTask -Id $productToStop.Id
+    $productIsStopped = Stop-PlatformTask -Id $productToStop.Id -Quiet
+    $productIsDisabled = Disable-PlatformTask -Id $productToStop.Id -Quiet
     $productStatus = (Get-PlatformTask -Id $productToStop.Id).Status
 
     $message = "$($emptyString.PadLeft(27,"`b"))$($productIsStopped ? "STOPPED" : "$($productStatus.ToUpper())")$($emptyString.PadLeft($($productIsStopped ? 13 : 20-$productStatus.Length)," "))PENDING"
@@ -119,7 +126,7 @@ function Enable-Product {
     $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","INSTALLED$($emptyString.PadLeft(11," "))","PENDING"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor Gray,DarkGreen,DarkGray
 
-    $productIsEnabled = Enable-PlatformTask -Id $productToStart.Id
+    $productIsEnabled = Enable-PlatformTask -Id $productToStart.Id -Quiet
     $productStatus = (Get-PlatformTask -Id $productToStart.Id).Status
 
     $message = "$($emptyString.PadLeft(27,"`b"))INSTALLED$($emptyString.PadLeft(11," "))PENDING"
@@ -134,7 +141,14 @@ function Install-Provider {
     Param (
         [Parameter(Mandatory=$true,Position=0)][string]$ProviderName
     )
+
     $providerToInstall = Get-Provider $ProviderName -ResetCache
+
+    $providerLogFile = ((Get-Catalog $providerToInstall.Id -Type "Provider").Log).ToLower()
+    if (!(Test-Log -Name $providerLogFile)) {
+        New-Log -Name $providerLogFile | Out-Null
+    }
+
     if (Test-Path -Path $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1) {. $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1}
 }
 
@@ -988,8 +1002,9 @@ Write-Host+ -ResetAll
         $message = "<Log files <.>48> CREATING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-        if (!(Test-Log -Name $Platform.Instance)) {
-            New-Log -Name $Platform.Instance | Out-Null
+        $platformLogFile = ((Get-Catalog $Platform.Id -Type "Platform").Log).ToLower()
+        if (!(Test-Log -Name $platformLogFile)) {
+            New-Log -Name $platformLogFile | Out-Null
         }
 
         $message = "$($emptyString.PadLeft(8,"`b"))CREATED "

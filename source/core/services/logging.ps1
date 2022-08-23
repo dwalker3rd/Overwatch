@@ -372,7 +372,7 @@ function global:Write-Log {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
-        [Parameter(Mandatory=$false,Position=0)][string]$Name = $global:Platform.Instance,
+        [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][string]$Message,
@@ -383,14 +383,13 @@ function global:Write-Log {
         [Parameter(Mandatory=$false)][string]$Target,
         [Parameter(Mandatory=$false)][string]$LogLevel = "Warning",
         [switch]$Force
-
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-    Write-Debug "LogLevel: $($LogLevel)"
-    Write-Debug "EntryType: $($EntryType)"
+    if (!$Force -and $LogLevels.$EntryType -ge $LogLevels.$LogLevel) { return }
 
-    if (!$Force -and $LogLevels.$EntryType -ge $LogLevels.$LogLevel) {return}
+    if ([string]::IsNullOrEmpty($Name)) {
+        $Name = ((Get-Catalog $Context).Log).ToLower()
+    }
 
     $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
 
