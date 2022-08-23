@@ -1623,7 +1623,7 @@ function global:Add-TSUser {
     }
     else {
         $tsSiteUser = $response # $response is a user object
-        Write-Log -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Message "$($tsSiteUser.fullName) | $(![string]::IsNullOrEmpty($tsSiteUser.email) ? "$($tsSiteUser.email) | " : $null)$($tsSiteUser.siteRole)" -Force 
+        Write-Log -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Message "$($tsSiteUser.name) | $($tsSiteUser.siteRole)" -Status "Success" -Force 
         
         # $response is an update object (NOT a user object) or an error object
         $response = Update-TSSiteUser -User $tsSiteUser -FullName $FullName -Email $Email -SiteRole $SiteRole
@@ -1678,7 +1678,7 @@ function global:Update-TSUser {
         return
     }
     else {
-        Write-Log -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Message $update -Force 
+        Write-Log -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Message $update -Status "Success" -Force 
     }
 
     # $response is an update object or an error object
@@ -1708,7 +1708,7 @@ function global:Update-TSUserPassword {
         return
     }
     else {
-        Write-Log -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Force 
+        Write-Log -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
     }
 
     # $response is an update object or an error object
@@ -1736,7 +1736,7 @@ function global:Remove-TSUser {
         # return
     }
     else {
-        Write-Log -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Force 
+        Write-Log -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
     }
 
     return $response, $responseError
@@ -1828,7 +1828,7 @@ function global:Add-TSUserToGroup {
         else {
             # $usersAddedToGroup += 1
             # Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "+$($usersAddedToGroup)" -Force
-            Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Force
+            Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
 
     }
@@ -1859,7 +1859,7 @@ function global:Remove-TSUserFromGroup {
         else {
             # $usersRemovedFromGroup += 1
             # Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "-$($usersRemovedFromGroup)" -Force
-            Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Force
+            Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
     }
 
@@ -3731,7 +3731,7 @@ function global:Sync-TSUsers {
             elseif ($fullName.replace("’","'") -ne $tsUser.fullName -or $email.replace("’","'") -ne $tsUser.email -or $siteRole -ne $tsUser.siteRole) {
                 $response, $responseError = Update-tsUser -User $tsUser -FullName $fullName -Email $email -SiteRole $siteRole | Out-Null
                 if ($responseError) {
-                    Write-Log -Context "AzureADSyncTS" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
+                    Write-Log -Context "AzureADSyncTS" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
                     Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                 }
                 else {
@@ -3783,7 +3783,7 @@ function global:Sync-TSUsers {
                     Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                 }
                 else {
-                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "Unlicensed" -EntryType "Information" -Force
+                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "Unlicensed" -EntryType "Information" -Status "Success" -Force
                     Write-Host+ -NoTrace "      Disable: $($tsSite.contentUrl)\$($tsUser.name): $($tsUser.siteRole) >> Unlicensed" -ForegroundColor Red
                 }
 
