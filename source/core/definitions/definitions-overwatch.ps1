@@ -78,5 +78,7 @@
     }
 
     $global:emptyString = [string]::Empty
+    $global:today = [datetime]::Today
+    $global:yesterday = $global:today.AddDays(-1)
 
 #endregion OVERWATCH DEFINITIONS        
