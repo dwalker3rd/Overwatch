@@ -389,6 +389,9 @@ function global:Write-Log {
 
     if ([string]::IsNullOrEmpty($Name)) {
         $Name = ((Get-Catalog $Context).Log).ToLower()
+        if (!(Test-Log -Name $Name)) {
+            New-Log -Name $Name | Out-Null
+        }
     }
 
     $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
