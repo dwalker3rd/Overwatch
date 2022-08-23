@@ -1,3 +1,7 @@
+
+# catalog.ps1 is executed AFTER classes.ps1 but BEFORE any other definitions file
+# therefore the catalog may reference classes, but no references should be made to any other definitions
+
 $global:Catalog = @{}
 $global:Catalog.Platform = @{}
 $global:Catalog.Product = [ordered]@{}
@@ -96,6 +100,7 @@ $global:Catalog.Product += @{ Command =
         DisplayName = "Command"
         Description = "A command interface for managing the platform."
         Publisher = "Overwatch"
+        Log = "Command"
         Installation = @{
             Flag = @("AlwaysInstall","UninstallProtected")
         }
@@ -215,6 +220,7 @@ $global:Catalog.Provider += @{ SMTP =
         Category = "Messaging"
         Description = "Overwatch messaging via SMTP"
         Publisher = "Overwatch"
+        Log = "SMTP"
     }
 }
 
@@ -226,6 +232,7 @@ $global:Catalog.Provider += @{ TwilioSMS =
         Category = "Messaging"
         Description = "Overwatch messaging via Twilio SMS"
         Publisher = "Overwatch"
+        Log = "TwilioSMS"
     }
 }
 
@@ -237,6 +244,7 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         Category = "Messaging"
         Description = "Overwatch messaging via Microsoft Teams"
         Publisher = "Overwatch"
+        Log = "MicrosoftTeams"
     }
 }
 
@@ -248,6 +256,7 @@ $global:Catalog.Provider += @{ Views =
         Category = "Formatting"
         Description = "Predefined PowerShell Format-Table views for Overwatch functions"
         Publisher = "Overwatch"
+        Log = "Views"
         Installation = @{
             Flag = @("AlwaysInstall","UninstallProtected")
         }
@@ -262,6 +271,7 @@ $global:Catalog.Provider += @{ Postgres =
         Category = "Database"
         Description = "Postgres database provider"
         Publisher = "Overwatch"
+        Log = "Postgres"
     }
 }
 
@@ -273,6 +283,7 @@ $global:Catalog.Provider += @{ TableauServerWC =
         Category = "Messaging"
         Description = "Tableau Server user notifications via the welcome channel (welcome banner)"
         Publisher = "Overwatch"
+        Log = "TableauServerWC"
         Config = @{
             MessageType = $PlatformMessageType.UserNotification
         }

@@ -122,6 +122,61 @@
         return $providers
     }
 
+#region CATALOG
+
+    function global:Get-Catalog {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string]$Name,
+            [Parameter(Mandatory=$false)][ValidateSet("Platform","Product","Provider")][string]$Type
+        )
+
+        if ([string]::IsNullOrEmpty($Type)) {
+
+            if ($global:Catalog.Platform.$Name) {
+                $Type = "Platform"
+            }
+            if ($global:Catalog.Product.$Name) {
+                if ($Type) {
+                    throw "Catalog contains multiple objects with the name `"$Name`""
+                }
+                $Type = "Product"
+            }
+            if ($global:Catalog.Provider.$Name) {
+                if ($Type) {
+                    throw "Catalog contains multiple objects with the name `"$Name`""
+                }
+                $Type = "Provider"
+            }
+
+        }
+
+        if ([string]::IsNullOrEmpty($Type) -or !$global:Catalog.$Type.$Name) {
+            throw "Catalog $($Type ? $Type.ToLower() : "object") `"$Name`" was not found"
+        }
+
+        $catalogObject = $global:Catalog.$Type.$Name
+
+        switch ($Type) {
+            "Provider" {
+                if ([string]::IsNullOrEmpty($catalogObject.Log)) {
+                    $catalogObject.Log = $catalogObject.Id
+                }
+            }
+            default {
+                if ([string]::IsNullOrEmpty($catalogObject.Log)) {
+                    $catalogObject.Log = $Platform.Instance
+                }
+            }
+        }
+
+        return $catalogObject
+
+    }
+
+#endregion CATALOG
+
 #endregion OVERWATCH
 #region PLATFORM
 
