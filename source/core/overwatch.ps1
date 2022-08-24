@@ -1,8 +1,6 @@
 #Requires -RunAsAdministrator
 #Requires -Version 7
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 $global:DebugPreference = "SilentlyContinue"
 $global:InformationPreference = "Continue"
 $global:VerbosePreference = "SilentlyContinue"
@@ -15,4 +13,4 @@ $global:PostflightPreference = "SilentlyContinue"
 $global:Product = @{Id="Command"}
 . $PSScriptRoot\definitions.ps1
 
-# Set-PSPreferenceVariables
+Write-Host+ -ResetAll

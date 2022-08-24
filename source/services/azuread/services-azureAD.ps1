@@ -509,11 +509,15 @@ function global:Update-AzureADUserEmail {
 
     $mailOriginal = $User.mail ?? "None"
 
-    $mail = ($User.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
+    # User has multiple identities in the source AD domain
+    # No current rules dictate which should be used
+    # Throw an error so this can be addressed
     if ($mail.Count -gt 1) {
         throw "User $($User.userPrincipalName) has multiple identities with multiple email addresses."
         return $User
     }
+
+    # User has a null property from the source AD domain
     if ($mail.Count -eq 0) {
         return $User
     }

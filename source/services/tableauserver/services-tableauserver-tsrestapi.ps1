@@ -3779,7 +3779,7 @@ function global:Sync-TSUsers {
 
                 $response, $responseError = Update-TSUser -User $tsUser -SiteRole "Unlicensed" | Out-Null
                 if ($responseError) {
-                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error"
+                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
                     Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                 }
                 else {
