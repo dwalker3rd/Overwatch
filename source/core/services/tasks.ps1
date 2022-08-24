@@ -157,6 +157,35 @@ function global:Get-PlatformTask {
 }
 Set-Alias -Name taskGet -Value Get-PlatformTask -Scope Global
 
+function global:Get-PlatformTaskInterval {
+
+    [CmdletBinding()]
+    [OutputType([timespan])]
+    param (
+        [Parameter(Mandatory=$false)][string]$Id,
+        [Parameter(Mandatory=$false)][string]$TaskName
+    )
+
+    if ($Id -and !$TaskName) {$TaskName = $(Get-Product -Id $Id).TaskName}
+    $repetitionInterval = ((Get-PlatformTask -TaskName $TaskName).Instance.Triggers.Repetition | Where-Object {$_.Interval}).Interval
+    $regexMatchGroups = [regex]::Match($repetitionInterval,$global:RegexPattern.ScheduledTask.RepetitionPattern).Groups | Where-Object {$_.Index -ne 0 -and ![string]::IsNullOrEmpty($_.Value)}
+    
+    $repetitionIntervalInSeconds = 0
+    foreach ($regexMatchGroup in $regexMatchGroups) {
+        $multiplier = switch ($regexMatchGroup.Name) {
+            "day" { 24 * 60 * 60}
+            "hour" { 60 * 60 }
+            "minute" { 60 }
+            "second" { 1 }
+        }
+        $repetitionIntervalInSeconds += [int]$regexMatchGroup.Value * [int]$multiplier
+    }
+
+    return New-TimeSpan -Seconds $repetitionIntervalInSeconds
+
+}
+Set-Alias -Name taskInterval -Value Get-PlatformTask -Scope Global
+
 function global:Wait-PlatformTask {
 
     [CmdletBinding()]

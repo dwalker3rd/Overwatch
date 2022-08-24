@@ -25,6 +25,7 @@ function Close-Monitor {
     Write-Host+
 }
 
+
 function global:Send-MonitorMessage {
 
     param (
@@ -33,8 +34,23 @@ function global:Send-MonitorMessage {
         [switch]$ReportHeartbeat
     )
 
+    $heartbeat = Get-Heartbeat
+
     $action = $ReportHeartbeat ? "Report" : "Status"
     $target = $ReportHeartbeat ? "Heartbeat" : "Platform"
+    $entryType = $heartbeat.IsOK ? "Information" : "Warning"
+
+    # if heartbeat is NOT OK, determine criticality
+    # if heartbeat has only been NOT OK for 1 interval: Warning
+    # if heartbeat has been NOT OK for more than 2+ intervals: Error
+    if (!$heartbeat.IsOK) {
+        $errorInterval = 2
+        $platformTaskInterval = Get-PlatformTaskInterval -Id $Product.Id
+        $isOKTimestamp = ($heartbeat.History | Where-Object {$_.IsOK})[0].TimeStamp
+        if ([datetime]::Now -gt $isOKTimestamp.Add($errorInterval*$platformTaskInterval)) {
+            $entryType = "Error"
+        }
+    }
 
     Set-CursorInvisible
 
@@ -42,7 +58,7 @@ function global:Send-MonitorMessage {
     $message = "<  Sending $($target.ToLower()) $($action.ToLower()) <.>48> PENDING"
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    Write-Log -Context $global:Product.Id -Action $action -Target $target -Status $PlatformStatus.RollupStatus -Message "Sending $($target.ToLower()) $($action.ToLower())" -EntryType "Warning" -Force
+    Write-Log -Context $global:Product.Id -Action $action -Target $target -Status $heartbeat.RollupStatus -Message "Sending $($target.ToLower()) $($action.ToLower())" -EntryType $entryType -Force
 
     # send platform status message
     $messagingStatus = Send-PlatformStatusMessage -PlatformStatus $PlatformStatus -MessageType $MessageType -NoThrottle:$ReportHeartbeat.IsPresent

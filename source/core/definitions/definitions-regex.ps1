@@ -31,4 +31,7 @@ $global:RegexPattern = @{
         ValidFileNameChars = "[0-9a-zA-Z\-_]"
         InvalidFileNameChars = "[^0-9a-zA-Z\-_]"
     }
+    ScheduledTask = @{
+        RepetitionPattern = "^P(?>(?<day>\d*)D)?T(?>(?<hour>\d*)H)?(?>(?<minute>\d*)M)?(?>(?<second>\d*)S)?$"
+    }
 }
