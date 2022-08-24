@@ -154,7 +154,8 @@ function global:Read-Log {
         [Parameter(Mandatory=$false)][string]$View,
         [Parameter(Mandatory=$false)][string]$Sort,
         [Parameter(Mandatory=$false)][string]$Status,
-        [switch]$UseDefaultView
+        [switch]$UseDefaultView,
+        [switch]$Summary
     )
 
     Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
@@ -218,24 +219,100 @@ function global:Read-Log {
     if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
     if ($Oldest) {$logEntry = $logEntry | Select-Object -First $Oldest}
 
-    # if (!$logEntry) {
-    #    $FunctionParameters = $(Get-Command $PSCmdlet.MyInvocation.InvocationName).Parameters.Keys | Select-String -Pattern $CommonParameters -NotMatch
-    #     if ($PSCmdlet.MyInvocation.BoundParameters.Keys | Select-String -Pattern $FunctionParameters) {
-    #         Write-Information  "No records matched the filter criteria."
-    #     }
-    #     else {
-    #         Write-Information  "$($log.Path) contains no records."
-    #     }
+    $totals = [array]($logEntry | Where-Object {$_.EntryType -ne "Information"} |Group-Object -Property EntryType -NoElement)
 
-    #     return
-    # }
+    if ($Summary) {
 
-    # view priority:  caller-provided, product-specific, default
-    # UseDefaultView overrides product-specific view and forces default view
+        if ($totals.Count -eq 0) {return}
+
+        $summaryMessage = "There $($totals.Count -eq 1 ? "was" : "were") "
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
+
+        if ($totals.Count -gt 0) {
+            for ($i = 0; $i -le $totals.Count-1; $i++) {
+                $summaryMessageEntryType = $totals[$i].Name
+                $summaryMessageColor = "Gray"
+                switch ($totals[$i].Name) {
+                    "Information" {
+                        $summaryMessageEntryType = "Informational"
+                    }
+                    "Warning" {
+                        $summaryMessageColor = "DarkYellow"
+                    }
+                    "Error" {
+                        $summaryMessageColor = "Red"
+                    }
+                }
+                $summaryMessage = "$($totals[$i].Count) $summaryMessageEntryType"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor $summaryMessageColor
+                if ($i -ne $totals.Count-1) {
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine ($i -eq $totals.Count-2 ? " and " : ", ") -ForegroundColor DarkGray
+                }
+            }
+        }
+        else {
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "0" -ForegroundColor Gray
+        }
+
+        $summaryMessage = " log entr"
+        $summaryMessage += $totals.Count -eq 1 ? "y" : "ies"
+        $summaryMessage += " in the "
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
+        $summaryMessage = $Name
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
+        $summaryMessage = " log file on node "
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
+        $summaryMessage = $node
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
+        $summaryMessage = $After -and $Before ? " between" : ($After ? " since" : ($Before ? " before" : $null))
+        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
+        $summaryMessage = $After ? " $($After.ToString('u'))" : ""
+        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
+        $summaryMessage = $After -and $Before ? " and" : ""
+        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
+        $summaryMessage = $Before ? " $($Before.ToString('u'))" : ""
+        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
+
+        Write-Host+
+
+        return
+
+    }
 
     return $logEntry | Select-Object -Property $($View ? $LogEntryView.$($View) : $($LogEntryView.$($Name) -and !$UseDefaultView ? $LogEntryView.$($Name) : $LogEntryView.Default))
 
 }
+
+function global:Show-LogSummary {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+    )
+
+    foreach ($node in $ComputerName) {
+        $logs = @() 
+        if (![string]::IsNullOrEmpty($Name)) {
+            $log = Get-Log -Name $Name -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
+            if ($log) {
+                $logs += Get-Log $Name
+            }
+        }
+        else {
+            foreach ($logFileInfo in (Get-Log -ComputerName $node).FileInfo) {
+                $logName = [Path]::GetFileNameWithoutExtension($logFileInfo.Name)
+                $logs += Get-Log -Name $logName -ComputerName $node
+            }
+        }
+
+        foreach ($log in $logs) {
+            Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -Since $today -Summary | Format-Table
+        }
+    }
+
+}
+Set-Alias -Name logSummary -Value Show-LogSummary -Scope Global
 
 function global:Remove-Log {
 
