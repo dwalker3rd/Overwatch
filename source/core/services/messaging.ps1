@@ -1,7 +1,7 @@
 function global:Disable-Messaging {
     ($global:DisableMessaging = $true) | Write-Cache disableAllMessaging
     $global:DisableMessaging | Out-Null
-    Write-Log -EntryType "Warning" -Action "Disable-Messaging" -Target "Messaging" -Status "Disabled" -Force
+    Write-Log -EntryType "Warning" -Action "Disable-Messaging" -Target "Messaging" -Status "Success" -Message "Disabled" -Force
     Write-Host+ -NoTrace "Messaging ","DISABLED" -ForegroundColor DarkGray,DarkYellow -NoSeparator
     Write-Host+
     return
@@ -9,7 +9,7 @@ function global:Disable-Messaging {
 function global:Enable-Messaging {
     ($global:DisableMessaging = $false) | Write-Cache disableAllMessaging
     $global:DisableMessaging | Out-Null
-    Write-Log -EntryType "Information" -Action "Enable-Messaging" -Target "Messaging" -Status "Enabled" -Force
+    Write-Log -EntryType "Information" -Action "Enable-Messaging" -Target "Messaging" -Status "Success" -Message "Enabled" -Force
     Write-Host+ -NoTrace "Messaging ","ENABLED" -ForegroundColor DarkGray,DarkGreen -NoSeparator
     Write-Host+
     return
