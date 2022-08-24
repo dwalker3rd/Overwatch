@@ -6,7 +6,8 @@
 param (
     [switch]$SkipProductStop,
     [switch]$SkipProductStart,
-    [switch]$NoOverwrite
+    [switch]$NoOverwrite,
+    [switch]$UseDefaultResponses
 )
 
 $global:WriteHostPlusPreference = "Continue"
@@ -333,8 +334,14 @@ Write-Host+ -NoTrace -NoTimestamp "----------------------" -ForegroundColor Dark
     # }
     # else {
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Platform ", "$($installedPlatforms ? "[$($installedPlatforms -join ", ")] " : $null)", ": " -ForegroundColor Gray, Blue, Gray 
-            $platformIdResponse = Read-Host
+            $platformIdResponse = $null
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Platform ", "$($installedPlatforms ? "[$($installedPlatforms -join ", ")]" : $null)", ": " -ForegroundColor Gray, Blue, Gray 
+            if (!$UseDefaultResponses) {
+                $platformIdResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $platformId = ![string]::IsNullOrEmpty($platformIdResponse) ? $platformIdResponse : $platformId
             Write-Host+ -NoTrace -NoTimestamp "Platform ID: $platformId" -IfDebug -ForegroundColor Yellow
             if ($installedPlatforms -notcontains $platformId) {
@@ -347,8 +354,14 @@ Write-Host+ -NoTrace -NoTimestamp "----------------------" -ForegroundColor Dark
 #region PLATFORM INSTALL LOCATION
 
     do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        $platformInstallLocationResponse = Read-Host
+        $platformInstallLocationResponse = $null
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+        if (!$UseDefaultResponses) {
+            $platformInstallLocationResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
         $platformInstallLocation = ![string]::IsNullOrEmpty($platformInstallLocationResponse) ? $platformInstallLocationResponse : $platformInstallLocation
         Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
         if (!(Test-Path -Path $platformInstallLocation)) {
@@ -376,8 +389,14 @@ Write-Host+ -NoTrace -NoTimestamp "----------------------" -ForegroundColor Dark
 
 do {
     try {
+        $platformInstanceUriResponse = $null
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? "[$platformInstanceUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        $platformInstanceUriResponse = Read-Host
+        if (!$UseDefaultResponses) {
+            $platformInstanceUriResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
         $platformInstanceUri = ![string]::IsNullOrEmpty($platformInstanceUriResponse) ? $platformInstanceUriResponse : $platformInstanceUri
         $platformInstanceUri = [System.Uri]::new($platformInstanceUri)
     }
@@ -404,8 +423,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
     $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
     do {
+        $platformInstanceDomainResponse = $null
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        $platformInstanceDomainResponse = Read-Host
+        if (!$UseDefaultResponses) {
+            $platformInstanceDomainResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
         $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
         if (![string]::IsNullOrEmpty($platformInstanceDomain) -and $platformInstanceUri.Host -notlike "*$platformInstanceDomain") {
             Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid domain. Domain must match the platform instance URI" -ForegroundColor Red
@@ -419,8 +444,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
     $platformInstanceId ??= $platformInstanceUri.Host -replace "\.","-"
     do {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        $platformInstanceIdResponse = Read-Host
+        $platformInstanceIdResponse = $null
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+        if (!$UseDefaultResponses) {
+            $platformInstanceIdResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
         $platformInstanceId = ![string]::IsNullOrEmpty($platformInstanceIdResponse) ? $platformInstanceIdResponse : $platformInstanceId
         if ([string]::IsNullOrEmpty($platformInstanceId)) {
             Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance ID is required" -ForegroundColor Red
@@ -438,8 +469,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
     if ($platformId -eq "AlteryxServer") {
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Nodes ", "$($platformInstanceNodes ? "[$($platformInstanceNodes -join ", ")] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-            $platformInstanceNodesResponse = Read-Host
+            $platformInstanceNodesResponse = $null
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Nodes ", "$($platformInstanceNodes ? "[$($platformInstanceNodes -join ", ")]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            if (!$UseDefaultResponses) {
+                $platformInstanceNodesResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $platformInstanceNodes = ![string]::IsNullOrEmpty($platformInstanceNodesResponse) ? $platformInstanceNodesResponse : $platformInstanceNodes
             if ([string]::IsNullOrEmpty($platformInstanceNodes)) {
                 Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance Nodes is required" -ForegroundColor Red
@@ -463,8 +500,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $pythonPipLocation = "$pythonEnvLocation\Scripts"
             $pythonSitePackagesLocation = "$pythonEnvLocation\Lib\site-packages"
 
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-            $requiredPythonPackagesResponse = Read-Host
+            $requiredPythonPackagesResponse = $null
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            if (!$UseDefaultResponses) {
+                $requiredPythonPackagesResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $requiredPythonPackages = ![string]::IsNullOrEmpty($requiredPythonPackagesResponse) ? $requiredPythonPackagesResponse : $requiredPythonPackages
             $requiredPythonPackages = $requiredPythonPackages -split "," | ForEach-Object { $_.Trim(" ") }
             Write-Host+ -NoTrace -NoTimestamp "Required Python Packages: $requiredPythonPackages" -IfDebug -ForegroundColor Yellow
@@ -477,8 +520,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
     do {
         try {
+            $imagesUriResponse = $null
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Images URL ", "$($imagesUri ? "[$imagesUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
-            $imagesUriResponse = Read-Host
+            if (!$UseDefaultResponses) {
+                $imagesUriResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $imagesUri = ![string]::IsNullOrEmpty($imagesUriResponse) ? $imagesUriResponse : $imagesUri
             $imagesUri = [System.Uri]::new($imagesUri)
         }
@@ -552,8 +601,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                         $productHeaderWritten = $true
                     }
                     $productResponseDefault = $product.id -in $productIds ? "Y" : "N"
+                    $productResponse = $null
                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-                    $productResponse = Read-Host
+                    if (!$UseDefaultResponses) {
+                        $productResponse = Read-Host
+                    }
+                    else {
+                        Write-Host+
+                    }
                     if ([string]::IsNullOrEmpty($productResponse)) {$productResponse = $productResponseDefault}
                     if ($productResponse -eq "Y") {
                         $productsSelected += $product.id
@@ -599,8 +654,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     }
     $productIds = $productsSelected
 
+    Write-Host+ -Iff $productHeaderWritten
+
     if ($productDependencies) {
-        Write-Host+
+        Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "Other Products" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "--------------" -ForegroundColor DarkGray
         foreach ($productDependency in $productDependencies) {
@@ -629,8 +686,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                         $providerHeaderWritten = $true
                     }
                     $providerResponseDefault = $provider.ID -in $providerIds ? "Y" : "N"
+                    $providerResponse = $null
                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($provider.Id) ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-                    $providerResponse = Read-Host
+                    if (!$UseDefaultResponses) {
+                        $providerResponse = Read-Host
+                    }
+                    else {
+                        Write-Host+
+                    }
                     if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
                     if ($providerResponse -eq "Y") {
                         $_providerIds += $provider.Id
@@ -640,6 +703,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         }
     }
     $providerIds = $_providerIds
+
+    Write-Host+ -Iff $providerHeaderWritten
 
 #endregion PROVIDERS
 #region STOP INSTALLED PRODUCTS
