@@ -289,12 +289,12 @@ function global:Show-LogSummary {
                     Write-Host+ -NoTrace -NoTimestamp -Parse "<$keyName <.>32> $($summary.Filter.$key)" -ForegroundColor DarkGray
                 }
 
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Information <.>32> $($summary.Result.Information)" -ForegroundColor Gray,DarkGray,Gray
-                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Warning <.>32> $($summary.Result.Warning)" -ForegroundColor DarkYellow,DarkGray,DarkYellow
-                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Error <.>32> $($summary.Result.Error)" -ForegroundColor Red,DarkGray,Red
-                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Information <.>32> $($summary.Result.Information ?? 0)" -ForegroundColor Gray,DarkGray,Gray
+                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information ?? 0 -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Warning <.>32> $($summary.Result.Warning ?? 0)" -ForegroundColor DarkYellow,DarkGray,DarkYellow
+                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Warning ?? 0 -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Error <.>32> $($summary.Result.Error ?? 0)" -ForegroundColor Red,DarkGray,Red
+                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Error ?? 0 -eq 1 ? "y" : "ies")" -ForegroundColor Gray
         
                 Write-Host+
 
