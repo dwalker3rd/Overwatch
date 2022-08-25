@@ -157,8 +157,6 @@ function global:Read-Log {
         [switch]$UseDefaultView,
         [switch]$Summary
     )
-
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     if ($PSBoundParameters.ContainsKey('Head') -and $PSBoundParameters.ContainsKey('Tail')) {throw "Head and Tail cannot be used together."}
     if ($PSBoundParameters.ContainsKey('Newest') -and $PSBoundParameters.ContainsKey('Oldest')) {throw "Newest and Oldest cannot be used together."}
@@ -219,63 +217,25 @@ function global:Read-Log {
     if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
     if ($Oldest) {$logEntry = $logEntry | Select-Object -First $Oldest}
 
-    $totals = [array]($logEntry | Where-Object {$_.EntryType -ne "Information"} |Group-Object -Property EntryType -NoElement)
+    $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
 
     if ($Summary) {
 
-        if ($totals.Count -eq 0) {return}
-
-        $summaryMessage = "There $($totals.Count -eq 1 ? "was" : "were") "
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
-
-        if ($totals.Count -gt 0) {
-            for ($i = 0; $i -le $totals.Count-1; $i++) {
-                $summaryMessageEntryType = $totals[$i].Name
-                $summaryMessageColor = "Gray"
-                switch ($totals[$i].Name) {
-                    "Information" {
-                        $summaryMessageEntryType = "Informational"
-                    }
-                    "Warning" {
-                        $summaryMessageColor = "DarkYellow"
-                    }
-                    "Error" {
-                        $summaryMessageColor = "Red"
-                    }
-                }
-                $summaryMessage = "$($totals[$i].Count) $summaryMessageEntryType"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor $summaryMessageColor
-                if ($i -ne $totals.Count-1) {
-                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine ($i -eq $totals.Count-2 ? " and " : ", ") -ForegroundColor DarkGray
-                }
-            }
+        $summaryMeta = @{
+            Name = $Name
+            Node = $node
+            Filter = @()
+            Result = @()
+            Total = $logEntry.Count
         }
-        else {
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "0" -ForegroundColor Gray
+        foreach ($key in $PSBoundParameters.keys | Where-Object {$_ -ne "Summary"}) {
+            $summaryMeta.Filter += @{$key = $PSBoundParameters.$key}
+        }
+        foreach ($total in $totals) {
+            $summaryMeta.Result += @{$total.Name = $total.Count}
         }
 
-        $summaryMessage = " log entr"
-        $summaryMessage += $totals.Count -eq 1 ? "y" : "ies"
-        $summaryMessage += " in the "
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
-        $summaryMessage = $Name
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
-        $summaryMessage = " log file on node "
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
-        $summaryMessage = $node
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
-        $summaryMessage = $After -and $Before ? " between" : ($After ? " since" : ($Before ? " before" : $null))
-        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
-        $summaryMessage = $After ? " $($After.ToString('u'))" : ""
-        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
-        $summaryMessage = $After -and $Before ? " and" : ""
-        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor DarkGray
-        $summaryMessage = $Before ? " $($Before.ToString('u'))" : ""
-        Write-Host+ -Iff (![string]::IsNullOrEmpty($summaryMessage)) -NoTrace -NoTimestamp -NoNewLine $summaryMessage -ForegroundColor Gray
-
-        Write-Host+
-
-        return
+        return $summaryMeta
 
     }
 
@@ -288,8 +248,11 @@ function global:Show-LogSummary {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After = $today
     )
+
+    Write-Host+ -ResetAll
 
     foreach ($node in $ComputerName) {
         $logs = @() 
@@ -307,7 +270,35 @@ function global:Show-LogSummary {
         }
 
         foreach ($log in $logs) {
-            Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -Since $today -Summary | Format-Table
+
+            $summary = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -Since $After -Summary
+
+            if ($summary.Total -gt 0) {
+
+                Write-Host+ -MaxBlankLines 1
+
+                $summaryTitle = "$($summary.Name)"
+                Write-Host+ -NoTrace -NoTimestamp $summaryTitle
+                Write-Host+ -NoTrace -NoTimestamp $emptyString.PadLeft($summaryTitle.Length,"-")
+                
+                foreach ($key in $summary.Filter.keys | Where-Object {$_ -ne "Name"}) {
+                    $keyName = switch ($key) {
+                        "ComputerName" {"Node"}
+                        default {$key}
+                    }
+                    Write-Host+ -NoTrace -NoTimestamp -Parse "<$keyName <.>32> $($summary.Filter.$key)" -ForegroundColor DarkGray
+                }
+
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Information <.>32> $($summary.Result.Information)" -ForegroundColor Gray,DarkGray,Gray
+                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Warning <.>32> $($summary.Result.Warning)" -ForegroundColor DarkYellow,DarkGray,DarkYellow
+                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Error <.>32> $($summary.Result.Error)" -ForegroundColor Red,DarkGray,Red
+                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+        
+                Write-Host+
+
+            }
         }
     }
 
