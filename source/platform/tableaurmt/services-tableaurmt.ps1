@@ -186,34 +186,41 @@ function global:Get-RMTTableauServerStatus {
 
     $tsStatus = $null
 
-    try{
-        Initialize-TsmApiConfiguration -Server $initialNode
-        $tsStatus = Get-TableauServerStatus -ResetCache
-
-        $message = "$($emptyString.PadLeft(8,"`b")) CONNECTED"
-        Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
-    }
-    catch {
-        $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
-        Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp -NoNewLine $message -ForegroundColor Red
-    }
-
     $tableauServerStatus = [PSCustomObject]@{
         Name = $Environment.Identifier
-        IsOK = $TableauServerStatusOK.Contains($tsStatus.RollupStatus)
-        RollupStatus = $tsStatus.RollupStatus
-        TableauServer = $tsStatus
+        IsOK = $false
+        RollupStatus = ""
+        TableauServer = $null
         Environment = $Environment
     }
 
-    $message = "/","$($tableauServerStatus.RollupStatus.ToUpper())"
+    try{
+
+        Initialize-TsmApiConfiguration -Server $initialNode
+        $tsStatus = Get-TableauServerStatus -ResetCache
+
+    }
+    catch {
+
+        $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
+
+        return $tableauServerStatus
+
+    }
+
+    $tableauServerStatus.IsOK = $TableauServerStatusOK.Contains($tsStatus.RollupStatus)
+    $tableauServerStatus.RollupStatus = $tsStatus.RollupStatus
+    $tableauServerStatus.TableauServer = $tsStatus
+
+    $message = "$($emptyString.PadLeft(8,"`b")) $($tableauServerStatus.RollupStatus.ToUpper())"
     $messageColor = switch ($tableauServerStatus.RollupStatus) {
         "Starting" { "DarkYellow" }
         default {
             $tableauServerStatus.IsOK ? "DarkGreen" : "Red"
         }
     }
-    Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGray,$messageColor
+    Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor $messageColor
 
     return $tableauServerStatus
 
@@ -223,7 +230,8 @@ function global:Get-RMTStatus {
 
     [CmdletBinding()]
     param (
-        [switch]$ResetCache
+        [switch]$ResetCache,
+        [switch]$Quiet
     )
     
     if ((get-cache rmtstatus).Exists() -and !$ResetCache) {
@@ -233,20 +241,25 @@ function global:Get-RMTStatus {
         }
     }
 
-    $controllerStatus = @{}
-    $agentStatus = @{}
-    $environmentStatus = @()
+    $rmtStatus = [PSCustomObject]@{
+        IsOK = $true
+        RollupStatus = ""
+        ControllerStatus = $null
+        AgentStatus = @()
+        EnvironmentStatus = @()
+    }
 
-    Write-Host+ -MaxBlankLines 1
+    Write-Host+ -Iff $(!$Quiet) -MaxBlankLines 1
     $message = "<Getting RMT Status <.>48> PENDING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    Write-host+ -SetIndentGlobal -Indent 2
+    Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -Indent 2
 
     #region Controller
 
-        $controller = Get-RMTController -Quiet
-        $controllerStatus = [PSCustomObject]@{
+        $controller = Get-RMTController -Quiet:$Quiet.IsPresent
+        $rmtStatus.IsOK = $rmtStatus.IsOK -and $controller.IsOK
+        $rmtStatus.ControllerStatus = [PSCustomObject]@{
             Name = $controller.Name
             IsOK = $controller.IsOK
             RollupStatus = $controller.RollupStatus
@@ -259,60 +272,89 @@ function global:Get-RMTStatus {
     
         #region Agents
 
-            $agents = Get-RMTAgents -Controller $controller -Quiet
-            $agentStatus = [PSCustomObject]@{
-                IsOK = $true
-                RollupStatus = ""
-                Agents = $agents
-            }
+            $agents = Get-RMTAgents -Controller $controller -Quiet:$Quiet.IsPresent
 
             foreach ($agent in $agents) {
-                $agentStatus.IsOK = $agentStatus.IsOK -and $agent.IsConnected
+
+                $agentStatus = [PSCustomObject]@{
+                    IsOK = $true
+                    RollupStatus = ""
+                    ConnectionIsOK = $agent.IsConnected -eq "True"
+                    ServiceIsOK = ($agent.Services.Status | Sort-Object -Unique) -eq $global:PlatformStatusOK
+                    Agent = $agent
+                    Name = $agent.Name
+                    EnvironmentIdentifier = $agent.EnvironmentIdentifier
+                }
+                $agentStatus.IsOK = $agentStatus.ConnectionIsOK -and $agentStatus.ServiceIsOK
+                
+                if ($agentStatus.ConnectionIsOK -and $agentStatus.ServiceIsOK) {
+                    $agentStatus.RollupStatus = "Connected"
+                }
+                elseif (!$agentStatus.ConnectionIsOK -and $agentStatus.ServiceIsOK) {
+                    $agentStatus.RollupStatus = "Connecting"
+                }
+                elseif (!$agentStatus.ConnectionIsOK -or !$agentStatus.ServiceIsOK) {
+                    $agentStatus.RollupStatus = "Disconnected"
+                }
+
+                $rmtStatus.IsOK = $rmtStatus.IsOK -and $agentStatus.IsOK
+                $rmtStatus.AgentStatus += $agentStatus
+
             }
-            $agentStatus.RollupStatus = $agentStatus.IsOK ? "Connected" : "Connection Issue"           
 
         #endregion Agents
         #region Environments
 
-            $environments = Get-RMTEnvironments -Controller $controller
+            $environments = Get-RMTEnvironments -Controller $controller -Quiet:$Quiet.IsPresent
+
+            Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -Indent 2
+
             foreach ($environment in $environments) {
-                $environStatus = [PSCustomObject]@{
+
+                $message = "<$($environment.Identifier) <.>48> PENDING"
+                Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -Indent 2
+
+                $environmentStatus = [PSCustomObject]@{
                     Name = $environment.Identifier
                     IsOK = $true
                     RollupStatus = ""
                     Environment = $environment
-                    Agents = @()
-                    TableauServer = $null
+                    AgentStatus = $rmtStatus.AgentStatus | Where-Object {$_.EnvironmentIdentifier -eq $environment.Identifier}
+                    TableauServer = Get-RMTTableauServerStatus $environment -Quiet
                 }
-                $environStatus.Agents = $agents | Where-Object {$_.EnvironmentIdentifier -eq $environment.Identifier}
 
-                Write-Host+ -SetIndentGlobal -Indent 2
-                $environStatus.TableauServer = Get-RMTTableauServerStatus $environment
-                Write-Host+ -SetIndentGlobal -Indent -2
+                foreach ($agentStatus in $environmentStatus.AgentStatus) {
 
-                foreach ($agent in $environStatus.Agents) {
-                    $environStatus.IsOK = $environStatus.IsOK -and $agent.IsConnected
+                    $message = "<$($agentStatus.Name) <.>32> $($agentStatus.RollupStatus.ToUpper())"
+                    Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$($agentStatus.IsOK ? "DarkGreen" : "Red")
+
+                    $environmentStatus.IsOK = $environmentStatus.IsOK -and $agentStatus.IsOK
+
                 }
-                $environStatus.RollupStatus = $environStatus.IsOK ? "Connected" : "Connection Issue"
-                $environmentStatus += $environStatus
+                $environmentStatus.RollupStatus = $environmentStatus.IsOK ? "Connected" : "Degraded"
+
+                Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -Indent -2
+                $message = "<$($environment.Identifier) <.>48> $($environmentStatus.RollupStatus.ToUpper())"
+                Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$($environmentStatus.IsOK ? "DarkGreen" : "Red")
+
+                $rmtStatus.IsOK = $rmtStatus.IsOK -and $environmentStatus.IsOK
+                $rmtStatus.EnvironmentStatus += $environmentStatus
             }
+
+            Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -Indent -2
 
         #endregion Environments
 
     }
 
-    Write-host+ -SetIndentGlobal -Indent -2
+    Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -Indent -2
 
     $message = "<Getting RMT Status <.>48> SUCCESS"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+    Write-Host+ -Iff $(!$Quiet)
 
-    $rmtStatus = [PSCustomObject]@{
-        IsOK = $controllerStatus.IsOK
-        RollupStatus = $controllerStatus.rollupStatus
-        ControllerStatus = $controllerStatus
-        AgentStatus = $agentStatus
-        EnvironmentStatus = $environmentStatus
-    }
+    $rmtStatus.RollupStatus = $rmtStatus.IsOK ? "Connected" : "Degraded"
 
     $rmtStatus | Write-Cache rmtstatus
 
@@ -348,8 +390,6 @@ function global:Build-StatusFacts {
     )
 
     $controller = $PlatformStatus.StatusObject.ControllerStatus.Controller
-    # $agents = $PlatformStatus.StatusObject.AgentStatus.Agents
-    $environs = $PlatformStatus.StatusObject.EnvironmentStatus
 
     $facts = @()
     if (!$controller.IsOK -or $ShowAll) {
@@ -363,18 +403,18 @@ function global:Build-StatusFacts {
             }
         }
     }
-    foreach ($environ in $environs) {
+    foreach ($environmentStatus in $PlatformStatus.StatusObject.EnvironmentStatus) {
         $facts += @(
             @{
-                name = "$($environ.Name)"
-                value = "$($environ.RollupStatus -eq "Connected" ? "All agents connected" : "Agent[s] with a connection issue")"
+                name = "$($environmentStatus.Name)"
+                value = "$($environmentStatus.RollupStatus.ToUpper())"
             }
         )
-        if (!$environ.IsOK -or $ShowAll) {
-            $facts += foreach ($agent in $environ.Environment.Agents) {
+        if (!$environmentStatus.IsOK -or $ShowAll) {
+            $facts += foreach ($agentStatus in $environmentStatus.AgentStatus) {
                 @{
-                    name = "$($agent.Name)"
-                    value = "Agent $($agent.IsConnected -eq "False" ? "connected" : "has a connection issue")"
+                    name = "$($agentStatus.Name)"
+                    value = "Agent $($agentStatus.RollupStatus)"
                 }
             }
         }
@@ -567,10 +607,12 @@ function global:Request-RMTAgents {
         throw "The `$ComputerName/`$Agent and `$EnvironmentIdentifier parameters cannot be used together"
     }
 
+    Write-Host+ -MaxBlankLines 1
+
     $rmtStatus = Get-RMTStatus
     $controller = $rmtStatus.ControllerStatus.Controller
-    $agents = $rmtStatus.AgentStatus.Agents
-    $environs = $rmtStatus.EnvironmentStatus.Environment
+    $agents = $rmtStatus.AgentStatus.Agent
+    $environments = $rmtStatus.EnvironmentStatus.Environment
 
     if (!$controller.IsOK) {
         $message = "<$($Command.ToUpper()) RMT Agents <.>48> FAILURE"
@@ -581,13 +623,17 @@ function global:Request-RMTAgents {
     }
 
     if (!$ComputerName -and !$EnvironmentIdentifier) {
-        $EnvironmentIdentifier = $environs.Identifier
+        $EnvironmentIdentifier = $environments.Identifier
     }
     elseif ($ComputerName) {
         $EnvironmentIdentifier = ($agents | Where-Object {$_.Name -in $ComputerName}).EnvironmentIdentifier | Sort-Object -Unique
     }
+    elseif (!$ComputerName) {
+        $ComputerName = ($rmtStatus.EnvironmentStatus | Where-Object ($_.EnvironmentIdentifier -in $EnvironmentIdentifier)).AgentStatus.Agent
+    }
 
-    $environs = $environs | Where-Object {$_.Identifier -in $EnvironmentIdentifier}
+    $environments = $environments | Where-Object {$_.Identifier -in $EnvironmentIdentifier}
+    # $agents = $environments.AgentStatus.Agent
     
     Write-Host+
     $message = "<$($Command.ToUpper()) RMT Agents <.>48> PENDING"
@@ -601,27 +647,27 @@ function global:Request-RMTAgents {
     $agentsSkipped = @()
     $environsSkipped = @()
 
-    foreach ($environ in $environs) {
+    foreach ($environment in $environments) {
 
-        $message = "$($environ.Identifier)"
+        $message = "$($environment.Identifier)"
         Write-Host+ -NoTrace -NoSeparator $message -ForeGroundColor Gray
         Write-Host+ -NoTrace (Format-Leader -Character "-" -Length $message.Length -NoIndent)
 
         if ($ComputerName) {
-            $targetAgents = $agents | Where-Object {$_.Name -in $ComputerName -and $_.EnvironmentIdentifier -eq $environ.Identifier}
+            $targetAgents = $agents | Where-Object {$_.Name -in $ComputerName -and $_.EnvironmentIdentifier -eq $environment.Identifier}
         }
         else {
-            $targetAgents = $agents | Where-Object {$_.EnvironmentIdentifier -eq $environ.Identifier}
+            $targetAgents = $agents | Where-Object {$_.EnvironmentIdentifier -eq $environment.Identifier}
         }
 
         if ($IfTableauServerIsRunning) {
-            $tableauServerStatus = Get-RMTTableauServerStatus $environ
+            $tableauServerStatus = Get-RMTTableauServerStatus $environment
             if (!$tableauServerStatus.IsOK) { 
-                $environsSkipped += $environ 
+                $environsSkipped += $environment 
                 $agentsSkipped += $targetAgents
             }                 
         }
-        if ($environ.Identifier -in $environsSkipped.Identifier) {
+        if ($environment.Identifier -in $environsSkipped.Identifier) {
             foreach ($agent in $targetAgents) {
                 $message = "<$($Command -eq "Stop" ? "Disable" : "Enable") RMT Agent on $($agent.Name) <.>48> SKIPPED"
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
@@ -630,7 +676,7 @@ function global:Request-RMTAgents {
             }
         }
         else {
-            $environsCompleted += $environ
+            $environsCompleted += $environment
             $agentsCompleted += $targetAgents
 
             # enable agent service before start
@@ -670,6 +716,8 @@ function global:Request-RMTAgents {
             Environments = $environsSkipped
             Agents = $agentsSkipped
         }
+        RmtStatusBefore = $rmtStatus
+        RmtStatusAfter = Get-RMTStatus -ResetCache
     }
 
     return $Command -eq "Start" ? $result : $null
@@ -696,6 +744,9 @@ function global:Stop-RMTAgents {
     $result = Request-RMTAgents @params
 
     Set-CursorVisible
+
+    # $messageStatus = Send-PlatformStatusMessage -MessageType "Alert"
+    # $messageStatus | Out-Null
 
     return $result
 
@@ -731,6 +782,9 @@ function global:Start-RMTAgents {
     $result = Request-RMTAgents @params
 
     Set-CursorVisible
+
+    # $messageStatus = Send-PlatformStatusMessage -MessageType "Alert"
+    # $messageStatus | Out-Null
     
     return $result
 
@@ -877,72 +931,69 @@ function global:Show-PlatformStatus {
     [CmdletBinding()]
     param ()
 
-    $rmtStatus = Get-RMTStatus -ResetCache
+    Write-Host+ -ResetAll
 
-    # $agents = $rmtStatus.AgentStatus
+    $rmtStatus = Get-RMTStatus -ResetCache -Quiet
+
     $controller = $rmtStatus.ControllerStatus
-    $environs = $rmtStatus.EnvironmentStatus
+    $environments = $rmtStatus.EnvironmentStatus
 
     Write-Host+
     $message = $global:Platform.DisplayName
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
     Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
     Write-Host+
-    Write-Host+ -SetIndentGlobal -Indent 2
 
     Write-Host+ -NoTrace -NoTimestamp "Controller"
     Write-Host+ -SetIndentGlobal -Indent 2
 
-    $message = "<$($controller.Name) <.>48> $($controller.RollupStatus)"
+    $message = "<$($controller.Name) <.>52> $($controller.RollupStatus.ToUpper())"
     Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
-    $message = "<BuildVersion <.>48> $($controller.Controller.BuildVersion)"
+    $message = "<BuildVersion <.>52> $($controller.Controller.BuildVersion)"
     Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
     Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
     Write-Host+ -SetIndentGlobal -Indent 2
     foreach ($service in $controller.Controller.Services) {
-        $message = "<$($service.Name) <.>48> $($service.Status)"
+        $message = "<$($service.Name) <.>52> $($service.Status.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
     }
-    Write-Host+ -SetIndentGlobal -Indent -2
-    Write-Host+ -SetIndentGlobal -Indent -2
-    Write-Host+ -SetIndentGlobal -Indent -2
+    Write-Host+ -SetIndentGlobal -Indent -4
     Write-Host+
     
-    foreach ($environ in $environs) {
+    foreach ($environment in $environments) {
 
-        $message = $environ.Name
+        $message = $environment.Name
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
         Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
         Write-Host+
-
         Write-Host+ -SetIndentGlobal -Indent 2
 
         Write-Host+ -NoTrace -NoTimestamp "Tableau Server"
         Write-Host+ -SetIndentGlobal -Indent 2
-        $tableauServer = $environ.TableauServer
-        $message = "<$($tableauServer.Name) <.>48> $($tableauServer.RollupStatus)"
+        $tableauServer = $environment.TableauServer
+        $message = "<$($tableauServer.Name) <.>52> $($tableauServer.RollupStatus.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($tableauServer.IsOK ? "DarkGreen" : "Red")
         Write-Host+ -SetIndentGlobal -Indent -2
 
         Write-Host+
         
-        foreach ($agent in $environ.Agents) {
+        foreach ($agent in $environment.AgentStatus.Agent) {
 
             Write-Host+ -NoTrace -NoTimestamp "Agent"
             Write-Host+ -SetIndentGlobal -Indent 2
             
-            $message = "<$($agent.Name) <.>48> $($agent.IsConnected -eq "True" ? "Connected" : "Connection Issue")"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($agent.IsConnected -eq "True" ? "DarkGreen" : "Red")
-            $message = "<BuildVersion <.>48> $($agent.BuildVersion)"
+            $agentStatus = $agent.IsConnected ? ($agent.Services.Status -eq "Running" ? "Connected" : "Connecting") : "Degraded"
+            $message = "<$($agent.Name) <.>52> $($agentStatus.ToUpper())"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($agentStatus ? "DarkGreen" : "Red")
+            $message = "<BuildVersion <.>52> $($agent.BuildVersion)"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
             Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
             Write-Host+ -SetIndentGlobal -Indent 2
             foreach ($service in $agent.Services) {
-                $message = "<$($service.Name) <.>48> $($service.Status)"
+                $message = "<$($service.Name) <.>52> $($service.Status.ToUpper())"
                 Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
             }
-            Write-Host+ -SetIndentGlobal -Indent -2
-            Write-Host+ -SetIndentGlobal -Indent -2
+            Write-Host+ -SetIndentGlobal -Indent -4
 
             Write-Host+
 
@@ -952,6 +1003,9 @@ function global:Show-PlatformStatus {
         Write-Host+
 
     }
+
+    Write-Host+ -ResetAll
+
 }
 
 #endregion COMMAND/CONTROL

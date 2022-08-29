@@ -67,6 +67,10 @@ if ($agents) {
                     $skippedEnvironments = $skippedEnvironments | Where-Object {$_.Identifier -ne $environ.Identifier}
                     Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($skippedEnvironments.Identifier | ConvertTo-Json -Compress) ?? "None") -Force
                 }
+                else {
+                    Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($result.Skipped.Agents.Name | ConvertTo-Json -Compress) ?? "None") -Force
+                }
+
             }
 
         }
