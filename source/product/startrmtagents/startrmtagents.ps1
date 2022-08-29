@@ -21,7 +21,7 @@ Write-Log -Context StartRMTAgents -Status Pending -Message "Starting $($global:L
 
 $rmtStatus = Get-RMTStatus -ResetCache
 
-$agents = $rmtStatus.AgentStatus.Agents | Where-Object {!$_.Services.IsOK}
+$agents = $rmtStatus.AgentStatus.Agent | Where-Object {!$_.Services.IsOK}
 if ($agents) {
 
     $params = @{ 
@@ -30,6 +30,9 @@ if ($agents) {
         Context = $Product.Id
     }
     $result = Start-RMTAgents @params
+
+    $messageStatus = Send-PlatformStatusMessage -MessageType $global:PlatformMessageType.Alert
+    $messageStatus | Out-Null
 
     $skippedEnvironments = $result.Skipped.Environments
     Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($skippedEnvironments.Identifier | ConvertTo-Json -Compress) ?? "None") -Force
@@ -63,6 +66,9 @@ if ($agents) {
                 }
                 $result = Start-RMTAgents @params
 
+                $messageStatus = Send-PlatformStatusMessage -MessageType $global:PlatformMessageType.Alert
+                $messageStatus | Out-Null
+
                 if ($result.Skipped.Agents.Count -eq 0) {
                     $skippedEnvironments = $skippedEnvironments | Where-Object {$_.Identifier -ne $environ.Identifier}
                     Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($skippedEnvironments.Identifier | ConvertTo-Json -Compress) ?? "None") -Force
@@ -80,7 +86,7 @@ if ($agents) {
 }
 
 Write-Host+
-$message = "<All agents/environments <.>48> Connected"
+$message = "<All agents/environments <.>48> CONNECTED"
 Write-Host+ -Iff (!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen    
 Write-Host+
 

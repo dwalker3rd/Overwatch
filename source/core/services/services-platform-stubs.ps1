@@ -120,7 +120,7 @@
         return
     }
 
-    function global:Get-AsyncJob {
+    function global:Get-PlatformJob {
 
         [CmdletBinding()]
         param(
@@ -136,7 +136,7 @@
         return
     }
 
-    function global:Show-AsyncJob {
+    function global:Show-PlatformJob {
 
         [CmdletBinding()]
         param(
@@ -152,7 +152,7 @@
         return
     }
 
-    function global:Watch-AsyncJob {
+    function global:Watch-PlatformJob {
 
         [CmdletBinding()]
         param (
@@ -185,7 +185,7 @@
         return
     }
 
-    function global:Update-AsyncJob {
+    function global:Update-PlatformJob {
 
         [CmdletBinding()]
         param(
@@ -197,7 +197,7 @@
         return
     }
 
-    function global:Wait-AsyncJob {
+    function global:Wait-PlatformJob {
 
         [CmdletBinding()]
         param(

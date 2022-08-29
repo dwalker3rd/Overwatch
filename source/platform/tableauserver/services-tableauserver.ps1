@@ -269,23 +269,23 @@ function global:Request-Platform {
 
     try {
 
-        $asyncJob = Invoke-TsmApiMethod -Method $Command
-        Watch-AsyncJob -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
-        $asyncJob = Wait-AsyncJob -Id $asyncJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
+        $platformJob = Invoke-TsmApiMethod -Method $Command
+        Watch-PlatformJob -Id $platformJob.Id -Context $Context -NoEventManagement -NoMessaging
+        $platformJob = Wait-PlatformJob -Id $platformJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
 
-        if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
-            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) has $($asyncJob.status). $($asyncJob.errorMessage)"
+        if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
+            $message = "Platform $($Command.ToUpper()) (async job id: $($platformJob.id)) has $($platformJob.status). $($platformJob.errorMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
             throw
         } 
-        elseif ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
-            $message = "Platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) was $($asyncJob.status). $($asyncJob.errorMessage)"
+        elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
+            $message = "Platform $($Command.ToUpper()) (async job id: $($platformJob.id)) was $($platformJob.status). $($platformJob.errorMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }
-        elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
-            $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($asyncJob.id)) to complete. $($asyncJob.statusMessage)"
+        elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
+            $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($platformJob.id)) to complete. $($platformJob.statusMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }
@@ -301,7 +301,7 @@ function global:Request-Platform {
         $commandStatus = $PlatformEventStatus.Failed
     }
 
-    Watch-AsyncJob -Remove -Id $asyncJob.Id -Context $Context -NoEventManagement -NoMessaging
+    Watch-PlatformJob -Remove -Id $platformJob.Id -Context $Context -NoEventManagement -NoMessaging
 
     $message = "<  $($Command.ToUpper()) <.>25> $($commandStatus.ToUpper())"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
@@ -365,30 +365,21 @@ return
 }
 
 #endregion PROCESS
-#region BACKUP
+#region CLEANUP
 
 function global:Cleanup-Platform {
 
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
 
-[CmdletBinding()] param(
-    [Parameter(Mandatory=$false)][timespan]$LogFilesRetention = (New-TimeSpan -Days 7)
-)
-
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-# Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
-# Send-TaskMessage -Id "Cleanup" -Status "Running"
-
-#region PURGE
+    [CmdletBinding()] param(
+        [Parameter(Mandatory=$false)][timespan]$LogFilesRetention = (New-TimeSpan -Days 7)
+    )
 
     # purge backup files
     Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)" 
     Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json" 
     
-#endregion CLEANUP
-#region CLEANUP
-
+    # cleanup
     $cleanupOptions = @(
         $LogFilesRetention.TotalSeconds.ToString(),     # logFilesRetentionSeconds
         "True",                                         # deleteLogFiles
@@ -401,28 +392,25 @@ Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     try {
 
         # . tsm maintenance cleanup -l --log-files-retention $LogFilesRetention -t
-        $cleanupAsyncJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
-        Watch-AsyncJob -Id $cleanupAsyncJob.id -Context "Cleanup" # -Callback "Invoke-AsyncJobCallback"
+        $cleanupPlatformJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
+        Watch-PlatformJob -Id $cleanupPlatformJob.id -Context "Cleanup" # -Callback "Invoke-PlatformJobCallback"
 
-        Write-Log -Context "Cleanup" -Action "Cleanup" -Target "asyncJob $($cleanupAsyncJob.id)" -Status $cleanupAsyncJob.status -Message $cleanupAsyncJob.statusMessage
-        # Write-Information "asyncJob $($cleanupAsyncJob.id): $($cleanupAsyncJob.statusMessage)"
+        Write-Log -Context "Cleanup" -Action "Cleanup" -Target "platformJob $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage
 
     }
     catch {
 
         Write-Log -Context "Cleanup" -EntryType "Error" -Action "Cleanup" -Status "Error" -Message $_.Exception.Message
         Write-Error "$($_.Exception.Message)"
-
-        # Watch-AsyncJob (Tableau Server) will handle messaging instead of Send-TaskMessage
-        # Send-TaskMessage -Id "Cleanup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
         
     }
 
-#endregion CLEANUP
-
-return
+    return
 
 }
+
+#endregion CLEANUP
+#region BACKUP
 
 function global:Get-BackupFileName {
 
@@ -443,8 +431,7 @@ Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running
 Write-Information "Running"
 Send-TaskMessage -Id "Backup" -Status "Running"
 
-#region EXPORT-CONFIG
-
+    # export configuration and topology
     Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Running"
     Write-Information "ExportConfigurationAndTopologySettings: Running"
     
@@ -464,16 +451,14 @@ Send-TaskMessage -Id "Backup" -Status "Running"
 
     }
 
-#endregion EXPORT-CONFIG
-#region BACKUP
-
+    # backup
     try {
 
-        $backupAsyncJob = Invoke-TsmApiMethod -Method "Backup" -Params @(Get-BackupFileName)
-        Watch-AsyncJob -Id $backupAsyncJob.id -Context "Backup" # -Callback "Invoke-AsyncJobCallback"
+        $backupPlatformJob = Invoke-TsmApiMethod -Method "Backup" -Params @(Get-BackupFileName)
+        Watch-PlatformJob -Id $backupPlatformJob.id -Context "Backup" # -Callback "Invoke-PlatformJobCallback"
 
-        Write-Log -Context "Backup" -Action "Backup" -Target "asyncJob $($backupAsyncJob.id)" -Status $backupAsyncJob.status -Message $backupAsyncJob.statusMessage
-        Write-Information "asyncJob $($backupAsyncJob.id): $($backupAsyncJob.statusMessage)"
+        Write-Log -Context "Backup" -Action "Backup" -Target "platformJob $($backupPlatformJob.id)" -Status $backupPlatformJob.status -Message $backupPlatformJob.statusMessage
+        Write-Information "platformJob $($backupPlatformJob.id): $($backupPlatformJob.statusMessage)"
 
     }
     catch {
@@ -485,51 +470,351 @@ Send-TaskMessage -Id "Backup" -Status "Running"
         
     }
 
-#endregion BACKUP
-
 return
 }
 
-function global:Invoke-AsyncJobCallback {
+#endregion BACKUP
+#region PLATFORM JOBS
+
+function global:Get-PlatformJob {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Id,
+        [Parameter(Mandatory=$false)][string]$Status,
+        [Parameter(Mandatory=$false)][string]$Type,
+        [switch]$Latest
+    )
+
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+    if ($Id) {
+        $platformJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
+    }
+    else {
+        $platformJob = Invoke-TsmApiMethod -Method "AsyncJobs"
+        if ($Status) {
+            $platformJob = $platformJob | Where-Object {$_.status -eq $Status}
+        }
+        if ($Type) {
+            $platformJob = $platformJob | Where-Object {$_.jobType -eq $Type}
+        }
+        if ($Latest) {
+            $platformJob = $platformJob | Sort-Object -Property updatedAt | Select-Object -Last 1
+        }
+    }
+
+    return $platformJob
+}
+
+function global:Show-PlatformJob {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Id,
+        [Parameter(Mandatory=$false)][string]$Status,
+        [Parameter(Mandatory=$false)][string]$Type,
+        [Parameter(Mandatory=$false)][string]$View,
+        [switch]$Latest
+    )
+
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    
+    $platformJobs = Get-PlatformJob -Id $Id -Status $Status -Type $Type
+
+    return  $platformJobs | Select-Object -Property $($View ? $platformJobView.$($View) : $platformJobView.Default)
+}
+
+function global:Watch-PlatformJob {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
+        [Parameter(Mandatory=$false)][string]$Source,
+        [Parameter(Mandatory=$false)][string]$Callback,
+        [switch]$Add,
+        [switch]$Update,
+        [switch]$Remove,
+        [switch]$NoEventManagement,
+        [switch]$NoMessaging
+    )
+
+    function Remove-PlatformJobFromWatchlist {
+        [CmdletBinding()]
+        param (
+            [Parameter(ValueFromPipeline)][Object]$InputObject,
+            [Parameter(Mandatory=$true,Position=0)][object]$PlatformJob,
+            [Parameter(Mandatory=$false,Position=1)][string]$Callback
+        )
+        begin {$outputObject = @()}
+        process {$outputObject += $InputObject}
+        end {return $outputObject | Where-Object {$_.id -ne $PlatformJob.id}}
+    }
+
+    function Add-PlatformJobToWatchlist {
+        [CmdletBinding()]
+        param (
+            [Parameter(ValueFromPipeline)][Object]$InputObject,
+            [Parameter(Mandatory=$true,Position=0)][object]$PlatformJob,
+            [Parameter(Mandatory=$false)][string]$Context,
+            [Parameter(Mandatory=$false)][string]$Source,
+            [Parameter(Mandatory=$false)][string]$Callback
+        )
+        begin {$outputObject = @()}
+        process {
+            if ($InputObject) {
+                $outputObject += $InputObject
+            }
+        }
+        end {
+            if ($PlatformJob.id -notin $InputObject.id) {       
+                $outputObject += [PSCustomObject]@{
+                    id = $PlatformJob.id
+                    status = $PlatformJob.status
+                    progress = $PlatformJob.progress
+                    updatedAt = $PlatformJob.updatedAt
+                    context = $Context
+                    source = $Source
+                    callback = $Callback
+                    noMessaging = $NoMessaging
+                    noEventManagement = $NoEventManagement
+                }
+            }
+            return $outputObject
+        }
+    }
+
+    $Command = "Add"
+    if ($Update) {$Command = "Update"}
+    if ($Remove) {$Command = "Remove"}
+
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+    $platformJob = Get-PlatformJob -Id $Id
+    if (!$platformJob) {return}
+
+    $platformEvent = switch ($platformJob.jobType) {
+        "DeploymentsJob" {$PlatformEvent.Restart}
+        "StartServerJob" {$PlatformEvent.Start}
+        "StopServerJob" {$PlatformEvent.Stop}
+        default {$null}
+    }
+
+    $platformEventStatusTarget = switch ($platformJob.jobType) {
+        "DeploymentsJob" {$PlatformEventStatusTarget.Start}
+        "StartServerJob" {$PlatformEventStatusTarget.Start}
+        "StopServerJob" {$PlatformEventStatusTarget.Stop}
+        default {$null}
+    }
+
+    $watchlist = Read-Watchlist platformJobsWatchlist
+
+    $prevPlatformJob = $watchlist | Where-Object {$_.id -eq $Id}
+
+    switch ($Command) {
+        "Add" {
+            $watchlist = $watchlist | Add-PlatformJobToWatchlist -PlatformJob $platformJob -Context $Context -Source $Source -Callback $Callback 
+
+            # send alerts for new entries
+            if (!$prevPlatformJob) {
+                if (!$NoMessaging) {
+                    Send-PlatformJobMessage $platformJob.id -Context $Context
+                }
+            } 
+
+            # set platform event 
+            if ($platformEvent) {
+                if (!$NoEventManagement) {
+                    Set-PlatformEvent -Event $platformEvent -EventStatus $PlatformEventStatus.InProgress -EventStatusTarget $platformEventStatusTarget -Context $Source
+                }
+            }
+        }
+        "Update" {
+            # remove previous entry and add updated entry
+            $watchlist = $watchlist | Remove-PlatformJobFromWatchlist -PlatformJob $platformJob 
+
+            $NoMessaging = $prevPlatformJob.noMessaging
+            $NoEventManagement = $prevPlatformJob.noEventManagement
+
+            if (!$platformJob.completedAt) {
+                $watchlist = $watchlist | Add-PlatformJobToWatchlist -PlatformJob $platformJob -Context $prevPlatformJob.context -Source $prevPlatformJob.source-Callback $prevPlatformJob.callback
+            }
+
+            # send alerts for updates
+            if ($platformJob.updatedAt -gt $prevPlatformJob.updatedAt) {
+                if ($platformJob.status -ne $prevPlatformJob.status -or $platformJob.progress -gt $prevPlatformJob.progress) {
+                    if (!$NoMessaging) {
+                        Send-PlatformJobMessage $platformJob.id -Context ($Context ? $Context : $prevPlatformJob.context)
+                    }
+                }
+            }
+            if ($platformJob.completedAt) {
+                if ($prevPlatformJob.callback) {
+                    Invoke-Expression "$($prevPlatformJob.Callback) -Id $($platformJob.id)"
+                }
+
+                # set platform event (completed or failed)
+                if ($platformEvent) {
+                    if (!$NoEventManagement) {
+                        Set-PlatformEvent -Event $platformEvent -EventStatus ($platformJob.status -ne "Succeeded" ? $PlatformEventStatus.Failed : $PlatformEventStatus.Completed) -EventStatusTarget $platformEventStatusTarget -Context $prevPlatformJob.source
+                    }
+                }
+            }                
+        }
+        "Remove" {
+            $watchlist = $watchlist | Remove-PlatformJobFromWatchlist $platformJob
+        }
+    }
+
+    $watchlist | Write-Watchlist platformJobsWatchlist
+    
+    return
+
+}
+
+Set-Alias -Name Write-Watchlist -Value Write-Cache -Scope Global
+Set-Alias -Name Clear-Watchlist -Value Clear-Cache -Scope Global
+Set-Alias -Name Read-Watchlist -Value Read-Cache -Scope Global
+
+function global:Show-Watchlist {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$Watchlist = "platformJobsWatchlist",
+        [Parameter(Mandatory=$false)][string]$View="Watchlist"
+    )
+
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+    Update-PlatformJob
+
+    return (Read-Watchlist $Watchlist) | Select-Object -Property $($View ? $PlatformJobView.$($View) : $PlatformJobView.Default)
+
+}
+
+function global:Update-PlatformJob {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$Id
+    )
+
+    $watchlist = Read-Watchlist platformJobsWatchlist
+    if ($Id) { 
+        $watchlist = $watchlist | Where-Object {$_.id -eq $Id}
+        if (!$watchlist) {return}
+    }
+    foreach ($platformJob in $watchlist) {
+        Watch-PlatformJob $platformJob.id -Update
+    }
+
+    # check TSM for running platformJobs started by others
+    # this step returns all running jobs: dupes removed by Watch-PlatformJob
+    $platformJobs = Get-PlatformJob -Status "Running" | Where-Object {$_.id -notin $watchlist.id -and $_.jobType -notin $global:tsmApiConfig.Async.DontWatchExternalJobType}
+    foreach ($platformJob in $platformJobs) {
+        Watch-PlatformJob $platformJob.Id -Add -Source "External Service/Person"
+    }
+
+    return
+
+}
+
+function global:Write-PlatformJobStatusToLog {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    $platformJob = Get-PlatformJob $Id
+
+    $data = $null
+    $message = $platformJob.statusMessage
+    if ($platformJob.status -eq "Succeeded") {
+        $data = "Duration: $($platformJob.completedAt - $platformJob.createdAt) ms"
+        $message = "This job completed successfully at $($epoch.AddSeconds($platformJob.completedAt/1000).ToString('u'))."
+    }
+
+    Write-Log -Context "PlatformJob" -Action $platformJob.jobType -Target $platformJob.id -Status $platformJob.status -Message $message -Data $data -Force 
+
+}
+
+function global:Wait-PlatformJob {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
+        [Parameter(Mandatory=$false)][int]$IntervalSeconds = 15,
+        [Parameter(Mandatory=$false)][int]$TimeoutSeconds = 300,
+        [Parameter(Mandatory=$false)][int]$ProgressSeconds
+    )
+
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+    $platformJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
+
+    $timeout = $false
+    $timeoutTimer = [Diagnostics.Stopwatch]::StartNew()
+
+    do {
+        Start-Sleep -seconds $IntervalSeconds
+        $platformJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
+    } 
+    until ($platformJob.completedAt -or 
+            [math]::Round($timeoutTimer.Elapsed.TotalSeconds,0) -gt $TimeoutSeconds)
+
+    if ([math]::Round($timeoutTimer.Elapsed.TotalSeconds,0) -gt $TimeoutSeconds) {
+        $timeout = $true
+    }
+
+    $timeoutTimer.Stop()
+
+    return $platformJob, $timeout
+
+}
+
+function global:Invoke-PlatformJobCallback {
 
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$true,Position=1)][string]$Id
 )
 
-$asyncJob = Get-AsyncJob -Id $Id
-$asyncJobProduct = Get-Product -Name $(switch ($asyncJob.jobtype) {
+$platformJob = Get-PlatformJob -Id $Id
+$platformJobProduct = Get-Product -Name $(switch ($platformJob.jobtype) {
         "GenerateBackupJob" { "Backup" }
         "CleanupJob" { "Cleanup" }
     })
 
-if ($asyncJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
+if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
 
-    Write-Log -EntryType "Warning" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
-    Write-Warning "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
-    Send-TaskMessage -Id $asyncJobProduct.Id -Status "Warning" -Message $asyncJob.statusMessage -MessageType $PlatformMessageType.Warning
+    Write-Log -EntryType "Warning" -Context $platformJobProduct.Id -Action $platformJobProduct.Id -Target "platformJob $($platformJob.id)" -Status $platformJob.status -Message $platformJob.statusMessage
+    Write-Warning "platformJob $($platformJob.id): $($platformJob.statusMessage)"
+    Send-TaskMessage -Id $platformJobProduct.Id -Status "Warning" -Message $platformJob.statusMessage -MessageType $PlatformMessageType.Warning
 
     return
 
 } 
-elseif ($asyncJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
+elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
 
-    Write-Log -EntryType "Error" -Context $asyncJobProduct.Id -Action $asyncJobProduct.Id -Target "asyncJob $($asyncJob.id)" -Status $asyncJob.status -Message $asyncJob.statusMessage
-    Write-Error "asyncJob $($asyncJob.id): $($asyncJob.statusMessage)"
-    Send-TaskMessage -Id $asyncJobProduct.Id -Status "Error" -Message $asyncJob.statusMessage -MessageType $PlatformMessageType.Alert
+    Write-Log -EntryType "Error" -Context $platformJobProduct.Id -Action $platformJobProduct.Id -Target "platformJob $($platformJob.id)" -Status $platformJob.status -Message $platformJob.statusMessage
+    Write-Error "platformJob $($platformJob.id): $($platformJob.statusMessage)"
+    Send-TaskMessage -Id $platformJobProduct.Id -Status "Error" -Message $platformJob.statusMessage -MessageType $PlatformMessageType.Alert
 
     return
 
 } 
 else {
 
-    Send-TaskMessage -Id $asyncJobProduct.Id -Status "Completed"
+    Send-TaskMessage -Id $platformJobProduct.Id -Status "Completed"
     
     return
 } 
 }
 
-#endregion BACKUP
+#endregion PLATFORM JOBS
 #region TOPOLOGY
 
 function global:Initialize-PlatformTopology {

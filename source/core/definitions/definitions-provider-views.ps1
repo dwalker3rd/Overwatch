@@ -200,7 +200,7 @@
         Node = @("NodeId","Node","Status")
     }
 
-    $global:AsyncJobView = @{
+    $global:PlatformJobView = @{
         Default = @("id","jobType","status","progress","createdAt","updatedAt","completedAt","statusMessage","jobTimeout","worker")
         Min = @(
             "id","jobType","status","progress",

@@ -91,7 +91,7 @@ Open-Monitor
 #endregion SERVER CHECK
 #region CHECK FOR ASYNC JOBS
 
-    Update-AsyncJob
+    Update-PlatformJob
 
 #endregion CHECK FOR ASYNC JOBS
 #region GET STATUS

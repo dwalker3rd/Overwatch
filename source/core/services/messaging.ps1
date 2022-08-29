@@ -154,7 +154,7 @@ function global:Send-PlatformStatusMessage {
 
 }
 
-function global:Send-AsyncJobMessage {
+function global:Send-PlatformJobMessage {
 
     [CmdletBinding()]
     param (
@@ -163,30 +163,30 @@ function global:Send-AsyncJobMessage {
         [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Information,
         [switch]$NoThrottle
     )
-    $asyncJob = Get-AsyncJob $Id
+    $platformJob = Get-PlatformJob $Id
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $product = $Context ? (Get-Product $Context) : $global:Product
     $serverInfo = Get-ServerInfo
     
-    $status = $asyncJob.statusMessage -replace '(\.*\s*)$'
+    $status = $platformJob.statusMessage -replace '(\.*\s*)$'
     if ($status -match '\b(\w+)$') {$status = $status -replace $Matches[1],"**$($Matches[1].ToUpper())**"}
 
     $facts = @(
-        @{name = "Job"; value = "$($asyncJob.jobType), ID: $($asyncJob.id), Async"}
+        @{name = "Job"; value = "$($platformJob.jobType), ID: $($platformJob.id), Async"}
         @{name = "Status"; value = "$($status)"}
-        if ($asyncJob.completedAt) {
-            @{name = "Completed "; value = $epoch.AddSeconds($asyncJob.completedAt/1000).ToString('u')}
+        if ($platformJob.completedAt) {
+            @{name = "Completed "; value = $epoch.AddSeconds($platformJob.completedAt/1000).ToString('u')}
         } 
-        elseif ($asyncJob.updatedAt) {                  
-            if ($asyncJob.progress -gt 0) {
-                @{name = "Progress"; value = "$($asyncJob.progress)% complete"} 
+        elseif ($platformJob.updatedAt) {                  
+            if ($platformJob.progress -gt 0) {
+                @{name = "Progress"; value = "$($platformJob.progress)% complete"} 
             }
-            @{name = "Updated"; value = $epoch.AddSeconds($asyncJob.updatedAt/1000).ToString('u')}    
+            @{name = "Updated"; value = $epoch.AddSeconds($platformJob.updatedAt/1000).ToString('u')}    
         }
         elseif ($status -ne "Queued") {
-            @{name = "Started"; value = $epoch.AddSeconds($asyncJob.createdAt/1000).ToString('u')}
+            @{name = "Started"; value = $epoch.AddSeconds($platformJob.createdAt/1000).ToString('u')}
         }            
     )
 
@@ -203,10 +203,10 @@ function global:Send-AsyncJobMessage {
         Title = $product.DisplayName
         Text = $product.Description 
         Type = $MessageType
-        Summary = "Status of AsyncJob $($asyncJob.id) ($($asyncJob.jobType)) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($status.ToUpper())"
-        Subject = "Status of AsyncJob $($asyncJob.id) ($($asyncJob.jobType)) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($status.ToUpper())"
+        Summary = "Status of PlatformJob $($platformJob.id) ($($platformJob.jobType)) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($status.ToUpper())"
+        Subject = "Status of PlatformJob $($platformJob.id) ($($platformJob.jobType)) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)): $($status.ToUpper())"
         Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
-        Source = "Send-AsyncJobMessage"
+        Source = "Send-PlatformJobMessage"
     }
 
     return Send-Message -Message $msg
