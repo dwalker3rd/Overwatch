@@ -154,8 +154,7 @@ function global:Read-Log {
         [Parameter(Mandatory=$false)][string]$View,
         [Parameter(Mandatory=$false)][string]$Sort,
         [Parameter(Mandatory=$false)][string]$Status,
-        [switch]$UseDefaultView,
-        [switch]$Summary
+        [switch]$UseDefaultView
     )
     
     if ($PSBoundParameters.ContainsKey('Head') -and $PSBoundParameters.ContainsKey('Tail')) {throw "Head and Tail cannot be used together."}
@@ -217,42 +216,29 @@ function global:Read-Log {
     if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
     if ($Oldest) {$logEntry = $logEntry | Select-Object -First $Oldest}
 
-    $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
-
-    if ($Summary) {
-
-        $summaryMeta = @{
-            Name = $Name
-            Node = $node
-            Filter = @()
-            Result = @()
-            Total = $logEntry.Count
-        }
-        foreach ($key in $PSBoundParameters.keys | Where-Object {$_ -ne "Summary"}) {
-            $summaryMeta.Filter += @{$key = $PSBoundParameters.$key}
-        }
-        foreach ($total in $totals) {
-            $summaryMeta.Result += @{$total.Name = $total.Count}
-        }
-
-        return $summaryMeta
-
-    }
-
     return $logEntry | Select-Object -Property $($View ? $LogEntryView.$($View) : $($LogEntryView.$($Name) -and !$UseDefaultView ? $LogEntryView.$($Name) : $LogEntryView.Default))
 
 }
 
-function global:Show-LogSummary {
+function global:Summarize-Log {
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PsUseApprovedVerbs", "")]
 
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-        [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After = $today
+        [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After,
+        [Parameter(Mandatory=$false)][DateTime]$Before,
+        [Parameter(Mandatory=$false)][int32]$Newest,
+        [Parameter(Mandatory=$false)][int32]$Oldest,
+        [Parameter(Mandatory=$false)][string]$View,
+        [switch]$UseDefaultView
     )
 
     Write-Host+ -ResetAll
+
+    $summary = @()
 
     foreach ($node in $ComputerName) {
         $logs = @() 
@@ -271,36 +257,52 @@ function global:Show-LogSummary {
 
         foreach ($log in $logs) {
 
-            $summary = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -Since $After -Summary
+            $logEntry = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
 
-            if ($summary.Total -gt 0) {
+            if ($After) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -gt $After}}
+            if ($Before) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -lt $Before}}
+            if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
+            if ($Oldest) {$logEntry = $logEntry | Select-Object -First $Oldest}
 
-                Write-Host+ -MaxBlankLines 1
+            if ($logEntry.Count -gt 0) {
 
-                $summaryTitle = "$($summary.Name)"
-                Write-Host+ -NoTrace -NoTimestamp $summaryTitle
-                Write-Host+ -NoTrace -NoTimestamp $emptyString.PadLeft($summaryTitle.Length,"-")
-                
-                foreach ($key in $summary.Filter.keys | Where-Object {$_ -ne "Name"}) {
-                    $keyName = switch ($key) {
-                        "ComputerName" {"Node"}
-                        default {$key}
-                    }
-                    Write-Host+ -NoTrace -NoTimestamp -Parse "<$keyName <.>32> $($summary.Filter.$key)" -ForegroundColor DarkGray
+                $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
+        
+                $summary += [PSCustomObject]@{
+                    Log = $log.FileNameWithoutExtension.ToLower()
+                    ComputerName = $node.ToLower()
+                    Count = $logEntry.Count
+                    Information = ($totals | Where-Object {$_.Name -eq "Information"}).Count ?? 0
+                    Warning = ($totals | Where-Object {$_.Name -eq "Warning"}).Count ?? 0
+                    Error = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
+                    MinTimeStamp = ($After ?? (($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1)).ToString('u')
+                    MaxTimeStamp = $Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1)).ToString('u')
                 }
 
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Information <.>32> $($summary.Result.Information ?? 0)" -ForegroundColor Gray,DarkGray,Gray
-                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Information ?? 0 -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Warning <.>32> $($summary.Result.Warning ?? 0)" -ForegroundColor DarkYellow,DarkGray,DarkYellow
-                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Warning ?? 0 -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Error <.>32> $($summary.Result.Error ?? 0)" -ForegroundColor Red,DarkGray,Red
-                Write-Host+ -NoTrace -NoTimestamp " entr$($summary.Result.Error ?? 0 -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-        
-                Write-Host+
+                # Write-Host+ -MaxBlankLines 1
+
+                # $summaryTitle = "Summary"
+                # Write-Host+ -NoTrace -NoTimestamp $summaryTitle -ForegroundColor Green
+                # Write-Host+ -NoTrace -NoTimestamp $emptyString.PadLeft($summaryTitle.Length,"-") -ForegroundColor Green
+
+                # Write-Host+ -NoTrace -NoTimestamp -Parse "<Log <.>32> $($summaryobject.Log)" -ForegroundColor DarkGray
+                # Write-Host+ -NoTrace -NoTimestamp -Parse "<ComputerName <.>32> $($summaryobject.ComputerName)" -ForegroundColor DarkGray
+                # Write-Host+ -NoTrace -NoTimestamp -Parse "<After <.>32> $($summaryobject.After)" -ForegroundColor DarkGray
+                
+                # Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Information <.>32> $($summaryobject.Information)" -ForegroundColor Gray,DarkGray,Gray
+                # Write-Host+ -NoTrace -NoTimestamp " entr$($summaryobject.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                # Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Warning <.>32> $($summaryobject.Warning)" -ForegroundColor DarkYellow,DarkGray,DarkYellow
+                # Write-Host+ -NoTrace -NoTimestamp " entr$($summaryobject.Warning -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                # Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Error <.>32> $($summaryobject.Error)" -ForegroundColor Red,DarkGray,Red
+                # Write-Host+ -NoTrace -NoTimestamp " entr$($summaryobject.Error -eq 1 ? "y" : "ies")" -ForegroundColor Gray
+                
+                # Write-Host+
 
             }
         }
     }
+
+    return $summary | Select-Object -Property Log, Count, Error, Warning, Information, MinTimeStamp, MaxTimeStamp, ComputerName
 
 }
 Set-Alias -Name logSummary -Value Show-LogSummary -Scope Global
