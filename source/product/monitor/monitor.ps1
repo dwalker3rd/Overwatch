@@ -89,11 +89,11 @@ Open-Monitor
     }
 
 #endregion SERVER CHECK
-#region CHECK FOR ASYNC JOBS
+#region UPDATE PLATFORM JOBS
 
     Update-PlatformJob
 
-#endregion CHECK FOR ASYNC JOBS
+#endregion UPDATE PLATFORM JOBS
 #region GET STATUS
 
     $platformStatus = Get-PlatformStatus 
