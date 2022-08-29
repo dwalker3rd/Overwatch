@@ -274,18 +274,18 @@ function global:Request-Platform {
         $platformJob = Wait-PlatformJob -Id $platformJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
 
         if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
-            $message = "Platform $($Command.ToUpper()) (async job id: $($platformJob.id)) has $($platformJob.status). $($platformJob.errorMessage)"
+            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) has $($platformJob.status). $($platformJob.errorMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
             throw
         } 
         elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
-            $message = "Platform $($Command.ToUpper()) (async job id: $($platformJob.id)) was $($platformJob.status). $($platformJob.errorMessage)"
+            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was $($platformJob.status). $($platformJob.errorMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }
         elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
-            $message = "Timeout waiting for platform $($Command.ToUpper()) (async job id: $($platformJob.id)) to complete. $($platformJob.statusMessage)"
+            $message = "Timeout waiting for platform $($Command.ToUpper()) (Job id: $($platformJob.id)) to complete. $($platformJob.statusMessage)"
             Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }

@@ -174,7 +174,7 @@ function global:Send-PlatformJobMessage {
     if ($status -match '\b(\w+)$') {$status = $status -replace $Matches[1],"**$($Matches[1].ToUpper())**"}
 
     $facts = @(
-        @{name = "Job"; value = "$($platformJob.jobType), ID: $($platformJob.id), Async"}
+        @{name = "Job"; value = "$($platformJob.jobType), ID: $($platformJob.id)"}
         @{name = "Status"; value = "$($status)"}
         if ($platformJob.completedAt) {
             @{name = "Completed "; value = $epoch.AddSeconds($platformJob.completedAt/1000).ToString('u')}

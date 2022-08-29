@@ -324,12 +324,12 @@ function global:Get-TableauServerStatus {
             # Invoke-TsmApiMethod (1st attempt)
             $tableauServerStatus = Invoke-TsmApiMethod -Method "ClusterStatus"
 
-            $asyncJob = Get-AsyncJob | Where-Object {$_.status -eq "Running" -and $_.jobType -in ("StartServerJob","StopServerJob","RestartServerJob")}
+            $platformJob = Get-PlatformJob | Where-Object {$_.status -eq "Running" -and $_.jobType -in ("StartServerJob","StopServerJob","RestartServerJob")}
 
-            # Check for running async jobs
+            # Check for running platform jobs
             # modify Tableau Server status if these jobs are running
             $tableauServerStatus.RollupStatus = 
-                switch ($asyncJob.jobType) {
+                switch ($platformJob.jobType) {
                     "StartServerJob" {"Starting"}
                     "StopServerJob" {"Stopping"}
                     "RestartServerJob" {"Restarting"}

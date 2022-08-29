@@ -3587,7 +3587,7 @@ function global:Sync-TSGroups {
 
             if ($azureADUsersToAddToSite) {
 
-                $rebuildSearchIndex = Get-AsyncJob -Type RebuildSearchIndex | Where-Object {$_.status -eq "Created"}
+                $rebuildSearchIndex = Get-PlatformJob -Type RebuildSearchIndex | Where-Object {$_.status -eq "Created"}
 
                 if ($rebuildSearchIndex) {
                     $rebuildSearchIndex = $rebuildSearchIndex[0]
@@ -3597,11 +3597,11 @@ function global:Sync-TSGroups {
                     $rebuildSearchIndex = Invoke-TsmApiMethod -Method "RebuildSearchIndex"
                 }
 
-                $rebuildSearchIndex,$timeout = Wait-Asyncjob -id $rebuildSearchIndex.id -IntervalSeconds 5 -TimeoutSeconds 60
+                $rebuildSearchIndex,$timeout = Wait-Platformjob -id $rebuildSearchIndex.id -IntervalSeconds 5 -TimeoutSeconds 60
                 if ($timeout) {
-                    # Watch-AsyncJob -Id $rebuildSearchIndex.id -Callback "Write-AsyncJobStatusToLog" -NoMessaging
+                    # Watch-PlatformJob -Id $rebuildSearchIndex.id -Callback "Write-PlatformJobStatusToLog" -NoMessaging
                 }
-                # Write-AsyncJobStatusToLog -Id $rebuildSearchIndex.id
+                # Write-PlatformJobStatusToLog -Id $rebuildSearchIndex.id
 
             }
 
