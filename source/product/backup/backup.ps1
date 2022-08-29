@@ -33,8 +33,8 @@ $global:Product = @{Id="Backup"}
 
 $platformStatus = Get-PlatformStatus 
 
-    # abort if platform is stopped or if a platform event is in progress
-    if ($platformStatus.IsStopped -or ($platformStatus.Event -and !$platformStatus.EventHasCompleted)) {
+    # abort if a platform event is in progress
+    if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
         $action = "Cleanup"; $target = $global.Platform.Id; $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because "
         if ($platformStatus.IsStopped) {

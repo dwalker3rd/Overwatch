@@ -128,7 +128,7 @@ Open-Monitor
 
     }
 
-    # abort if platform is stopped or if a platform event is in progress
+    # abort if a platform event is in progress
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
         $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because "
