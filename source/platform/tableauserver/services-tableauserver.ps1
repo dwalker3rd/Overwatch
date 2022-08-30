@@ -372,36 +372,86 @@ function global:Cleanup-Platform {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
 
     [CmdletBinding()] param(
-        [Parameter(Mandatory=$false)][timespan]$LogFilesRetention = (New-TimeSpan -Days 7)
+        [Parameter(Mandatory=$false)][Alias("a")][switch]$All = $global:Cleanup.All,
+        [Parameter(Mandatory=$false)][Alias("ic")][switch]$SheetImageCache = $global:Cleanup.SheetImageCache,
+        [Parameter(Mandatory=$false)][Alias("l")][switch]$LogFiles = $global:Cleanup.LogFiles,
+        [Parameter(Mandatory=$false)][Alias("log-files-retention")][int]$LogFilesRetention = $global:Cleanup.LogFilesRetention,
+        [Parameter(Mandatory=$false)][Alias("q")][switch]$HttpRequestsTable = $global:Cleanup.HttpRequestsTable,
+        [Parameter(Mandatory=$false)][Alias("http-requests-table-retention")][int]$HttpRequestsTableRetention = $global:Cleanup.HttpRequestsTableRetention,
+        [Parameter(Mandatory=$false)][Alias("r")][switch]$RedisCache = $global:Cleanup.RedisCache,
+        [Parameter(Mandatory=$false)][Alias("t")][switch]$TempFiles = $global:Cleanup.TempFiles,
+        [Parameter(Mandatory=$false)][int]$TimeoutInSeconds = $global:Cleanup.TimeoutInSeconds
     )
 
+    Write-Host+
+
     # purge backup files
-    Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)" 
-    Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json" 
+    if (Test-Path $Backup.Path) {
+        
+        $message = "<Backup files <.>48> PENDING"
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+        
+        Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)"
+        Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json"
+
+        Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+
+    }
+
+    Write-Host+ -MaxBlankLines 1
     
     # cleanup
-    $cleanupOptions = @(
-        $LogFilesRetention.TotalSeconds.ToString(),     # logFilesRetentionSeconds
-        "True",                                         # deleteLogFiles
-        "True",                                         # deleteTempFiles
-        "False",                                        # clearRedisCache
-        "False",                                        # deleteHttpRequests
-        "False"                                         # clearSheetImageCache
-    )
+    # $cleanupOptions = @(
+    #     $LogFilesRetention.TotalSeconds.ToString(),     # logFilesRetentionSeconds
+    #     "True",                                         # deleteLogFiles
+    #     "True",                                         # deleteTempFiles
+    #     "True",                                        # clearRedisCache
+    #     "True",                                        # deleteHttpRequests
+    #     "True"                                         # clearSheetImageCache
+    # )
+
+    $tsmMaintenanceCleanupExpression = ". tsm maintenance cleanup"
+    if ($All) {
+        $tsmMaintenanceCleanupExpression += " -a"
+    }
+    else {
+        if ($SheetImageCache) { $tsmMaintenanceCleanupExpression += " -ic"}
+        if ($LogFiles) { $tsmMaintenanceCleanupExpression += " -l"}
+        if ($HttpRequestsTable) { $tsmMaintenanceCleanupExpression += " -q"}
+        if ($RedisCache) { $tsmMaintenanceCleanupExpression += " -r"}
+        if ($TempFiles) { $tsmMaintenanceCleanupExpression += " -t"}
+    }
+    if ($TimeoutInSeconds -gt 0) { $tsmMaintenanceCleanupExpression += " --request-timeout $TimeoutInSeconds"}
+    if ($All -or $LogFiles) { $tsmMaintenanceCleanupExpression += " --log-files-retention $LogFilesRetention" }
+    if ($All -or $HttpRequestsTable) { $tsmMaintenanceCleanupExpression += " --http-requests-table-retention $HttpRequestsTableRetention" }
+
+    $message = "<TSM Maintenance Cleanup <.>48> PENDING"
+    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+    Write-Host+
 
     try {
 
-        # . tsm maintenance cleanup -l --log-files-retention $LogFilesRetention -t
-        $cleanupPlatformJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
-        Watch-PlatformJob -Id $cleanupPlatformJob.id -Context "Cleanup" # -Callback "Invoke-PlatformJobCallback"
+        Invoke-Expression -Command $tsmMaintenanceCleanupExpression
+        $cleanupPlatformJob = Get-PlatformJob -Type "CleanupJob" -Latest
+        $cleanupPlatformJob
 
-        Write-Log -Context "Cleanup" -Action "Cleanup" -Target "platformJob $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage
+        # $cleanupPlatformJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
+        # Watch-PlatformJob -Id $cleanupPlatformJob.id -Context "Cleanup" # -Callback "Invoke-PlatformJobCallback"
+
+        Write-Log -Context "Cleanup" -Action "Cleanup" -Target "PlatformJob $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Data $cleanupPlatformJob.args -Force
+
+        $message = "<TSM Maintenance Cleanup <.>48> SUCCESS"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     }
     catch {
 
         Write-Log -Context "Cleanup" -EntryType "Error" -Action "Cleanup" -Status "Error" -Message $_.Exception.Message
-        Write-Error "$($_.Exception.Message)"
+        Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
+
+        Write-Host+
+        $message = "<TSM Maintenance Cleanup <.>48> FAILURE"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
         
     }
 

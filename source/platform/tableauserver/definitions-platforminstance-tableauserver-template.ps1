@@ -29,6 +29,8 @@ Alert if a platform is shutdown (manually or for backups) longer than this perio
 
 .Parameter Backup
 Platform-specific object.  See platform definition file.
+.Parameter Cleanup
+Platform-specific object.  See platform definition file.
 
 .Parameter diskSpaceLowThreshold
 The percentage at which free space on a disk is considered LOW
@@ -75,17 +77,39 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #region BACKUPS
 
-        $global:Backup = $null
-        $global:Backup += @{
-            Path = "<backupArchiveLocation>"
-            Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-            Extension = "bak"
-            Keep = 3
-            MaxRunTime = New-Timespan -Minutes 15
-        }
-        $global:Backup += @{File = "$($Backup.Path)\$($Backup.Name).$($Backup.Extension)"}
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Product > Backup > Customization
+
+        # $global:Backup = $null
+        # $global:Backup += @{
+        #     Path = "<backupArchiveLocation>"
+        #     Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
+        #     Extension = "bak"
+        #     Keep = 3
+        #     MaxRunTime = New-Timespan -Minutes 15
+        # }
+        # $global:Backup += @{File = "$($Backup.Path)\$($Backup.Name).$($Backup.Extension)"}
 
     #endregion BACKUPS
+    #region CLEANUP
+
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Product > Cleanup > Customization
+
+        # $global:Cleanup = $null
+        # $global:Cleanup += @{
+        #     All = $false
+        #     LogFiles = $true
+        #     LogFilesRetention = 1
+        #     HttpRequestsTable = $false
+        #     HttpRequestsTableRetention = 7
+        #     TempFiles = $true 
+        #     RedisCache = $false 
+        #     SheetImageCache = $false
+        #     TimeoutInSeconds = 0
+        # }  
+
+    #endregion CLEANUP    
 
     #region DISKS
 

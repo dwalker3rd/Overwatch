@@ -66,4 +66,17 @@ $global:Backup += @{
 }
 $global:Backup += @{File = "$($Backup.Name).$($Backup.Extension)"}
 
+$global:Cleanup = $null
+$global:Cleanup += @{
+    All = $false
+    LogFiles = $true
+    LogFilesRetention = 1
+    HttpRequestsTable = $false
+    HttpRequestsTableRetention = 7
+    TempFiles = $true 
+    RedisCache = $false 
+    SheetImageCache = $false
+    TimeoutInSeconds = 0
+}   
+
 #endregion PLATFORM DEFINITIONS
