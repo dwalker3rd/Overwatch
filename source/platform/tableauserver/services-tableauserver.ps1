@@ -390,25 +390,30 @@ function global:Cleanup-Platform {
         
         $message = "<Backup files <.>48> PENDING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-        
-        Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)"
-        Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json"
 
-        Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+        try{
+
+            Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)"
+            Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json"
+
+            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Force
+            
+            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+
+        }
+        catch {
+
+            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+            Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
+
+            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) FAILURE" -ForegroundColor Red
+
+        }
 
     }
 
     Write-Host+ -MaxBlankLines 1
-    
-    # cleanup
-    # $cleanupOptions = @(
-    #     $LogFilesRetention.TotalSeconds.ToString(),     # logFilesRetentionSeconds
-    #     "True",                                         # deleteLogFiles
-    #     "True",                                         # deleteTempFiles
-    #     "True",                                        # clearRedisCache
-    #     "True",                                        # deleteHttpRequests
-    #     "True"                                         # clearSheetImageCache
-    # )
+
 
     $tsmMaintenanceCleanupExpression = ". tsm maintenance cleanup"
     if ($All) {
@@ -434,25 +439,25 @@ function global:Cleanup-Platform {
         Invoke-Expression -Command $tsmMaintenanceCleanupExpression
         $cleanupPlatformJob = Get-PlatformJob -Type "CleanupJob" -Latest
         $cleanupPlatformJob
-
-        # $cleanupPlatformJob = Invoke-TsmApiMethod -Method "Cleanup" -Params $cleanupOptions
-        # Watch-PlatformJob -Id $cleanupPlatformJob.id -Context "Cleanup" # -Callback "Invoke-PlatformJobCallback"
-
-        Write-Log -Context "Cleanup" -Action "Cleanup" -Target "PlatformJob $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Data $cleanupPlatformJob.args -Force
-
+        
         $message = "<TSM Maintenance Cleanup <.>48> SUCCESS"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+        Write-Log -Context "Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Data $cleanupPlatformJob.args -Force
+        Send-PlatformJobMessage -Context "Cleanup" -Id $cleanupPlatformJob.Id -Message $cleanupPlatformJob.statusMessage -NoThrottle
 
     }
     catch {
 
-        Write-Log -Context "Cleanup" -EntryType "Error" -Action "Cleanup" -Status "Error" -Message $_.Exception.Message
         Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
 
         Write-Host+
         $message = "<TSM Maintenance Cleanup <.>48> FAILURE"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
         
+        Write-Log -Context "Cleanup" -Action "CleanupJob" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+        Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message
+
     }
 
     return
