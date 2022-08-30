@@ -509,7 +509,7 @@ function global:Invoke-AlteryxService {
 #endregion ALTERYXSERVICE
 #region START-STOP
 
-function global:Get-PlatformJobs {
+function global:Get-PlatformJob {
 
     [CmdletBinding()]
     param (
@@ -524,9 +524,9 @@ function global:Get-PlatformJobs {
     return $jobs
 
 }
-Set-Alias -Name jobsGet -Value Get-PlatformJobs -Scope Global
+Set-Alias -Name jobsGet -Value Get-PlatformJob -Scope Global
 
-function global:Watch-PlatformJobs {
+function global:Watch-PlatformJob {
 
     [CmdletBinding()]
     param (
@@ -538,7 +538,7 @@ function global:Watch-PlatformJobs {
 
     $timer = [Diagnostics.Stopwatch]::StartNew()
 
-    $jobs = Get-PlatformJobs -ComputerName $ComputerName  
+    $jobs = Get-PlatformJob -ComputerName $ComputerName  
     
     do {
 
@@ -553,7 +553,7 @@ function global:Watch-PlatformJobs {
 
         Start-Sleep -seconds $Seconds
 
-        $jobs = Get-PlatformJobs -ComputerName $ComputerName  
+        $jobs = Get-PlatformJob -ComputerName $ComputerName  
 
     } until (($jobs.Count -eq 0) -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt $PlatformComponentTimeout))
 
@@ -569,9 +569,9 @@ function global:Watch-PlatformJobs {
     return 
 
 }
-Set-Alias -Name jobsWatch -Value Watch-PlatformJobs -Scope Global
+Set-Alias -Name jobsWatch -Value Watch-PlatformJob -Scope Global
 
-function global:Stop-PlatformJobs {
+function global:Stop-PlatformJob {
 
     [CmdletBinding()]
     param (
@@ -598,7 +598,7 @@ function global:Stop-PlatformJobs {
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
                 
-    $jobs = Get-PlatformJobs -ComputerName $ComputerName 
+    $jobs = Get-PlatformJob -ComputerName $ComputerName 
 
     foreach ($job in $jobs) {
         Write-Host+ -NoTrace "Jobs are running on $($job.Node)"
@@ -617,7 +617,7 @@ function global:Stop-PlatformJobs {
 
         Start-Sleep -seconds 5
 
-        $jobs = Get-PlatformJobs -ComputerName $ComputerName  
+        $jobs = Get-PlatformJob -ComputerName $ComputerName  
             
         foreach ($job in $jobs) {
             Write-Host+ -NoTrace  "Jobs are running on $($job.Node)"
@@ -697,7 +697,7 @@ function global:Request-PlatformComponent {
             # TODO: add support for managing a passive controller
         }
         # $platformTopology.Components.Worker.Name {
-        #     Stop-PlatformJobs $ComputerName
+        #     Stop-PlatformJob $ComputerName
         # }
     }
 
@@ -714,7 +714,7 @@ function global:Request-PlatformComponent {
         Invoke-AlteryxService $Command.ToLower() -ComputerName $ComputerName -Log     
         
         if ($Command -eq "Stop" -and $Component -eq $platformTopology.Components.Worker.Name) {
-            Stop-PlatformJobs $ComputerName
+            Stop-PlatformJob $ComputerName
         }
 
         $timer = [Diagnostics.Stopwatch]::StartNew()

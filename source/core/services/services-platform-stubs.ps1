@@ -112,7 +112,7 @@
         
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$true,Position=1)][string]$Id
+            [Parameter(Mandatory=$false,Position=1)][string]$Id
         )
 
         Write-Host+ -IfDebug -NoTrace -ForegroundColor DarkYellow "DEBUG: $($MyInvocation.MyCommand) is a STUB"
@@ -124,11 +124,14 @@
 
         [CmdletBinding()]
         param(
+            # Tableau Server
             [Parameter(Mandatory=$false)][string]$Id,
             [Parameter(Mandatory=$false)][string]$Status,
             [Parameter(Mandatory=$false)][string]$Type,
             [Parameter(Mandatory=$false)][string]$View,
-            [switch]$Latest
+            [switch]$Latest,
+            # Alteryx Server
+            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName
         )
 
         Write-Host+ -IfDebug -NoTrace -ForegroundColor DarkYellow "DEBUG: $($MyInvocation.MyCommand) is a STUB"
@@ -156,12 +159,16 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$true,Position=0)][string]$Id,
+            # Tableau Server
+            [Parameter(Mandatory=$false,Position=0)][string]$Id,
             [Parameter(Mandatory=$false)][string]$Context,
             [Parameter(Mandatory=$false)][string]$Callback,
             [switch]$Add,
             [switch]$Update,
-            [switch]$Remove
+            [switch]$Remove,
+            # Alteryx Server
+            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName,
+            [Parameter(Mandatory=$false)][int32]$Seconds
         )
         Write-Host+ -IfDebug -NoTrace -ForegroundColor DarkYellow "DEBUG: $($MyInvocation.MyCommand) is a STUB"
         Write-Host+ -IfDebug        
@@ -176,7 +183,7 @@
 
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true,Position=0)][string]$Watchlist,
+            [Parameter(Mandatory=$false,Position=0)][string]$Watchlist,
             [Parameter(Mandatory=$false)][string]$View="Watchlist"
         )
 
@@ -201,7 +208,7 @@
 
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true,Position=0)][string]$Id,
+            [Parameter(Mandatory=$false,Position=0)][string]$Id,
             [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
             [Parameter(Mandatory=$false)][int]$IntervalSeconds = 15,
             [Parameter(Mandatory=$false)][int]$TimeoutSeconds = 300,
