@@ -444,7 +444,8 @@ function global:Cleanup-Platform {
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
         Write-Log -Context "Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Data $cleanupPlatformJob.args -Force
-        Send-PlatformJobMessage -Context "Cleanup" -Id $cleanupPlatformJob.Id -Message $cleanupPlatformJob.statusMessage -NoThrottle
+        $result = Send-PlatformJobMessage -Context "Cleanup" -Id $cleanupPlatformJob.Id -NoThrottle
+        $result | Out-Null
 
     }
     catch {
@@ -456,7 +457,8 @@ function global:Cleanup-Platform {
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
         
         Write-Log -Context "Cleanup" -Action "CleanupJob" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
-        Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message
+        $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message
+        $result | Out-Null
 
     }
 
