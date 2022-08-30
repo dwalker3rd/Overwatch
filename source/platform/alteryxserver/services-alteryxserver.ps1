@@ -1010,26 +1010,44 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
         Write-Host+
 
-        Write-Log -Context "Cleanup" -Action "Cleanup" -Status "Running" -Force
-        $result = Send-TaskMessage -Id "Cleanup" -Status "Running"
-        $result | Out-Null
+        # Write-Log -Context "Cleanup" -Action "Cleanup" -Status "Running" -Force
+        # $result = Send-TaskMessage -Id "Cleanup" -Status "Running"
+        # $result | Out-Null
 
         $platformTopology = Get-PlatformTopology
         # $ComputerName = $Force ? $ComputerName : $ComputerName | Where-Object {!$platformTopology[$ComputerName].Offline}
 
-        try {
+        # purge backup files
+        if (Test-Path $Backup.Path) {
+            
+            $message = "<Backup files <.>48> PENDING"
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
-            # purge backup files
-            if (Test-Path $Backup.Path) {
-                
-                $message = "<  Backup files <.>48> PENDING"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-                
+            try{
+
                 Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)" -Recurse -Force
 
+                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Force
                 Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
 
             }
+            catch {
+
+                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+
+                Write-Host+
+                Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
+                Write-Host+
+                $message = "<Backup files <.>48> FAILURE"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Red
+
+            }
+
+        }
+
+        Write-Host+ -MaxBlankLines 1
+
+        try {
             
             # Controller/Service Logs
             $message = "<  Controller Logs <.>48> PENDING"
