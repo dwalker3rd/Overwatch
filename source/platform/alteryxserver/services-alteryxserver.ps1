@@ -1010,7 +1010,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
         Write-Host+
 
-        Write-Log -Action "Cleanup" -Status "Running" -Message "Running"
+        Write-Log -Context "Cleanup" -Action "Cleanup" -Status "Running" -Force
         $result = Send-TaskMessage -Id "Cleanup" -Status "Running"
         $result | Out-Null
 
@@ -1089,7 +1089,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
             Write-Host+
 
-            Write-Log -Action "Cleanup" -EntryType "Error" -Status "Failure" -Message $_.Exception.Message
+            Write-Log -Context "Cleanup" -Action "Cleanup" -EntryType "Error" -Status "Failure" -Message $_.Exception.Message
             $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -MessageType $PlatformMessageType.Alert
             $result | Out-Null
 
@@ -1102,7 +1102,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
         Write-Host+
 
-        Write-Log -Action "Cleanup" -Status "Success" 
+        Write-Log -Context "Cleanup" -Action "Cleanup" -Status "Success" -Force
         $result = Send-TaskMessage -Id "Cleanup" -Status "Completed"
         $result | Out-Null
         
