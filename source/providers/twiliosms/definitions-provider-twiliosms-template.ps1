@@ -14,7 +14,7 @@
         Throttle = New-TimeSpan -Minutes 15
         MessageType = @($PlatformMessageType.Alert,$PlatformMessageType.AllClear)
     }
-    $SMSConfig += @{Credentials = Get-Credentials $Provider.Id}
+    # $SMSConfig += @{Credentials = Get-Credentials $Provider.Id}
     $SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/$($($SMSConfig.Credentials).UserName)/Messages.json"}
 
     $Provider.Config = $SMSConfig

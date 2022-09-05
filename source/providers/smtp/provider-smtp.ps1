@@ -45,6 +45,7 @@ function global:Send-SMTP {
     $Message = $json | ConvertFrom-Json -Depth 99
 
     $provider = get-provider -id 'SMTP'  # TODO: pass this in from Send-Message?
+    $providerCredentials = Get-Credentials $provider.Id
     if (!$From) {$From = $provider.Config.From}
     if (!$To) {$To = $(get-contact).Email}
     if (!$Subject) {$Subject = $Message.Subject}
@@ -65,18 +66,18 @@ function global:Send-SMTP {
     $SMTPMessage.Subject = $Subject
     $SMTPMessage.Body = $builder.ToMessageBody()
 
-    $logEntry = read-log $Provider.Id -Context "SMTP" -Action $To -Status "Sent" -Message $Message.Summary -Newest 1
+    $logEntry = read-log $provider.Id -Context "SMTP" -Action $To -Status "Sent" -Message $Message.Summary -Newest 1
     $throttle = $logEntry -and $logEntry.Message -eq $Message.Summary ? ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds -le $Message.Throttle.TotalSeconds : $null
 
     if (!$throttle) {
-        $SMTP.Connect($Provider.Config.Server,$Provider.Config.Port, [MailKit.Security.SecureSocketOptions]::StartTls)
-        $SMTP.Authenticate($Provider.Config.Credentials)
+        $SMTP.Connect($provider.Config.Server,$provider.Config.Port, [MailKit.Security.SecureSocketOptions]::StartTls)
+        $SMTP.Authenticate($providerCredentials)
         $SMTP.Send($SMTPMessage) | Out-Null
         $SMTP.Disconnect($true)
         $SMTP.Dispose()
     }
     
-    Write-Log -Name $Provider.Id -Context "SMTP" -Action $To -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
+    Write-Log -Name $provider.Id -Context "SMTP" -Action $To -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
 
     return $throttle ? "Throttled" : "Transmitted"
 

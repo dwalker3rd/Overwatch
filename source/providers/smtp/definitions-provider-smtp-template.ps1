@@ -15,7 +15,7 @@
             Port = "<port>"
             UseSsl = "<useSsl>"
             MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear)
-            Credentials = $SmtpCredentials
+            # Credentials = $SmtpCredentials
             From = $($SmtpCredentials).UserName
             To = @()
             Throttle = New-TimeSpan -Minutes 15
