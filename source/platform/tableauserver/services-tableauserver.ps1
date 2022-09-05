@@ -387,33 +387,44 @@ function global:Cleanup-Platform {
 
     # purge backup files
     if (Test-Path $Backup.Path) {
-        
+
         $message = "<Backup files <.>48> PENDING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
-        try{
+        $backupFileCount = (Get-Files -Path $Backup.Path -Filter "*.$($Backup.Extension)").fileInfo.Count
+        $configFileCount = (Get-Files -Path $Backup.Path -Filter "*.json").fileInfo.Count
 
-            Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)"
-            Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json"
+        if ($backupFileCount -gt $Backup.Keep -or $configFileCount -gt $Backup.Keep) {
 
-            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Force
-            
-            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+            try{
+                $fileCountBeforePurge = $backupFileCount + $configFileCount
+                Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)"
+                Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json"
+                $backupFileCount = (Get-Files -Path $Backup.Path -Filter "*.$($Backup.Extension)").fileInfo.Count
+                $configFileCount = (Get-Files -Path $Backup.Path -Filter "*.json").fileInfo.Count
+                $fileCountAfterPurge = $backupFileCount + $configFileCount
+                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Message "$($fileCountBeforePurge-$fileCountAfterPurge) backup files purged." -Force
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+            }
+            catch {
+                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+                Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) FAILURE" -ForegroundColor Red
+            }
 
         }
-        catch {
-
-            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
-            Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
-
-            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) FAILURE" -ForegroundColor Red
-
+        elseif ($backupFileCount -gt 0 -or $configFileCount -gt 0) {
+            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "NoPurge" -Message "Backup files found. No purge required." -EntryType Warning -Force
+            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) NOPURGE" -ForegroundColor DarkYellow
+        }
+        else {
+            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "NoFiles" -Message "Backup files not found." -EntryType Warning -Force
+            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) NOFILES" -ForegroundColor DarkYellow
         }
 
     }
 
     Write-Host+ -MaxBlankLines 1
-
 
     $tsmMaintenanceCleanupExpression = ". tsm maintenance cleanup"
     if ($All) {
