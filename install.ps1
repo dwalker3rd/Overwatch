@@ -7,7 +7,8 @@ param (
     [switch]$SkipProductStop,
     [switch]$SkipProductStart,
     [switch]$NoOverwrite,
-    [switch]$UseDefaultResponses
+    [switch]$UseDefaultResponses,
+    [switch][Alias("PostInstallConfig")]$PostInstallationConfiguration
 )
 
 $global:WriteHostPlusPreference = "Continue"
@@ -170,7 +171,7 @@ function Update-Environ {
 
 }
 
-function global:Show-PostInstallConfig {
+function global:Show-PostInstallationConfiguration {
 
     $templateFiles = @()
     $manualConfigFiles = @()
@@ -217,18 +218,27 @@ function global:Show-PostInstallConfig {
     }
 
     if (!$postInstallConfig) {
-        Write-Host+ -NoTrace -NoTimeStamp "None"
+        Write-Host+ -NoTrace -NoTimeStamp "No post-installation configuration required."
     }
     
     Write-Host+
 
 }
-Set-Alias -Name postInstallConfig -Value Show-PostInstallConfig -Scope Global
+Set-Alias -Name postInstallConfig -Value Show-PostInstallationConfiguration -Scope Global
+
+if ($PostInstallationConfiguration -and $PSBoundParameters.Keys.Count -gt 1) {
+    throw "The PostInstallationConfiguration switch cannot be used with other switches."
+}
+
+if ($PostInstallationConfiguration) {
+    Show-PostInstallationConfiguration
+    return
+}
 
 pspref -Quiet
 Clear-Host
 
-#region INSTALLATIONS
+#region DISCOVERY
 
     Write-Host+
     Write-Host+ -NoTrace -NoTimestamp "Discovery" -ForegroundColor DarkGray
@@ -295,7 +305,7 @@ Clear-Host
     # if ($services.Name -contains "AlteryxService") {$installedPlatforms += "AlteryxServer"}
     Write-Host+ -NoTrace -NoTimestamp -Parse "<Platform <.>24> $($installedPlatforms -join ", ")" -ForegroundColor Gray,DarkGray,Blue
 
-#endregion INSTALLATIONS
+#endregion DISCOVERY
 #region LOAD SETTINGS
 
     Write-Host+ -MaxBlankLines 1
@@ -1184,7 +1194,7 @@ Write-Host+ -ResetAll
         #endregion INITIALIZE OVERWATCH 
         #region POST-INSTALLATION CONFIG
 
-            Show-PostInstallConfig
+            Show-PostInstallationConfiguration
 
         #endregion POST-INSTALLATION CONFIG
 
