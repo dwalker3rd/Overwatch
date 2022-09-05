@@ -87,7 +87,7 @@ function Install-Product {
         New-Log -Name $productLogFile | Out-Null
     }
 
-    if (Test-Path -Path $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1) {. $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1}
+    if (Test-Path -Path $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1) {. $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1 -UseDefaultResponses:$UseDefaultResponses.IsPresent}
 }
 
 function Disable-Product {
@@ -150,7 +150,7 @@ function Install-Provider {
         New-Log -Name $providerLogFile | Out-Null
     }
 
-    if (Test-Path -Path $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1) {. $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1}
+    if (Test-Path -Path $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1) {. $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1 -UseDefaultResponses:$UseDefaultResponses.IsPresent}
 }
 
 function Update-Environ {

@@ -1,3 +1,7 @@
+param (
+    [switch]$UseDefaultResponses
+)
+
 $product = Get-Product "Monitor"
 $Name = $product.Name 
 $Publisher = $product.Publisher

@@ -1,3 +1,7 @@
+param (
+    [switch]$UseDefaultResponses
+)
+
 $Provider = Get-Provider -Id 'TwilioSMS'
 $Name = $Provider.Name 
 $Publisher = $Provider.Publisher
@@ -28,7 +32,12 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0]
 
         do {
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Twilio phone number ", "$($fromPhone ? "[$fromPhone] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-            $fromPhoneResponse = Read-Host
+            if (!$UseDefaultResponses) {
+                $fromPhoneResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $fromPhone = ![string]::IsNullOrEmpty($fromPhoneResponse) ? $fromPhoneResponse : $fromPhone
             $fromPhone = $fromPhone.Replace(" ","").Replace("-","")
             if ([string]::IsNullOrEmpty($fromPhone)) {

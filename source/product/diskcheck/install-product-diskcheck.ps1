@@ -1,3 +1,7 @@
+param (
+    [switch]$UseDefaultResponses
+)
+
 $product = Get-Product "DiskCheck"
 $Name = $product.Name 
 $Publisher = $product.Publisher

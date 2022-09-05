@@ -1,3 +1,8 @@
+
+param (
+    [switch]$UseDefaultResponses
+)
+
 $Provider = Get-Provider -Id 'SMTP'
 $Name = $Provider.Name 
 $Publisher = $Provider.Publisher
@@ -28,7 +33,12 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0]
 
         do {
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Server ", "$($server ? "[$server] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-            $serverResponse = Read-Host
+            if (!$UseDefaultResponses) {
+                $serverResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $server = ![string]::IsNullOrEmpty($serverResponse) ? $serverResponse : $server
             if ([string]::IsNullOrEmpty($server)) {
                 Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP server is required" -ForegroundColor Red
@@ -37,7 +47,12 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0]
         } until ($server)
         do {
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Port ", "$($port ? "[$port] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-            $portResponse = Read-Host
+            if (!$UseDefaultResponses) {
+                $portResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $port = ![string]::IsNullOrEmpty($portResponse) ? $portResponse : $port
             if ([string]::IsNullOrEmpty($port)) {
                 Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP port is required" -ForegroundColor Red
@@ -48,7 +63,12 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0]
         $useSslChar = $useSsl ? "Y" : "N"
         do {
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Use SSL? (Y/N) ", "$($useSslChar ? "[$useSslChar] " : $useSslDefault)", ": " -ForegroundColor Gray, Blue, Gray
-            $useSslResponse = Read-Host
+            if (!$UseDefaultResponses) {
+                $useSslResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
             $useSslChar = ![string]::IsNullOrEmpty($useSslResponse) ? $useSslResponse : $useSslChar
             if ([string]::IsNullOrEmpty($useSslChar)) {
                 $useSslChar = $useSslDefault

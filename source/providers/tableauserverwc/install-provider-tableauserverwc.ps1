@@ -1,3 +1,7 @@
+param (
+    [switch]$UseDefaultResponses
+)
+
 $Provider = Get-Provider -Id 'TableauServerWC'
 $Name = $Provider.Name 
 $Publisher = $Provider.Publisher
