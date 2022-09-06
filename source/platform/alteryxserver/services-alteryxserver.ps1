@@ -1025,7 +1025,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
         Write-Host+
         $message = "<Cleanup <.>48> PENDING"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
         # Write-Log -Context "Cleanup" -Action "Cleanup" -Status "Running" -Force
@@ -1042,7 +1042,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         if ((Get-Product "Backup") -and $BackupFiles) {
             
             $message = "  <Backup files <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
             try{
 
@@ -1080,7 +1080,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         if ($LogFiles) {
 
             $message = "<  Log Files <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
             try {
                 
