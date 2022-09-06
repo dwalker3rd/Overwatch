@@ -399,7 +399,7 @@ function global:Cleanup-Platform {
 
     Write-Host+
     $message = "<Cleanup <.>48> PENDING"
-    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     Write-Host+
 
     $purgeBackupFilesSuccess = $true
@@ -408,7 +408,7 @@ function global:Cleanup-Platform {
     if ($BackupFiles) {
 
         $message = "<  Backup files <.>48> PENDING"
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $backupFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.$($global:Backup.Extension)").fileInfo.Count
         $configFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.json").fileInfo.Count
@@ -429,7 +429,7 @@ function global:Cleanup-Platform {
                 Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
                 Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
                 $message = "<  Backup files <.>48> FAILURE"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Red
                 $purgeBackupFilesSuccess = $false
             }
 
@@ -472,7 +472,7 @@ function global:Cleanup-Platform {
         if ($All -or $HttpRequestsTable) { $tsmMaintenanceCleanupExpression += " --http-requests-table-retention $HttpRequestsTableRetention" }
 
         $message = "<  TSM Maintenance Cleanup <.>48> PENDING"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
         try {
