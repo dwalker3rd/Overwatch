@@ -85,10 +85,9 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         #     Path = "<backupArchiveLocation>"
         #     Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
         #     Extension = "bak"
-        #     Keep = 3
         #     MaxRunTime = New-Timespan -Minutes 15
         # }
-        # $global:Backup += @{File = "$($Backup.Path)\$($Backup.Name).$($Backup.Extension)"}
+        # $global:Backup += @{File = "$($global:Backup.Path)\$($global:Backup.Name).$($global:Backup.Extension)"}
 
     #endregion BACKUPS
     #region CLEANUP
@@ -99,6 +98,8 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         # $global:Cleanup = $null
         # $global:Cleanup += @{
         #     All = $false
+        #     BackupFiles = $false
+        #     BackupFilesRetention = 3
         #     LogFiles = $true
         #     LogFilesRetention = 1
         #     HttpRequestsTable = $false

@@ -911,7 +911,7 @@ function global:Stop-Worker {
 
 function global:Get-BackupFileName {
     $global:Backup.Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $global:Backup.File = "$($Backup.Path)\$($Backup.Name).$($Backup.Extension)"
+    $global:Backup.File = "$($global:Backup.Path)\$($global:Backup.Name).$($global:Backup.Extension)"
     return $global:Backup.File
 }
 
@@ -1003,7 +1003,25 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
 
-        [CmdletBinding()] param()
+        [CmdletBinding()] param(
+            [Parameter(Mandatory=$false)][Alias("a")][switch]$All = $global:Cleanup.All,
+            [Parameter(Mandatory=$false)][Alias("b")][switch]$BackupFiles = $global:Cleanup.BackupFiles,
+            [Parameter(Mandatory=$false)][Alias("backup-files-retention")][int]$BackupFilesRetention = $global:Cleanup.BackupFilesRetention,
+            [Parameter(Mandatory=$false)][Alias("l")][switch]$LogFiles = $global:Cleanup.LogFiles,
+            [Parameter(Mandatory=$false)][Alias("log-files-retention")][int]$LogFilesRetention = $global:Cleanup.LogFilesRetention
+        )
+
+        if ($All) {
+            $BackupFiles = $true
+            $LogFiles = $true
+        }
+
+        if (!$BackupFiles -and !$LogFiles) {
+            $message = "You must specify at least one of the following switches: -All, -BackupFiles or -LogFiles."
+            Write-Host+ $message -ForegroundColor Red
+            Write-Log -Context "Cleanup" -Action "NONE" -EntryType "Error" -Status "Failure" -Message $message
+            return
+        }
 
         Write-Host+
         $message = "<Cleanup <.>48> PENDING"
@@ -1017,15 +1035,18 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         $platformTopology = Get-PlatformTopology
         # $ComputerName = $Force ? $ComputerName : $ComputerName | Where-Object {!$platformTopology[$ComputerName].Offline}
 
-        # purge backup files
-        if (Test-Path $Backup.Path) {
+        $purgeBackupFilesSuccess = $true
+
+        # purge backup files if the -BackupFiles switch was specified
+        # for Overwatch for Alteryx Server, the Backup product must also be installed
+        if (Get-Product "Backup" -and $BackupFiles) {
             
-            $message = "<Backup files <.>48> PENDING"
+            $message = "  <Backup files <.>48> PENDING"
             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
             try{
 
-                Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)" -Recurse -Force
+                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Backup.Extension)" -Recurse -Force
 
                 Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Force
                 Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
@@ -1038,91 +1059,128 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
                 Write-Host+
                 Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
                 Write-Host+
-                $message = "<Backup files <.>48> FAILURE"
+                $message = "  <Backup files <.>48> FAILURE"
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Red
 
+                $purgeBackupFilesSuccess = $false
+
             }
 
         }
+        else {
+            $message = "<  Backup Files <.>48> SKIPPED"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+        }
 
-        Write-Host+ -MaxBlankLines 1
+        # Write-Host+ -MaxBlankLines 1
 
-        try {
-            
-            # Controller/Service Logs
-            $message = "<  Controller Logs <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-            foreach ($controller in ($platformTopology.Components.Controller.Nodes.Keys)) {
-                [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $controller
-                if ($runTimeSettings.SystemSettings.Controller.LoggingPath) {
-                    $controllerLogFilePath = split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -Parent
-                    $controllerLogFilePath = $controllerLogFilePath -replace "^([a-zA-Z])\:","\\$($controller)\`$1`$" 
-                    if (Test-Path $controllerLogFilePath) {
-                        $controllerLogFileName = split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -LeafBase
-                        $controllerLogFileExtension= split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -Extension
-                        $controllerLogFileFilter = "$($controllerLogFileName)*$($controllerLogFileExtension)"
-                        Remove-Files -Path $controllerLogFilePath -Filter $controllerLogFileFilter -Keep $global:Cleanup.LogFilesRetention -Days
+        $purgeLogFilesSuccess = $true
+
+        # purge log files if the -LogFiles switch was specified
+        if ($LogFiles) {
+
+            $message = "<  Log Files <.>48> PENDING"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+
+            try {
+                
+                # Controller/Service Logs
+                $message = "<    Controller Logs <.>48> PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+                foreach ($controller in ($platformTopology.Components.Controller.Nodes.Keys)) {
+                    [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $controller
+                    if ($runTimeSettings.SystemSettings.Controller.LoggingPath) {
+                        $controllerLogFilePath = split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -Parent
+                        $controllerLogFilePath = $controllerLogFilePath -replace "^([a-zA-Z])\:","\\$($controller)\`$1`$" 
+                        if (Test-Path $controllerLogFilePath) {
+                            $controllerLogFileName = split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -LeafBase
+                            $controllerLogFileExtension= split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -Extension
+                            $controllerLogFileFilter = "$($controllerLogFileName)*$($controllerLogFileExtension)"
+                            Remove-Files -Path $controllerLogFilePath -Filter $controllerLogFileFilter -Keep $LogFilesRetention -Days
+                        }
                     }
                 }
-            }
-            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
 
-            # Gallery Logs
-            $message = "<  Gallery Logs <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-            foreach ($gallery in ($platformTopology.Components.Gallery.Nodes.Keys)) {
-                [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $gallery
-                if ($runtimeSettings.SystemSettings.Gallery.LoggingPath) {
-                    $galleryLogFilePath = $runtimeSettings.SystemSettings.Gallery.LoggingPath 
-                    $galleryLogFilePath = $galleryLogFilePath -replace "^([a-zA-Z])\:","\\$($gallery)\`$1`$" 
-                    if (Test-Path $galleryLogFilePath) {
-                        Remove-Files -Path $galleryLogFilePath -Keep $global:Cleanup.LogFilesRetention -Days
+                # Gallery Logs
+                $message = "<    Gallery Logs <.>48> PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+                foreach ($gallery in ($platformTopology.Components.Gallery.Nodes.Keys)) {
+                    [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $gallery
+                    if ($runtimeSettings.SystemSettings.Gallery.LoggingPath) {
+                        $galleryLogFilePath = $runtimeSettings.SystemSettings.Gallery.LoggingPath 
+                        $galleryLogFilePath = $galleryLogFilePath -replace "^([a-zA-Z])\:","\\$($gallery)\`$1`$" 
+                        if (Test-Path $galleryLogFilePath) {
+                            Remove-Files -Path $galleryLogFilePath -Keep $LogFilesRetention -Days
+                        }
                     }
                 }
-            }
-            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
 
-            # Engine Logs
-            $message = "<  Worker Logs <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-            foreach ($worker in ($platformTopology.Components.Worker.Nodes.Keys)) {
-                [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $worker
-                if ($runTimeSettings.SystemSettings.Engine.LogFilePath) {
-                    $workerLogFilePath = $runtimeSettings.SystemSettings.Engine.LogFilePath 
-                    $workerLogFilePath = $workerLogFilePath -replace "^([a-zA-Z])\:","\\$($worker)\`$1`$" 
-                    if (Test-Path $workerLogFilePath) {
-                        Remove-Files -Path $workerLogFilePath -Keep $global:Cleanup.LogFilesRetention -Days
+                # Engine Logs
+                $message = "<    Worker Logs <.>48> PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+                foreach ($worker in ($platformTopology.Components.Worker.Nodes.Keys)) {
+                    [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $worker
+                    if ($runTimeSettings.SystemSettings.Engine.LogFilePath) {
+                        $workerLogFilePath = $runtimeSettings.SystemSettings.Engine.LogFilePath 
+                        $workerLogFilePath = $workerLogFilePath -replace "^([a-zA-Z])\:","\\$($worker)\`$1`$" 
+                        if (Test-Path $workerLogFilePath) {
+                            Remove-Files -Path $workerLogFilePath -Keep $LogFilesRetention -Days
+                        }
                     }
                 }
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+
+                $message = "<  Log Files <.>48> SUCCESS"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
             }
-            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+            catch {
+
+                Write-Host+
+                Write-Host+ -NoTrace  "$($_.Exception.Message)" -ForegroundColor Red
+                Write-Host+
+
+                $message = "<  Log Files <.>48> FAILURE"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
+
+                $purgeLogFilesSuccess = $false
+
+            }   
 
         }
-        catch {
-
-            Write-Host+
-            Write-Host+ -NoTrace  "$($_.Exception.Message)" -ForegroundColor Red
-            Write-Host+
-            $message = "<Cleanup <.>48> FAILURE"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
-            Write-Host+
-
-            Write-Log -Context "Cleanup" -Action "Cleanup" -EntryType "Error" -Status "Failure" -Message $_.Exception.Message
-            $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -MessageType $PlatformMessageType.Alert
-            $result | Out-Null
-
-            return
-
-        }   
+        else {
+            $message = "<  Log Files <.>48> SKIPPED"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+        }
         
+        $status = "SUCCESS"
+        if (!$purgeBackupFilesSuccess -and $purgeLogFilesSuccess) { $status = "WARNING"}
+        if (!$purgeLogFilesSuccess) { $status = "FAILURE"}
+    
+        $color = switch ($status) {
+            "SUCCESS" { "DarkGreen" }
+            "WARNING" { "DarkYellow" }
+            "FAILURE" { "Red"}
+        }
+    
+        $entryType = switch ($status) {
+            "SUCCESS" { "Information" }
+            "WARNING" { "Warning" }
+            "FAILURE" { "Error"}
+        }
+    
         Write-Host+
-        $message = "<Cleanup <.>48> SUCCESS"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<Cleanup <.>48> $status"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,$color
         Write-Host+
-
-        Write-Log -Context "Cleanup" -Action "Cleanup" -Status "Success" -Force
-        $result = Send-TaskMessage -Id "Cleanup" -Status "Completed"
+    
+        Write-Log -Context "Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
+        $result = Send-TaskMessage -Id "Cleanup" -Status "COMPLETED" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
         $result | Out-Null
+    
+        return
         
         return
     }

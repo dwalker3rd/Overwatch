@@ -131,13 +131,4 @@
 
     )
 
-    #region CLEANUP
-
-        $global:Cleanup = $null
-        $global:Cleanup += @{
-            LogFilesRetention = 30
-        }
-
-    #endregion CLEANUP
-
 #endregion PLATFORM DEFINITIONS

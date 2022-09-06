@@ -374,6 +374,8 @@ function global:Cleanup-Platform {
     [CmdletBinding()] param(
         [Parameter(Mandatory=$false)][Alias("a")][switch]$All = $global:Cleanup.All,
         [Parameter(Mandatory=$false)][Alias("ic")][switch]$SheetImageCache = $global:Cleanup.SheetImageCache,
+        [Parameter(Mandatory=$false)][Alias("b")][switch]$BackupFiles = $global:Cleanup.BackupFiles,
+        [Parameter(Mandatory=$false)][Alias("backup-files-retention")][int]$BackupFilesRetention = $global:Cleanup.BackupFilesRetention,
         [Parameter(Mandatory=$false)][Alias("l")][switch]$LogFiles = $global:Cleanup.LogFiles,
         [Parameter(Mandatory=$false)][Alias("log-files-retention")][int]$LogFilesRetention = $global:Cleanup.LogFilesRetention,
         [Parameter(Mandatory=$false)][Alias("q")][switch]$HttpRequestsTable = $global:Cleanup.HttpRequestsTable,
@@ -382,26 +384,43 @@ function global:Cleanup-Platform {
         [Parameter(Mandatory=$false)][Alias("t")][switch]$TempFiles = $global:Cleanup.TempFiles,
         [Parameter(Mandatory=$false)][int]$TimeoutInSeconds = $global:Cleanup.TimeoutInSeconds
     )
+    
+    if ($All) {
+        $BackupFiles = $true
+        $LogFiles = $true
+    }
+
+    if (!$BackupFiles -and !$LogFiles -and !$SheetImageCache -and !$HttpRequestsTable -and !$RedisCache -and !$TempFiles) {
+        $message = "You must specify at least one of the following switches: -All, -BackupFiles, -LogFiles, -HttpRequestsTable, -TempFiles, -SheetImageCache or -RedisCache."
+        Write-Host+ $message -ForegroundColor Red
+        Write-Log -Context "Cleanup" -Action "NONE" -EntryType "Error" -Status "Failure" -Message $message
+        return
+    }
 
     Write-Host+
+    $message = "<Cleanup <.>48> PENDING"
+    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+    Write-Host+
+
+    $purgeBackupFilesSuccess = $true
 
     # purge backup files
-    if (Test-Path $Backup.Path) {
+    if ($BackupFiles) {
 
-        $message = "<Backup files <.>48> PENDING"
+        $message = "<  Backup files <.>48> PENDING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
-        $backupFileCount = (Get-Files -Path $Backup.Path -Filter "*.$($Backup.Extension)").fileInfo.Count
-        $configFileCount = (Get-Files -Path $Backup.Path -Filter "*.json").fileInfo.Count
+        $backupFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.$($global:Backup.Extension)").fileInfo.Count
+        $configFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.json").fileInfo.Count
 
-        if ($backupFileCount -gt $Backup.Keep -or $configFileCount -gt $Backup.Keep) {
+        if ($backupFileCount -gt $BackupFilesRetention -or $configFileCount -gt $BackupFilesRetention) {
 
             try{
                 $fileCountBeforePurge = $backupFileCount + $configFileCount
-                Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.$($Backup.Extension)"
-                Remove-Files -Path $Backup.Path -Keep $Backup.Keep -Filter "*.json"
-                $backupFileCount = (Get-Files -Path $Backup.Path -Filter "*.$($Backup.Extension)").fileInfo.Count
-                $configFileCount = (Get-Files -Path $Backup.Path -Filter "*.json").fileInfo.Count
+                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Backup.Extension)"
+                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.json"
+                $backupFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.$($global:Backup.Extension)").fileInfo.Count
+                $configFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.json").fileInfo.Count
                 $fileCountAfterPurge = $backupFileCount + $configFileCount
                 Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Message "$($fileCountBeforePurge-$fileCountAfterPurge) backup files purged." -Force
                 Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
@@ -409,7 +428,9 @@ function global:Cleanup-Platform {
             catch {
                 Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
                 Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
-                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) FAILURE" -ForegroundColor Red
+                $message = "<  Backup files <.>48> FAILURE"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+                $purgeBackupFilesSuccess = $false
             }
 
         }
@@ -423,55 +444,97 @@ function global:Cleanup-Platform {
         }
 
     }
+    else {
+        $message = "<  Backup files <.>48> SKIPPED"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+    }
 
-    Write-Host+ -MaxBlankLines 1
+    # Write-Host+ -MaxBlankLines 1
 
-    $tsmMaintenanceCleanupExpression = ". tsm maintenance cleanup"
-    if ($All) {
-        $tsmMaintenanceCleanupExpression += " -a"
+    $tsmCleanupJobSuccess = $true
+
+    # run TSM cleanupjob
+    if ($LogFiles -or $SheetImageCache -or $HttpRequestsTable -or $RedisCache -or $TempFiles) {
+
+        $tsmMaintenanceCleanupExpression = ". tsm maintenance cleanup"
+        if ($All) {
+            $tsmMaintenanceCleanupExpression += " -a"
+        }
+        else {
+            if ($SheetImageCache) { $tsmMaintenanceCleanupExpression += " -ic"}
+            if ($LogFiles) { $tsmMaintenanceCleanupExpression += " -l"}
+            if ($HttpRequestsTable) { $tsmMaintenanceCleanupExpression += " -q"}
+            if ($RedisCache) { $tsmMaintenanceCleanupExpression += " -r"}
+            if ($TempFiles) { $tsmMaintenanceCleanupExpression += " -t"}
+        }
+        if ($TimeoutInSeconds -gt 0) { $tsmMaintenanceCleanupExpression += " --request-timeout $TimeoutInSeconds"}
+        if ($All -or $LogFiles) { $tsmMaintenanceCleanupExpression += " --log-files-retention $LogFilesRetention" }
+        if ($All -or $HttpRequestsTable) { $tsmMaintenanceCleanupExpression += " --http-requests-table-retention $HttpRequestsTableRetention" }
+
+        $message = "<  TSM Maintenance Cleanup <.>48> PENDING"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+        Write-Host+
+
+        try {
+
+            Invoke-Expression -Command $tsmMaintenanceCleanupExpression
+            $cleanupPlatformJob = Get-PlatformJob -Type "CleanupJob" -Latest
+            $cleanupPlatformJob
+            
+            $message = "<  TSM Maintenance Cleanup <.>48> SUCCESS"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+            Write-Log -Context "Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Data $cleanupPlatformJob.args -Force
+            # $result = Send-PlatformJobMessage -Context "Cleanup" -Id $cleanupPlatformJob.Id -NoThrottle
+            # $result | Out-Null
+
+        }
+        catch {
+
+            Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
+
+            Write-Host+
+            $message = "<  TSM Maintenance Cleanup <.>48> FAILURE"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
+            
+            Write-Log -Context "Cleanup" -Action "CleanupJob" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+            # $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message
+            # $result | Out-Null
+
+            $tsmCleanupJobSuccess = $false
+
+        }
+
     }
     else {
-        if ($SheetImageCache) { $tsmMaintenanceCleanupExpression += " -ic"}
-        if ($LogFiles) { $tsmMaintenanceCleanupExpression += " -l"}
-        if ($HttpRequestsTable) { $tsmMaintenanceCleanupExpression += " -q"}
-        if ($RedisCache) { $tsmMaintenanceCleanupExpression += " -r"}
-        if ($TempFiles) { $tsmMaintenanceCleanupExpression += " -t"}
+        $message = "<  TSM Maintenance Cleanup <.>48> SKIPPED"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
     }
-    if ($TimeoutInSeconds -gt 0) { $tsmMaintenanceCleanupExpression += " --request-timeout $TimeoutInSeconds"}
-    if ($All -or $LogFiles) { $tsmMaintenanceCleanupExpression += " --log-files-retention $LogFilesRetention" }
-    if ($All -or $HttpRequestsTable) { $tsmMaintenanceCleanupExpression += " --http-requests-table-retention $HttpRequestsTableRetention" }
 
-    $message = "<TSM Maintenance Cleanup <.>48> PENDING"
-    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+    $status = "SUCCESS"
+    if (!$purgeBackupFilesSuccess -and $tsmCleanupJobSuccess) { $status = "WARNING"}
+    if (!$tsmCleanupJobSuccess) { $status = "FAILURE"}
+
+    $color = switch ($status) {
+        "SUCCESS" { "DarkGreen" }
+        "WARNING" { "DarkYellow" }
+        "FAILURE" { "Red"}
+    }
+
+    $entryType = switch ($status) {
+        "SUCCESS" { "Information" }
+        "WARNING" { "Warning" }
+        "FAILURE" { "Error"}
+    }
+
+    Write-Host+
+    $message = "<Cleanup <.>48> $status"
+    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,$color
     Write-Host+
 
-    try {
-
-        Invoke-Expression -Command $tsmMaintenanceCleanupExpression
-        $cleanupPlatformJob = Get-PlatformJob -Type "CleanupJob" -Latest
-        $cleanupPlatformJob
-        
-        $message = "<TSM Maintenance Cleanup <.>48> SUCCESS"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-
-        Write-Log -Context "Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Data $cleanupPlatformJob.args -Force
-        $result = Send-PlatformJobMessage -Context "Cleanup" -Id $cleanupPlatformJob.Id -NoThrottle
-        $result | Out-Null
-
-    }
-    catch {
-
-        Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
-
-        Write-Host+
-        $message = "<TSM Maintenance Cleanup <.>48> FAILURE"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
-        
-        Write-Log -Context "Cleanup" -Action "CleanupJob" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
-        $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message
-        $result | Out-Null
-
-    }
+    Write-Log -Context "Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
+    $result = Send-TaskMessage -Id "Cleanup" -Status "COMPLETED" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
+    $result | Out-Null
 
     return
 
@@ -483,7 +546,7 @@ function global:Cleanup-Platform {
 function global:Get-BackupFileName {
 
 $global:Backup.Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-$global:Backup.File = "$($Backup.Name).$($Backup.Extension)"
+$global:Backup.File = "$($global:Backup.Name).$($global:Backup.Extension)"
 
 return $global:Backup.File
 
@@ -506,7 +569,7 @@ Send-TaskMessage -Id "Backup" -Status "Running"
     try {
 
         $response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings"
-        $response | ConvertTo-Json -Depth 99 | Out-File "$($Backup.Path)\$($Backup.File).json" 
+        $response | ConvertTo-Json -Depth 99 | Out-File "$($global:Backup.Path)\$($global:Backup.File).json" 
 
         Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Completed"
         Write-Information "ExportConfigurationAndTopologySettings: Completed"

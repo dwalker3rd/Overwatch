@@ -60,15 +60,13 @@ $global:TSSiteAdminRoles = @(
 $global:Backup = $null
 $global:Backup += @{
     Path = $(. tsm configuration get -k basefilepath.backuprestore)
-    Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-    Extension = "tsbak"
-    Keep = 1
 }
-$global:Backup += @{File = "$($Backup.Name).$($Backup.Extension)"}
 
 $global:Cleanup = $null
 $global:Cleanup += @{
     All = $false
+    BackupFiles = $false
+    BackupFilesRetention = 1
     LogFiles = $true
     LogFilesRetention = 1
     HttpRequestsTable = $false
