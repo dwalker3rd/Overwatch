@@ -533,7 +533,7 @@ function global:Cleanup-Platform {
     Write-Host+
 
     Write-Log -Context "Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
-    $result = Send-TaskMessage -Id "Cleanup" -Status "COMPLETED" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
+    $result = Send-TaskMessage -Id "Cleanup" -Status "Completed" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
     $result | Out-Null
 
     return
