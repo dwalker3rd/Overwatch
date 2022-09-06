@@ -1039,7 +1039,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
         # purge backup files if the -BackupFiles switch was specified
         # for Overwatch for Alteryx Server, the Backup product must also be installed
-        if (Get-Product "Backup" -and $BackupFiles) {
+        if ((Get-Product "Backup") -and $BackupFiles) {
             
             $message = "  <Backup files <.>48> PENDING"
             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
@@ -1177,7 +1177,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         Write-Host+
     
         Write-Log -Context "Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
-        $result = Send-TaskMessage -Id "Cleanup" -Status "COMPLETED" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
+        $result = Send-TaskMessage -Id "Cleanup" -Status "Completed" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
         $result | Out-Null
     
         return
