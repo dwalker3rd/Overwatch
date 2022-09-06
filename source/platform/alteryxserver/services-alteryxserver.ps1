@@ -1080,7 +1080,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         if ($LogFiles) {
 
             $message = "<  Log Files <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
             try {
                 
