@@ -103,38 +103,52 @@ Open-Monitor
 #region PLATFORM EVENT
 
     # platform is stopped
-    # if stop has exceeded stop timeout, call for intervention
+    # set $platformStatus.RollupStatus to "Stopped"
+    # if platform is stopped, but has NOT exceeded stop timeout, return
+    # if stop has exceeded stop timeout, call for intervention, return
     if ($platformStatus.IsStopped) {
 
-        $message = "<  $($platformStatus.Event.ToUpper()) requested at <.>48> $($platformStatus.EventCreatedAt)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-        $message = "<  $($platformStatus.Event.ToUpper()) requested by <.>48> $($platformStatus.EventCreatedBy)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+        $message = "  $($platformStatus.Event.ToUpper()) requested at $($platformStatus.EventCreatedAt)"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        $message = "  $($platformStatus.Event.ToUpper()) requested by $($platformStatus.EventCreatedBy)"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
 
-        if (!$platformStatus.IsStoppedTimeout) {
-            Close-Monitor
-            return
-        } 
-        else {            
+        $platformStatus.RollupStatus = "Stopped"
+        Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null    
+
+        if ($platformStatus.IsStoppedTimeout) {           
             $status = "Intervention Required!"
             $logMessage = "  $status : $($platformStatus.InterventionReason)"
             Write-Log -Context $Product.Id -Action "EventCheck" -Target "Platform" -Status $status -Message $logMessage -EntryType "Warning" -Force
             $message = "<  $status <.>48> $($platformStatus.InterventionReason)"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,Red
             Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
-            Close-Monitor
-            return
         }
+
+        Close-Monitor
+        return
 
     }
 
-    # abort if a platform event is in progress
+    # a platform event is in progress
+    # set $platformStatus.RollupStatus to $platformStatus.EventStatus and return
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
-        $status = "Aborted"
-        $message = "$($global:Product.Id) $($status.ToLower()) because "
-        $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
-        Write-Log -Context $($global:Product.Id) -Action "EventCheck" -Target "Platform" -Status $status -Message $message -EntryType "Warning" -Force
+
+        $message = "  $($platformStatus.Event.ToUpper()) requested at $($platformStatus.EventCreatedAt)"
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        $message = "  $($platformStatus.Event.ToUpper()) requested by $($platformStatus.EventCreatedBy)"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+
+        $platformStatus.RollupStatus = switch ($platformStatus.Event) {
+            "Stop" { "Stopping" }
+            default { "$($platformStatus.Event)ing" }
+        }
+        Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null   
+        # $message = "$($global:Product.Id) $($platformStatus.RollupStatus.ToLower()) because "
+        # $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
+        # Write-Log -Context $($global:Product.Id) -Action "EventCheck" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType "Warning" -Force
+        # Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        Close-Monitor
         return
     }
 
