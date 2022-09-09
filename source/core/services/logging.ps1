@@ -1,4 +1,3 @@
-
 $global:logOptimalRecordCount = 5000
 $global:logMaxRecordCount = 10000
 $global:logMinRecordCount = 1000
@@ -22,7 +21,6 @@ $global:LogLevels = @{
 $global:now = [datetime]::Now
 $global:today = [datetime]::Today
 $global:yesterday = $global:today.AddDays(-1)
-
 
 function global:Clear-Log {
 
