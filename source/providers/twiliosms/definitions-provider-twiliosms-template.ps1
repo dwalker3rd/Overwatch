@@ -1,24 +1,23 @@
 #region PROVIDER DEFINITIONS
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $definitionsPath = $global:Location.Definitions
-    . $definitionsPath\classes.ps1
+$definitionsPath = $global:Location.Definitions
+. $definitionsPath\classes.ps1
 
-    $Provider = $null
-    $Provider = $global:Catalog.Provider.TwilioSMS
+$Provider = $null
+$Provider = $global:Catalog.Provider.TwilioSMS
 
-    $SMSConfig = @{
-        From = "<fromPhone>"
-        To = @()
-        Throttle = New-TimeSpan -Minutes 15
-        MessageType = @($PlatformMessageType.Alert,$PlatformMessageType.AllClear)
-    }
-    # $SMSConfig += @{Credentials = Get-Credentials $Provider.Id}
-    $SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/$($($SMSConfig.Credentials).UserName)/Messages.json"}
+$SMSConfig = @{
+    From = "+12075582078"
+    To = @()
+    Throttle = New-TimeSpan -Minutes 15
+    MessageType = @($PlatformMessageType.Alert,$PlatformMessageType.AllClear)
+}
+$SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
 
-    $Provider.Config = $SMSConfig
+$Provider.Config = $SMSConfig
 
-    return $Provider
+return $Provider
 
 #endregion PROVIDER DEFINITIONS

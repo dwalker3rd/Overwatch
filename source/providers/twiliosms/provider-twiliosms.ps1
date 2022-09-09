@@ -39,6 +39,7 @@ function global:Send-TwilioSMS {
 
     $provider = get-provider -id "TwilioSMS" # TODO: pass this in from Send-Message?
     $providerCredentials = Get-Credentials $provider.Id
+    $providerRestEndpoint = $provider.Config.RestEndpoint -replace "<AccountSID>",$providerCredentials.UserName
     if (!$From) {$From = $provider.Config.From}
     if (!$To) {$To = $(get-contact).Phone}
 
@@ -50,7 +51,7 @@ function global:Send-TwilioSMS {
         $throttle = $logEntry -and $logEntry.Message -eq $Message.Summary ? ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds -le $Message.Throttle.TotalSeconds : $null
 
         if (!$throttle) {
-            $result += Invoke-WebRequest $provider.Config.RestEndpoint -Method Post -Credential $providerCredentials -Body $params | ConvertFrom-Json 
+            $result += Invoke-WebRequest $providerRestEndpoint -Method Post -Credential $providerCredentials -Body $params | ConvertFrom-Json 
         }
         
         Write-Log -Name $Provider.Id -Context "SMS" -Action $t -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
