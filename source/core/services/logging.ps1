@@ -23,6 +23,7 @@ $global:now = [datetime]::Now
 $global:today = [datetime]::Today
 $global:yesterday = $global:today.AddDays(-1)
 
+
 function global:Clear-Log {
 
     [CmdletBinding()]
