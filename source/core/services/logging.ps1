@@ -17,6 +17,12 @@ $global:LogLevels = @{
     All = [int]::MaxValue
 }
 
+# these are defined in definitions-overwatch, but redefining them here,
+# ensures that the definitions are current when used in log functions
+$global:now = [datetime]::Now
+$global:today = [datetime]::Today
+$global:yesterday = $global:today.AddDays(-1)
+
 
 function global:Clear-Log {
 
