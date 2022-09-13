@@ -36,6 +36,7 @@ function Remove-ProductFiles {
         [Parameter(Mandatory=$true,Position=0)][string]$Product
     )
 
+    Remove-Files $PSScriptRoot\config\config-product-$($Product.ToLower()).ps1
     Remove-Files $PSScriptRoot\install\install-product-$($Product.ToLower()).ps1
     Remove-Files $PSScriptRoot\definitions\definitions-product-$($Product.ToLower()).ps1
     Remove-Files $PSScriptRoot\$($Product.ToLower()).ps1
@@ -50,6 +51,7 @@ function Remove-ProductFiles {
 
 function Remove-PlatformInstanceFiles {
 
+    Remove-Files $PSScriptRoot\config\config-platforminstance-$($global:Environ.Instance.ToLower()).ps1
     Remove-Files $PSScriptRoot\definitions\definitions-platforminstance-$($global:Environ.Instance.ToLower()).ps1
     Remove-Files $PSScriptRoot\initialize\initialize-platforminstance-$($global:Environ.Instance.ToLower()).ps1
     Remove-Files $PSScriptRoot\preflight\preflight*-platforminstance-$($global:Environ.Instance.ToLower()).ps1
@@ -59,6 +61,7 @@ function Remove-PlatformInstanceFiles {
 
 function Remove-PlatformFiles {
 
+    Remove-Files $PSScriptRoot\config\config-platform-$($global:Environ.Platform.ToLower()).ps1
     Remove-Files $PSScriptRoot\definitions\definitions-platform-$($global:Environ.Platform.ToLower()).ps1
     Remove-Files $PSScriptRoot\initialize\initialize-platform-$($global:Environ.Platform.ToLower()).ps1
     Remove-Files $PSScriptRoot\preflight\preflight*-platform-$($global:Environ.Platform.ToLower()).ps1
@@ -69,6 +72,7 @@ function Remove-PlatformFiles {
 
 function Remove-OSFiles {
 
+    Remove-Files $PSScriptRoot\config\config-os-$($global:Environ.OS.ToLower()).ps1
     Remove-Files $PSScriptRoot\definitions\definitions-os-$($global:Environ.OS.ToLower()).ps1
     Remove-Files $PSScriptRoot\initialize\initialize-os-$($global:Environ.OS.ToLower()).ps1
     Remove-Files $PSScriptRoot\preflight\preflight*-os-$($global:Environ.OS.ToLower()).ps1
@@ -82,7 +86,7 @@ function Remove-CoreFiles {
     $files = (Get-ChildItem $PSScriptRoot\source\core -File -Recurse -Exclude uninstall.ps1).VersionInfo.FileName
     foreach ($file in $files) { Remove-Files $file.replace("\source\core","")}
     
-    $coreDirectories = @("definitions","docs","img","initialize","logs","preflight","postflight","providers","services","temp")
+    $coreDirectories = @("config","definitions","docs","img","initialize","logs","preflight","postflight","providers","services","temp")
     foreach ($coreDirectory in $coreDirectories) {
         if (Test-Path "$PSScriptRoot\$coreDirectory") {
             Remove-Item "$PSScriptRoot\$coreDirectory" -Recurse}

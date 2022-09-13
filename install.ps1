@@ -15,6 +15,7 @@ $emptyString = ""
 
 . $PSScriptRoot\source\core\definitions\classes.ps1
 . $PSScriptRoot\source\core\definitions\catalog.ps1
+. $PSScriptRoot\source\core\definitions\definitions-regex.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
 
 Write-Host+ -ResetAll
@@ -333,16 +334,16 @@ Clear-Host
             psPref -Quiet
         }
 
-        $message = "$($emptyString.PadLeft(9,"`b"))$($Overwatch.DisplayName) "
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Blue
-
         $installedProducts = Get-Product -ResetCache
         $installedProviders = Get-Provider -ResetCache
         $installOverwatch = $false
-        # $updateOverwatch = $true
+
+        $message = "$($emptyString.PadLeft(9,"`b"))$($Overwatch.DisplayName) "
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Blue
+
     }
     catch {
-        $message = "$($emptyString.PadLeft(9,"`b"))None"
+        $message = "$($emptyString.PadLeft(9,"`b"))None      "
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
     }
 
@@ -918,10 +919,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion DISABLE PRODUCTS
 #region FILES
 
-    if ($updatedFiles) {
+    if ($installOverwatch -or $updatedFiles) {
 
         Write-Host+ -MaxBlankLines 1
-        $message = "<Updated Files <.>48> COPYING"
+        $message = $installOverwatch ? "<Source Files <.>48> COPYING" : "<Updated Files <.>48> COPYING"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
         Write-Host+
 
@@ -945,7 +946,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $environFile = ($environFile -replace "<providerIds>", "'$($providerIds -join "', '")'") -replace "'",'"'
                 $environFile = $environFile -replace "<imagesUri>", $imagesUri
                 $environFile | Set-Content -Path $targetFile
-                Write-Host+ -NoTrace -NoTimestamp "$($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
+                Write-Host+ -NoTrace -NoTimestamp "  $($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
             }
             else {
                 foreach ($productId in $productIds) {
@@ -988,7 +989,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace "<pythonSitePackagesLocation>", $pythonSitePackagesLocation
                 $platformInstanceDefinitionsFile = $platformInstanceDefinitionsFile -replace '"<requiredPythonPackages>"', "@('$($requiredPythonPackages -join "', '")')"
                 $platformInstanceDefinitionsFile | Set-Content  -Path $destinationFile
-                Write-Host+ -NoTrace -NoTimestamp "Updated $destinationFile" -ForegroundColor DarkGreen
+                Write-Host+ -NoTrace -NoTimestamp "  Updated $destinationFile" -ForegroundColor DarkGreen
             }
 
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services
@@ -1023,7 +1024,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                     }
             }
             if ($definitionsServicesUpdated) {
-                Write-Host+ -NoTrace -NoTimestamp "Updated $definitionsServices with platform prerequisites" -ForegroundColor DarkGreen
+                Write-Host+ -NoTrace -NoTimestamp "  Updated $definitionsServices with platform prerequisites" -ForegroundColor DarkGreen
             }
 
         #endregion PLATFORM
@@ -1053,7 +1054,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
 
             if ($definitionsServicesUpdated) {
-                Write-Host+ -NoTrace -NoTimestamp "Updated $definitionsServices with product services" -ForegroundColor DarkGreen
+                Write-Host+ -NoTrace -NoTimestamp "  Updated $definitionsServices with product services" -ForegroundColor DarkGreen
             }
 
         #endregion PRODUCT             
@@ -1135,6 +1136,25 @@ Write-Host+ -ResetAll
     }
 
 #endregion REMOVE CACHE
+#region INITIALIZE OVERWATCH
+
+    $message = "<Overwatch <.>48> INITIALIZING"
+    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+
+    try{
+        psPref -xpref -xpostf -xwhp -Quiet
+        $global:Product = @{Id="Command"}
+        . $PSScriptRoot\definitions.ps1
+    }
+    catch {}
+    finally {
+        psPref -Quiet
+    }
+
+    $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+#endregion INITIALIZE OVERWATCH
 #region CREDENTIALS
 
     if ($installOverwatch) {
@@ -1163,25 +1183,6 @@ Write-Host+ -ResetAll
     }
 
 #endregion CREDENTIALS
-#region INITIALIZE OVERWATCH
-
-    $message = "<Overwatch <.>48> INITIALIZING"
-    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
-
-    try{
-        psPref -xpref -xpostf -xwhp -Quiet
-        $global:Product = @{Id="Command"}
-        . $PSScriptRoot\definitions.ps1
-    }
-    catch {}
-    finally {
-        psPref -Quiet
-    }
-
-    $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-
-#endregion INITIALIZE OVERWATCH
 #region REMOTE DIRECTORIES
 
     if ($installOverwatch) {
@@ -1307,7 +1308,7 @@ Write-Host+ -ResetAll
 
                     if ((Get-Product -Id $productId).HasTask) {
                         Install-Product $productId -NoNewLine
-                        if (!$SkipProductStart) {
+                        if (!$SkipProductStart -and !$installOverwatch) {
                             Enable-Product $productId -NoNewLine
                         }
                         else {
