@@ -736,12 +736,16 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
     #region CORE
 
+        $coreFileUpdated = $false
         $files = (Get-ChildItem $PSScriptRoot\source\core -File -Recurse).VersionInfo.FileName
-        foreach ($file in $files) { Copy-File $file $file.replace("\source\core","")}
+        foreach ($file in $files) { 
+            $coreFileUpdated = $coreFileUpdated -or (Copy-File $file $file.replace("\source\core","") -ConfirmCopy)
+        }
 
     #endregion CORE
     #region ENVIRON
 
+        $environFileUpdated = $false
         $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
         $targetFile = "$PSScriptRoot\environ.ps1"
         $targetFileExists = Test-Path $targetFile
@@ -756,17 +760,24 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $environFile = $environFile -replace "<imagesUri>", $imagesUri
             $environFile | Set-Content -Path $targetFile
             Write-Host+ -NoTrace -NoTimestamp "$($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
+            $environFileUpdated = $true
         }
         else {
-            foreach ($productId in $productIds) { Update-Environ -Type Product -Name $productId }
-            foreach ($providerId in $providerIds) { Update-Environ -Type Provider -Name $providerId }
+            foreach ($productId in $productIds) {
+                Update-Environ -Type Product -Name $productId
+                $environFileUpdated = $true
+            }
+            foreach ($providerId in $providerIds) {
+                Update-Environ -Type Provider -Name $providerId
+                $environFileUpdated = $true
+            }
         }
+        $coreFileUpdated = $coreFileUpdated -or $environFileUpdated
         . $PSScriptRoot\environ.ps1
 
     #endregion ENVIRON
     #region PLATFORM INSTANCE DEFINITIONS
 
-        $coreFileUpdated = $false
         $coreFileUpdated = $coreFileUpdated -or (Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1 -ConfirmCopy)
         $coreFileUpdated = $coreFileUpdated -or (Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platform-$($platformId.ToLower()).ps1 -ConfirmCopy)
 
