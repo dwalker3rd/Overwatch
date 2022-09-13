@@ -876,6 +876,11 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
         #endregion PROVIDER
 
+        if (!$updatedFiles) {
+            $message = "<Updated Files <.>48> NONE    "
+            Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed 2 -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        }
+
     }
 
     if ($productFiles) {
@@ -1075,8 +1080,9 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
 . $PSScriptRoot\definitions\classes.ps1
 . $PSScriptRoot\definitions\catalog.ps1
+. $PSScriptRoot\source\core\definitions\definitions-regex.ps1
 . $PSScriptRoot\services\services-overwatch-loadearly.ps1
-Write-Host+ -ResetAll
+# Write-Host+ -ResetAll
 
 #region MODULES-PACKAGES
 
