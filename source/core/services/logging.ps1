@@ -277,26 +277,8 @@ function global:Summarize-Log {
                     MaxTimeStamp = $Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1)).ToString('u')
                 }
 
-                # Write-Host+ -MaxBlankLines 1
-
-                # $summaryTitle = "Summary"
-                # Write-Host+ -NoTrace -NoTimestamp $summaryTitle -ForegroundColor Green
-                # Write-Host+ -NoTrace -NoTimestamp $emptyString.PadLeft($summaryTitle.Length,"-") -ForegroundColor Green
-
-                # Write-Host+ -NoTrace -NoTimestamp -Parse "<Log <.>32> $($summaryobject.Log)" -ForegroundColor DarkGray
-                # Write-Host+ -NoTrace -NoTimestamp -Parse "<ComputerName <.>32> $($summaryobject.ComputerName)" -ForegroundColor DarkGray
-                # Write-Host+ -NoTrace -NoTimestamp -Parse "<After <.>32> $($summaryobject.After)" -ForegroundColor DarkGray
-                
-                # Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Information <.>32> $($summaryobject.Information)" -ForegroundColor Gray,DarkGray,Gray
-                # Write-Host+ -NoTrace -NoTimestamp " entr$($summaryobject.Information -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-                # Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Warning <.>32> $($summaryobject.Warning)" -ForegroundColor DarkYellow,DarkGray,DarkYellow
-                # Write-Host+ -NoTrace -NoTimestamp " entr$($summaryobject.Warning -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-                # Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<Error <.>32> $($summaryobject.Error)" -ForegroundColor Red,DarkGray,Red
-                # Write-Host+ -NoTrace -NoTimestamp " entr$($summaryobject.Error -eq 1 ? "y" : "ies")" -ForegroundColor Gray
-                
-                # Write-Host+
-
             }
+            
         }
     }
 
