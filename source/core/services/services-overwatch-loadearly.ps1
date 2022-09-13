@@ -81,6 +81,7 @@ function global:Write-Host+ {
         [Parameter(Mandatory=$false)][string]$Prefix,
         [Parameter(Mandatory=$false)][bool]$Iff = $true,
         [Parameter(Mandatory=$false)][int]$MaxBlankLines,
+        [Parameter(Mandatory=$false)][int]$ReverseLineFeed,
         [switch]$NoTimestamp,
         [switch]$NoTrace,
         [switch]$NoNewLine,
@@ -158,6 +159,10 @@ function global:Write-Host+ {
             }
         }
 
+    }
+
+    for ($i = 0; $i -lt $ReverseLineFeed; $i++) {
+        Write-Host -NoNewline "`eM"
     }
 
     $i = 0
