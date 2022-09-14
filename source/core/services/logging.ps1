@@ -314,8 +314,8 @@ function global:Summarize-Log {
                     Information = "$($infoCount)"
                     Warning = "$($warningCount)"
                     Error = "$($errorCount)"
-                    MinTimeStamp = $After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1)).ToString('u')
-                    MaxTimeStamp = $Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1)).ToString('u')
+                    MinTimeStamp = ($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u')
+                    MaxTimeStamp = ($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u')
                     ComputerName = $node.ToLower()
                 }
 
@@ -332,8 +332,8 @@ function global:Summarize-Log {
                     Information = "$($infoColor)$($infoCount)$($defaultColor)"
                     Warning = "$($warningColor)$($warningCount)$($defaultColor)"
                     Error = "$($errorColor)$($errorCount)$($defaultColor)"
-                    MinTimeStamp = "$($consoleSequence.ForegroundDarkGrey)$($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1)).ToString('u'))$($defaultColor)"
-                    MaxTimeStamp = "$($consoleSequence.ForegroundDarkGrey)$($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1)).ToString('u'))$($defaultColor)"
+                    MinTimeStamp = "$($consoleSequence.ForegroundDarkGrey)$(($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u'))$($defaultColor)"
+                    MaxTimeStamp = "$($consoleSequence.ForegroundDarkGrey)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
                     ComputerName = "$($consoleSequence.ForegroundDarkGrey)$($node.ToLower())$($defaultColor)"
                 }
 
@@ -348,22 +348,36 @@ function global:Summarize-Log {
     }
     Update-TypeData @TypeData -Force
 
-    # foreach ($key in $formatData.Keys) {
-    #     $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
-    #     $columnWidth = $columnWidth -lt $formatData.$key.Width ? $formatData.$key.Width : $columnWidth
-    #     $header = "$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length)) "
-    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
-    # }
-    # Write-Host+
-    # foreach ($key in $formatData.Keys) {
-    #     $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
-    #     $columnWidth = $columnWidth -lt $formatData.$key.Width ? $formatData.$key.Width : $columnWidth
-    #     $header = $formatData.$key.Label.Trim().Length -gt 0 ? "$($emptyString.PadLeft($columnWidth,"-")) " : "$($emptyString.PadLeft($formatData.$key.Width," ")) "
-    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
-    # }
-    # Write-Host+
+    Write-Host+ 
+    # Write-Host+ -NoTrace -NoTimestamp "         1         2                                      1         2          1         2"
+    # Write-Host+ -NoTrace -NoTimestamp "12345678901234567890  1234 12345 1234 123 567890 12345678901234567890 12345678901234567890"
+    foreach ($key in $formatData.Keys) {
+        $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+        $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
+        $header = "$($consoleSequence.ForegroundDarkGrey)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+        if ($formatData.$key.Label -in @("Log","Error","Warn")) {
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
+        }
+    }
+    Write-Host+
+    foreach ($key in $formatData.Keys) {
+        $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
+        $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+        $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
+        $header = "$($consoleSequence.ForegroundDarkGrey)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+        if ($formatData.$key.Label -in @("Log","Error","Warn")) {
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
+        }
+    }
 
-    return $summaryFormatted | Format-Table -AutoSize #-HideTableHeaders
+    if (!$summaryFormatted) { 
+        Write-Host+
+        Write-Host+
+    }
+
+    return $summaryFormatted | Format-Table -HideTableHeaders
 
 }
 Set-Alias -Name logSummary -Value Show-LogSummary -Scope Global
