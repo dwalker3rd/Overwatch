@@ -341,14 +341,25 @@ function global:Show-PostInstallation {
 }
 Set-Alias -Name postInstallConfig -Value Show-PostInstallation -Scope Global
 
-if ($PostInstallation -and $PSBoundParameters.Keys.Count -gt 1) {
-    throw "The PostInstallation switch cannot be used with other switches."
-}
+#region POST INSTALL SHORTCUT
 
-if ($PostInstallation) {
-    Show-PostInstallation
-    return
-}
+    if ($PostInstallation -and $PSBoundParameters.Keys.Count -gt 1) {
+        Write-Host+ -NoTrace -NoTimestamp  "The PostInstallation switch cannot be used with other switches." -ForegroundColor Red
+        return
+    }
+
+    if ($PostInstallation) {
+        try{
+            Show-PostInstallation
+        }
+        catch {
+            Write-Host+ -NoTrace -NoTimestamp  "The PostInstallation switch cannot be used until Overwatch is initialized." -ForegroundColor Red
+            Write-Host+
+        }
+        return
+    }
+
+#endregion POST INSTALL SHORTCUT
 
 pspref -Quiet
 Clear-Host
