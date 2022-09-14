@@ -1445,24 +1445,6 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             Show-PostInstallation
 
         #endregion POST-INSTALLATION CONFIG
-        #region FILES NOT IN SOURCE
-
-            $source = (Get-ChildItem -Path f:\overwatch\source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
-            $prod = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
-            $obsolete = foreach ($file in $prod) {if ($file -notin $source) {$file}}
-            $obsolete = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in ($obsolete)}}).FullName
-
-            if ($obsolete) {
-                Write-Host+
-                Write-Host+ -NoTrace -NoTimestamp "Post-Installation Cleanup" -ForegroundColor DarkGray
-                Write-Host+ -NoTrace -NoTimestamp "-------------------------" -ForegroundColor DarkGray
-                foreach ($file in $obsolete) {
-                    # Write-Host+ -NoTrace -NoTimestamp "  $file"
-                    Remove-File -Path $file -Confirm
-                }
-            }
-
-        #endregion FILES NOT IN SOURCE
 
         Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."
