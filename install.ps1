@@ -124,8 +124,7 @@ function Copy-File {
 
 function Remove-File {
     [CmdletBinding(
-        SupportsShouldProcess,
-        ConfirmImpact = 'High'
+        SupportsShouldProcess
     )]
     Param (
         [Parameter(Mandatory=$true,Position=0)][string]$Path,
@@ -294,20 +293,35 @@ function global:Show-PostInstallation {
 
     #region FILES NOT IN SOURCE
 
-        $fileAllowList = @()
-        if (Test-Path -Path "$($global:Location.Data)\fileAllowList.csv") {
-            $fileAllowList += (Import-csv -Path "$($global:Location.Data)\fileAllowList.csv").Path
+        $allowList = @()
+        $allowListFile = "$($global:Location.Data)\fileAllowList.csv"
+        if (Test-Path -Path $allowListFile) {
+            $allowList += Import-csv -Path $allowListFile
         }
         $source = (Get-ChildItem -Path f:\overwatch\source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
         $prod = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source,.*).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
         $obsolete = foreach ($file in $prod) {if ($file -notin $source) {$file}}
         $obsolete = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in $obsolete}}).FullName
-        $obsolete = $obsolete | Where-Object {$_ -notin $fileAllowList}
+        $obsolete = $obsolete | Where-Object {$_ -notin $allowList.Path}
 
         if ($obsolete) {
             foreach ($file in $obsolete) {
                 Write-Host+ -NoTrace -NoTimestamp "File > Obsolete/Extraneous > Remove/AllowList* $file" -ForegroundColor Gray
-                # Remove-File -Path $file -Confirm
+                # Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Add $file to allow list (Y/N)? " -ForegroundColor Gray
+                # $response = Read-Host
+                # if ($response -eq "Y") {
+                #     $allowList += @{ Path = $file }
+                #     $allowList | Export-Csv -Path $allowListFile -Append -UseQuotes Always -NoTypeInformation
+                # }
+                # else {
+                #     Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Delete $file (Y/N)? " -ForegroundColor Gray
+                #     $response = Read-Host 
+                #     if ($response -eq "Y") {
+                #         Write-Host+ -SetIndentGlobal -Indent 2
+                #         Remove-File -Path $file
+                #         Write-Host+ -SetIndentGlobal -Indent -2
+                #     }
+                # }
             }
             $postInstallConfig = $true
         }
@@ -317,10 +331,10 @@ function global:Show-PostInstallation {
     if (!$postInstallConfig) {
         Write-Host+ -NoTrace -NoTimeStamp "No post-installation configuration required."
     }
-    elseif ($obsolete) {
-        Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
-    }
+    # elseif ($obsolete) {
+    #     Write-Host+
+    #     Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
+    # }
     
     Write-Host+
 
@@ -1120,7 +1134,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
 . $PSScriptRoot\definitions\classes.ps1
 . $PSScriptRoot\definitions\catalog.ps1
-. $PSScriptRoot\source\core\definitions\definitions-regex.ps1
+. $PSScriptRoot\definitions\definitions-regex.ps1
 . $PSScriptRoot\services\services-overwatch-loadearly.ps1
 # Write-Host+ -ResetAll
 
