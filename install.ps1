@@ -6,7 +6,7 @@
 param (
     [switch]$SkipProductStart,
     [switch]$UseDefaultResponses,
-    [switch][Alias("PostInstallConfig")]$PostInstallationConfiguration
+    [switch][Alias("PostInstall")]$PostInstallation
 )
 
 $global:WriteHostPlusPreference = "Continue"
@@ -123,14 +123,19 @@ function Copy-File {
 }
 
 function Remove-File {
-    [CmdletBinding()]
+    [CmdletBinding(
+        SupportsShouldProcess,
+        ConfirmImpact = 'High'
+    )]
     Param (
         [Parameter(Mandatory=$true,Position=0)][string]$Path,
         [switch]$Quiet
     )
     if (Test-Path -Path $Path) {
-        Remove-Item -Path $Path
-        if (!$Quiet) {Write-Host+ -NoTrace -NoTimestamp "Deleted $Path" -ForegroundColor Red}
+        if($PSCmdlet.ShouldProcess($Path)) {
+            Remove-Item -Path $Path
+            if (!$Quiet) {Write-Host+ -NoTrace -NoTimestamp "Deleted $Path" -ForegroundColor Red}
+        }
     }
 }
 
@@ -241,7 +246,7 @@ function Update-Environ {
 
 }
 
-function global:Show-PostInstallationConfiguration {
+function global:Show-PostInstallation {
 
     $templateFiles = @()
     $manualConfigFiles = @()
@@ -256,9 +261,9 @@ function global:Show-PostInstallationConfiguration {
         }
     }
 
-    Write-Host+
-    Write-Host+ -NoTrace -NoTimestamp "Post-Installation Configuration" -ForegroundColor DarkGray
-    Write-Host+ -NoTrace -NoTimestamp "-------------------------------" -ForegroundColor DarkGray
+    Write-Host+ -MaxBlankLines 1
+    Write-Host+ -NoTrace -NoTimestamp "Post-Installation" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "-----------------" -ForegroundColor DarkGray
 
     $postInstallConfig = $false
     if ((Get-PlatformTask).status -contains "Disabled") {
@@ -287,21 +292,47 @@ function global:Show-PostInstallationConfiguration {
         $postInstallConfig = $true
     }
 
+    #region FILES NOT IN SOURCE
+
+        $fileAllowList = @()
+        if (Test-Path -Path "$($global:Location.Data)\fileAllowList.csv") {
+            $fileAllowList += (Import-csv -Path "$($global:Location.Data)\fileAllowList.csv").Path
+        }
+        $source = (Get-ChildItem -Path f:\overwatch\source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
+        $prod = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
+        $obsolete = foreach ($file in $prod) {if ($file -notin $source) {$file}}
+        $obsolete = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in $obsolete}}).FullName
+        $obsolete = $obsolete | Where-Object {$_ -notin $fileAllowList}
+
+        if ($obsolete) {
+            foreach ($file in $obsolete) {
+                Write-Host+ -NoTrace -NoTimestamp "File > Obsolete/Extraneous > Remove/AllowList* $file" -ForegroundColor Gray
+                # Remove-File -Path $file -Confirm
+            }
+            $postInstallConfig = $true
+        }
+
+    #endregion FILES NOT IN SOURCE
+
     if (!$postInstallConfig) {
         Write-Host+ -NoTrace -NoTimeStamp "No post-installation configuration required."
+    }
+    elseif ($obsolete) {
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
     }
     
     Write-Host+
 
 }
-Set-Alias -Name postInstallConfig -Value Show-PostInstallationConfiguration -Scope Global
+Set-Alias -Name postInstallConfig -Value Show-PostInstallation -Scope Global
 
-if ($PostInstallationConfiguration -and $PSBoundParameters.Keys.Count -gt 1) {
-    throw "The PostInstallationConfiguration switch cannot be used with other switches."
+if ($PostInstallation -and $PSBoundParameters.Keys.Count -gt 1) {
+    throw "The PostInstallation switch cannot be used with other switches."
 }
 
-if ($PostInstallationConfiguration) {
-    Show-PostInstallationConfiguration
+if ($PostInstallation) {
+    Show-PostInstallation
     return
 }
 
@@ -1411,9 +1442,27 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         #endregion INITIALIZE OVERWATCH 
         #region POST-INSTALLATION CONFIG
 
-            Show-PostInstallationConfiguration
+            Show-PostInstallation
 
         #endregion POST-INSTALLATION CONFIG
+        #region FILES NOT IN SOURCE
+
+            $source = (Get-ChildItem -Path f:\overwatch\source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
+            $prod = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
+            $obsolete = foreach ($file in $prod) {if ($file -notin $source) {$file}}
+            $obsolete = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in ($obsolete)}}).FullName
+
+            if ($obsolete) {
+                Write-Host+
+                Write-Host+ -NoTrace -NoTimestamp "Post-Installation Cleanup" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace -NoTimestamp "-------------------------" -ForegroundColor DarkGray
+                foreach ($file in $obsolete) {
+                    # Write-Host+ -NoTrace -NoTimestamp "  $file"
+                    Remove-File -Path $file -Confirm
+                }
+            }
+
+        #endregion FILES NOT IN SOURCE
 
         Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."
