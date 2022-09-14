@@ -331,10 +331,10 @@ function global:Show-PostInstallation {
     if (!$postInstallConfig) {
         Write-Host+ -NoTrace -NoTimeStamp "No post-installation configuration required."
     }
-    # elseif ($obsolete) {
-    #     Write-Host+
-    #     Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
-    # }
+    elseif ($obsolete) {
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
+    }
     
     Write-Host+
 
