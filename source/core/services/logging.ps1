@@ -226,13 +226,29 @@ function global:Summarize-Log {
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-        [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After,
-        [Parameter(Mandatory=$false)][DateTime]$Before,
+        [Parameter(Mandatory=$false)][Alias("Since")][object]$After,
+        [Parameter(Mandatory=$false)][datetime]$Before,
         [Parameter(Mandatory=$false)][int32]$Newest,
         [Parameter(Mandatory=$false)][int32]$Oldest,
         [Parameter(Mandatory=$false)][string]$View,
-        [switch]$UseDefaultView
+        [switch]$UseDefaultView,
+        [switch]$Today,
+        [switch]$Yesterday
     )
+
+    $consoleSequence = @{
+        default = "`e[0m"
+        redBold = "`e[91m"
+        yellowBold = "`e[93m"
+    }
+
+    # $After is a datetime passed as an object
+    # This allows using strings to specify today or yesterday
+    $After = switch ($After) {
+        "Today" { [datetime]::Today }
+        "Yesterday" { ([datetime]::Today).AddDays(-1) }
+        default { $After }
+    }
 
     Write-Host+ -ResetAll
 
@@ -265,15 +281,19 @@ function global:Summarize-Log {
             if ($logEntry.Count -gt 0) {
 
                 $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
+                $errorCount = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
+                $warningCount = ($totals | Where-Object {$_.Name -eq "Warning"}).Count ?? 0
+                $logColor = $errorCount -gt 0 ? "$($consoleSequence.redBold)" : ($warningCount -gt 0 ? "$($consoleSequence.yellowBold)" : $null)
         
                 $summary += [PSCustomObject]@{
-                    Log = $log.FileNameWithoutExtension.ToLower()
+                    PSTypeName = "Overwatch.Log.Summary"
+                    Log = "$($logColor)$($log.FileNameWithoutExtension.ToLower())$($consoleSequence.default)"
                     ComputerName = $node.ToLower()
                     Count = $logEntry.Count
                     Information = ($totals | Where-Object {$_.Name -eq "Information"}).Count ?? 0
-                    Warning = ($totals | Where-Object {$_.Name -eq "Warning"}).Count ?? 0
-                    Error = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
-                    MinTimeStamp = ($After ?? (($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1)).ToString('u')
+                    Warning = $warningCount -gt 0 ? "$($emptyString.PadLeft(7-$warningCount.ToString().Length))$($consoleSequence.yellowBold)$($warningCount)$($consoleSequence.default)" : $warningCount
+                    Error = $errorCount -gt 0 ? "$($emptyString.PadLeft(5-$errorCount.ToString().Length))$($consoleSequence.redBold)$($errorCount)$($consoleSequence.default)" : $errorCount
+                    MinTimeStamp = $After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1)).ToString('u')
                     MaxTimeStamp = $Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1)).ToString('u')
                 }
 
@@ -282,7 +302,13 @@ function global:Summarize-Log {
         }
     }
 
-    return $summary | Select-Object -Property Log, Count, Error, Warning, Information, MinTimeStamp, MaxTimeStamp, ComputerName
+    $TypeData = @{
+        TypeName = "Overwatch.Log.Summary"
+        DefaultDisplayPropertySet = "Log", "Count", "Error", "Warning", "Information","MinTimeStamp","MaxTimeStamp"
+    }
+    Update-TypeData @TypeData -Force
+
+    return $summary #| Select-Object -Property Log, Count, Error, Warning, Information, MinTimeStamp, MaxTimeStamp, ComputerName
 
 }
 Set-Alias -Name logSummary -Value Show-LogSummary -Scope Global
