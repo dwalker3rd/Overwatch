@@ -299,7 +299,7 @@ function global:Show-PostInstallation {
             $fileAllowList += (Import-csv -Path "$($global:Location.Data)\fileAllowList.csv").Path
         }
         $source = (Get-ChildItem -Path f:\overwatch\source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
-        $prod = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
+        $prod = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source,.*).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
         $obsolete = foreach ($file in $prod) {if ($file -notin $source) {$file}}
         $obsolete = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in $obsolete}}).FullName
         $obsolete = $obsolete | Where-Object {$_ -notin $fileAllowList}
