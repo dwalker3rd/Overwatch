@@ -2,7 +2,7 @@
 <Configuration>
     <ViewDefinitions>
         <View>
-            <Name>logSummaryView</Name>
+            <Name>OverWatch.Log.Summary</Name>
             <ViewSelectedBy>
                 <TypeName>Overwatch.Log.Summary</TypeName>
             </ViewSelectedBy>
