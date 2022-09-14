@@ -800,11 +800,16 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\catalog.ps1 $PSScriptRoot\definitions\catalog.ps1 -WhatIf -Component Core -Core Catalog
             $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\classes.ps1 $PSScriptRoot\definitions\classes.ps1 -WhatIf -Component Core -Core Classes
 
-            $files = @()
-            $files += (Get-ChildItem $PSScriptRoot\source\core\services -File -Recurse).VersionInfo.FileName
-            $files += (Get-ChildItem $PSScriptRoot\source\core\views -File -Recurse).VersionInfo.FileName
+            $files = (Get-ChildItem $PSScriptRoot\source\core\services -File -Recurse).VersionInfo.FileName
             foreach ($file in $files) { 
                 $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf -Component Core -Core Services
+                if ($coreFile) {
+                    $coreFiles += $coreFile
+                }
+            }
+            $files = (Get-ChildItem $PSScriptRoot\source\core\views -File -Recurse).VersionInfo.FileName
+            foreach ($file in $files) { 
+                $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf -Component Core -Core Views
                 if ($coreFile) {
                     $coreFiles += $coreFile
                 }
