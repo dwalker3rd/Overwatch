@@ -623,7 +623,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #endregion IMAGES
 #region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data")
+    $requiredDirectories = @("config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data","views")
 
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
@@ -799,7 +799,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\catalog.ps1 $PSScriptRoot\definitions\catalog.ps1 -WhatIf -Component Core -Core Catalog
             $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\classes.ps1 $PSScriptRoot\definitions\classes.ps1 -WhatIf -Component Core -Core Classes
-            $files = (Get-ChildItem $PSScriptRoot\source\core\services -File -Recurse).VersionInfo.FileName
+
+            $files = @()
+            $files += (Get-ChildItem $PSScriptRoot\source\core\services -File -Recurse).VersionInfo.FileName
+            $files += (Get-ChildItem $PSScriptRoot\source\core\views -File -Recurse).VersionInfo.FileName
             foreach ($file in $files) { 
                 $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf -Component Core -Core Services
                 if ($coreFile) {

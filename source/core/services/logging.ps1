@@ -237,9 +237,28 @@ function global:Summarize-Log {
     )
 
     $consoleSequence = @{
-        default = "`e[0m"
-        redBold = "`e[91m"
-        yellowBold = "`e[93m"
+        Default = "`e[0m"
+        ForegroundWhite = "`e[37m"
+        ForegroundDefault = "`e[39m"
+        ForegroundDarkGrey = "`e[38;2;128;128;128m"
+        BackgroundDefault = "`e[49m"
+        BrightForegroundRed = "`e[91m"
+        BrightForegroundYellow = "`e[93m"
+    }
+    $consoleSequence += @{
+        BackgroundForegroundDefault = $consoleSequence.BackgroundDefault + $consoleSequence.ForegroundDefault
+    }
+
+    $defaultColor = $consoleSequence.BackgroundForegroundDefault
+    
+    $formatData = [ordered]@{}
+    $logSummaryFormatData = Get-FormatData -TypeName Overwatch.Log.Summary
+    $formatDataDisplayEntries = $logSummaryFormatData.FormatViewDefinition.Control.Rows.Columns.DisplayEntry.Value
+    $formatDataHeaders = $logSummaryFormatData.FormatViewDefinition.Control.Headers
+    for ($i = 0; $i -lt $formatDataDisplayEntries.Count; $i++) {
+        $formatData += @{
+            $formatDataDisplayEntries[$i] = $formatDataHeaders[$i]
+        }
     }
 
     # $After is a datetime passed as an object
@@ -253,6 +272,7 @@ function global:Summarize-Log {
     Write-Host+ -ResetAll
 
     $summary = @()
+    $summaryFormatted = @()
 
     foreach ($node in $ComputerName) {
         $logs = @() 
@@ -280,21 +300,41 @@ function global:Summarize-Log {
 
             if ($logEntry.Count -gt 0) {
 
+                $logName = $log.FileNameWithoutExtension.ToLower()
+
                 $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
-                $errorCount = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
+                $infoCount = ($totals | Where-Object {$_.Name -eq "Information"}).Count ?? 0
                 $warningCount = ($totals | Where-Object {$_.Name -eq "Warning"}).Count ?? 0
-                $logColor = $errorCount -gt 0 ? "$($consoleSequence.redBold)" : ($warningCount -gt 0 ? "$($consoleSequence.yellowBold)" : $null)
-        
+                $errorCount = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
+
                 $summary += [PSCustomObject]@{
                     PSTypeName = "Overwatch.Log.Summary"
-                    Log = "$($logColor)$($log.FileNameWithoutExtension.ToLower())$($consoleSequence.default)"
-                    ComputerName = $node.ToLower()
-                    Count = $logEntry.Count
-                    Information = ($totals | Where-Object {$_.Name -eq "Information"}).Count ?? 0
-                    Warning = $warningCount -gt 0 ? "$($emptyString.PadLeft(7-$warningCount.ToString().Length))$($consoleSequence.yellowBold)$($warningCount)$($consoleSequence.default)" : $warningCount
-                    Error = $errorCount -gt 0 ? "$($emptyString.PadLeft(5-$errorCount.ToString().Length))$($consoleSequence.redBold)$($errorCount)$($consoleSequence.default)" : $errorCount
+                    Log = $logName
+                    Rows = "$($logEntry.Count)"
+                    Information = "$($infoCount)"
+                    Warning = "$($warningCount)"
+                    Error = "$($errorCount)"
                     MinTimeStamp = $After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1)).ToString('u')
                     MaxTimeStamp = $Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1)).ToString('u')
+                    ComputerName = $node.ToLower()
+                }
+
+                $infoColor = $infoCount -gt 0 ? $defaultColor : $consoleSequence.ForegroundDarkGrey
+                $warningColor = $warningCount -gt 0 ? $consoleSequence.BrightForegroundYellow : $consoleSequence.ForegroundDarkGrey
+                $errorColor = $errorCount -gt 0 ? $consoleSequence.BrightForegroundRed : $consoleSequence.ForegroundDarkGrey
+                $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $defaultColor)
+                $countColor = $logEntry.Count -gt 0 ? $defaultColor : $consoleSequence.ForegroundDarkGrey
+        
+                $summaryFormatted += [PSCustomObject]@{
+                    PSTypeName = "Overwatch.Log.Summary"
+                    Log = "$($logColor)$($logName)$($emptyString.PadLeft($formatData.Log.Width-$logName.Length))$($defaultColor)"
+                    Rows = "$($countColor)$($logEntry.Count)$($defaultColor)"
+                    Information = "$($infoColor)$($infoCount)$($defaultColor)"
+                    Warning = "$($warningColor)$($warningCount)$($defaultColor)"
+                    Error = "$($errorColor)$($errorCount)$($defaultColor)"
+                    MinTimeStamp = "$($consoleSequence.ForegroundDarkGrey)$($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1)).ToString('u'))$($defaultColor)"
+                    MaxTimeStamp = "$($consoleSequence.ForegroundDarkGrey)$($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1)).ToString('u'))$($defaultColor)"
+                    ComputerName = "$($consoleSequence.ForegroundDarkGrey)$($node.ToLower())$($defaultColor)"
                 }
 
             }
@@ -308,7 +348,22 @@ function global:Summarize-Log {
     }
     Update-TypeData @TypeData -Force
 
-    return $summary #| Select-Object -Property Log, Count, Error, Warning, Information, MinTimeStamp, MaxTimeStamp, ComputerName
+    # foreach ($key in $formatData.Keys) {
+    #     $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+    #     $columnWidth = $columnWidth -lt $formatData.$key.Width ? $formatData.$key.Width : $columnWidth
+    #     $header = "$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length)) "
+    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+    # }
+    # Write-Host+
+    # foreach ($key in $formatData.Keys) {
+    #     $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+    #     $columnWidth = $columnWidth -lt $formatData.$key.Width ? $formatData.$key.Width : $columnWidth
+    #     $header = $formatData.$key.Label.Trim().Length -gt 0 ? "$($emptyString.PadLeft($columnWidth,"-")) " : "$($emptyString.PadLeft($formatData.$key.Width," ")) "
+    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+    # }
+    # Write-Host+
+
+    return $summaryFormatted | Format-Table -AutoSize #-HideTableHeaders
 
 }
 Set-Alias -Name logSummary -Value Show-LogSummary -Scope Global

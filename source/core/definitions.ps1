@@ -25,11 +25,16 @@ switch ($PSVersionTable.PSVersion.Major) {
     . $definitionsPath\definitions-help.ps1
 
 #endregion HELP 
-#region MISCELLANEOUS
+#region REGEX
 
 . $definitionsPath\definitions-regex.ps1
 
-#endregion MISCELLANEOUS  
+#endregion REGEX  
+#region VIEWS
+
+. $definitionsPath\definitions-views.ps1
+
+#endregion VIEWS  
 #region DEFINITIONS
 
     $global:epoch = New-Object -Type DateTime -ArgumentList 1970, 1, 1, 0, 0, 0, 0
