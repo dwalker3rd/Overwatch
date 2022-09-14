@@ -949,7 +949,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
             $targetFile = "$PSScriptRoot\environ.ps1"
             $targetFileExists = Test-Path $targetFile
-            if ($installOverwatch) {
+            Copy-File $sourcefile $targetFile
+            # if ($installOverwatch) {
                 $environFile = Get-Content -Path $sourceFile
                 $environFile = $environFile -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
                 $environFile = $environFile -replace "<platformId>", ($platformId -replace " ","")
@@ -960,15 +961,15 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $environFile = $environFile -replace "<imagesUri>", $imagesUri
                 $environFile | Set-Content -Path $targetFile
                 Write-Host+ -NoTrace -NoTimestamp "  $($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
-            }
-            else {
-                foreach ($productId in $productIds) {
-                    Update-Environ -Type Product -Name $productId
-                }
-                foreach ($providerId in $providerIds) {
-                    Update-Environ -Type Provider -Name $providerId
-                }
-            }
+            # }
+            # else {
+            #     foreach ($productId in $productIds) {
+            #         Update-Environ -Type Product -Name $productId
+            #     }
+            #     foreach ($providerId in $providerIds) {
+            #         Update-Environ -Type Provider -Name $providerId
+            #     }
+            # }
             . $PSScriptRoot\environ.ps1
 
         #endregion ENVIRON
