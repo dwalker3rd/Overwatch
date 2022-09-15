@@ -201,14 +201,14 @@ function Install-Product {
         [switch]$NoNewLine
     )
 
-    $productToInstall = Get-Product $Context -ResetCache
+    $productToInstall = (Get-Product $Context -ResetCache).Id ?? $Context
 
-    $productLogFile = ((Get-Catalog $productToInstall.Id -Type "Product").Log).ToLower()
+    $productLogFile = ((Get-Catalog $productToInstall -Type "Product").Log).ToLower()
     if (!(Test-Log -Name $productLogFile)) {
         New-Log -Name $productLogFile | Out-Null
     }
 
-    if (Test-Path -Path $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1) {. $PSScriptRoot\install\install-product-$($productToInstall.Id).ps1 -UseDefaultResponses:$UseDefaultResponses.IsPresent -NoNewLine:$NoNewLine.IsPresent}
+    if (Test-Path -Path $PSScriptRoot\install\install-product-$($productToInstall).ps1) {. $PSScriptRoot\install\install-product-$($productToInstall).ps1 -UseDefaultResponses:$UseDefaultResponses.IsPresent -NoNewLine:$NoNewLine.IsPresent}
 }
 
 function Disable-Product {
@@ -282,17 +282,18 @@ function Update-Environ {
 
     [CmdletBinding(SupportsShouldProcess)]
     param(
+        [Parameter(Mandatory=$false)][string]$Path,
         [Parameter(Mandatory=$false)][ValidateSet("Provider","Product")][Alias("Provider","Product")][string]$Type,
         [Parameter(Mandatory=$false)][string]$Name
     )
     
-    $environItems = Select-String $PSScriptRoot\environ.ps1 -Pattern "$Type = " -Raw
+    $environItems = Select-String $Path -Pattern "$Type = " -Raw
     if (!($environItems | Select-String -Pattern $Name -Quiet)) {
         if (!$PSBoundParameters.ContainsKey('WhatIf')) {
             $updatedEnvironItems = $environItems.Replace(")",", `"$Name`")")
-            $content = Get-Content $PSScriptRoot\environ.ps1 
+            $content = Get-Content $Path 
             $newContent = $content | Foreach-Object {$_.Replace($environItems,$updatedEnvironItems)}
-            Set-Content $PSScriptRoot\environ.ps1 -Value $newContent
+            Set-Content $Path -Value $newContent
         }
         return $PSBoundParameters.ContainsKey('WhatIf') ? $true : $null
     }
@@ -931,13 +932,30 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 }
             }
 
-            $environFile = Copy-File $PSScriptRoot\source\environ\environ-template.ps1 $PSScriptRoot\environ.ps1 -WhatIf
+            $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
+            $tempFile = "$PSScriptRoot\temp\environ.ps1"
+            $targetFile = "$PSScriptRoot\environ.ps1"
+            $environFileContent = Get-Content -Path $sourceFile
+            $environFileContent = $environFileContent -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
+            $environFileContent = $environFileContent -replace "<platformId>", ($platformId -replace " ","")
+            $environFileContent = $environFileContent -replace "<overwatchInstallLocation>", $overwatchInstallLocation
+            $environFileContent = $environFileContent -replace "<platformInstanceId>", $platformInstanceId
+            $environProductIds = $global:Environ.Product + $productIds | Sort-Object -Unique
+            $environProviderIds = $global:Environ.Provider + $providerIds | Sort-Object -Unique
+            $environFileContent = ($environFileContent -replace "<productIds>", "'$($environProductIds -join "', '")'") -replace "'",'"'
+            $environFileContent = ($environFileContent -replace "<providerIds>", "'$($environProviderIds -join "', '")'") -replace "'",'"'
+            $environFileContent = $environFileContent -replace "<imagesUri>", $imagesUri
+            $environFileContent | Set-Content -Path $tempFile           
+            $environFile = Copy-File $tempFile $targetFile -WhatIf
+            $environFileUpdated = $false
             if ($environFile) {
-                $environFile += @{ 
-                    Flag = "NOCOPY" 
-                }
+                $environFile.Component = "Core"
+                $environFile.Name = "Environ"
+                $environFile += @{ Flag = "NOCOPY" }
+                $environFileUpdated = $true
                 $coreFiles += $environFile
             }
+            Remove-File -Path $tempFile -Quiet
 
             $updatedfiles += $coreFiles
 
@@ -977,7 +995,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $productFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
             }
 
-            foreach ($product in $global:Environ.Product) {
+            foreach ($product in $global:Environ.Product + $productIds) {
                 $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\install-product-$($product.ToLower()).ps1 $PSScriptRoot\install\install-product-$($product.ToLower()).ps1 -WhatIf
                 $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\definitions-product-$($product.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-product-$($product.ToLower()).ps1 -WhatIf
                 $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\$($product.ToLower()).ps1 $PSScriptRoot\$($product.ToLower()).ps1 -WhatIf
@@ -990,7 +1008,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             $providerFiles = @()
 
-            foreach ($provider in $global:Environ.Provider) {
+            foreach ($provider in $global:Environ.Provider + $providerIds) {
                 $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\install-provider-$($provider.ToLower()).ps1 $PSScriptRoot\install\install-provider-$($provider.ToLower()).ps1 -WhatIf
                 $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\definitions-provider-$($provider.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-provider-$($provider.ToLower()).ps1 -WhatIf
                 $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\provider-$($provider.ToLower()).ps1 $PSScriptRoot\providers\provider-$($provider.ToLower()).ps1 -WhatIf
@@ -1065,27 +1083,21 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $sourceFile = "$PSScriptRoot\source\environ\environ-template.ps1"
             $targetFile = "$PSScriptRoot\environ.ps1"
             $targetFileExists = Test-Path $targetFile
-            Copy-File $sourcefile $targetFile
-            # if ($installOverwatch) {
-                $environFile = Get-Content -Path $sourceFile
-                $environFile = $environFile -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
-                $environFile = $environFile -replace "<platformId>", ($platformId -replace " ","")
-                $environFile = $environFile -replace "<overwatchInstallLocation>", $overwatchInstallLocation
-                $environFile = $environFile -replace "<platformInstanceId>", $platformInstanceId
-                $environFile = ($environFile -replace "<productIds>", "'$($productIds -join "', '")'") -replace "'",'"'
-                $environFile = ($environFile -replace "<providerIds>", "'$($providerIds -join "', '")'") -replace "'",'"'
-                $environFile = $environFile -replace "<imagesUri>", $imagesUri
-                $environFile | Set-Content -Path $targetFile
+            if ($environFileUpdated) {
+                Copy-File $sourcefile $targetFile
+                $environFileContent = Get-Content -Path $sourceFile
+                $environFileContent = $environFileContent -replace "<operatingSystemId>", ($operatingSystemId -replace " ","")
+                $environFileContent = $environFileContent -replace "<platformId>", ($platformId -replace " ","")
+                $environFileContent = $environFileContent -replace "<overwatchInstallLocation>", $overwatchInstallLocation
+                $environFileContent = $environFileContent -replace "<platformInstanceId>", $platformInstanceId
+                $environProductIds = $global:Environ.Product + $productIds | Sort-Object -Unique
+                $environProviderIds = $global:Environ.Provider + $providerIds | Sort-Object -Unique
+                $environFileContent = ($environFileContent -replace "<productIds>", "'$($environProductIds -join "', '")'") -replace "'",'"'
+                $environFileContent = ($environFileContent -replace "<providerIds>", "'$($environProviderIds -join "', '")'") -replace "'",'"'
+                $environFileContent = $environFileContent -replace "<imagesUri>", $imagesUri
+                $environFileContent | Set-Content -Path $targetFile
                 Write-Host+ -NoTrace -NoTimestamp "  $($targetFileExists ? "Updated" : "Created") $targetFile" -ForegroundColor DarkGreen
-            # }
-            # else {
-            #     foreach ($productId in $productIds) {
-            #         Update-Environ -Type Product -Name $productId
-            #     }
-            #     foreach ($providerId in $providerIds) {
-            #         Update-Environ -Type Provider -Name $providerId
-            #     }
-            # }
+            }
             . $PSScriptRoot\environ.ps1
 
         #endregion ENVIRON
