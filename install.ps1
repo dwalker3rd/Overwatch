@@ -72,11 +72,13 @@ function Copy-File {
                 if (("services") -icontains $pathKeys[0]) {
                     foreach ($key in $global:Catalog.Keys) {
                         foreach ($subkey in $global:Catalog.$key.Keys) {
-                            if ($global:Catalog.$key.$subkey.Installation.Prerequisite.Service -eq $pathKeys[1]) {
-                                $Component += $key
-                                $Name += $subkey
-                                if ($global:Catalog.$key.$subkey.Family) {
-                                    $Family += $global:Catalog.$key.$subkey.Family
+                            if ($subkey -in $global:Environ.$key) {
+                                if ($global:Catalog.$key.$subkey.Installation.Prerequisite.Service -eq $pathKeys[1]) {
+                                    $Component += $key
+                                    $Name += $subkey
+                                    if ($global:Catalog.$key.$subkey.Family) {
+                                        $Family += $global:Catalog.$key.$subkey.Family
+                                    }
                                 }
                             }
                         }
