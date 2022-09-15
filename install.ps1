@@ -61,7 +61,7 @@ function Copy-File {
 
                 $Component = @()
                 $Name = @()
-                $Family = @()
+                # $Family = @()
 
                 # parse $pathFile for source subdirectories indicating component and name                
                 $pathKeys = @()
@@ -75,9 +75,9 @@ function Copy-File {
                             if ($global:Catalog.$key.$subkey.Installation.Prerequisite.Service -eq $pathKeys[1]) {
                                 $Component += $key
                                 $Name += $subkey
-                                if ($global:Catalog.$key.$subkey.Family) {
-                                    $Family += $global:Catalog.$key.$subkey.Family
-                                }
+                                # if ($global:Catalog.$key.$subkey.Family) {
+                                #     $Family += $global:Catalog.$key.$subkey.Family
+                                # }
                             }
                         }
                     }
@@ -102,10 +102,10 @@ function Copy-File {
                 # if component/name/family are arrays, sort uniquely and comma-separate
                 $Component = ($Component | Sort-Object -Unique) -join ","
                 $Name = ($Name | Sort-Object -Unique) -join ","
-                $Family = $Family.Count -gt 0 ? ($Family | Sort-Object -Unique) -join "," : $null
+                # $Family = $Family.Count -gt 0 ? ($Family | Sort-Object -Unique) -join "," : $null
 
                 # if there is a family name, use that for the name
-                $Name = $Family ?? $Name
+                # $Name = $Family ?? $Name
 
                 # Write-Host+ -NoTrace -NoTimestamp "[$Component`:$Name] $pathFile" -ForegroundColor DarkGray
 
