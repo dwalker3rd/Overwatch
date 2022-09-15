@@ -27,8 +27,8 @@ function Copy-File {
     Param (
         [Parameter(Mandatory=$true,Position=0)][string]$Path,
         [Parameter(Mandatory=$false,Position=1)][string]$Destination,
-        [Parameter(Mandatory=$false)][ValidateSet("Core","OS","Platform","Product","Provider")][string]$Component,
-        [Parameter(Mandatory=$false)][Alias("Core","OS","Platform","Product","Provider")][string]$Name,
+        # [Parameter(Mandatory=$false)][ValidateSet("Core","OS","Platform","Product","Provider")][string]$Component,
+        # [Parameter(Mandatory=$false)][Alias("Core","OS","Platform","Product","Provider")][string]$Name,
         [switch]$Quiet,
         [switch]$ConfirmOverwrite,
         [switch]$ConfirmCopy,
@@ -39,14 +39,14 @@ function Copy-File {
         throw "ConfirmCopy and QueueCopy cannot be used together."
         return
     }
-    if ($PSBoundParameters.ContainsKey('WhatIf') -and !$Component) {
-        throw "Component must be specified when using WhatIf"
-    }
-    if (!$PSBoundParameters.ContainsKey('WhatIf') -and $Component) {
-        throw "Component can only be used with WhatIf"
-    }
+    # if ($PSBoundParameters.ContainsKey('WhatIf') -and !$Component) {
+    #     throw "Component must be specified when using WhatIf"
+    # }
+    # if (!$PSBoundParameters.ContainsKey('WhatIf') -and $Component) {
+    #     throw "Component can only be used with WhatIf"
+    # }
 
-    if (Test-Path -Path $Path) {
+    if (Test-Path -Path $Path) { 
 
         $pathFiles = Get-ChildItem $Path
         $destinationIsDirectory = !(Split-Path $Destination -Extension)
@@ -54,7 +54,63 @@ function Copy-File {
         $copiedFile = $false
         $whatIfFiles = @()
         foreach ($pathFile in $pathFiles) {
+
             $destinationFilePath = $destinationIsDirectory ? "$Destination\$(Split-Path $pathFile -Leaf -Resolve)" : $Destination
+
+            #region DETERMINE COMPONENT AND NAME
+
+                $Component = @()
+                $Name = @()
+                $Family = @()
+
+                # parse $pathFile for source subdirectories indicating component and name                
+                $pathKeys = @()
+                $pathKeys += ($pathFile | Split-Path -Parent).Replace("$($global:Location.Root)\source\","",1) -Split "\\"
+                if (!$pathKeys[1]) { $pathKeys += ($pathFile | Split-Path -LeafBase).Replace("-template","") }
+
+                # if the subdirectory is "services", then search the catalog for the component and name/family
+                if (("services") -icontains $pathKeys[0]) {
+                    foreach ($key in $global:Catalog.Keys) {
+                        foreach ($subkey in $global:Catalog.$key.Keys) {
+                            if ($global:Catalog.$key.$subkey.Installation.Prerequisite.Service -eq $pathKeys[1]) {
+                                $Component += $key
+                                $Name += $subkey
+                                if ($global:Catalog.$key.$subkey.Family) {
+                                    $Family += $global:Catalog.$key.$subkey.Family
+                                }
+                            }
+                        }
+                    }
+                }
+                # otherwise use the parsed $pathFile and capitalize the component and name
+                else {
+                    $Component += (Get-Culture).TextInfo.ToTitleCase($pathKeys[0])
+                    $Name += (Get-Culture).TextInfo.ToTitleCase($pathKeys[1])
+                }
+
+                # case and spelling corrections
+                $Component = switch ($Component) {
+                    "Environ" { "Core" }
+                    "Providers" { "Provider" }
+                    default { $_ }
+                }
+                $Name = ($global:Environ.OS | Where-Object {$_ -eq $Name}) ?? $Name
+                $Name = ($global:Environ.Platform | Where-Object {$_ -eq $Name}) ?? $Name
+                $Name = ($global:Environ.Product | Where-Object {$_ -eq $Name}) ?? $Name
+                $Name = ($global:Environ.Provider | Where-Object {$_ -eq $Name}) ?? $Name
+
+                # if component/name/family are arrays, sort uniquely and comma-separate
+                $Component = ($Component | Sort-Object -Unique) -join ","
+                $Name = ($Name | Sort-Object -Unique) -join ","
+                $Family = $Family.Count -gt 0 ? ($Family | Sort-Object -Unique) -join "," : $null
+
+                # if there is a family name, use that for the name
+                $Name = $Family ?? $Name
+
+                # Write-Host+ -NoTrace -NoTimestamp "[$Component`:$Name] $pathFile" -ForegroundColor DarkGray
+
+            #endregion DETERMINE COMPONENT AND NAME
+
             if (!(Test-Path -Path $destinationFilePath -PathType Leaf)) {
                 if ($PSBoundParameters.ContainsKey('WhatIf')) {
                     $whatIfFiles += @{
@@ -853,25 +909,29 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             $coreFiles = @()
 
-            $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\catalog.ps1 $PSScriptRoot\definitions\catalog.ps1 -WhatIf -Component Core -Core Catalog
-            $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\classes.ps1 $PSScriptRoot\definitions\classes.ps1 -WhatIf -Component Core -Core Classes
+            $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\catalog.ps1 $PSScriptRoot\definitions\catalog.ps1 -WhatIf
+
+            # if classes file is updated, then all cache will need to be deleted before Overwatch is initialized
+            $classesFile = Copy-File $PSScriptRoot\source\core\definitions\classes.ps1 $PSScriptRoot\definitions\classes.ps1 -WhatIf
+            $classesFileUpdated = $null -ne $classesFile
+            $coreFiles += $classesFile
 
             $files = (Get-ChildItem $PSScriptRoot\source\core\services -File -Recurse).VersionInfo.FileName
             foreach ($file in $files) { 
-                $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf -Component Core -Core Services
+                $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
                 if ($coreFile) {
                     $coreFiles += $coreFile
                 }
             }
             $files = (Get-ChildItem $PSScriptRoot\source\core\views -File -Recurse).VersionInfo.FileName
             foreach ($file in $files) { 
-                $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf -Component Core -Core Views
+                $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
                 if ($coreFile) {
                     $coreFiles += $coreFile
                 }
             }
 
-            $environFile = Copy-File $PSScriptRoot\source\environ\environ-template.ps1 $PSScriptRoot\environ.ps1 -WhatIf -Component Core -Core Environ
+            $environFile = Copy-File $PSScriptRoot\source\environ\environ-template.ps1 $PSScriptRoot\environ.ps1 -WhatIf
             if ($environFile) {
                 $environFile += @{ 
                     Flag = "NOCOPY" 
@@ -885,25 +945,25 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         #region OS
 
             $osFiles = @()
-            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1 -WhatIf -Component OS -OS $operatingSystemId
-            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\services-$($operatingSystemId.ToLower())*.ps1 $PSScriptRoot\services -WhatIf -Component OS -OS $operatingSystemId
-            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\config-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1 -WhatIf -Component OS -OS $operatingSystemId
-            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\initialize-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-os-$($operatingSystemId.ToLower()).ps1 -WhatIf -Component OS -OS $operatingSystemId
+            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1 -WhatIf
+            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\services-$($operatingSystemId.ToLower())*.ps1 $PSScriptRoot\services -WhatIf
+            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\config-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1 -WhatIf
+            $osFiles += Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\initialize-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-os-$($operatingSystemId.ToLower()).ps1 -WhatIf
             $updatedFiles += $osFiles
 
         #endregion OS
         #region PLATFORM            
 
             $platformFiles = @()
-            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platform-$($platformId.ToLower()).ps1 -WhatIf -Component Platform -Platform $platformId
-            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1 -WhatIf -Component Platform -Platform $platformId
-            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services -WhatIf -Component Platform -Platform $platformId
-            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\config-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1 -WhatIf -Component Platform -Platform $platformId
-            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\config-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\config\config-platform-$($platformInstanceId).ps1 -WhatIf -Component Platform -Platform $platformId
-            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformId.ToLower()).ps1 -WhatIf -Component Platform -Platform $platformId
-            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformInstanceId).ps1 -WhatIf -Component Platform -Platform $platformId
+            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platform-$($platformId.ToLower()).ps1 -WhatIf
+            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\definitions-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-platforminstance-$($platformInstanceId.ToLower()).ps1 -WhatIf
+            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\services-$($platformId.ToLower())*.ps1 $PSScriptRoot\services -WhatIf
+            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\config-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1 -WhatIf
+            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\config-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\config\config-platform-$($platformInstanceId).ps1 -WhatIf
+            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformId.ToLower()).ps1 -WhatIf
+            $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformInstanceId).ps1 -WhatIf
             foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
-                $platformFiles += Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services -WhatIf -Component Platform -Platform $platformId
+                $platformFiles += Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services -WhatIf
             }
             $updatedFiles += $platformFiles
 
@@ -913,14 +973,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $productFiles = @()
 
             foreach ($productSpecificService in $productSpecificServices) {
-                $productFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -WhatIf -Component Product -Product $productSpecificService.Product
-                $productFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -WhatIf -Component Product -Product $productSpecificService.Product
+                $productFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
+                $productFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
             }
 
             foreach ($product in $global:Environ.Product) {
-                $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\install-product-$($product.ToLower()).ps1 $PSScriptRoot\install\install-product-$($product.ToLower()).ps1 -WhatIf -Component Product -Product $product
-                $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\definitions-product-$($product.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-product-$($product.ToLower()).ps1 -WhatIf -Component Product -Product $product
-                $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\$($product.ToLower()).ps1 $PSScriptRoot\$($product.ToLower()).ps1 -WhatIf -Component Product -Product $product
+                $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\install-product-$($product.ToLower()).ps1 $PSScriptRoot\install\install-product-$($product.ToLower()).ps1 -WhatIf
+                $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\definitions-product-$($product.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-product-$($product.ToLower()).ps1 -WhatIf
+                $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\$($product.ToLower()).ps1 $PSScriptRoot\$($product.ToLower()).ps1 -WhatIf
             }
 
             $updatedFiles += $productFiles
@@ -931,9 +991,9 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $providerFiles = @()
 
             foreach ($provider in $global:Environ.Provider) {
-                $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\install-provider-$($provider.ToLower()).ps1 $PSScriptRoot\install\install-provider-$($provider.ToLower()).ps1 -WhatIf -Component Provider -Provider $provider
-                $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\definitions-provider-$($provider.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-provider-$($provider.ToLower()).ps1 -WhatIf -Component Provider -Provider $provider
-                $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\provider-$($provider.ToLower()).ps1 $PSScriptRoot\providers\provider-$($provider.ToLower()).ps1 -WhatIf -Component Provider -Provider $provider
+                $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\install-provider-$($provider.ToLower()).ps1 $PSScriptRoot\install\install-provider-$($provider.ToLower()).ps1 -WhatIf
+                $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\definitions-provider-$($provider.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-provider-$($provider.ToLower()).ps1 -WhatIf
+                $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\provider-$($provider.ToLower()).ps1 $PSScriptRoot\providers\provider-$($provider.ToLower()).ps1 -WhatIf
             }
 
             $updatedFiles += $providerFiles
@@ -1202,7 +1262,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #region PYTHON-PACKAGES
 #region REMOVE CACHE
 
-    if ($installOverwatch) {
+    if ($installOverwatch -or $classesFileUpdated) {
         Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache" -Quiet
     }
 
