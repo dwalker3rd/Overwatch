@@ -160,6 +160,7 @@ $global:Catalog.Product += @{ AzureADCache =
                 Service = @("AzureAD")
             }
         }
+        Family = "AzureADSync"
     }
 }
 
@@ -177,6 +178,7 @@ $global:Catalog.Product += @{ AzureADSyncTS =
                 Product = @("AzureADCache")
             }
         }
+        Family = "AzureADSync"
     }
 }
 
@@ -194,6 +196,7 @@ $global:Catalog.Product += @{ AzureADSyncB2C =
                 Product = @("AzureADCache")
             }
         }
+        Family = "AzureADSync"
     }
 }
 
