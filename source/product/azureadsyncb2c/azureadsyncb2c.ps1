@@ -21,7 +21,35 @@ $targetTenantKey = Get-AzureADTenantKeys -AzureADB2C
 $source = "$(($global:AzureAD.$sourceTenantKey.Tenant.Type).Replace(" ",$null))\$sourceTenantKey"
 $target = "$(($global:AzureAD.$targetTenantKey.Tenant.Type).Replace(" ",$null))\$targetTenantKey"
 
-$action = $null; $actionTarget = $null; $status = $null
+$action = $null; $target = $null; $status = $null
+
+function Assert-SyncError {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Target,
+        [Parameter(Mandatory=$true)][object]$Status,
+        [Parameter(Mandatory=$true)][object]$ErrorDetail
+    )
+
+    Write-Log -Context $Product.Id -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
+    $message = "$($emptyString.PadLeft(8,"`b")) $($ErrorDetail.summary)$($emptyString.PadLeft(8," "))"
+    Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
+    
+    if ($ErrorDetail.Code -notin ("CACHE.NOTFOUND")) {
+        Send-TaskMessage -Id $Product.Id -Status $Status -Message $ErrorDetail.summary -MessageType $PlatformMessageType.Alert   
+    }
+
+    Write-Host+
+    $message = "AzureADSyncTS $($Status.ToLower()) because $($ErrorDetail.summary)"
+    Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+    $message = "AzureADCache should correct this issue on its next run."
+    Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+    Write-Host+
+
+    return
+
+}
 
 #region SERVER/PLATFORM CHECK
 
@@ -34,7 +62,7 @@ $action = $null; $actionTarget = $null; $status = $null
     
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
-        $action = "Sync"; $actionTarget = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
+        $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
@@ -47,7 +75,7 @@ $action = $null; $actionTarget = $null; $status = $null
 
     # abort if a platform event is in progress
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
-        $action = "Sync"; $actionTarget = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
+        $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because "
         if ($platformStatus.IsStopped) {
             $message += "$($Platform.Name) is STOPPED"
@@ -63,7 +91,7 @@ $action = $null; $actionTarget = $null; $status = $null
 
     # abort if heartbeat indicates status is not ok
     If (!$heartbeat.IsOK) {
-        $action = "Sync"; $actionTarget = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
+        $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
         $message = "$($global:Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
@@ -75,10 +103,10 @@ $action = $null; $actionTarget = $null; $status = $null
 
 # Send-TaskMessage -Id $($global:Product.Id)
 
-$action = $null; $actionTarget = $null; $status = $null
+$action = $null; $target = $null; $status = $null
 try {
 
-    $action = "Initialize"; $actionTarget = "AzureAD\$($targetTenantKey)"
+    $action = "Initialize"; $target = "AzureAD\$($targetTenantKey)"
     Initialize-AzureAD
 
     #region CONNECT SOURCE
@@ -86,7 +114,7 @@ try {
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace "Source", $source -ForegroundColor Gray,DarkBlue -Separator ":  "
 
-        $action = "Connect"; $actionTarget = $source
+        $action = "Connect"; $target = $source
         Connect-AzureAD -Tenant $sourceTenantKey
 
     #endregion CONNECT SOURCE        
@@ -94,7 +122,7 @@ try {
         
         Write-Host+ -NoTrace "Target", $target -ForegroundColor Gray,DarkBlue -Separator ":  "
 
-        $action = "Connect"; $actionTarget = $target
+        $action = "Connect"; $target = $target
         Connect-AzureAD -Tenant $targetTenantKey
 
     #endregion CONNECT TARGET    
@@ -104,11 +132,15 @@ try {
 
     #region GET SOURCE USERS
 
-        $action = "Get"; $actionTarget = "$source\Users"
+        $action = "Get"; $target = "$source\Users"
         $message = "<$source users <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $sourceUsers, $cacheError = Get-AzureADusers -Tenant $sourceTenantKey -AsArray
+        if ($cacheError) {
+            Assert-SyncError -Target $target -Status "Aborted" -ErrorDetail $cacheError
+            return
+        }
 
         $message = "$($emptyString.PadLeft(8,"`b")) $($sourceUsers.Count)$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -116,7 +148,7 @@ try {
     #endregion GET SOURCE USERS
     #region GET TARGET USERS
 
-        $action = "Get"; $actionTarget = "$target\Users"
+        $action = "Get"; $target = "$target\Users"
         $message = "<$target users <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -125,6 +157,11 @@ try {
         # $global:WriteHostPlusPreference = "Continue"
 
         $targetUsers, $cacheError = Get-AzureADUsers -Tenant $targetTenantKey -AsArray
+        if ($cacheError) {
+            Assert-SyncError -Target $target -Status "Aborted" -ErrorDetail $cacheError
+            return
+        }
+
         $targetUsersFromIdentityIssuer = $targetUsers | Where-Object {$_.identities.issuer -eq $identityIssuer} 
 
         $message = "$($emptyString.PadLeft(8,"`b")) $($targetUsers.Count)$($emptyString.PadLeft(8," "))"
@@ -136,7 +173,7 @@ try {
     #endregion GET TARGET USERS
     #region TARGET USERS TO DISABLE
 
-        $action = "Disabled"; $actionTarget = "$target\Users"
+        $action = "Disabled"; $target = "$target\Users"
         $message = "<$target users to disable <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -158,7 +195,7 @@ try {
     #endregion TARGET USERS TO DISABLE
     #region TARGET USERS TO ENABLE
 
-        $action = "Enabled"; $actionTarget = "$target\Users"
+        $action = "Enabled"; $target = "$target\Users"
         $message = "<$target users to enable <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -202,7 +239,7 @@ try {
 
             Write-Host+ -MaxBlankLines 1
 
-            $action = "DisableUser"; $actionTarget = "$target\Users"
+            $action = "DisableUser"; $target = "$target\Users"
             $message = "<Disabling $target users <.>60> PENDING"
             Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToDisable.Count -gt 0) {
@@ -218,7 +255,7 @@ try {
                 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 Disable-AzureADUser -Tenant $targetTenantKey -User $targetUserToDisable
-                Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$actionTarget\$targetSignInName" -Status "Disabled" -Force
+                Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$target\$targetSignInName" -Status "Disabled" -Force
 
                 $message = "$($emptyString.PadLeft(8,"`b")) DISABLED$($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
@@ -244,7 +281,7 @@ try {
 
             Write-Host+ -MaxBlankLines 1
 
-            $action = "EnableUser"; $actionTarget = "$target\Users"
+            $action = "EnableUser"; $target = "$target\Users"
             $message = "<Enabling $target users <.>60> PENDING"
             Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToEnable.Count -gt 0) {
@@ -260,7 +297,7 @@ try {
                 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 Enable-AzureADUser -Tenant $targetTenantKey -User $targetUserToEnable
-                Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$actionTarget\$targetSignInName" -Status "Enabled" -Force
+                Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$target\$targetSignInName" -Status "Enabled" -Force
 
                 $message = "$($emptyString.PadLeft(8,"`b")) ENABLED$($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -286,7 +323,7 @@ try {
 
             Write-Host+
 
-            $action = "UpdateEmail"; $actionTarget = "$target\Users"
+            $action = "UpdateEmail"; $target = "$target\Users"
             $message = "<Updating $target user emails <.>60> PENDING"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             Write-Host+
@@ -334,7 +371,7 @@ try {
 catch {
 
     $status = "Error"
-    Write-Log -Context "AzureADSyncB2C" -Action $action -Target $actionTarget -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
+    Write-Log -Context "AzureADSyncB2C" -Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
     Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
 }

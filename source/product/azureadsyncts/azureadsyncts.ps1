@@ -26,14 +26,16 @@ function Assert-SyncError {
         [Parameter(Mandatory=$true)][object]$ErrorDetail
     )
 
-    Write-Log -Context "AzureADSyncTS" -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
+    Write-Log -Context $Product.Id -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
     $message = "$($emptyString.PadLeft(8,"`b")) $($ErrorDetail.summary)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
     
-    Send-TaskMessage -Id "AzureADSyncTS" -Status $Status -Message $message -MessageType $PlatformMessageType.Alert
+    if ($ErrorDetail.Code -notin ("CACHE.NOTFOUND")) {
+        Send-TaskMessage -Id $Product.Id -Status $Status -Message $ErrorDetail.summary -MessageType $PlatformMessageType.Alert   
+    }
 
     Write-Host+
-    $message = "AzureADSyncTS $($status.ToLower()) because $($ErrorDetail.summary)"
+    $message = "AzureADSyncTS $($Status.ToLower()) because $($ErrorDetail.summary)"
     Write-Host+ -NoTrace $message -ForegroundColor DarkRed
     $message = "AzureADCache should correct this issue on its next run."
     Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
@@ -148,7 +150,7 @@ try {
 catch {
 
     $status = "Error"
-    Write-Log -Context "AzureADSyncTS" -Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
+    Write-Log -Context $Product.Id-Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
     Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
 }

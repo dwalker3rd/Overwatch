@@ -1035,11 +1035,12 @@ function global:Read-AzureADCache {
 
     }
     else {
-        $cacheError = @{code = "ISEMPTY"; summary = "$($cache.ToUpper()) cache ISEMPTY";}
+        $cacheError = @{code = "CACHE.NOTFOUND"; summary = "Cache $cache was not found."; target = $cache; traceback = $MyInvocation.MyCommand; }
+        return $null, $cacheError
     }
 
     if (!$azureADObject -and !$After) {
-        $cacheError = @{code = "NO$($typeUpperCase)"; summary = "$($cache) contains no $typeLowerCase";}
+        $cacheError = @{code = "NO$typeUpperCase"; summary = "Results contain no $typeLowerCase"; target = $cache; traceback = $MyInvocation.MyCommand; }
     }
     # else {
     #     $message = " $($azureADObject.Count)"
