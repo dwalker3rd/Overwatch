@@ -61,7 +61,7 @@ function Copy-File {
 
                 $Component = @()
                 $Name = @()
-                # $Family = @()
+                $Family = @()
 
                 # parse $pathFile for source subdirectories indicating component and name                
                 $pathKeys = @()
@@ -75,9 +75,9 @@ function Copy-File {
                             if ($global:Catalog.$key.$subkey.Installation.Prerequisite.Service -eq $pathKeys[1]) {
                                 $Component += $key
                                 $Name += $subkey
-                                # if ($global:Catalog.$key.$subkey.Family) {
-                                #     $Family += $global:Catalog.$key.$subkey.Family
-                                # }
+                                if ($global:Catalog.$key.$subkey.Family) {
+                                    $Family += $global:Catalog.$key.$subkey.Family
+                                }
                             }
                         }
                     }
@@ -102,12 +102,10 @@ function Copy-File {
                 # if component/name/family are arrays, sort uniquely and comma-separate
                 $Component = ($Component | Sort-Object -Unique) -join ","
                 $Name = ($Name | Sort-Object -Unique) -join ","
-                # $Family = $Family.Count -gt 0 ? ($Family | Sort-Object -Unique) -join "," : $null
+                $Family = $Family.Count -gt 0 ? ($Family | Sort-Object -Unique) -join "," : $null
 
-                # if there is a family name, use that for the name
-                # $Name = $Family ?? $Name
-
-                # Write-Host+ -NoTrace -NoTimestamp "[$Component`:$Name] $pathFile" -ForegroundColor DarkGray
+                $familyOrName = $Family ?? $Name
+                # Write-Host+ -NoTrace -NoTimestamp "[$Component`:$familyOrName] $pathFile" -ForegroundColor DarkGray
 
             #endregion DETERMINE COMPONENT AND NAME
 
@@ -118,6 +116,7 @@ function Copy-File {
                         Destination = $destinationFilePath
                         Component = $Component
                         $Component = $Name
+                        Family = $Family
                     }
                 }
                 else {
@@ -126,7 +125,7 @@ function Copy-File {
                 }
                 if (!$Quiet) {
                     if ($PSBoundParameters.ContainsKey('WhatIf')) {
-                        Write-Host+ -NoTrace -NoTimestamp "  [$Component`:$Name] $pathFile" -ForegroundColor DarkGray
+                        Write-Host+ -NoTrace -NoTimestamp "  [$Component`:$familyOrName] $pathFile" -ForegroundColor DarkGray
                     }
                     else {
                         Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  Copied $_ to $destinationFilePath" -ForegroundColor DarkGray}
@@ -154,6 +153,7 @@ function Copy-File {
                             Destination = $destinationFilePath
                             Component = $Component
                             $Component = $Name
+                            Family = $Family
                         }
                     }
                     else {
@@ -162,7 +162,7 @@ function Copy-File {
                     }
                     if (!$Quiet) {
                         if ($PSBoundParameters.ContainsKey('WhatIf')) {
-                            Write-Host+ -NoTrace -NoTimestamp "  [$Component`:$Name] $pathFile" -ForegroundColor DarkGray
+                            Write-Host+ -NoTrace -NoTimestamp "  [$Component`:$familyOrName] $pathFile" -ForegroundColor DarkGray
                         }
                         else {
                             Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  Copied $_ to $destinationFilePath" -ForegroundColor DarkGray}
@@ -946,7 +946,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $environFileContent = ($environFileContent -replace "<providerIds>", "'$($environProviderIds -join "', '")'") -replace "'",'"'
             $environFileContent = $environFileContent -replace "<imagesUri>", $imagesUri
             $environFileContent | Set-Content -Path $tempFile           
-            $environFile = Copy-File $tempFile $targetFile -WhatIf
+            $environFile = Copy-File $tempFile $targetFile -WhatIf -Quiet
             $environFileUpdated = $false
             if ($environFile) {
                 $environFile.Component = "Core"
@@ -954,6 +954,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $environFile += @{ Flag = "NOCOPY" }
                 $environFileUpdated = $true
                 $coreFiles += $environFile
+                Write-Host+ -NoTrace -NoTimestamp "  [$($environFile.Component)`:$($environFile.Name)] $sourceFile" -ForegroundColor DarkGray
             }
             Remove-File -Path $tempFile -Quiet
 
@@ -990,9 +991,15 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             $productFiles = @()
 
+            $productSpecificServiceFiles = @()
             foreach ($productSpecificService in $productSpecificServices) {
-                $productFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
-                $productFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
+                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
+                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
+            }
+            foreach ($productSpecificServiceFile in $productSpecificServiceFiles) {
+                if ($productSpecificServiceFile.Source.FullName -notin $productFiles.Source.FullName) {
+                    $productfiles += $productSpecificServiceFile
+                }
             }
 
             foreach ($product in $global:Environ.Product + $productIds) {
@@ -1026,10 +1033,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     }
 
     if ($productFiles) {
-        $productIds += $productFiles.Product | Where-Object {$_ -notin $productIds}
+        $productIds += ($productFiles.Product -split ",") | Where-Object {$_ -notin $productIds} | Sort-Object -Unique
     }
     if ($providerFiles) {
-        $providerIds += $providerFiles.Provider | Where-Object {$_ -notin $providerIds}
+        $providerIds += ($providerFiles.Provider -split ",") | Where-Object {$_ -notin $providerIds} | Sort-Object -Unique
     }
     if ($coreFiles -or $osFiles -or $platformFiles) {
         $productIds += $global:Environ.Product | Where-Object {$_ -notin $productIds}
