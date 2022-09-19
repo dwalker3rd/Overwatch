@@ -135,7 +135,6 @@ function global:Initialize-Heartbeat {
         Alert = $false
         Issues = @()
         TimeStamp = [datetime]::Now
-        History = @()
         PreviousReport = [datetime]::MinValue
     }
 
