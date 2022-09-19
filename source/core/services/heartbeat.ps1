@@ -155,7 +155,7 @@ function global:Initialize-HeartbeatHistory {
     param()
 
     $heartbeatHistory = @()
-    $heartbeatHistory += [Heartbeat]@{
+    $heartbeatHistory += [HeartbeatHistory]@{
         IsOK = $true
         Status = "Initializing"
         PlatformIsOK = $true
@@ -177,10 +177,10 @@ function global:Get-HeartbeatHistory {
     param ()
 
     if ($(get-cache heartbeatHistory).Exists()) {
-        $heartbeatHistory = [Heartbeat[]](Read-Cache heartbeatHistory)
+        $heartbeatHistory = [HeartbeatHistory[]](Read-Cache heartbeatHistory)
     }
     else {
-        $heartbeatHistory = [Heartbeat[]](Initialize-HeartbeatHistory)
+        $heartbeatHistory = [HeartbeatHistory[]](Initialize-HeartbeatHistory)
     }
 
     return $heartbeatHistory
@@ -193,7 +193,7 @@ function Update-HeartbeatHistory {
         [Parameter(Mandatory=$true)][object]$Heartbeat
     )
 
-    $heartbeatHistory = [Heartbeat[]](Get-HeartbeatHistory)
+    $heartbeatHistory = [HeartbeatHistory[]](Get-HeartbeatHistory)
 
     # if the current heartbeat and the last TWO historical entries are identical, 
     # don't push the heartbeat onto the stack.  instead, just update the timestamp of $heartbeatHistory[0]

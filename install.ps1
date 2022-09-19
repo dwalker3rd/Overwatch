@@ -1284,7 +1284,14 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 #region REMOVE CACHE
 
     if ($installOverwatch -or $classesFileUpdated) {
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\*.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\clusterstatus.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\heartbeat.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platforminfo.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformstatus.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformservices.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformtopology.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\providers.cache" -Quiet
+        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\products.cache" -Quiet
     }
 
 #endregion REMOVE CACHE

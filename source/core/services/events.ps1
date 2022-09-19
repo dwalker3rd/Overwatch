@@ -1,4 +1,4 @@
-$EventHistoryMax = 72 # 6 hours if the interval is 5 minutes
+$PlatformEventHistoryMax = 72 # 6 hours if the interval is 5 minutes
 
 function global:Show-PlatformEvent {
 
@@ -21,50 +21,7 @@ function global:Show-PlatformEvent {
         Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor Green,Gray
     }
 
-    [PlatformStatus[]]$platformStatus.EventHistory | Format-Table -Property Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventUpdatedAt, EventCompletedAt, EVentHasCompleted, EventStatusTarget
-
-}
-
-function Push-EventHistory {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true)][object]$PlatformStatus
-    )
-
-    if (!$PlatformStatus.Event) { return }
-
-    # if the current event and the last historical entry are identical, 
-    # don't push the event onto the stack.  instead, just update the timestamp $PlatformStatus.EventHistory[0].EventUpdatedAt
-    # this allows tracking longer periods of event data without using as much cache storage
-    if ($PlatformStatus.EventHistory.Count -gt 0) {
-        $eventUpdate = Compare-Object $PlatformStatus $PlatformStatus.EventHistory[0] -Property Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventCompletedAt, EVentHasCompleted, EventStatusTarget
-        if (!$eventUpdate) {
-            $PlatformStatus.EventHistory[0].EventUpdatedAt = $PlatformStatus.EventUpdatedAt
-            return
-        }
-    }
-
-    if ($PlatformStatus.EventHistory.Count -lt $EventHistoryMax) {
-        $PlatformStatus.EventHistory += @{}
-    }
-    for ($i = $PlatformStatus.EventHistory.Count-1; $i -gt 0; $i--) {
-        $PlatformStatus.EventHistory[$i] = $PlatformStatus.EventHistory[$i-1]
-    }
-    
-    $PlatformStatus.EventHistory[0] = @{
-        Event = $PlatformStatus.Event
-        EventStatus = $PlatformStatus.EventStatus
-        EventReason = $PlatformStatus.EventReason
-        EventStatusTarget = $PlatformStatus.EventStatusTarget
-        EventCreatedAt = $PlatformStatus.EventCreatedAt
-        EventCreatedBy = $PlatformStatus.EventCreatedBy
-        EventUpdatedAt = $PlatformStatus.EventUpdatedAt
-        EventCompletedAt = $PlatformStatus.EventCompletedAt
-        EventHasCompleted = $PlatformStatus.EventHasCompleted
-    }
-
-    return
+    Get-PlatformEventHistory | Format-Table -Property Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventUpdatedAt, EventCompletedAt, EVentHasCompleted, EventStatusTarget
 
 }
 
@@ -81,15 +38,15 @@ function global:Set-PlatformEvent {
 
     )
     
-    $PlatformStatus.Event = $Event
-    $PlatformStatus.EventStatus = $EventStatus
+    $PlatformStatus.Event = (Get-Culture).TextInfo.ToTitleCase($Event)
+    $PlatformStatus.EventStatus = (Get-Culture).TextInfo.ToTitleCase($EventStatus)
     $PlatformStatus.EventReason = $EventReason
-    $PlatformStatus.EventStatusTarget = $EventStatusTarget ? $EventStatusTarget : $PlatformEventStatusTarget.$($Event)
+    $PlatformStatus.EventStatusTarget = (Get-Culture).TextInfo.ToTitleCase($EventStatusTarget ? $EventStatusTarget : $PlatformEventStatusTarget.$($Event))
     $PlatformStatus.EventCreatedAt = [datetime]::Now
-    $PlatformStatus.EventCreatedBy = $Context
+    $PlatformStatus.EventCreatedBy = (Get-Culture).TextInfo.ToTitleCase($Context)
     $PlatformStatus.EventHasCompleted = $EventStatus -eq "Completed" ? $true : $false
 
-    Push-EventHistory -PlatformStatus $PlatformStatus
+    Update-PlatformEventHistory -PlatformStatus $PlatformStatus
 
     $PlatformStatus | Write-Cache platformstatus
 
@@ -111,15 +68,88 @@ function global:Reset-PlatformEvent {
     $platformStatus.EventReason = $null
     $platformStatus.EventStatus = $null
     $platformStatus.EventStatusTarget = $null
+    $platformStatus.EventCreatedBy = $null
     $platformStatus.EventCreatedAt = [datetime]::MinValue
     $platformStatus.EventUpdatedAt = [datetime]::MinValue
-    $platformStatus.EventCreatedBy = $null
+    $platformStatus.EventCompletedAt = [datetime]::MinValue
     $platformStatus.EventHasCompleted = $false
     $platformStatus.EventHistory = @()
 
     $platformStatus | Write-Cache platformstatus
 
     return $platformStatus
+
+}
+
+function global:Initialize-PlatformEventHistory {
+
+    [CmdletBinding()]
+    param()
+
+    $platformEventHistory = @()
+    $platformEventHistory += [PlatformEvent]@{
+        Event = $null
+        EventStatus = $null
+        EventReason = $null
+        EventStatusTarget = $null
+        EventCreatedBy = $null
+        EventCreatedAt = [datetime]::MinValue
+        EventUpdatedAt = [datetime]::MinValue
+        EventCompletedAt = [datetime]::MinValue
+        EventHasCompleted = $false
+    }
+
+    $platformEventHistory | Write-Cache platformEventHistory
+
+    return $platformEventHistory
+
+}
+
+function global:Get-PlatformEventHistory {
+
+    [CmdletBinding()]
+    param ()
+
+    if ($(get-cache platformEventHistory).Exists()) {
+        $platformEventHistory = [PlatformEvent[]](Read-Cache platformEventHistory)
+    }
+    else {
+        $platformEventHistory = [PlatformEvent[]](Initialize-PlatformEventHistory)
+    }
+
+    return $platformEventHistory
+}
+
+function Update-PlatformEventHistory {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][object]$PlatformStatus
+    )
+
+    $platformEventHistory = [PlatformEvent[]](Get-PlatformEventHistory)
+
+    if ($platformEventHistory.Count -lt $PlatformEventHistoryMax) {
+        $platformEventHistory += @{}
+    }
+    for ($i = $platformEventHistory.Count-1; $i -gt 0; $i--) {
+        $platformEventHistory[$i] = $platformEventHistory[$i-1]
+    }
+    $platformEventHistory[0] = @{
+        Event = $PlatformStatus.Event
+        EventStatus = $PlatformStatus.EventStatus
+        EventReason = $PlatformStatus.EventReason
+        EventStatusTarget = $PlatformStatus.EventStatusTarget
+        EventCreatedBy = $PlatformStatus.EventCreatedBy
+        EventCreatedAt = $PlatformStatus.EventCreatedAt
+        EventUpdatedAt = $PlatformStatus.EventUpdatedAt
+        EventCompletedAt = $PlatformStatus.EventCompletedAt
+        EventHasCompleted = $PlatformStatus.EventHasCompleted
+    }
+
+    $platformEventHistory | Write-Cache platformEventHistory
+
+    return
 
 }
 
