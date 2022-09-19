@@ -86,48 +86,7 @@ function global:Show-Heartbeat {
         Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor Green,Gray
     }
 
-    [Heartbeat[]]$heartbeat.History | Select-Object -Property TimeStamp, IsOK, Status, PlatformIsOK, PlatformRollupStatus, Alert, Issues | Format-Table
-
-}
-
-function Push-HeartbeatHistory {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true)][object]$Heartbeat
-    )
-
-    # if the current heartbeat and the last TWO historical entries are identical, 
-    # don't push the heartbeat onto the stack.  instead, just update the timestamp of $Heartbeat.History[0]
-    # this allows tracking longer periods of heartbeat data without using as much cache storage
-    # checking the last two prevents loss of transitions
-    if ($Heartbeat.History.Count -gt 1) {
-        $heartbeatUpdatePrev1 = Compare-Object $heartbeat $heartbeat.History[0] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
-        $heartbeatUpdatePrev2 = Compare-Object $heartbeat $heartbeat.History[1] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
-        if (!$heartbeatUpdatePrev1 -and !$heartbeatUpdatePrev2) {
-            $Heartbeat.History[0].TimeStamp = $Heartbeat.TimeStamp
-            return
-        }
-    }
-
-    if ($Heartbeat.History.Count -lt $HeartbeatHistoryMax) {
-        $Heartbeat.History += @{}
-    }
-    for ($i = $Heartbeat.History.Count-1; $i -gt 0; $i--) {
-        $Heartbeat.History[$i] = $Heartbeat.History[$i-1]
-    }
-    
-    $Heartbeat.History[0] = @{
-        IsOK = $Heartbeat.IsOK
-        Status = $Heartbeat.Status
-        PlatformIsOK = $Heartbeat.PlatformIsOK
-        PlatformRollupStatus = $Heartbeat.PlatformRollupStatus
-        Alert = $Heartbeat.Alert
-        Issues = $Heartbeat.Issues
-        TimeStamp = $Heartbeat.TimeStamp
-    }
-
-    return
+    Get-HeartbeatHistory | Select-Object -Property TimeStamp, IsOK, Status, PlatformIsOK, PlatformRollupStatus, Alert, Issues | Format-Table
 
 }
 
@@ -155,8 +114,8 @@ function global:Set-Heartbeat {
 
     if ($Reported) { $heartbeat.PreviousReport = Get-Date }
 
-    # Push heartbeat history onto stack
-    Push-HeartbeatHistory -Heartbeat $heartbeat
+    # Update heartbeat history onto stack
+    Update-HeartbeatHistory -Heartbeat $heartbeat
 
     $heartbeat | Write-Cache heartbeat
     
@@ -180,16 +139,6 @@ function global:Initialize-Heartbeat {
         PreviousReport = [datetime]::MinValue
     }
 
-    $heartbeat.History += @{
-        IsOK = $Heartbeat.IsOK
-        Status = $Heartbeat.Status
-        PlatformIsOK = $Heartbeat.PlatformIsOK
-        PlatformRollupStatus = $Heartbeat.PlatformRollupStatus
-        Alert = $Heartbeat.Alert
-        Issues = $Heartbeat.Issues
-        TimeStamp = $Heartbeat.TimeStamp
-    }
-
     # Add monitor config settings related to heartbeat
     $heartbeat = Get-HeartbeatSettings -Heartbeat $heartbeat
 
@@ -199,3 +148,85 @@ function global:Initialize-Heartbeat {
 
 }
 Set-Alias -Name hbInit -Value Initialize-Heartbeat -Scope Global
+
+function global:Initialize-HeartbeatHistory {
+
+    [CmdletBinding()]
+    param()
+
+    $heartbeatHistory = @()
+    $heartbeatHistory += [Heartbeat]@{
+        IsOK = $true
+        Status = "Initializing"
+        PlatformIsOK = $true
+        PlatformRollupStatus = "Unknown"
+        Alert = $false
+        Issues = @()
+        TimeStamp = [datetime]::Now
+    }
+
+    $heartbeatHistory | Write-Cache heartbeatHistory
+
+    return $heartbeatHistory
+
+}
+
+function global:Get-HeartbeatHistory {
+
+    [CmdletBinding()]
+    param ()
+
+    if ($(get-cache heartbeatHistory).Exists()) {
+        $heartbeatHistory = [Heartbeat[]](Read-Cache heartbeatHistory)
+    }
+    else {
+        $heartbeatHistory = [Heartbeat[]](Initialize-HeartbeatHistory)
+    }
+
+    return $heartbeatHistory
+}
+
+function Update-HeartbeatHistory {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][object]$Heartbeat
+    )
+
+    $heartbeatHistory = [Heartbeat[]](Get-HeartbeatHistory)
+
+    # if the current heartbeat and the last TWO historical entries are identical, 
+    # don't push the heartbeat onto the stack.  instead, just update the timestamp of $heartbeatHistory[0]
+    # this allows tracking longer periods of heartbeat data without using as much cache storage
+    # checking the last two prevents loss of transitions
+    $heartbeatUpdatePrev1 = $heartbeatUpdatePrev2 = $true
+    if ($heartbeatHistory.Count -gt 1) {
+        $heartbeatUpdatePrev1 = Compare-Object $Heartbeat $heartbeatHistory[0] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
+        $heartbeatUpdatePrev2 = Compare-Object $Heartbeat $heartbeatHistory[1] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
+    }
+    if (!$heartbeatUpdatePrev1 -and !$heartbeatUpdatePrev2) {
+        $heartbeatHistory[0].TimeStamp = $Heartbeat.TimeStamp
+    }
+    else {
+        if ($heartbeatHistory.Count -lt $HeartbeatHistoryMax) {
+            $heartbeatHistory += @{}
+        }
+        for ($i = $heartbeatHistory.Count-1; $i -gt 0; $i--) {
+            $heartbeatHistory[$i] = $heartbeatHistory[$i-1]
+        }
+        $heartbeatHistory[0] = @{
+            IsOK = $Heartbeat.IsOK
+            Status = $Heartbeat.Status
+            PlatformIsOK = $Heartbeat.PlatformIsOK
+            PlatformRollupStatus = $Heartbeat.PlatformRollupStatus
+            Alert = $Heartbeat.Alert
+            Issues = $Heartbeat.Issues
+            TimeStamp = $Heartbeat.TimeStamp
+        }
+    }
+
+    $heartbeatHistory | Write-Cache heartbeatHistory
+
+    return
+
+}
