@@ -97,12 +97,14 @@ function Push-HeartbeatHistory {
         [Parameter(Mandatory=$true)][object]$Heartbeat
     )
 
-    # if the current heartbeat and the last historical entry are identical, 
+    # if the current heartbeat and the last TWO historical entries are identical, 
     # don't push the heartbeat onto the stack.  instead, just update the timestamp of $Heartbeat.History[0]
     # this allows tracking longer periods of heartbeat data without using as much cache storage
-    if ($Heartbeat.History.Count -gt 0) {
-        $heartbeatUpdate = Compare-Object $heartbeat $heartbeat.History[0] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
-        if (!$heartbeatUpdate) {
+    # checking the last two prevents loss of transitions
+    if ($Heartbeat.History.Count -gt 1) {
+        $heartbeatUpdatePrev1 = Compare-Object $heartbeat $heartbeat.History[0] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
+        $heartbeatUpdatePrev2 = Compare-Object $heartbeat $heartbeat.History[1] -Property IsOK,Status,PlatformIsOK,PlatformRollupStatus,Alert,Issues
+        if (!$heartbeatUpdatePrev1 -and !$heartbeatUpdatePrev2) {
             $Heartbeat.History[0].TimeStamp = $Heartbeat.TimeStamp
             return
         }
