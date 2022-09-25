@@ -18,8 +18,8 @@ $sourceTenantKey = Get-AzureADTenantKeys -AzureAD
 $identityIssuer = $global:AzureAD.$sourceTenantKey.IdentityIssuer
 $targetTenantKey = Get-AzureADTenantKeys -AzureADB2C
 
-$source = "$(($global:AzureAD.$sourceTenantKey.Tenant.Type).Replace(" ",$null))\$sourceTenantKey"
-$target = "$(($global:AzureAD.$targetTenantKey.Tenant.Type).Replace(" ",$null))\$targetTenantKey"
+# $source = "$(($global:AzureAD.$sourceTenantKey.Tenant.Type).Replace(" ",$null))\$sourceTenantKey"
+# $target = "$(($global:AzureAD.$targetTenantKey.Tenant.Type).Replace(" ",$null))\$targetTenantKey"
 
 $action = $null; $target = $null; $status = $null
 
@@ -114,15 +114,15 @@ try {
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace "Source", $source -ForegroundColor Gray,DarkBlue -Separator ":  "
 
-        $action = "Connect"; $target = $source
+        $action = "Connect"; $target = "AzureAD\$($sourceTenantKey)"
         Connect-AzureAD -Tenant $sourceTenantKey
 
     #endregion CONNECT SOURCE        
     #region CONNECT TARGET
         
-        Write-Host+ -NoTrace "Target", $target -ForegroundColor Gray,DarkBlue -Separator ":  "
+        Write-Host+ -NoTrace "Target", "AzureAD\$($targetTenantKey)" -ForegroundColor Gray,DarkBlue -Separator ":  "
 
-        $action = "Connect"; $target = $target
+        $action = "Connect"; $target = "AzureAD\$($targetTenantKey)"
         Connect-AzureAD -Tenant $targetTenantKey
 
     #endregion CONNECT TARGET    
@@ -132,8 +132,8 @@ try {
 
     #region GET SOURCE USERS
 
-        $action = "Get"; $target = "$source\Users"
-        $message = "<$source users <.>60> PENDING"
+        $action = "Get"; $target = "AzureAD\$($sourceTenantKey)\Users"
+        $message = "<$target <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $sourceUsers, $cacheError = Get-AzureADusers -Tenant $sourceTenantKey -AsArray
@@ -148,8 +148,8 @@ try {
     #endregion GET SOURCE USERS
     #region GET TARGET USERS
 
-        $action = "Get"; $target = "$target\Users"
-        $message = "<$target users <.>60> PENDING"
+        $action = "Get"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $message = "<$target <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         # $global:WriteHostPlusPreference = "SilentlyContinue"
@@ -173,8 +173,8 @@ try {
     #endregion GET TARGET USERS
     #region TARGET USERS TO DISABLE
 
-        $action = "Disabled"; $target = "$target\Users"
-        $message = "<$target users to disable <.>60> PENDING"
+        $action = "Disabled"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $message = "<$target\Disable <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $targetUsersEnabledFromIdentityIssuer = $targetUsersFromIdentityIssuer | Where-Object {$_.accountEnabled}
@@ -195,8 +195,8 @@ try {
     #endregion TARGET USERS TO DISABLE
     #region TARGET USERS TO ENABLE
 
-        $action = "Enabled"; $target = "$target\Users"
-        $message = "<$target users to enable <.>60> PENDING"
+        $action = "Enabled"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $message = "<$target\Enable <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $targetUsersDisabledFromIdentityIssuer = $targetUsersFromIdentityIssuer | Where-Object {!$_.accountEnabled}
@@ -226,20 +226,51 @@ try {
         $targetUsersUpdateEmailConflicts = [array](read-cache "$targetTenantKey-objectconflict-proxyaddress")
         if (!$targetUsersUpdateEmailConflicts) { $targetUsersUpdateEmailConflicts = @() }
 
-        $targetUsersUpdateEmail = $targetUsers | Where-Object {$_.accountEnabled -and [string]::IsNullOrEmpty($_.mail) -and ![string]::IsNullOrEmpty(($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId)}
-        $targetUsersUpdateEmail = $targetUsersUpdateEmail | Where-Object {$_.id -notin $targetUsersUpdateEmailConflicts.id}
+        # Azure AD B2C users with a null mail property where the emailaddress 
+        # identity's issuerAssignedId ends with the Azure AD tenant's source AD domain
+        $targetUsersUpdateEmail = $targetUsers | 
+            Where-Object {$_.accountEnabled -and [string]::IsNullOrEmpty($_.mail) -and 
+                ![string]::IsNullOrEmpty(($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId) -and 
+                ($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId.endswith($global:AzureAD.$sourceTenantKey.Sync.Source)} | 
+                    Where-Object {$_.id -notin $targetUsersUpdateEmailConflicts.id}
 
-        $message = "<$target user emails to update <.>60> $($targetUsersUpdateEmail.Count)"
+        $message = "<$target\Email\Update <.>60> $($targetUsersUpdateEmail.Count)"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($targetUsersToEnable.Count -gt 0 ? "DarkGreen" : "DarkGray")
 
     #endregion FIND EMAIL UPDATES
+    #endregion FIND NAME UPDATES
+
+        # All Azure AD users' SMTP proxyAddresses which are not equal to the Azure AD user's 
+        # UPN and end with the Azure AD tenant's source AD domain
+        $sourceUsersSmtpProxyAddresses = 
+            foreach ($sourceUser in $sourceUsers) {
+                foreach ($proxyAddress in $sourceUser.proxyAddresses) {
+                    if ($proxyAddress.ToLower().StartsWith("smtp:")) {
+                        $smtpProxyAddress = $proxyAddress.ToLower().Split(":")[1]
+                        if ($smtpProxyAddress -ne $sourceUser.userPrincipalName -and $smtpProxyAddress.endswith($global:AzureAD.$sourceTenantKey.Sync.Source)) {
+                            $smtpProxyAddress
+                        }
+                    }
+                }
+            }
+
+        # Azure AD B2C users whose mail is in an Azure AD user's proxyAddresses (and is not the UPN)
+        $targetUsersUpdateIdentity = $targetUsers | 
+            Where-Object {$_.accountEnabled -and 
+                ![string]::IsNullOrEmpty(($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId) -and 
+                $_.mail -in $sourceUsersSmtpProxyAddresses}
+
+        $message = "<$target\Name\Update <.>60> $($targetUsersUpdateIdentity.Count)"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($targetUsersUpdateIdentity.Count -gt 0 ? "DarkGreen" : "DarkGray")
+        
+    #endregion FIND NAME UPDATES
     #region DISABLE TARGET USERS
 
         if ($targetUsersToDisable.Count -gt 0) {
 
             Write-Host+ -MaxBlankLines 1
 
-            $action = "DisableUser"; $target = "$target\Users"
+            $action = "DisableUser"; $target = "AzureAD\$($targetTenantKey)\Users"
             $message = "<Disabling $target users <.>60> PENDING"
             Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToDisable.Count -gt 0) {
@@ -281,7 +312,7 @@ try {
 
             Write-Host+ -MaxBlankLines 1
 
-            $action = "EnableUser"; $target = "$target\Users"
+            $action = "EnableUser"; $target = "AzureAD\$($targetTenantKey)\Users"
             $message = "<Enabling $target users <.>60> PENDING"
             Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToEnable.Count -gt 0) {
@@ -323,7 +354,7 @@ try {
 
             Write-Host+
 
-            $action = "UpdateEmail"; $target = "$target\Users"
+            $action = "UpdateEmail"; $target = "AzureAD\$($targetTenantKey)\Users"
             $message = "<Updating $target user emails <.>60> PENDING"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             Write-Host+
@@ -336,7 +367,7 @@ try {
                 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 $status = "SUCCESS"
-                $response = Update-AzureADUserEmail -Tenant $targetTenantKey -User $targetUserUpdateEmail
+                $response = Update-AzureADUserEmail -Tenant $targetTenantKey -User $targetUserUpdateEmail -mail $targetSignInName
                 if ($response.error) {
                     $status = "FAILURE"
                     if ($response.error.details.code -contains "ObjectConflict") {
@@ -366,6 +397,52 @@ try {
         }
 
     #endregion UPDATE EMAIL    
+    #region UPDATE NAMES
+
+    if ($targetUsersUpdateIdentity.Count -gt 0) {
+
+        Write-Host+
+
+        $action = "UpdateIdentity"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $message = "<Updating $target user names <.>60> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+
+
+        foreach ($targetUserUpdateIdentity in $targetUsersUpdateIdentity) {
+
+            $sourceUser = Get-AzureADUser -Tenant $sourceTenantKey -UserPrincipalName ($sourceUsers | Where-Object {$_.proxyAddresses -and "smtp:$($targetUserUpdateIdentity.mail)" -in $_.proxyAddresses.ToLower()}).userPrincipalName
+            $targetSignInName = $sourceUser.mail
+
+            $message = "<  $targetSignInName ($($targetUserUpdateIdentity.id)) <.>80> PENDING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
+
+            $status = "SUCCESS"
+            $response = Update-AzureADUserEmail -Tenant $targetTenantKey -User $targetUserUpdateIdentity -mail $targetSignInName
+            if (!$response.error) {
+                $response = Update-AzureADUserNames -Tenant $targetTenantKey -User $targetUserUpdateIdentity -SurName $sourceUser.surName -GivenName $sourceUser.givenName -DisplayName $sourceUser.displayName
+            }
+            if ($response.error) {
+                $status = "FAILURE"
+            }
+
+            $statusColor = switch ($status) {
+                "SUCCESS" { "DarkGreen" }
+                "FAILURE" { "Red" }
+            }
+
+            $message = "$($emptyString.PadLeft(8,"`b")) $status$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor $statusColor
+            
+        }
+
+        Write-Host+
+
+        $message = "<Updating $target user names <.>60> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+    }
+
+#endregion UPDATE NAMES        
 
 }
 catch {
