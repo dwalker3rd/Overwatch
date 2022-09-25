@@ -504,21 +504,24 @@ function global:Update-AzureADUserEmail {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][object]$User,
+        [Parameter(Mandatory=$true)][Alias("Email")][string]$Mail,
         [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
 
     $mailOriginal = $User.mail ?? "None"
+    $originalMailIdentities = $user.identities | Where-Object {$_.signInType -eq "emailAddress"}
+    $mailIdentitiesJson = ($user.identities | ConvertTo-Json).Replace($mailOriginal,$mail)
 
     # User has multiple identities in the source AD domain
     # No current rules dictate which should be used
     # Throw an error so this can be addressed
-    if ($mail.Count -gt 1) {
+    if ($originalMailIdentities.Count -gt 1) {
         throw "User $($User.userPrincipalName) has multiple identities with multiple email addresses."
         return $User
     }
 
     # User has a null property from the source AD domain
-    if ($mail.Count -eq 0) {
+    if ($originalMailIdentities.Count -eq 0) {
         return $User
     }
 
@@ -537,9 +540,7 @@ function global:Update-AzureADUserEmail {
         Headers = $headers
         Method = 'PATCH'
         Uri = $uri
-        body = "{
-            `n    `"mail`" : `"$mail`"
-            `n}"
+        body = "{`"mail`" : `"$mail`", `"identities`" : $mailIdentitiesJson}"
     }
 
     $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
@@ -562,6 +563,58 @@ function global:Update-AzureADUserEmail {
         $entryType = $status -eq "Success" ? "Information" : "Error"
     }
     Write-Log -Action "UpdateAzureADUserEmail" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
+
+    return $response
+
+}
+
+function global:Update-AzureADUserNames{
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][object]$User,
+        [Parameter(Mandatory=$true)][Alias("FirstName")][string]$GivenName,
+        [Parameter(Mandatory=$true)][Alias("LastName","FamilyName")][string]$SurName,
+        [Parameter(Mandatory=$true)][string]$DisplayName,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
+    )
+
+    $givenNameOriginal = $User.givenName ?? "None"
+    $surNameOriginal = $User.surName ?? "None"
+    $displayNameOriginal = $User.displayName ?? "None"
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'PATCH'
+        Uri = $uri
+        body = "{`"givenName`" : `"$givenName`",`"surName`" : `"$surName`",`"displayName`" : `"$displayName`"}"
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
+
+    $status = $null
+    $message = $null
+    if ($response.error) { 
+        $status = "Failure"
+        $entryType = "Error"
+    }
+    else {
+        $response = Get-AzureADUser -Tenant $tenantKey -User $User.id
+        $status = $response.givenName -eq $givenNameOriginal -and $response.surName -eq $surNameOriginal -and $response.displayName -eq $displayNameOriginal ? "Success" : "Failure"
+        $message = "$givenNameOriginal > $($response.givenName), $surNameOriginal > $($response.surName), $displayNameOriginal > $($response.displayName)"
+        $entryType = $status -eq "Success" ? "Information" : "Error"
+    }
+    Write-Log -Action "AzureADUserNames" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
 
     return $response
 
@@ -600,7 +653,7 @@ function global:Get-AzureADObjects {
     $queryParams = @{
         default = @{
             Users = @{
-                property = @("id","userPrincipalName","displayName","mail","accountEnabled")
+                property = @("id","userPrincipalName","displayName","mail","accountEnabled","proxyAddresses")
             }
         }
     }

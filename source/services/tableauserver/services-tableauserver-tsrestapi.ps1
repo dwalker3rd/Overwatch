@@ -3563,13 +3563,21 @@ function global:Sync-TSGroups {
 
             $azureADGroupToSync = $azureADGroups | Where-Object {$_.displayName -eq $tsGroup.name}
             $tsGroupMembership = Get-TSGroupMembership -Group $tsGroup
-            $azureADGroupMembership = $azureADUsers | Where-Object {$_.id -in $azureADGroupToSync.members -and $_.accountEnabled} | Foreach-Object {Update-AzureADUserEmail -Tenant $tenantKey -User $_} | Where-Object {![string]::IsNullOrEmpty($_.mail)}
+            $azureADGroupMembership = $azureADUsers | Where-Object {$_.id -in $azureADGroupToSync.members -and $_.accountEnabled} | Where-Object {![string]::IsNullOrEmpty($_.mail)}
 
             $tsUsersToAddToGroup = ($tsUsers | Where-Object {$_.name -in $azureADGroupMembership.userPrincipalName -and $_.id -notin $tsGroupMembership.id}) ?? @()
-            $tsUsersToRemoveFromGroup = $tsGroupMembership | Where-object {$_.name -notin $azureADGroupMembership.userPrincipalName}
+
+            # remove Tableau Server group members if they do not match any of the Azure AD group members UPN or any of the SMTP proxy addresses
+            $tsUsersToRemoveFromGroup = $tsGroupMembership | Where-Object {$_.name -notin $azureADGroupMembership.userPrincipalName -and "smtp:$($_.name)" -notin $azureADGroupMembership.proxyAddresses.ToLower()}
 
             $newUsers = @()
-            $azureADUsersToAddToSite = $azureADGroupMembership | Where-Object {$_.userPrincipalName -notin $tsUsers.name} | Sort-Object -Property userPrincipalName
+
+            # add the Azure AD group member if neither the UPN nor any of the SMTP proxy addresses are a username on Tableau Server
+            $azureADUsersToAddToSite = $azureADGroupMembership | 
+                Where-Object {$_.userPrincipalName -notin $tsUsers.name} | 
+                    Where-Object {!($_.proxyAddresses | Where-Object {$_.ToLower().StartsWith("smtp:")} | Foreach-Object {$_.Split(":")[1] -in $tsUsers.name} | Where-Object {$_ -ne $azureADUser.userPrincipalName})} | 
+                        Sort-Object -Property userPrincipalName
+
             foreach ($azureADUser in $azureADUsersToAddToSite) {
 
                 $params = @{
@@ -3691,7 +3699,8 @@ function global:Sync-TSUsers {
         $message = "<    $($tssite.name) <.>48> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-        $tsUsers = Get-TSUsers | Where-Object {$_.name -in $azureADUsers.userPrincipalName -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
+        # check for Tableau Server user names in the Azure AD users' UPN and SMTP proxy addresses
+        $tsUsers = Get-TSUsers | Where-Object {($_.name -in $azureADUsers.userPrincipalName -or "smtp:$($_.name)" -in $azureADGroupMembership.proxyAddresses.ToLower()) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
 
         Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) $($tsUsers.Count)$($emptyString.PadRight(7-$tsUsers.Count.ToString().Length)," ")" -ForegroundColor DarkGreen
 
@@ -3700,7 +3709,9 @@ function global:Sync-TSUsers {
         $tsUsers | Foreach-Object {
 
             $tsUser = Get-TSUser -Id $_.id
-            $azureADUser = $azureADUsers | Where-Object {$_.userPrincipalName -eq $tsUser.name}
+
+            # search for Azure AD user where the Tableau Server user name equals the Azure AD UPN or is one of the SMTP proxy addresses
+            $azureADUser = $azureADUsers | Where-Object {$_.userPrincipalName -eq $tsUser.name -or "smtp:$($tsUser.name)" -in $_.proxyAddresses}
             $azureADUserAccountState = "AzureAD:$($azureADUser.accountEnabled ? "Enabled" : $(!$azureADUser ? "None" : "Disabled"))"
             Write-Host+ -NoTrace "      PROFILE: $($tsSite.contentUrl)\$($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | $($azureADUserAccountState)" -ForegroundColor DarkGray
 
