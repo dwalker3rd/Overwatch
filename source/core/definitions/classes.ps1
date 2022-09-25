@@ -44,15 +44,17 @@ class PlatformStatus {
     [bool]$IsOK
     [string]$RollupStatus
     [object[]]$Issues
-    [string]$Event
-    [string]$EventReason
-    [string]$EventStatus
-    [string]$EventStatusTarget
-    [string]$EventCreatedBy
-    [datetime]$EventCreatedAt
-    [datetime]$EventUpdatedAt
-    [datetime]$EventCompletedAt
-    [bool]$EventHasCompleted
+    #region PLATFORM EVENT
+        [string]$Event
+        [string]$EventReason
+        [string]$EventStatus
+        [string]$EventStatusTarget
+        [string]$EventCreatedBy
+        [datetime]$EventCreatedAt
+        [datetime]$EventUpdatedAt
+        [datetime]$EventCompletedAt
+        [bool]$EventHasCompleted
+    #endregion PLATFORM EVENT
     [PlatformCim[]]$ByCimInstance
     [object]$StatusObject
     [bool]$IsStopped 
@@ -61,6 +63,8 @@ class PlatformStatus {
     [string]$InterventionReason
 }
 
+# if the PlatformEvent class is changed, the installer must
+# migrate the PlatformEventHistory cache to the new class
 class PlatformEvent {
     [string]$Event
     [string]$EventReason
@@ -144,6 +148,8 @@ class Heartbeat {
     [TimeSpan]$SincePreviousReport  
 }
 
+# if the HeartbeatHistory class is changed, the installer must
+# migrate the HeartbeatHistory cache to the new class
 class HeartbeatHistory {
     [bool]$IsOK
     [string]$Status
