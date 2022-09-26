@@ -235,7 +235,7 @@ try {
                     Where-Object {$_.id -notin $targetUsersUpdateEmailConflicts.id}
 
         $message = "<$target\Email\Update <.>60> $($targetUsersUpdateEmail.Count)"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($targetUsersToEnable.Count -gt 0 ? "DarkGreen" : "DarkGray")
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($targetUsersUpdateEmail.Count -gt 0 ? "DarkGreen" : "DarkGray")
 
     #endregion FIND EMAIL UPDATES
     #endregion FIND NAME UPDATES
@@ -327,7 +327,7 @@ try {
 
             if ($targetUsersToEnable.Count -gt 0) {
                 Write-Host+
-                $message = "Enabling $target users : SUCCESS"
+                $message = "<Enabling $target users <.>60> SUCCESS"
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
             }
             else {
