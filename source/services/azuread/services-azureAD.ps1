@@ -655,7 +655,7 @@ function global:Update-AzureADUserNames{
     }
     else {
         $response = Get-AzureADUser -Tenant $tenantKey -User $User.id
-        $status = $response.givenName -eq $givenNameOriginal -and $response.surName -eq $surNameOriginal -and $response.displayName -eq $displayNameOriginal ? "Success" : "Failure"
+        $status = $response.givenName -eq $GivenName -and $response.surName -eq $SurName -and $response.displayName -eq $DisplayName ? "Success" : "Failure"
         $message = "$givenNameOriginal > $($response.givenName), $surNameOriginal > $($response.surName), $displayNameOriginal > $($response.displayName)"
         $entryType = $status -eq "Success" ? "Information" : "Error"
     }
