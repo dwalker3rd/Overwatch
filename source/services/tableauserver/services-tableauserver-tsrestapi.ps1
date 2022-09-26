@@ -3574,10 +3574,10 @@ function global:Sync-TSGroups {
 
             # add the Azure AD group member if neither the UPN nor any of the SMTP proxy addresses are a username on Tableau Server
             $azureADUsersToAddToSite = $azureADGroupMembership | 
-                Where-Object {$_.userPrincipalName -notin $tsUsers.name} | 
-                    Where-Object {!($_.proxyAddresses | Where-Object {$_.ToLower().StartsWith("smtp:")} | Foreach-Object {$_.Split(":")[1] -in $tsUsers.name} | Where-Object {$_ -ne $azureADUser.userPrincipalName})} | 
+                Where-Object {(Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN) -notin $tsUsers.name} | 
+                    Where-Object {$_.userPrincipalName -notin $tsUsers.name} | 
                         Sort-Object -Property userPrincipalName
-
+                        
             foreach ($azureADUser in $azureADUsersToAddToSite) {
 
                 $params = @{
@@ -3682,6 +3682,8 @@ function global:Sync-TSUsers {
         return
     }
 
+    $azureADUsersSmtpProxyAddresses = (Get-AzureADUserProxyAddresses -User $azureADUsers -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN)
+
     Write-Host+
     $message = "<Syncing Tableau Server users <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
@@ -3700,7 +3702,7 @@ function global:Sync-TSUsers {
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         # check for Tableau Server user names in the Azure AD users' UPN and SMTP proxy addresses
-        $tsUsers = Get-TSUsers | Where-Object {($_.name -in $azureADUsers.userPrincipalName -or "smtp:$($_.name)" -in $azureADGroupMembership.proxyAddresses.ToLower()) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
+        $tsUsers = Get-TSUsers | Where-Object {($_.name -in $azureADUsers.userPrincipalName -or $_.name -in $azureADUsersSmtpProxyAddresses) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
 
         Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) $($tsUsers.Count)$($emptyString.PadRight(7-$tsUsers.Count.ToString().Length)," ")" -ForegroundColor DarkGreen
 
@@ -3711,7 +3713,7 @@ function global:Sync-TSUsers {
             $tsUser = Get-TSUser -Id $_.id
 
             # search for Azure AD user where the Tableau Server user name equals the Azure AD UPN or is one of the SMTP proxy addresses
-            $azureADUser = $azureADUsers | Where-Object {$_.userPrincipalName -eq $tsUser.name -or "smtp:$($tsUser.name)" -in $_.proxyAddresses}
+            $azureADUser = $azureADUsers | Where-Object {$_.userPrincipalName -eq $tsUser.name -or $tsUser.name -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN)}
             $azureADUserAccountState = "AzureAD:$($azureADUser.accountEnabled ? "Enabled" : $(!$azureADUser ? "None" : "Disabled"))"
             Write-Host+ -NoTrace "      PROFILE: $($tsSite.contentUrl)\$($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | $($azureADUserAccountState)" -ForegroundColor DarkGray
 

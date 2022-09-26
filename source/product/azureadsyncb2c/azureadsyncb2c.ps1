@@ -242,17 +242,7 @@ try {
 
         # All Azure AD users' SMTP proxyAddresses which are not equal to the Azure AD user's 
         # UPN and end with the Azure AD tenant's source AD domain
-        $sourceUsersSmtpProxyAddresses = 
-            foreach ($sourceUser in $sourceUsers) {
-                foreach ($proxyAddress in $sourceUser.proxyAddresses) {
-                    if ($proxyAddress.ToLower().StartsWith("smtp:")) {
-                        $smtpProxyAddress = $proxyAddress.ToLower().Split(":")[1]
-                        if ($smtpProxyAddress -ne $sourceUser.userPrincipalName -and $smtpProxyAddress.endswith($global:AzureAD.$sourceTenantKey.Sync.Source)) {
-                            $smtpProxyAddress
-                        }
-                    }
-                }
-            }
+        $sourceUsersSmtpProxyAddresses = (Get-AzureADUserProxyAddresses -User $sourceUsers -Type SMTP -Domain $global:AzureAD.$sourceTenantKey.Sync.Source -NoUPN)
 
         # Azure AD B2C users whose mail is in an Azure AD user's proxyAddresses (and is not the UPN)
         $targetUsersUpdateIdentity = $targetUsers | 
@@ -410,7 +400,7 @@ try {
 
         foreach ($targetUserUpdateIdentity in $targetUsersUpdateIdentity) {
 
-            $sourceUser = Get-AzureADUser -Tenant $sourceTenantKey -UserPrincipalName ($sourceUsers | Where-Object {$_.proxyAddresses -and "smtp:$($targetUserUpdateIdentity.mail)" -in $_.proxyAddresses.ToLower()}).userPrincipalName
+            $sourceUser = Get-AzureADUser -Tenant $sourceTenantKey -UserPrincipalName ($sourceUsers | Where-Object {$_.proxyAddresses -and $targetUserUpdateIdentity.mail -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$sourceTenantKey.Sync.Source -NoUPN)}).userPrincipalName
             $targetSignInName = $sourceUser.mail
 
             $message = "<  $targetSignInName ($($targetUserUpdateIdentity.id)) <.>80> PENDING"

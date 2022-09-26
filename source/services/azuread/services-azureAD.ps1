@@ -289,6 +289,51 @@ function global:Reset-AzureADUserPassword {
      
 }
 
+function global:Get-AzureADUserProxyAddresses {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object[]]$User,
+        [Parameter(Mandatory=$false)][ValidateSet("SMTP","X500")][string]$Type,
+        [Parameter(Mandatory=$false)][Alias("Organization")][string]$Domain,
+        [switch]$NoUPN
+
+    )
+
+    if (!$Type -and $Domain) {
+        throw "`$Type must be specified with the -Domain switch"
+    }
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $typeIdentifierRegex = switch ($Type) {
+        default { "^$($Type):" }
+        "" { "^" }
+    }
+
+    $proxyAddresses = @()
+    foreach ($azureADUser in $User) {
+        foreach ($azureADProxyAddress in $azureADUser.proxyAddresses) {
+            if ($azureADProxyAddress -match $typeIdentifierRegex) {
+                $addProxyAddress = $true
+                $proxyAddress = $azureADProxyAddress -replace $typeIdentifierRegex,""
+                if ($NoUPN -and $proxyAddress -eq $azureADUser.userPrincipalName) { $addProxyAddress = $false }
+                if ($Domain) {
+                    switch ($Type) {
+                        "SMTP" { if ($proxyAddress -notmatch ("$Domain$")) { $addProxyAddress = $false } }
+                        "X500" { if (!$proxyAddress -notmatch ("^/o=$Domain")) { $addProxyAddress = $false } }
+                    }
+                }
+                if ($addProxyAddress) { $proxyAddresses += $proxyAddress }
+            }
+        }
+    }
+
+    return $proxyAddresses | Sort-Object
+
+}
+
 function global:Update-AzureADUserProperty {
 
     [CmdletBinding()]
