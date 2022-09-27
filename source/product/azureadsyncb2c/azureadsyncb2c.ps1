@@ -112,7 +112,7 @@ try {
     #region CONNECT SOURCE
 
         Write-Host+ -MaxBlankLines 1
-        Write-Host+ -NoTrace "Source", $source -ForegroundColor Gray,DarkBlue -Separator ":  "
+        Write-Host+ -NoTrace "Source", "AzureAD\$($sourceTenantKey)" -ForegroundColor Gray,DarkBlue -Separator ":  "
 
         $action = "Connect"; $target = "AzureAD\$($sourceTenantKey)"
         Connect-AzureAD -Tenant $sourceTenantKey
