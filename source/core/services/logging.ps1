@@ -335,7 +335,7 @@ function global:Summarize-Log {
 
     # write column labels
     foreach ($key in $formatData.Keys) {
-        $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+        $columnWidth = $key -eq "Log" ? $formatData.Log.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
         $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
         $header = "$($global:consoleSequence.ForegroundDarkGrey)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
@@ -348,7 +348,7 @@ function global:Summarize-Log {
     # underline column labels
     foreach ($key in $formatData.Keys) {
         $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
-        $columnWidth = ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+        $columnWidth = $key -eq "Log" ? $formatData.Log.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
         $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
         $header = "$($global:consoleSequence.ForegroundDarkGrey)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
