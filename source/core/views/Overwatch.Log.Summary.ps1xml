@@ -9,6 +9,11 @@
             <TableControl>
                 <TableHeaders>
                     <TableColumnHeader>
+                        <Label>ComputerName</Label>
+                        <Width>20</Width>
+                        <Alignment>Left</Alignment>
+                    </TableColumnHeader>
+                    <TableColumnHeader>
                         <Label>Log</Label>
                         <Width>20</Width>
                         <Alignment>Left</Alignment>
@@ -53,6 +58,9 @@
                     <TableRowEntry>
                         <Wrap />
                         <TableColumnItems>
+                            <TableColumnItem>
+                                <PropertyName>ComputerName</PropertyName>
+                            </TableColumnItem>                        
                             <TableColumnItem>
                                 <PropertyName>Log</PropertyName>
                             </TableColumnItem>

@@ -10,7 +10,7 @@ $global:PreflightPreference = "Continue"
 $global:PostflightPreference = "Continue"
 
 # product id must be set before definitions
-$global:Product = @{Id="StartRMTAGents"}
+$global:Product = @{Id="StartRMTAgents"}
 . $PSScriptRoot\definitions.ps1
 
 $sleepSeconds = 90
