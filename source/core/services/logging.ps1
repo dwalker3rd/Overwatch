@@ -227,7 +227,10 @@ function global:Summarize-Log {
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][Alias("Since")][object]$After,
-        [Parameter(Mandatory=$false)][datetime]$Before,
+        [Parameter(Mandatory=$false)][Alias("Day","D")][int32]$Days,
+        [Parameter(Mandatory=$false)][Alias("Hour","H")][int32]$Hours,
+        [Parameter(Mandatory=$false)][Alias("Minute","Min","M")][int32]$Minutes,
+        [Parameter(Mandatory=$false)][object]$Before,
         [Parameter(Mandatory=$false)][int32]$Newest,
         [Parameter(Mandatory=$false)][int32]$Oldest,
         [Parameter(Mandatory=$false)][string]$View,
@@ -250,10 +253,37 @@ function global:Summarize-Log {
 
     # $After is a datetime passed as an object
     # This allows using strings to specify today or yesterday
-    $After = switch ($After) {
-        "Today" { [datetime]::Today }
-        "Yesterday" { ([datetime]::Today).AddDays(-1) }
-        default { $After }
+
+    $After = $Days ? ([datetime]::Today).AddDays(-1 * [math]::Abs($Days)) : $After
+    $After = $Hours ? ([datetime]::Now).AddHours(-1 * [math]::Abs($Hours)) : $After
+    $After = $Minutes ? ([datetime]::Now).AddMinutes(-1 * [math]::Abs($Minutes)) : $After
+
+    If (![string]::IsNullOrEmpty($After)) {
+        $After = switch ($After) {
+            "Today" { [datetime]::Today }
+            "Yesterday" { ([datetime]::Today).AddDays(-1) }
+            default { 
+                switch ($After.GetType().Name) {
+                    "String" { Get-Date ($After) }
+                    "DateTime" { $After }
+                    "TimeSpan" { [datetime]::Today.Add(-$After.Duration()) }
+                }
+            }
+        }
+    }
+
+    If (![string]::IsNullOrEmpty($Before)) {
+        $Before = switch ($Before) {
+            "Today" { [datetime]::Today }
+            "Yesterday" { ([datetime]::Today).AddDays(-1) }
+            default { 
+                switch ($Before.GetType().Name) {
+                    "String" { Get-Date ($Before) }
+                    "DateTime" { $Before }
+                    "TimeSpan" { [datetime]::Today.Add(-$Before.Duration()) }
+                }
+            }
+        }
     }
 
     Write-Host+ -ResetAll
@@ -316,6 +346,8 @@ function global:Summarize-Log {
                 # format summary rows with console sequences to control color
                 $summaryFormatted += [PSCustomObject]@{
                     PSTypeName = "Overwatch.Log.Summary"
+                    # ComputerName = "$($logColor)$($node.ToLower())$($defaultColor)"
+                    ComputerName = $node
                     Log = "$($logColor)$($logName)$($emptyString.PadLeft($formatData.Log.Width-$logName.Length))$($defaultColor)"
                     Rows = "$($countColor)$($logEntry.Count)$($defaultColor)"
                     Information = "$($infoColor)$($infoCount)$($defaultColor)"
@@ -323,7 +355,6 @@ function global:Summarize-Log {
                     Error = "$($errorColor)$($errorCount)$($defaultColor)"
                     MinTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u'))$($defaultColor)"
                     MaxTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
-                    ComputerName = "$($global:consoleSequence.ForegroundDarkGrey)$($node.ToLower())$($defaultColor)"
                 }
 
             }
@@ -331,41 +362,46 @@ function global:Summarize-Log {
         }
     }
 
-    Write-Host+ 
+    if ($summaryFormatted) { Write-Host+ }
 
-    # write column labels
-    foreach ($key in $formatData.Keys) {
-        $columnWidth = $key -eq "Log" ? $formatData.Log.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
-        $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
-        $header = "$($global:consoleSequence.ForegroundDarkGrey)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
-        if ($formatData.$key.Label -in @("Log","Error","Warn")) {
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
+    foreach ($node in $ComputerName) {
+
+        $summaryFormattedByNode = $summaryFormatted | Where-Object {$_.ComputerName -eq $node}
+        if ($summaryFormattedByNode) {
+
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " -ForegroundColor Darkgray
+            Write-Host+ -NoTrace -NoTimestamp $node
+            Write-Host+
+
+            # write column labels
+            foreach ($key in $formatData.Keys) {
+                $columnWidth = $key -in ("Log","ComputerName") ? $formatData.$key.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+                $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
+                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+                if ($formatData.$key.Label -in @("Log","Error","Warn")) {
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
+                }
+            }
+            Write-Host+
+
+            # underline column labels
+            foreach ($key in $formatData.Keys) {
+                $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
+                $columnWidth = $key -in ("Log","ComputerName") ? $formatData.$key.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
+                $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
+                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+                if ($formatData.$key.Label -in @("Log","Error","Warn")) {
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
+                }
+            }
+
+            $summaryFormattedByNode | Where-Object {$_.ComputerName -eq $node} | Format-Table -HideTableHeaders
+
         }
-    }
-    Write-Host+
 
-    # underline column labels
-    foreach ($key in $formatData.Keys) {
-        $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
-        $columnWidth = $key -eq "Log" ? $formatData.Log.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
-        $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
-        $header = "$($global:consoleSequence.ForegroundDarkGrey)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
-        if ($formatData.$key.Label -in @("Log","Error","Warn")) {
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
-        }
     }
-
-    # if no rows, terminate the line (from previous -NoNewLine)
-    # if rows, don't terminate the line or there will be a blank row between the headers and the data
-    # Format-Table terminates the line without introducing a blank line
-    if (!$summaryFormatted) { 
-        Write-Host+
-        Write-Host+
-    }
-
-    return $summaryFormatted | Format-Table -HideTableHeaders
 
 }
 Set-Alias -Name logSummary -Value Show-LogSummary -Scope Global
