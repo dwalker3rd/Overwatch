@@ -1,18 +1,21 @@
 #region PREFLIGHT
 
-$trustedHosts = @()
-if ($trustedHosts) {
+    # The following line indicates a post-installation configuration to the installer
+    # Manual Configuration > Platform > Tableau Server > Trusted Hosts
 
-    Test-Connections $trustedHosts
+    $trustedHosts = @()
+    if ($trustedHosts) {
 
-    $heartbeat = Get-Heartbeat
-    if ($heartbeat.IsOK) {        
-        Test-RepositoryAccess $trustedHosts
+        Test-Connections $trustedHosts
+
+        $heartbeat = Get-Heartbeat
+        if ($heartbeat.IsOK) {        
+            Test-RepositoryAccess $trustedHosts
+        }
+        else {
+            $global:PreflightChecksCompleted = $false
+        }
+
     }
-    else {
-        $global:PreflightChecksCompleted = $false
-    }
-
-}
 
 #endregion PREFLIGHT
