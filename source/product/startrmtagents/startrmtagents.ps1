@@ -27,7 +27,7 @@ if ($agents) {
     $params = @{ 
         ComputerName = $agents.Name
         IfTableauServerIsRunning = $true
-        Context = $Product.Id
+        Context = "StartRMTAgents"
     }
     $result = Start-RMTAgents @params
 
@@ -54,7 +54,7 @@ if ($agents) {
             Write-Host+
 
             $tableauServerStatus = Get-RMTTableauServerStatus -Environment $environ
-            Write-Log -Action Get-TableauServerStatus -Target $initialNode -Status $tsStatus.RollupStatus  -Force
+            Write-Log -Context StartRMTAgents -Action Get-TableauServerStatus -Target $initialNode -Status $tsStatus.RollupStatus -Force
 
             Write-Host+
 
@@ -62,7 +62,7 @@ if ($agents) {
                 $params = @{ 
                     EnvironmentIdentifier = $environ.Identifier
                     IfTableauServerIsRunning = $true
-                    Context = $Product.Id
+                    Context = "StartRMTAgents"
                 }
                 $result = Start-RMTAgents @params
 
