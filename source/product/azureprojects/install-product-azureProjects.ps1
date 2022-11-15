@@ -15,7 +15,7 @@ if (!$NoNewLine) {
 Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\definitions-product-$($product.Id.ToLower())-template.ps1" "$($global:Location.Root)\definitions\definitions-product-$($product.Id.ToLower()).ps1" -Quiet
 
 # Azure Deployment Code/Data
-Expand-Archive "$($global:Location.Root)\source\product\$($product.id.tolower())\deployment.zip" "$($global:Location.Data)\azure" -Force
+Expand-Archive "$($global:Location.Root)\source\product\$($product.id.tolower())\deployment.zip" "$($global:Location.Root)\data\azure" -Force
 
 $message = "$($emptyString.PadLeft(27,"`b"))INSTALLED$($emptyString.PadLeft(11," "))READY   "
 Write-Host+ -NoTrace -NoTimeStamp -NoSeparator -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, DarkGreen

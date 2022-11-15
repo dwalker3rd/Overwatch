@@ -23,12 +23,12 @@ function Initialize-AiProject {
 
     $global:AzureProjects = @{
         Location = @{
-            Data = "$($global:Location.Root)\data\$GroupName"
-            Credentials = "$($global:Location.Root)\data\$GroupName"
+            Data = "$($global:Location.Root)\azure\data\$GroupName"
+            Credentials = "$($global:Location.Root)\azure\data\$GroupName"
         }
     }
     if (!(Test-Path -Path $global:AzureProjects.Location.Data)) {
-        New-Item -Path "$($global:Location.Root)\data" -Name "$GroupName" -ItemType "directory" | Out-Null
+        New-Item -Path "$global:AzureProjects.Location.Data" -Name "$GroupName" -ItemType "directory" | Out-Null
     }
 
     $prefixIni = "$($global:AzureProjects.Location.Data)\$projectNameLowerCase\$projectNameLowerCase-prefix.ini"
@@ -46,8 +46,8 @@ function Initialize-AiProject {
 
     $global:AzureProject = @{
         Location = @{
-            Data = "$($global:Location.Root)\data\$GroupName\$projectNameLowerCase"
-            Credentials = "$($global:Location.Root)\data\$GroupName\$projectNameLowerCase"
+            Data = "$($global:AzureProjects.Location.Data)\$GroupName\$projectNameLowerCase"
+            Credentials = "$($global:AzureProjects.Location.Data)\$GroupName\$projectNameLowerCase"
         }
         Project = @{
             Name = $projectNameLowerCase
