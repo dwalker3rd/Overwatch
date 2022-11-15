@@ -27,8 +27,9 @@ function Copy-File {
     Param (
         [Parameter(Mandatory=$true,Position=0)][string]$Path,
         [Parameter(Mandatory=$false,Position=1)][string]$Destination,
-        # [Parameter(Mandatory=$false)][ValidateSet("Core","OS","Platform","Product","Provider")][string]$Component,
-        # [Parameter(Mandatory=$false)][Alias("Core","OS","Platform","Product","Provider")][string]$Name,
+        [Parameter(Mandatory=$false)][string]$Component,
+        [Parameter(Mandatory=$false)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$Family,
         [switch]$Quiet,
         [switch]$ConfirmOverwrite,
         [switch]$ConfirmCopy,
@@ -59,54 +60,72 @@ function Copy-File {
 
             #region DETERMINE COMPONENT AND NAME
 
-                $Component = @()
-                $Name = @()
-                $Family = @()
+                $components = @()
+                $names = @()
+                $families = @()
 
-                # parse $pathFile for source subdirectories indicating component and name                
-                $pathKeys = @()
-                $pathKeys += ($pathFile | Split-Path -Parent).Replace("$($global:Location.Root)\source\","",1) -Split "\\"
-                if (!$pathKeys[1]) { $pathKeys += ($pathFile | Split-Path -LeafBase).Replace("-template","") }
+                if ($Component) {
 
-                # if the subdirectory is "services", then search the catalog for the component and name/family
-                if (("services") -icontains $pathKeys[0]) {
-                    foreach ($key in $global:Catalog.Keys) {
-                        foreach ($subkey in $global:Catalog.$key.Keys) {
-                            if ($subkey -in $global:Environ.$key) {
-                                if ($global:Catalog.$key.$subkey.Installation.Prerequisite.Service -eq $pathKeys[1]) {
-                                    $Component += $key
-                                    $Name += $subkey
-                                    if ($global:Catalog.$key.$subkey.Family) {
-                                        $Family += $global:Catalog.$key.$subkey.Family
+                    $components += $Component
+                    $names += ![string]::IsNullOrEmpty($Name) ? $Name : @()
+                    $families += ![string]::IsNullOrEmpty($Family) ? $Family : @()
+
+                }
+                else {
+
+                    # parse $pathFile for source subdirectories indicating component and name                
+                    $pathKeys = @()
+                    $pathKeys += ($pathFile | Split-Path -Parent).Replace("$($global:Location.Root)\source\","",1) -Split "\\"
+                    if (!$pathKeys[1]) { $pathKeys += ($pathFile | Split-Path -LeafBase).Replace("-template","") }
+
+                    # if the subdirectory is "services", then search the catalog for the component and name/family
+                    if (("services") -icontains $pathKeys[0]) {
+                        foreach ($key in $global:Catalog.Keys) {
+                            foreach ($subkey in $global:Catalog.$key.Keys) {
+                                # if ($subkey -in $global:Environ.$key) {
+                                    foreach ($service in $global:Catalog.$key.$subkey.Installation.Prerequisite.Service) {
+                                        if ($service -eq $pathKeys[1]) {
+                                            $components += $global:Catalog.Keys | Where-Object {$_ -eq $key}
+                                            $names += $global:Catalog.$key.Keys | Where-Object {$_ -eq $subKey}
+                                            if ($global:Catalog.$key.$subkey.Family) {
+                                                $families += $global:Catalog.$key.$subkey.Family
+                                            }
+                                        }
                                     }
-                                }
+                                # }
                             }
                         }
                     }
-                }
-                # otherwise use the parsed $pathFile and capitalize the component and name
-                else {
-                    $Component += (Get-Culture).TextInfo.ToTitleCase($pathKeys[0])
-                    $Name += (Get-Culture).TextInfo.ToTitleCase($pathKeys[1])
+                    # otherwise use the parsed $pathFile and capitalize the component and name
+                    else {
+                        $key = $pathKeys[0]
+                        $subKey = $pathKeys[1]
+                        $components += $global:Catalog.Keys | Where-Object {$_ -eq $key}
+                        $names += $global:Catalog.$key.Keys | Where-Object {$_ -eq $subKey}
+                    }
+
                 }
 
                 # case and spelling corrections
-                $Component = switch ($Component) {
-                    "Environ" { "Core" }
-                    "Providers" { "Provider" }
-                    default { $_ }
-                }
-                $Name = ($global:Environ.OS | Where-Object {$_ -eq $Name}) ?? $Name
-                $Name = ($global:Environ.Platform | Where-Object {$_ -eq $Name}) ?? $Name
-                $Name = ($global:Environ.Product | Where-Object {$_ -eq $Name}) ?? $Name
-                $Name = ($global:Environ.Provider | Where-Object {$_ -eq $Name}) ?? $Name
+                $components = 
+                    foreach ($component in $components) {
+                        switch ($component) { 
+                            "Environ" { "Core" } 
+                            "Providers" { "Provider" } 
+                            default {$_} 
+                        }
+                    }
+                $names = ($global:Environ.OS | Where-Object {$_ -in $names}) ?? $names
+                $names = ($global:Environ.Platform | Where-Object {$_ -in $names}) ?? $names
+                $names = ($global:Environ.Product | Where-Object {$_ -in $names}) ?? $names
+                $names = ($global:Environ.Provider | Where-Object {$_ -in $names}) ?? $names
 
                 # if component/name/family are arrays, sort uniquely and comma-separate
-                $Component = ($Component | Sort-Object -Unique) -join ","
-                $Name = ($Name | Sort-Object -Unique) -join ","
-                $Family = $Family.Count -gt 0 ? ($Family | Sort-Object -Unique) -join "," : $null
+                $Component = ($components | Sort-Object -Unique) -join ","
+                $Name = ($names | Sort-Object -Unique) -join ","
+                $Family = $families.Count -gt 0 ? ($families | Sort-Object -Unique) -join "," : $null
 
-                $familyOrName = $Family ?? $Name
+                $familyOrName = ![string]::IsNullOrEmpty($Family) ? $Family : $Name
                 # Write-Host+ -NoTrace -NoTimestamp "[$Component`:$familyOrName] $pathFile" -ForegroundColor DarkGray
 
             #endregion DETERMINE COMPONENT AND NAME
@@ -809,18 +828,18 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                                         Product = $product.id
                                         Dependency = $prerequisiteProduct
                                     }
-                                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
-                                        foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
-                                            # if ($prerequisiteService -notin $productSpecificServices) {
-                                                $productSpecificServices += @{
-                                                    Product = $prerequisiteProduct
-                                                    Service = $prerequisiteService
-                                                }
-                                            # }
-                                        }
-                                    }
                                 }
                             }
+                        }
+                    }
+                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
+                        foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
+                            # if ($prerequisiteService -notin $productSpecificServices) {
+                                $productSpecificServices += @{
+                                    Product = $product.id
+                                    Service = $prerequisiteService
+                                }
+                            # }
                         }
                     }
                 }
@@ -831,7 +850,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                     foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
                         # if ($prerequisiteService -notin $productSpecificServices) {
                             $productSpecificServices += @{
-                                Product = $product.Name
+                                Product = $product.id
                                 Service = $prerequisiteService
                             }
                         # }
@@ -889,6 +908,8 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                         $_providerIds += $provider.Id
                     }
                 }
+
+                
             }
         }
     }
@@ -948,7 +969,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             $environFileContent = ($environFileContent -replace "<providerIds>", "'$($environProviderIds -join "', '")'") -replace "'",'"'
             $environFileContent = $environFileContent -replace "<imagesUri>", $imagesUri
             $environFileContent | Set-Content -Path $tempFile           
-            $environFile = Copy-File $tempFile $targetFile -WhatIf -Quiet
+            $environFile = Copy-File $tempFile $targetFile -Component Environ -WhatIf -Quiet
             $environFileUpdated = $false
             if ($environFile) {
                 $environFile.Component = "Core"
@@ -995,8 +1016,10 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
 
             $productSpecificServiceFiles = @()
             foreach ($productSpecificService in $productSpecificServices) {
-                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
-                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
+                if (Test-Path "$PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1") {
+                    $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
+                }
+                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -Component Product -Name $productSpecificService.Product -WhatIf
             }
             foreach ($productSpecificServiceFile in $productSpecificServiceFiles) {
                 if ($productSpecificServiceFile.Source.FullName -notin $productFiles.Source.FullName) {
@@ -1194,11 +1217,16 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
                 $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -ConfirmCopy)
                 $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -ConfirmCopy)
                 if ($productFileUpdated) {
-                    $contentLine1 = ". `$definitionsPath\definitions-service-$($productSpecificService.Service.ToLower()).ps1"
-                    $contentLine2 = ". `$servicesPath\services-$($productSpecificService.Service.ToLower()).ps1"
-                    if (!(Select-String -Path $definitionsServices -Pattern $contentLine1 -SimpleMatch -Quiet)) {
-                        Add-Content -Path $definitionsServices -Value $contentLine1
-                        Add-Content -Path $definitionsServices -Value $contentLine2
+                    if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1") {
+                        $contentLine = ". `$definitionsPath\definitions-service-$($productSpecificService.Service.ToLower()).ps1"
+                        if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
+                            Add-Content -Path $definitionsServices -Value $contentLine
+                            $definitionsServicesUpdated = $true
+                        }
+                    }
+                    $contentLine = ". `$servicesPath\services-$($productSpecificService.Service.ToLower()).ps1"
+                    if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
+                        Add-Content -Path $definitionsServices -Value $contentLine
                         $definitionsServicesUpdated = $true
                     }
                 }
@@ -1449,6 +1477,30 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
 
         #endregion CONFIG
+        #region PROVIDERS
+
+            if ($providerIds) {
+                    
+                Write-Host+ -MaxBlankLines 1
+                $message = "<Providers <.>48> INSTALLING"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+                Write-Host+
+
+                $message = "  Provider            Publisher           Status"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+                $message = "  --------            ---------           ------"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
+
+                $providerIds | ForEach-Object { Install-Provider $_ }
+                
+                # Write-Host+ -MaxBlankLines 1
+                # $message = "<Providers <.>48> INSTALLED"
+                # Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+                Write-Host+
+
+            }
+
+        #endregion PROVIDERS        
         #region PRODUCTS
 
             if ($productIds) {
@@ -1488,30 +1540,6 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
             }
 
         #endregion PRODUCTS
-        #region PROVIDERS
-
-            if ($providerIds) {
-                
-                Write-Host+ -MaxBlankLines 1
-                $message = "<Providers <.>48> INSTALLING"
-                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
-                Write-Host+
-
-                $message = "  Provider            Publisher           Status"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
-                $message = "  --------            ---------           ------"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
-
-                $providerIds | ForEach-Object { Install-Provider $_ }
-                
-                # Write-Host+ -MaxBlankLines 1
-                # $message = "<Providers <.>48> INSTALLED"
-                # Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
-                Write-Host+
-
-            }
-
-        #endregion PROVIDERS
         #region SAVE SETTINGS
 
             if (Test-Path $installSettings) {Clear-Content -Path $installSettings}

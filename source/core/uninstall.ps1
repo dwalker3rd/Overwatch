@@ -41,11 +41,44 @@ function Remove-ProductFiles {
     Remove-Files $PSScriptRoot\definitions\definitions-product-$($Product.ToLower()).ps1
     Remove-Files $PSScriptRoot\$($Product.ToLower()).ps1
 
-    $productSpecificServices = [array]($global:catalog.Product.$Product.Installation.Service)
-    foreach ($productSpecificService in $productSpecificServices) {
-        Remove-Files $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1
-        Remove-Files $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1
+    $allProductSpecificServices = @()
+    foreach ($key in $global:catalog.Product.Keys) {
+        if ($global:Catalog.Product.$key.Installation.Prerequisite.Service) {
+            if ((Get-Product $global:Catalog.Product.$key).IsInstalled) {
+                $allProductSpecificServices += $global:Catalog.Product.$key.Installation.Prerequisite.Service
+            }
+        }
     }
+    $allProductSpecificServices | Sort-Object -Unique | Where-Object {$_ -ne $Product}
+    $productSpecificServices = @()
+    foreach ($service in $global:catalog.Product.$Product.Installation.Prerequisite.Service) {
+        if ($service -notin $allProductSpecificServices) {
+            $productSpecificServices += $global:catalog.Product.$Product.Installation.Prerequisite.Service
+        }
+    }
+
+    $definitionsServices = "$($global:Location.Definitions)\definitions-services.ps1"
+    $definitionsServicesFile = Get-Content -Path $definitionsServices
+    foreach ($productSpecificService in $productSpecificServices) {
+        if (Test-Path "$($global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1") {
+            Remove-Files $($global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1
+            $contentLine = '. \$definitionsPath\\definitions-service-' + $productSpecificService.Service.ToLower() + '.ps1'
+            foreach ($line in $definitionsServicesFile) {
+                if ($line -match $contentLine) {
+                    $definitionsServicesFile = $definitionsServicesFile | Where-Object {$_ -ne $line}
+                }
+            }
+        }
+        Remove-Files $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1
+        $contentLine = '. \$servicesPath\\services-' + $productSpecificService.ToLower() + '.ps1'  # string must be in single quotes b/c of $ character
+        foreach ($line in $definitionsServicesFile) {
+            if ($line -match $contentLine) {
+                $definitionsServicesFile = $definitionsServicesFile | Where-Object {$_ -ne $line}
+            }
+        }
+        
+    }
+    $definitionsServicesFile | Set-Content -Path $definitionsServices
 
 }
 
@@ -105,7 +138,7 @@ function Update-Environ {
     )
     
     $environItems = Select-String $PSScriptRoot\environ.ps1 -Pattern "$Type = " -Raw
-    $updatedEnvironItems = $environItems.Replace("`"$Name`"","").Replace(", ,",",").Replace(", )",")")
+    $updatedEnvironItems = $environItems.Replace("`"$Name`"","").Replace(", ,",",").Replace("(, ","(").Replace(", )",")")
     $content = Get-Content $PSScriptRoot\environ.ps1 
     $newContent = $content | Foreach-Object {$_.Replace($environItems,$updatedEnvironItems)}
     Set-Content $PSScriptRoot\environ.ps1 -Value $newContent
@@ -157,7 +190,7 @@ function Uninstall-Product {
 
     if (Test-Path -Path $PSScriptRoot\install\uninstall-product-$($productToUninstall.Id).ps1) {. $PSScriptRoot\install\uninstall-product-$($productToUninstall.Id).ps1}
 
-    if ($(Get-PlatformTask -Id $Product)) {
+    if ($productToUninstall.HasTask -and $(Get-PlatformTask -Id $Product)) {
         
         $message = "$($emptyString.PadLeft(40,"`b"))STOPPING$($emptyString.PadLeft(12," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor DarkYellow
