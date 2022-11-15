@@ -215,6 +215,21 @@ $global:Catalog.Product += @{ StartRMTAgents =
     }
 }
 
+$global:Catalog.Product += @{ AzureProjects = 
+    [Product]@{
+        Id = "AzureProjects"
+        Name = "AzureProjects"
+        DisplayName = "AzureProjects"
+        Description = "Manages Azure projects based on resource groups."
+        Publisher = "Overwatch"
+        Installation = @{
+            Prerequisite = @{
+                Service = @("Azure")
+            }
+        }
+    }
+}
+
 $global:Catalog.Provider += @{ SMTP = 
     [Provider]@{
         Id = "SMTP"
