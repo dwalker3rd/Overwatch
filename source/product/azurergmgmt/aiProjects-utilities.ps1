@@ -310,12 +310,12 @@ function global:New-AiProject {
         Write-Host+ -NoTrace "`$global:AiProject has not been initialized for project $($ProjectName)" -ForegroundColor DarkRed
     }
     
-    $message = "  Resource creation : PENDING" 
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<  Resource creation <.>60> PENDING" 
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     Write-Host+
 
-    $message = "    ResourceGroup/:$($global:AiProject.ResourceType.ResourceGroup.Name) : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length - ($message.Split(":")[1]).Length)),$message.Split(":")[2] -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+    $message = "<    ResourceGroup/:$($global:AiProject.ResourceType.ResourceGroup.Name) <.>60> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
     $resourceGroup = Get-AzResourceGroup -Name $global:AiProject.ResourceType.ResourceGroup.Name 
     if ($resourceGroup) {
         $message = "$($emptyString.PadLeft(8,"`b")) Exists$($emptyString.PadLeft(8," "))"
@@ -327,8 +327,8 @@ function global:New-AiProject {
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
     }
 
-    $message = "    StorageAccount/:$($global:AiProject.ResourceType.StorageAccount.Name) : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length - ($message.Split(":")[1]).Length)),$message.Split(":")[2] -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+    $message = "<    StorageAccount/:$($global:AiProject.ResourceType.StorageAccount.Name) <.>60> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
     $storageAccount = Get-AzStorageAccount -ResourceGroupName $global:AiProject.ResourceType.ResourceGroup.Name -Name $global:AiProject.ResourceType.StorageAccount.Name -ErrorAction SilentlyContinue
     if ($storageAccount) {
         $message = "$($emptyString.PadLeft(8,"`b")) Exists$($emptyString.PadLeft(8," "))"
@@ -344,8 +344,8 @@ function global:New-AiProject {
     if ($StorageContainerName -ne $global:AiProject.ResourceType.StorageContainer.Name) {
         $global:AiProject.ResourceType.StorageContainer.Name = $StorageContainerName
     }
-    $message = "    StorageContainer/:$StorageContainerName : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length - ($message.Split(":")[1]).Length)),$message.Split(":")[2] -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+    $message = "<    StorageContainer/:$StorageContainerName <.>60> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
     $storageAccountContext = New-AzStorageContext -StorageAccountName $global:AiProject.ResourceType.StorageAccount.Name -UseConnectedAccount -ErrorAction SilentlyContinue
     $storageContainer = Get-AzStorageContainer -Context $storageAccountContext -Name $StorageContainerName -ErrorAction SilentlyContinue
     if ($storageContainer) {
@@ -360,8 +360,8 @@ function global:New-AiProject {
     }
     
     Write-Host+
-    $message = "  Resource creation : SUCCESS" 
-    Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+    $message = "<  Resource creation <.>60> SUCCESS" 
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
     
 }
 Set-Alias -Name aiProjNew -Value New-AiProject -Scope Global
@@ -373,8 +373,8 @@ function global:Convert-AiProjectImportFile {
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
-    $message = "  Import File Conversion : PENDING"
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<  Import File Conversion <.>60> PENDING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $originalImport = "$($global:AiProject.Location.Data)\$ProjectName-roleAssignments.csv"
     if (!(Test-Path $originalImport)) {
@@ -430,17 +430,19 @@ function global:Grant-AiProjectRole {
         default = 999
     }
 
-    $message = "  Options : Description"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
-    $message = "  ------- : -----------"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
+    Write-Host+
 
-    $message = "  -User : Processes only the specified user (object id, upn or email)."
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
-    $message = "  -ReferencedResourcesOnly : Improves performance, but cannot remove obsolete/invalid role assignments."
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
-    $message = "  -RemoveUnauthorizedRoleAssignments : Removes role assignments not explicity specified in the import files."
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
+    $message = "<  Options < >40> Description"
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+    $message = "<  ------- < >40> -----------"
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+
+    $message = "<  -User < >40> Processes only the specified user (object id, upn or email)."
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+    $message = "<  -ReferencedResourcesOnly < >40> Improves performance, but cannot remove obsolete/invalid role assignments."
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+    $message = "<  -RemoveUnauthorizedRoleAssignments < >40> Removes role assignments not explicity specified in the import files."
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     Write-Host+
 
     if ($User -and $RemoveUnauthorizedRoleAssignments) {
@@ -499,8 +501,8 @@ function global:Grant-AiProjectRole {
 
     #region DATAFILES
 
-        $message = "  Data validation : PENDING"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<  Data validation <.>60> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
         $UserImport = "$($global:AiProject.Location.Data)\$ProjectName-users-import.csv"
@@ -591,34 +593,34 @@ function global:Grant-AiProjectRole {
             Write-Host+ 
 
             $message = "    SignInName : Status   : Source"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
+            Write-Host+ -NoTrace $message.Split(":")[0],(Format-Leader -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
             $message = "    ---------- : ------   : ------"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
+            Write-Host+ -NoTrace $message.Split(":")[0],(Format-Leader -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
 
             foreach ($missingUser in $missingUsers) {
                 $message = "    $($missingUser.signInName) | MISSING  | $($missingUser.source)"
-                Write-Host+ -NoTrace  -NoSeparator $message.Split("|")[0],(Write-Dots -Length 40 -Adjust (-($message.Split("|")[0]).Length) -Character " "),$message.Split("|")[1],$message.Split("|")[2] -ForegroundColor DarkGray,DarkGray,DarkRed,DarkGray
+                Write-Host+ -NoTrace  $message.Split("|")[0],(Format-Leader -Length 40 -Adjust (-($message.Split("|")[0]).Length) -Character " "),$message.Split("|")[1],$message.Split("|")[2] -ForegroundColor DarkGray,DarkGray,DarkRed,DarkGray
             }
 
             Write-Host+
-            $message = "  Data validation : FAILURE"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkRed
+            $message = "<  Data validation <.>60> FAILURE"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
 
             return
             
         }
 
         Write-Host+
-        $message = "  Data validation : SUCCESS"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<  Data validation <.>60> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion DATAFILES
     
     #region VERIFY RESOURCES
 
         Write-Host+
-        $message = "  Resource verification : PENDING"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray
+        $message = "<  Resource verification <.>60> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
         foreach ($resource in $resources) {
@@ -721,16 +723,16 @@ function global:Grant-AiProjectRole {
         }
 
         Write-Host+
-        $message = "  Resource verification : SUCCESS"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<  Resource verification <.>60> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion VERIFY RESOURCES
 
     #region VERIFY USERS
 
         Write-Host+
-        $message = "  User verification : PENDING"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray   
+        $message = "<  User verification <.>60> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray   
         Write-Host+ 
 
         $signInNames = @()
@@ -777,14 +779,14 @@ function global:Grant-AiProjectRole {
         $members += $unauthorizedProjectUsers | Where-Object {$_.userType -eq "Member"} 
         if ($members) {
 
-            $message = "    Member : Status"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
-            $message = "    ------ : ------"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
+            $message = "<    Member < >40> Status"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
+            $message = "<    ------ < >40> ------"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
 
             foreach ($member in $members) {
-                $message = $member.authorized ? "    $($member.mail) : Verified" : "    $($member.mail) : *** $($member.reason) ***"
-                Write-Host+ -NoTrace  -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor ($member.authorized ? "DarkGray" : "DarkRed")
+                $message = $member.authorized ? "<    $($member.mail) < >40> Verified" : "<    $($member.mail) < >40> *** $($member.reason) ***"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor ($member.authorized ? "DarkGray" : "DarkRed")
             }
             
             Write-Host+
@@ -796,30 +798,30 @@ function global:Grant-AiProjectRole {
         $guests += $unauthorizedProjectUsers | Where-Object {$_.userType -ne "Member"} 
         if ($guests) {
 
-            $message = "    Guest : Status   Date"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
-            $message = "    ----- : ------   ----"
-            Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray
+            $message = "<    Guest < >40> Status   Date"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
+            $message = "<    ----- < >40> ------   ----"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
 
-            foreach ($signInName in $signInNames) {
+            foreach ($signInName in $signInNames | Where-Object {$_ -notin $members.mail}) {
 
                 $guest = $guests | Where-Object {$_.mail -eq $signInName}
 
-                $message = "    $($guest.mail) "
-                Write-Host+ -NoTrace -NoNewLine -NoSeparator $message,(Write-Dots -Length 40 -Adjust (-($message.Length))) -ForegroundColor DarkGray
+                $message = "<    $($guest.mail) < >40> "
+                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray
             
                 if (!$guest) {
                     $fullName = ($users | Where-Object {$_.signInName -eq $signInName})[0].fullName
                     $invitation = Send-AzureADInvitation -Tenant $tenantKey -Email $signInName -DisplayName $fullName -Message $global:AiProject.AzureAD.Invitation.Message
                     $invitation | Out-Null
-                    Write-Host+ -NoTrace -NoTimeStamp " Invitation sent" -ForegroundColor DarkGreen
+                    Write-Host+ -NoTrace -NoTimeStamp "Invitation sent" -ForegroundColor DarkGreen
                 }
                 else {
                     $externalUserState = $guest.externalUserState -eq "PendingAcceptance" ? "Pending " : $guest.externalUserState
                     $externalUserStateChangeDateTime = $guest.externalUserStateChangeDateTime
                     $externalUserStateChangeDateString = $externalUserStateChangeDateTime.ToString("u").Substring(0,10)
                     $externalUserStateColor = $externalUserState -eq "Pending " ? "DarkYellow" : "DarkGray"
-                    $message = " $externalUserState $externalUserStateChangeDateString"
+                    $message = "$externalUserState $externalUserStateChangeDateString"
                     Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor $externalUserStateColor
 
                     if (!$guest.authorized) {
@@ -833,8 +835,8 @@ function global:Grant-AiProjectRole {
         }
 
         Write-Host+
-        $message = "  User verification : SUCCESS"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<  User verification <.>60> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion VERIFY USERS
 
@@ -903,23 +905,23 @@ function global:Grant-AiProjectRole {
         }
 
         Write-Host+
-        $message = "  Role assignment : PENDING"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGray 
+        $message = "<  Role assignment <.>60> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
         # Write-Host+
 
         Write-Host+
-        $message = "    Example : Status"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "    ------- : ------"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1] -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "    Reader : Current"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character "."),$message.Split(":")[1] -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "    ^Reader : Inherited"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character "."),$message.Split(":")[1] -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "    +Reader : Added"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character "."),$message.Split(":")[1] -ForegroundColor DarkGreen, DarkGray, DarkGray
-        $message = "    -Reader : Removed"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character "."),$message.Split(":")[1] -ForegroundColor DarkRed, DarkGray, DarkGray
+        $message = "<    Example < >40> Status"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+        $message = "<    ------- < >40> ------"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+        $message = "<    Reader <.>40> Current"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+        $message = "<    ^Reader <.>40> Inherited"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+        $message = "<    +Reader <.>40> Added"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGreen, DarkGray, DarkGray
+        $message = "<    -Reader <.>40> Removed"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkRed, DarkGray, DarkGray
         Write-Host+
 
         foreach ($signInName in $signInNames) {
@@ -969,22 +971,23 @@ function global:Grant-AiProjectRole {
                     $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : ($global:AiProject.ResourceType.($resourceType).Scope).split("/")[-1]
                     $resourceScope = Get-AiProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName
 
-                    $message = "    $($resourceType)/$($resourceName)"
-                    $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "    
+                    $message = "<    $($resourceType)/$($resourceName)"
+                    $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " <.>60> "    
 
                     $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn  | Sort-Object -Property Scope
                     if ($currentRoleAssignments) {
-                        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
+                        # Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
                         foreach ($currentRoleAssignment in $currentRoleAssignments) {
-                            $message = $currentRoleAssignment.RoleDefinitionName
                             if ($currentRoleAssignment.Scope -ne $resourceScope -and $resourceScope -like "$($currentRoleAssignment.Scope)*") {
-                                $message = "^" + $message
+                                $message += "^"
                             }
+                            $message += $currentRoleAssignment.RoleDefinitionName
                             if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
                                 $message += ", "
                             }
-                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                            # Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
                         }
+                        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray 
                     }
                     $rolesWrittenCount = $currentRoleAssignments.Count
 
@@ -994,7 +997,7 @@ function global:Grant-AiProjectRole {
                     }
                     if ($requiredRoleAssignments) {
                         if (!$currentRoleAssignments) {
-                            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
+                            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
                         }
                         foreach ($roleAssignment in $requiredRoleAssignments) {
                             $currentRoleAssignment = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role
@@ -1048,8 +1051,8 @@ function global:Grant-AiProjectRole {
 
         }
 
-        $message = "  Role assignment : SUCCESS"
-        Write-Host+ -NoTrace -NoSeparator $message.Split(":")[0],(Write-Dots -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<  Role assignment <.>60> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion ROLEASSIGNMENT
 
