@@ -683,7 +683,7 @@ function global:Request-RMTAgents {
 
             # enable agent service before start
             if ($Command -eq "Start") {
-                Request-RMTService -Context $Context -Command "Enable" -Name "TableauResourceMonitoringToolAgent" -Alias "RMT Agent" -Computername $targetAgents.Name
+                Request-RMTService -Context $Context -Command "Enable" -Name "TableauResourceMonitoringToolAgent" -Alias "RMT Agent" -Computername $targetAgents.Name -Reason $Reason
             }
 
             # start/stop agent service
@@ -691,7 +691,7 @@ function global:Request-RMTAgents {
 
             # disable agent service after stop
             if ($Command -eq "Stop") {
-                Request-RMTService -Context $Context -Command "Disable" -Name "TableauResourceMonitoringToolAgent" -Alias "RMT Agent" -Computername $targetAgents.Name
+                Request-RMTService -Context $Context -Command "Disable" -Name "TableauResourceMonitoringToolAgent" -Alias "RMT Agent" -Computername $targetAgents.Name -Reason $Reason
             }
 
         }
