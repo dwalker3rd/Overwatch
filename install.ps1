@@ -1242,7 +1242,7 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
     $requiredModules = @("PsIni")
     foreach ($module in $requiredModules) {
         if (!(Get-Module -Name $module -ErrorAction SilentlyContinue | Out-Null)) {
-            Install-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
+            Install-Module -Name $module -Force -ErrorAction SilentlyContinue | Out-Null
             Import-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
         }
     }

@@ -10,7 +10,7 @@ $Publisher = $product.Publisher
 $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
-Copy-File $PSScriptRoot\source\product\$($product.Id.ToLower())\definitions-product-$($product.Id.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-product-$($product.Id.ToLower()).ps1 -Quiet
+Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\definitions-product-$($product.Id.ToLower())-template.ps1" "$($global:Location.Root)\definitions\definitions-product-$($product.Id.ToLower()).ps1" -Quiet
 
 $productTask = Get-PlatformTask "Monitor"
 if (!$productTask) {
