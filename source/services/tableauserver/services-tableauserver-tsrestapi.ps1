@@ -230,6 +230,13 @@ function global:Initialize-TSRestApiConfiguration {
     $global:tsRestApiConfig.Platform.Build = $serverinfo.productVersion.build
     $global:tsRestApiConfig.Platform.DisplayName = $global:tsRestApiConfig.Platform.Name + " " + $global:tsRestApiConfig.Platform.Version
 
+    $platformInfo = @{
+        Version=$global:Platform.Version
+        Build=$global:Platform.Build
+        TsRestApiVersion=$global:Platform.Api.TsRestApiVersion
+    }
+    $platformInfo | Write-Cache platforminfo
+
     Update-TSRestApiMethods
     
     return
