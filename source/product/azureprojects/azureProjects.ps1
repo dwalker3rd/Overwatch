@@ -23,12 +23,15 @@ function Initialize-AiProject {
 
     $global:AzureProjects = @{
         Location = @{
-            Data = "$($global:Location.Root)\azure\data\$GroupName"
-            Credentials = "$($global:Location.Root)\azure\data\$GroupName"
+            Data = "$($global:Location.Root)\data\azure\$GroupName"
+            Credentials = "$($global:Location.Root)\data\azure\$GroupName"
         }
     }
+    if (!(Test-Path -Path "$($global:Location.Root)\data\azure")) {
+        New-Item -Path "$($global:Location.Root)\data" -Name "azure" -ItemType "directory" | Out-Null
+    }
     if (!(Test-Path -Path $global:AzureProjects.Location.Data)) {
-        New-Item -Path "$global:AzureProjects.Location.Data" -Name "$GroupName" -ItemType "directory" | Out-Null
+        New-Item -Path "$($global:Location.Root)\data\azure" -Name "$GroupName" -ItemType "directory" | Out-Null
     }
 
     $prefixIni = "$($global:AzureProjects.Location.Data)\$projectNameLowerCase\$projectNameLowerCase-prefix.ini"
@@ -124,10 +127,6 @@ function Initialize-AiProject {
                 Object = $null
             }
         }
-    }
-    
-    if (!(Test-Path -Path $global:AzureProject.Location.Data)) {
-        New-Item -Path $global:AzureProjects.Location.Data -Name $projectNameLowerCase -ItemType "directory" | Out-Null
     }
 
     Get-AiProjectResourceScopes -Tenant $tenantKey
