@@ -1,4 +1,20 @@
+#Requires -RunAsAdministrator
+#Requires -Version 7
+
+$global:DebugPreference = "SilentlyContinue"
+$global:InformationPreference = "Continue"
+$global:VerbosePreference = "SilentlyContinue"
+$global:WarningPreference = "Continue"
+$global:ProgressPreference = "SilentlyContinue"
+$global:PreflightPreference = "SilentlyContinue"
+$global:PostflightPreference = "SilentlyContinue"
+
+$global:Product = @{Id="AzureProjects"}
+. $PSScriptRoot\definitions.ps1
+
 function Initialize-AiProject {
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
     [CmdletBinding()]
     param(
