@@ -65,8 +65,8 @@ function Initialize-AiProject {
 
     $global:AzureProject = @{
         Location = @{
-            Data = "$($global:AzureProjects.Location.Data)\$GroupName\$projectNameLowerCase"
-            Credentials = "$($global:AzureProjects.Location.Data)\$GroupName\$projectNameLowerCase"
+            Data = "$($global:AzureProjects.Location.Data)\$projectNameLowerCase"
+            Credentials = "$($global:AzureProjects.Location.Data)\$projectNameLowerCase"
         }
         Project = @{
             Name = $projectNameLowerCase
