@@ -3,7 +3,8 @@
 
 param(
     [Parameter(Mandatory=$false,Position=0)][ValidateSet("Provider","Product")][string]$Type,
-    [Parameter(Mandatory=$false,Position=1)][string]$Name
+    [Parameter(Mandatory=$false,Position=1)][string]$Name,
+    [switch]$Force
 )
 
 $global:DebugPreference = "SilentlyContinue"
@@ -44,12 +45,12 @@ function Remove-ProductFiles {
     $allProductSpecificServices = @()
     foreach ($key in $global:catalog.Product.Keys) {
         if ($global:Catalog.Product.$key.Installation.Prerequisite.Service) {
-            if ((Get-Product $global:Catalog.Product.$key).IsInstalled) {
+            if ((Get-Product $global:Catalog.Product.$key.Id).IsInstalled) {
                 $allProductSpecificServices += $global:Catalog.Product.$key.Installation.Prerequisite.Service
             }
         }
     }
-    $allProductSpecificServices | Sort-Object -Unique | Where-Object {$_ -ne $Product}
+    # $allProductSpecificServices | Sort-Object -Unique 
     $productSpecificServices = @()
     foreach ($service in $global:catalog.Product.$Product.Installation.Prerequisite.Service) {
         if ($service -notin $allProductSpecificServices) {
@@ -149,14 +150,15 @@ function Uninstall-Provider {
 
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Provider
+        [Parameter(Mandatory=$true,Position=0)][string]$Provider,
+        [switch]$Force
     )
 
     $providerToUninstall = Get-Provider $Provider
-    if ($providerToUninstall.Installation.Flag -eq "UninstallProtected") { return }
+    if (!$Force -and $providerToUninstall.Installation.Flag -eq "UninstallProtected") { return }
 
-    $Name = $providerToUninstall.Name 
-    $Publisher = $providerToUninstall.Publisher
+    $Name = $providerToUninstall.Name ?? $Provider
+    $Publisher = $providerToUninstall.Publisher ?? $global:Catalog.Provider.$Provider.Publisher
 
     $message = "    $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING"
     Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
@@ -176,14 +178,15 @@ function Uninstall-Product {
 
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Product
+        [Parameter(Mandatory=$true,Position=0)][string]$Product,
+        [switch]$Force
     )
 
     $productToUninstall = Get-Product $Product
-    if ($productToUninstall.Installation.Flag -eq "UninstallProtected") { return }
+    if (!$Force -and $productToUninstall.Installation.Flag -eq "UninstallProtected") { return }
     
-    $Name = $productToUninstall.Name 
-    $Publisher = $productToUninstall.Publisher
+    $Name = $productToUninstall.Name ?? $Product
+    $Publisher = $productToUninstall.Publisher ?? $global:Catalog.Product.$Product.Publisher
 
     $message = "    $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
     Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
@@ -221,21 +224,46 @@ function Uninstall-Product {
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
     }
     else {
-        $message = "$($emptyString.PadLeft(40,"`b"))N/A$($emptyString.PadLeft(17," "))","UNINSTALLED"
+        $message = "$($emptyString.PadLeft(20,"`b"))N/A$($emptyString.PadLeft(17," "))","UNINSTALLED"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGray, DarkGreen
     }
 
 }
 
 function Uninstall-Platform {
+
+    [CmdletBinding()]
+    Param (
+        [switch]$Force
+    )
+
     Remove-PlatformInstanceFiles
     Remove-PlatformFiles
     Remove-Files "$($global:Location.Data)\*.cache"
+
 }
 
-function Uninstall-OS { Remove-OSFiles }
+function Uninstall-OS { 
 
-function Uninstall-Overwatch { Remove-CoreFiles }
+    [CmdletBinding()]
+    Param (
+        [switch]$Force
+    )
+
+    Remove-OSFiles 
+
+}
+
+function Uninstall-Overwatch { 
+    
+    [CmdletBinding()]
+    Param (
+        [switch]$Force
+    )
+    
+    Remove-CoreFiles 
+
+}
 
 #region MAIN
 
@@ -250,9 +278,10 @@ function Uninstall-Overwatch { Remove-CoreFiles }
 
     if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
 
-        # this ensures the case is correct for the product
-        if ($Type -eq "Product") { $Name = (Get-Product $Name).Id }
-        if ($Type -eq "Provider") { $Name = (Get-Provider $Name).Id }
+        # this ensures the case is correct
+        $Type = (Get-Culture).TextInfo.ToTitleCase($Type)
+        if ($Type -eq "Product") { $Name = $global:Catalog.Product.Keys | Where-Object {$_ -eq $Name} }
+        if ($Type -eq "Provider") { $Name = $global:Catalog.Provider.Keys | Where-Object {$_ -eq $Name} }
 
         if ($global:Catalog.$Type.$Name.Installation.Flag -contains "UninstallProtected") {
             Write-Host+ -NoTrace "WARN: $Type `"$Name`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
@@ -261,7 +290,8 @@ function Uninstall-Overwatch { Remove-CoreFiles }
 
         if (!(Invoke-Expression "Get-$Type $Name -ResetCache").IsInstalled) {
             Write-Host+ -NoTrace "WARN: $Type `"$Name`" is NOT installed." -ForegroundColor DarkYellow
-            return
+            if (!$Force) { return }
+            Write-Host+
         }
 
         if ($Type -eq "Product") {
@@ -299,7 +329,9 @@ function Uninstall-Overwatch { Remove-CoreFiles }
             }
         }
 
-        Invoke-Expression "Uninstall-$Type $Name"
+        $expression = "Uninstall-$Type $Name"
+        $expression += $Force ? " -Force" : ""
+        Invoke-Expression $expression
 
         Write-Host+
         $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
