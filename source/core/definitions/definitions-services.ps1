@@ -18,7 +18,6 @@ if (Test-Path -Path $servicesPath\services-$($global:Environ.Platform)*.ps1) {
 }
 
 if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name).ps1) {. $servicesPath\services-$($global:Overwatch.Name).ps1}
-if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name)-install.ps1) {. $servicesPath\services-$($global:Overwatch.Name)-install.ps1}
 
 . $servicesPath\heartbeat.ps1
 . $servicesPath\files.ps1

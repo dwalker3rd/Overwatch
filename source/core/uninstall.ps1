@@ -18,6 +18,7 @@ $global:ConfirmPreference = "None"
 
 $global:Product = @{Id="Uninstall"}
 . $PSScriptRoot\definitions.ps1
+. $PSScriptRoot\services\services-overwatch-install.ps1
 
 $installSettingsFile = "$($global:Location.Root)\install\data\installSettings.ps1"
 

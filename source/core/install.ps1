@@ -533,12 +533,18 @@ Clear-Host
                 }
             }
 
-            $coreFiles += Copy-File $PSScriptRoot\source\core\definitions\catalog.ps1 $PSScriptRoot\definitions\catalog.ps1 -WhatIf
+            $files = (Get-ChildItem $PSScriptRoot\source\core\definitions -File).VersionInfo.FileName
+            foreach ($file in $files) { 
+                $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
+                if ($coreFile) {
+                    $coreFiles += $coreFile
+                }
+            }
 
             # if classes file is updated, then all cache will need to be deleted before Overwatch is initialized
             $classesFile = Copy-File $PSScriptRoot\source\core\definitions\classes.ps1 $PSScriptRoot\definitions\classes.ps1 -WhatIf
             $classesFileUpdated = $null -ne $classesFile
-            $coreFiles += $classesFile
+            # $coreFiles += $classesFile
 
             $files = (Get-ChildItem $PSScriptRoot\source\core\services -File -Recurse).VersionInfo.FileName
             foreach ($file in $files) { 
@@ -918,6 +924,8 @@ Clear-Host
     $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
+    . $PSScriptRoot\services\services-overwatch-install.ps1
+
 #endregion INITIALIZE OVERWATCH
 #region CREDENTIALS
 
@@ -1140,6 +1148,8 @@ Clear-Host
             
                 $message = "$($emptyString.PadLeft(9,"`b"))VERIFIED "
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+                . $PSScriptRoot\services\services-overwatch-install.ps1
 
             }
         
