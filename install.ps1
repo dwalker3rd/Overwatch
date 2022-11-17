@@ -224,7 +224,7 @@ function Install-Product {
 
     $productToInstall = (Get-Product $Context -ResetCache).Id ?? $Context
 
-    $productLogFile = ((Get-Catalog $productToInstall -Type "Product").Log).ToLower()
+    $productLogFile = (Get-Catalog $productToInstall -Type Product).Log ? ((Get-Catalog $productToInstall).Log).ToLower() : $Platform.Instance
     if (!(Test-Log -Name $productLogFile)) {
         New-Log -Name $productLogFile | Out-Null
     }
@@ -291,7 +291,7 @@ function Install-Provider {
 
     $providerToInstall = Get-Provider $ProviderName -ResetCache
 
-    $providerLogFile = ((Get-Catalog $providerToInstall.Id -Type "Provider").Log).ToLower()
+    $providerLogFile = (Get-Catalog $providerToInstall -Type Provider).Log ? ((Get-Catalog $providerToInstall).Log).ToLower() : $Platform.Instance
     if (!(Test-Log -Name $providerLogFile)) {
         New-Log -Name $providerLogFile | Out-Null
     }
