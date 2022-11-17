@@ -236,8 +236,11 @@ function global:Summarize-Log {
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$UseDefaultView,
         [switch]$Today,
-        [switch]$Yesterday
+        [switch]$Yesterday,
+        [Parameter(Mandatory=$false)][ValidateSet("All","Error","Warning","None")][string[]]$ShowIssues = "None"
     )
+
+    if ($ShowIssues -eq "All") { $ShowIssues = @("Error","Warning") }
 
     $defaultColor = $global:consoleSequence.BackgroundForegroundDefault
     
@@ -290,6 +293,7 @@ function global:Summarize-Log {
 
     $summary = @()
     $summaryFormatted = @()
+    $logEntries = @()
 
     foreach ($node in $ComputerName) {
         $logs = @() 
@@ -319,10 +323,18 @@ function global:Summarize-Log {
 
                 $logName = $log.FileNameWithoutExtension.ToLower()
 
-                $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
-                $infoCount = ($totals | Where-Object {$_.Name -eq "Information"}).Count ?? 0
-                $warningCount = ($totals | Where-Object {$_.Name -eq "Warning"}).Count ?? 0
-                $errorCount = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
+                # $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
+                # $infoCount = ($totals | Where-Object {$_.Name -eq "Information"}).Count ?? 0
+                # $warningCount = ($totals | Where-Object {$_.Name -eq "Warning"}).Count ?? 0
+                # $errorCount = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
+
+                $totals = [array]($logEntry | Group-Object -Property EntryType)
+                $infos = $totals | Where-Object {$_.Name -eq "Information"}
+                $infoCount = $infos.Count ?? 0
+                $warnings = $totals | Where-Object {$_.Name -eq "Warning"}
+                $warningCount = $warnings.Count ?? 0
+                $errors = $totals | Where-Object {$_.Name -eq "Error"}
+                $errorCount = $errors.Count ?? 0
 
                 # this is only used to determine max column width in the table headers below
                 $summary += [PSCustomObject]@{
@@ -355,6 +367,54 @@ function global:Summarize-Log {
                     Error = "$($errorColor)$($errorCount)$($defaultColor)"
                     MinTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u'))$($defaultColor)"
                     MaxTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
+                }
+
+                foreach ($_info in $infos.Group) {
+                    foreach ($key in $_info.psobject.properties.name) {
+                        $_info.$key = "$($infoColor)$($_info.$key)$($defaultColor)"
+                    }
+                    $logEntries += [PSCustomObject]@{
+                        node = $node
+                        logName = "$($infoColor)$($logName)$($defaultColor)"
+                        type = "Information"
+                        logEntry = $_info
+                    }
+                }
+                foreach ($_warning in $warnings.Group) {
+                    foreach ($key in $_warning.psobject.properties.name) {
+                        $_warning.$key = 
+                            switch ($key) {
+                                "ComputerName" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
+                                "EntryType" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
+                                # "Status" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
+                                "Message" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
+                                default { "$($global:consoleSequence.ForegroundDarkGrey)$($_warning.$key)$($defaultColor)" }
+                            }
+                    }
+                    $logEntries += [PSCustomObject]@{
+                        node = $node
+                        logName = "$($warningColor)$($logName)$($defaultColor)"
+                        type = "Warning"
+                        logEntry = $_warning
+                    }
+                }
+                foreach ($_error in $errors.Group) {
+                    foreach ($key in $_error.psobject.properties.name) {
+                        $_error.$key = 
+                            switch ($key) {
+                                "ComputerName" { "$($errorColor)$($_error.$key)$($defaultColor)" }
+                                "EntryType" { "$($errorColor)$($_error.$key)$($defaultColor)" }
+                                # "Status" { "$($errorColor)$($_error.$key)$($defaultColor)" }
+                                "Message" { "$($errorColor)$($_error.$key)$($defaultColor)" }
+                                default { "$($global:consoleSequence.ForegroundDarkGrey)$($_error.$key)$($defaultColor)" }
+                            }
+                    }
+                    $logEntries += [PSCustomObject]@{
+                        node = $node
+                        logName = "$($errorColor)$($logName)$($defaultColor)"
+                        type = "Error"
+                        logEntry = $_error
+                    }
                 }
 
             }
@@ -401,6 +461,18 @@ function global:Summarize-Log {
 
         }
 
+    }
+
+    if (![string]::IsNullOrEmpty($ShowIssues) -and $ShowIssues -ne "None") {
+        $logEntries = $logEntries | Where-Object {$_.type -in $ShowIssues}
+        Write-Host+ -NoTimestamp -NoTrace "   $($global:consoleSequence.ForegroundDarkGrey)Details: $($ShowIssues -join ", ")$($defaultColor)"
+        if ($logEntries.Count -gt 0) {
+            $logEntries | 
+                Select-Object logName -ExpandProperty logEntry |
+                    Select-Object ComputerName,logName,Index,TimeStamp,EntryType,Context,Action,Status,Target,Message | 
+                        Sort-Object -Property TimeStamp | 
+                            Format-Table # -HideTableHeaders
+        }
     }
 
 }
