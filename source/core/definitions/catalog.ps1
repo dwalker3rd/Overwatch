@@ -3,10 +3,20 @@
 # therefore the catalog may reference classes, but no references should be made to any other definitions
 
 $global:Catalog = @{}
+$global:Catalog.Overwatch = @{}
 $global:Catalog.OS = @{}
 $global:Catalog.Platform = @{}
 $global:Catalog.Product = @{}
 $global:Catalog.Provider = @{}
+
+$global:Catalog.Overwatch = 
+    [Overwatch]@{
+        Id = "Overwatch"
+        Name = "Overwatch"
+        DisplayName = "Overwatch 2.0"
+        Description = ""
+        Version = "2.0"
+    }
 
 $global:Catalog.OS += @{ WindowsServer = 
     [OS]@{
