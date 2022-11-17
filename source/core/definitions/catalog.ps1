@@ -3,15 +3,26 @@
 # therefore the catalog may reference classes, but no references should be made to any other definitions
 
 $global:Catalog = @{}
+$global:Catalog.OS = @{}
 $global:Catalog.Platform = @{}
-$global:Catalog.Product = [ordered]@{}
+$global:Catalog.Product = @{}
+$global:Catalog.Provider = @{}
+
+$global:Catalog.OS += @{ WindowsServer = 
+    [OS]@{
+        Id = "WindowsServer"
+        Name = "Windows Server"
+        DisplayName = "Windows Server"
+        Image = "../img/windows_server.png"  
+    }
+}
 
 $global:Catalog.Platform += @{ TableauServer = 
     [Platform]@{
         Id = "TableauServer"
         Name = "Tableau Server"
         DisplayName = "Tableau Server"
-        Image = "$($global:Location.Images)/tableau_sparkle.png"
+        Image = "../img/tableau_sparkle.png"
         Description = "Tableau Server"
         Publisher = "Tableau Software, LLC, A Salesforce Company"
         Api = @{
@@ -44,7 +55,7 @@ $global:Catalog.Platform += @{ TableauCloud =
         Id = "TableauCloud"
         Name = "Tableau Cloud"
         DisplayName = "Tableau Cloud"
-        Image = "$($global:Location.Images)/tableau_sparkle.png"
+        Image = "../img/tableau_sparkle.png"
         Description = "Tableau Cloud"
         Publisher = "Tableau Software, LLC, A Salesforce Company"
         Api = @{
@@ -82,7 +93,7 @@ $global:Catalog.Platform += @{ AlteryxServer =
         Id = "AlteryxServer"
         Name = "Alteryx Server"
         DisplayName = "Alteryx Server"
-        Image = "$($global:Location.Images)/alteryx_a_logo.png"
+        Image = "../img/alteryx_a_logo.png"
         Description = "Alteryx Server"
         Publisher = "Alteryx, Inc."
         Installation = @{
@@ -114,6 +125,7 @@ $global:Catalog.Product += @{ Monitor =
         DisplayName = "Monitor"
         Description = "Monitors the health and activity of the platform."
         Publisher = "Overwatch"
+        HasTask = $true
     }
 }
 
@@ -124,6 +136,7 @@ $global:Catalog.Product += @{ Backup =
         DisplayName = "Backup"
         Description = "Manages backups for the platform."
         Publisher = "Overwatch"
+        HasTask = $true
     }
 }
 
@@ -134,6 +147,7 @@ $global:Catalog.Product += @{ Cleanup =
         DisplayName = "Cleanup"
         Description = "Manages file and data assets for the platform."
         Publisher = "Overwatch"
+        HasTask = $true
     }
 }
 
@@ -144,6 +158,7 @@ $global:Catalog.Product += @{ DiskCheck =
         DisplayName = "DiskCheck"
         Description = "Monitors storage devices critical to the platform."
         Publisher = "Overwatch"
+        HasTask = $true
     }
 }
 
@@ -154,6 +169,7 @@ $global:Catalog.Product += @{ AzureADCache =
         DisplayName = "AzureADCache"
         Description = "Persists Azure AD groups and users in a local cache."
         Publisher = "Overwatch"
+        HasTask = $true
         Installation = @{
             Flag = @("NoPrompt")
             Prerequisite = @{
@@ -171,6 +187,7 @@ $global:Catalog.Product += @{ AzureADSyncTS =
         DisplayName = "AzureADSyncTS"
         Description = "Syncs Active Directory users to Tableau Server."
         Publisher = "Overwatch"
+        HasTask = $true
         Installation = @{
             Prerequisite = @{
                 Platform = @("TableauServer")
@@ -189,6 +206,7 @@ $global:Catalog.Product += @{ AzureADSyncB2C =
         DisplayName = "AzureADSyncB2C"
         Description = "Syncs Azure AD users to Azure AD B2C."
         Publisher = "Overwatch"
+        HasTask = $true
         Installation = @{
             Prerequisite = @{
                 Platform = @("TableauServer")
@@ -207,6 +225,7 @@ $global:Catalog.Product += @{ StartRMTAgents =
         DisplayName = "StartRMTAgents"
         Description = "Starts TableauRMT agents."
         Publisher = "Overwatch"
+        HasTask = $true
         Installation = @{
             Prerequisite = @{
                 Platform = @("TableauRMT")

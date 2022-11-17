@@ -557,7 +557,7 @@ function global:Write-Log {
     if (!$Force -and $LogLevels.$EntryType -ge $LogLevels.$LogLevel) { return }
 
     if ([string]::IsNullOrEmpty($Name)) {
-        $Name = ((Get-Catalog $Context).Log).ToLower()
+        $Name = (Get-Catalog $Context).Log ? ((Get-Catalog $Context).Log).ToLower() : $Platform.Instance
         if (!(Test-Log -Name $Name)) {
             New-Log -Name $Name | Out-Null
         }

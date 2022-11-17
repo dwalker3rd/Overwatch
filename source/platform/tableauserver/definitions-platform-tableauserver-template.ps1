@@ -1,16 +1,7 @@
 ﻿#region PLATFORM DEFINITIONS
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-$global:Platform =
-    [Platform]@{
-        Id = "TableauServer"
-        Name = "Tableau Server"
-        DisplayName = "Tableau Server"
-        Image = "$($global:Location.Images)/tableau_sparkle.png"
-        Description = ""
-    }    
-
+$global:Platform = $global:Catalog.Platform.TableauServer
+$global:Platform.Image = "$($global:Location.Images)/tableau_sparkle.png"
 $global:Platform.Api = @{
     TsRestApiVersion = $global:Catalog.Platform.TableauServer.Api.TableauServerRestApi.Version
     TsmApiVersion = $global:Catalog.Platform.TableauServer.Api.TsmApi.Version

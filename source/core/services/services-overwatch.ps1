@@ -63,13 +63,16 @@
             $global:Environ.Product | ForEach-Object {
                 $productDefinitionsFile = "$($global:Location.Definitions)\definitions-product-$($_).ps1"
                 if (Test-Path -Path $productDefinitionsFile) {
-                    $products += . $productDefinitionsFile
+                    $_product = . $productDefinitionsFile
+                    $_product.IsInstalled = $true
+                    $products += $_product
                 }
             }
 
-            for ($i = 0; $i -lt $products.Count; $i++) {
-                $products[$i].IsInstalled = $global:Environ.Product -contains $products[$i].Id
-            }
+            # for ($i = 0; $i -lt $products.Count; $i++) {
+            #     $products[$i].IsInstalled = $global:Environ.Product -contains $products[$i].Id
+            # }
+
             Write-Cache products -InputObject $products
         }
 
@@ -105,13 +108,15 @@
             $global:Environ.Provider | ForEach-Object {
                 $providerDefinitionFile = "$($global:Location.Root)\definitions\definitions-provider-$($_).ps1"
                 if (Test-Path -Path $providerDefinitionFile) {
-                    $providers += . $providerDefinitionFile
+                    $_provider = . $providerDefinitionFile
+                    $_provider.IsInstalled = $true
+                    $providers += $_provider
                 }
             }
 
-            for ($i = 0; $i -lt $providers.Count; $i++) {
-                $providers[$i].IsInstalled = $global:Environ.Provider -contains $providers[$i].Id
-            }
+            # for ($i = 0; $i -lt $providers.Count; $i++) {
+            #     $providers[$i].IsInstalled = $global:Environ.Provider -contains $providers[$i].Id
+            # }
 
             Write-Cache providers -InputObject $providers
         }
@@ -128,13 +133,19 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$true,Position=0)][string]$Name,
-            [Parameter(Mandatory=$false)][ValidateSet("Platform","Product","Provider")][string]$Type
+            [Parameter(Mandatory=$false)][ValidateSet("OS","Platform","Product","Provider")][string]$Type,
+            [Parameter(Mandatory=$false,Position=0)][string]$Name
         )
 
-        if ([string]::IsNullOrEmpty($Type)) {
+        if ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
 
+            if ($global:Catalog.OS.$Name) {
+                $Type = "OS"
+            }
             if ($global:Catalog.Platform.$Name) {
+                if ($Type) {
+                    throw "Catalog contains multiple objects with the name `"$Name`""
+                }
                 $Type = "Platform"
             }
             if ($global:Catalog.Product.$Name) {
@@ -150,28 +161,35 @@
                 $Type = "Provider"
             }
 
-        }
-
-        if ([string]::IsNullOrEmpty($Type) -or !$global:Catalog.$Type.$Name) {
-            throw "Catalog $($Type ? $Type.ToLower() : "object") `"$Name`" was not found"
-        }
-
-        $catalogObject = $global:Catalog.$Type.$Name
-
-        switch ($Type) {
-            "Provider" {
-                if ([string]::IsNullOrEmpty($catalogObject.Log)) {
-                    $catalogObject.Log = $catalogObject.Id
-                }
+            if ([string]::IsNullOrEmpty($Type)) {
+                throw "Catalog $($Type ? $Type.ToLower() : "object") `"$Name`" was not found"
             }
-            default {
-                if ([string]::IsNullOrEmpty($catalogObject.Log)) {
-                    $catalogObject.Log = $Platform.Instance
-                }
+
+        }
+        if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
+
+            if (!$global:Catalog.$Type.$Name) {
+                throw "Catalog $($Type.ToLower()) `"$Name`" was not found"
+            }
+
+        }
+
+        $catalogObjects = $null
+        if (![string]::IsNullOrEmpty($Name)) {
+            $catalogObjects = $global:Catalog.$Type.$Name
+        }
+        elseif (![string]::IsNullOrEmpty($Type)) { 
+            $catalogObjects = @()
+            $catalogObjects += $global:Catalog.$Type.values
+        }
+        else {
+            $catalogObjects = @{}
+            foreach ($key in $global:Catalog.Keys) {
+                $catalogObjects += @{ $key = [array]$global:Catalog.$key.values }
             }
         }
 
-        return $catalogObject
+        return $catalogObjects
 
     }
 

@@ -86,13 +86,13 @@ switch ($PSVersionTable.PSVersion.Major) {
 #endregion PRODUCTS
 #region PROVIDERS
 
-    $providersPath = $global:Location.Providers
-    $global:Environ.Provider | ForEach-Object {
-        if (Test-Path -Path $definitionsPath\definitions-provider-$($_).ps1) {
-            $null = . $definitionsPath\definitions-provider-$($_).ps1
-        }
-        if (Test-Path -Path $providersPath\provider-$($_).ps1) {
-            $null = . $providersPath\provider-$($_).ps1
+    $providers = Get-Provider -ResetCache
+    $providers.Id | ForEach-Object {
+        # if (Test-Path -Path $definitionsPath\definitions-provider-$($_).ps1) {
+        #     $null = . $definitionsPath\definitions-provider-$($_).ps1
+        # }
+        if (Test-Path -Path "$($global:Location.Providers)\provider-$($_).ps1") {
+            $null = . "$($global:Location.Providers)\provider-$($_).ps1"
         }
     }
 

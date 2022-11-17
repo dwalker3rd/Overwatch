@@ -1452,6 +1452,11 @@ Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" 
         $message = "<Log files <.>48> CREATING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
+        $osLogFile = ((Get-Catalog $OS.Id -Type "OS").Log).ToLower()
+        if (!(Test-Log -Name $osLogFile)) {
+            New-Log -Name $osLogFile | Out-Null
+        }
+
         $platformLogFile = ((Get-Catalog $Platform.Id -Type "Platform").Log).ToLower()
         if (!(Test-Log -Name $platformLogFile)) {
             New-Log -Name $platformLogFile | Out-Null
