@@ -3,6 +3,5 @@ Overwatch.code-workspace
 .vscode/settings.json
 /*
 !source
-!install.ps1
 !LICENSE
 !README.md
