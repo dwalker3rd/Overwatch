@@ -1,5 +1,3 @@
-
-
 #Requires -RunAsAdministrator
 #Requires -Version 7
 
@@ -527,7 +525,7 @@ Clear-Host
 
             $coreFiles = @()
 
-            $files = (Get-ChildItem $PSScriptRoot\source\core\services -File).VersionInfo.FileName
+            $files = (Get-ChildItem $PSScriptRoot\source\core -File).VersionInfo.FileName
             foreach ($file in $files) { 
                 $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
                 if ($coreFile) {
