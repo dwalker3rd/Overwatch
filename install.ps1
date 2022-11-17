@@ -17,6 +17,7 @@ $emptyString = ""
 . $PSScriptRoot\source\core\definitions\catalog.ps1
 . $PSScriptRoot\source\core\definitions\definitions-regex.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
+. $PSScriptRoot\source\core\services\services-overwatch-install.ps1
 
 Write-Host+ -ResetAll
 Write-Host+
