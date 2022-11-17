@@ -19,6 +19,8 @@ $global:ConfirmPreference = "None"
 $global:Product = @{Id="Uninstall"}
 . $PSScriptRoot\definitions.ps1
 
+$installSettingsFile = "$($global:Location.Root)\install\data\installSettings.ps1"
+
 function Remove-ProviderFiles {
 
     Param (
@@ -134,9 +136,13 @@ function Remove-CoreFiles {
 function Update-Environ {
 
     param(
-        [Parameter(Mandatory=$false)][ValidateSet("Provider","Product")][Alias("Provider","Product")][string]$Type,
+        [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Provider","Product")][Alias("Provider","Product")][string]$Type,
         [Parameter(Mandatory=$false)][string]$Name
     )
+
+    if ($Type -eq "Overwatch") {
+        Copy-File "$PSScriptRoot\source\environ\environ-template.ps1" "$PSScriptRoot\environ.ps1" -Component Environ -WhatIf -Quiet
+    }
     
     $environItems = Select-String $PSScriptRoot\environ.ps1 -Pattern "$Type = " -Raw
     $updatedEnvironItems = $environItems.Replace("`"$Name`"","").Replace(", ,",",").Replace("(, ","(").Replace(", )",")")
@@ -262,6 +268,7 @@ function Uninstall-Overwatch {
     )
     
     Remove-CoreFiles 
+    Update-Environ -Type Overwatch
 
 }
 
@@ -276,157 +283,234 @@ function Uninstall-Overwatch {
         throw "Both `"Type`" and `"Name`" must be specified or both must be null."
     }
 
-    if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
-
-        # this ensures the case is correct
-        $Type = (Get-Culture).TextInfo.ToTitleCase($Type)
-        if ($Type -eq "Product") { $Name = $global:Catalog.Product.Keys | Where-Object {$_ -eq $Name} }
-        if ($Type -eq "Provider") { $Name = $global:Catalog.Provider.Keys | Where-Object {$_ -eq $Name} }
-
-        if ($global:Catalog.$Type.$Name.Installation.Flag -contains "UninstallProtected") {
-            Write-Host+ -NoTrace "WARN: $Type `"$Name`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
-            return
+    #region LoAD INSTALL SETTINGS
+    
+        if (Test-Path -Path $installSettingsFile) {
+            . $installSettingsFile
         }
+        else {
+            Write-Host+ -NoTrace -NoTimestamp "No saved settings in $installSettings" -ForegroundColor DarkGray
+        } 
 
-        if (!(Invoke-Expression "Get-$Type $Name -ResetCache").IsInstalled) {
-            Write-Host+ -NoTrace "WARN: $Type `"$Name`" is NOT installed." -ForegroundColor DarkYellow
-            if (!$Force) { return }
-            Write-Host+
-        }
+    #endregion LoAD INSTALL SETTINGS
+    #region UNINSTALL PRODUCT/PROVIDER
 
-        if ($Type -eq "Product") {
-            $dependentProducts = @()
-            foreach ($key in $global:Catalog.Product.Keys) {
-                if ([array]$global:Catalog.Product.$key.Installation.Prerequisite.Product -contains $Name) {
-                    if ((Get-Product $key).IsInstalled) {
-                        $dependentProducts += $key
-                    }
-                }
-            }
-            if ($dependentProducts) {
-                Write-Host+ -NoTrace "ERROR: Unable to uninstall $($Type.ToLower()) $Name" -ForegroundColor Red
-                Write-Host+ -NoTrace "ERROR: $($dependentProducts -join ", ") $($dependentProducts.Count -eq 1 ? "is" : "are") dependent on $($Type.ToLower()) $Name`'s services" -ForegroundColor Red
+        if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
+
+            # this ensures the case is correct
+            $Type = (Get-Culture).TextInfo.ToTitleCase($Type)
+            if ($Type -eq "Product") { $Name = $global:Catalog.Product.Keys | Where-Object {$_ -eq $Name} }
+            if ($Type -eq "Provider") { $Name = $global:Catalog.Provider.Keys | Where-Object {$_ -eq $Name} }
+
+            [console]::CursorVisible = $true
+            $uninstallTarget = ![string]::IsNullOrEmpty($Type) ? $Type : "Overwatch"
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Uninstall $($uninstallTarget.ToLower()) $Name (Y/N)? " -ForegroundColor DarkYellow
+            $continue = Read-Host
+            [console]::CursorVisible = $false
+            if ($continue.ToUpper() -ne "Y") {
+                Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
                 return
             }
-        }
+            Write-Host+
 
-        $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
-        Write-Host+
-
-        switch ($Type) {
-            "Provider" {
-                $message = "    Provider            Publisher           Status"
-                Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                $message = "    --------            ---------           ------"
-                Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray    
+            if ($global:Catalog.$Type.$Name.Installation.Flag -contains "UninstallProtected") {
+                Write-Host+ -NoTrace "WARN: $Type `"$Name`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
+                return
             }
-            "Product" {
-                $message = "    Product             Publisher           Task                Status"
-                Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                $message = "    -------             ---------           ----                ------"
-                Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+
+            if (!(Invoke-Expression "Get-$Type $Name -ResetCache").IsInstalled) {
+                Write-Host+ -NoTrace "WARN: $Type `"$Name`" is NOT installed." -ForegroundColor DarkYellow
+                Write-Host+ -NoTrace "INFO: To uninstall anyway, add the -Force switch." -ForegroundColor DarkYellow
+                if (!$Force) { return }
+                Write-Host+
             }
-        }
 
-        $expression = "Uninstall-$Type $Name"
-        $expression += $Force ? " -Force" : ""
-        Invoke-Expression $expression
+            if ($Type -eq "Product") {
+                $dependentProducts = @()
+                foreach ($key in $global:Catalog.Product.Keys) {
+                    if ([array]$global:Catalog.Product.$key.Installation.Prerequisite.Product -contains $Name) {
+                        if ((Get-Product $key).IsInstalled) {
+                            $dependentProducts += $key
+                        }
+                    }
+                }
+                if ($dependentProducts) {
+                    Write-Host+ -NoTrace "ERROR: Unable to uninstall $($Type.ToLower()) $Name" -ForegroundColor Red
+                    Write-Host+ -NoTrace "ERROR: $($dependentProducts -join ", ") $($dependentProducts.Count -eq 1 ? "is" : "are") dependent on $($Type.ToLower()) $Name`'s services" -ForegroundColor Red
+                    return
+                }
+            }
 
-        Write-Host+
-        $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
-        Write-Host+
-        
-        return
-
-    }
-
-    Write-Host+
-    $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
-    Write-Host+
-
-        #region PROVIDERS
-
-            $message = "<  Uninstalling providers <.>48> PENDING"
+            $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
             Write-Host+
 
-            $message = "    Provider            Publisher           Status"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "    --------            ---------           ------"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray            
+            switch ($Type) {
+                "Provider" {
+                    $message = "    Provider            Publisher           Status"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                    $message = "    --------            ---------           ------"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray    
+                }
+                "Product" {
+                    $message = "    Product             Publisher           Task                Status"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                    $message = "    -------             ---------           ----                ------"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                }
+            }
 
-            $global:Environ.Provider | ForEach-Object {Uninstall-Provider $_}
-            
+            $expression = "Uninstall-$Type $Name"
+            $expression += $Force ? " -Force" : ""
+            Invoke-Expression $expression
+
             Write-Host+
-            $message = "<  Uninstalling providers <.>48> SUCCESS"
+            $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
             Write-Host+
 
-        #region PROVIDERS
-        #region PRODUCTS
+        }
 
-            $message = "<  Uninstalling products <.>48> PENDING"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+    #endregion UNINSTALL PRODUCT/PROVIDER
+    #region UNINSTALL OVERWATCH
+
+        else {
+
             Write-Host+
-
-            $message = "    Product             Publisher           Task                Status"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "    -------             ---------           ----                ------"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-
-            $global:Environ.Product | ForEach-Object {Uninstall-Product $_}
-            
-            Write-Host+
-            $message = "<  Uninstalling products <.>48> SUCCESS"
+            $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLING"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
             Write-Host+
 
-        #endregion PRODUCTS    
+                #region PROVIDERS
 
-        # region PLATFORM
+                    $message = "<  Uninstalling providers <.>48> PENDING"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+
 
-            $message = "<  Uninstalling $($global:Environ.Platform) platform <.>48> PENDING"
-            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    $message = "    Provider            Publisher           Status"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                    $message = "    --------            ---------           ------"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray            
 
-            Uninstall-Platform
+                    $global:Environ.Provider | ForEach-Object {Uninstall-Provider $_}
+                    
+                    Write-Host+
+                    $message = "<  Uninstalling providers <.>48> SUCCESS"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+                    Write-Host+
 
-            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-            Write-Host+
+                #region PROVIDERS
+                #region PRODUCTS
 
-        #endregion PLATFORM    
+                    $message = "<  Uninstalling products <.>48> PENDING"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+
 
-        # region OS
+                    $message = "    Product             Publisher           Task                Status"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                    $message = "    -------             ---------           ----                ------"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
 
-            $message = "<  Uninstalling $($global:Environ.OS) OS <.>48> PENDING"
-            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    $global:Environ.Product | ForEach-Object {Uninstall-Product $_}
+                    
+                    Write-Host+
+                    $message = "<  Uninstalling products <.>48> SUCCESS"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+                    Write-Host+
 
-            Uninstall-OS
+                #endregion PRODUCTS    
+                #region PLATFORM
 
-            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-            Write-Host+
+                    $message = "<  Uninstalling $($global:Environ.Platform) platform <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
-        #endregion OS    
-        
-        # region OVERWATCH
+                    Uninstall-Platform
 
-            $message = "<  Uninstalling Overwatch <.>48> PENDING"
-            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+
 
-            Uninstall-Overwatch
+                #endregion PLATFORM    
+                #region OS
 
-            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-            Write-Host+
+                    $message = "<  Uninstalling $($global:Environ.OS) OS <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
-        #endregion OVERWATCH  
+                    Uninstall-OS
 
-    $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLED"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+                    $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+
+
+                #endregion OS    
+                #region OVERWATCH
+
+                    $message = "<  Uninstalling Overwatch <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+
+                    Uninstall-Overwatch
+
+                    $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+
+
+                #endregion OVERWATCH  
+
+            $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLED"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+
+        }
+
+    #endregion UNINSTALL OVERWATCH
+    #region UPDATE INSTALL SETTINGS
+
+        if (Test-Path -Path $installSettingsFile) {
+
+            Clear-Content -Path $installSettingsFile
+            
+            if ($UninstallTarget -ne "Overwatch") {
+
+                . $PSScriptRoot\environ.ps1
+                
+                '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $installSettingsFile
+                "Param()" | Add-Content -Path $installSettingsFile
+                if (![string]::IsNullOrEmpty($operatingSystemId)) {
+                    "`$operatingSystemId = ""$operatingSystemId""" | Add-Content -Path $installSettingsFile
+                }
+                if (![string]::IsNullOrEmpty($platformId)) {
+                    "`$platformId = ""$platformId""" | Add-Content -Path $installSettingsFile
+                }
+                if (![string]::IsNullOrEmpty($platformInstallLocation)) {
+                    "`$platformInstallLocation = ""$platformInstallLocation""" | Add-Content -Path $installSettingsFile
+                }
+                if (![string]::IsNullOrEmpty($platformInstanceId)) {
+                    "`$platformInstanceId = ""$platformInstanceId""" | Add-Content -Path $installSettingsFile
+                }
+                if ($global:Environ.Product.Count -gt 0) {
+                    "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $installSettingsFile
+                }
+                if ($global:Environ.Provider.Count -gt 0) {
+                    "`$providerIds = @('$($global:Environ.Provider -join "', '")')" | Add-Content -Path $installSettingsFile
+                }
+                if (![string]::IsNullOrEmpty($imagesUri)) {
+                    "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $installSettingsFile
+                }
+                if (![string]::IsNullOrEmpty($platformInstanceUri)) {
+                    "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $installSettingsFile
+                }
+                if (![string]::IsNullOrEmpty($platformInstanceDomain)) {
+                    "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $installSettingsFile
+                }
+                if ($platformInstanceNodes.Count -gt 0) {
+                    "`$platformInstanceNodes = @('$($platformInstanceNodes -join "', '")')" | Add-Content -Path $installSettingsFile
+                }
+                if ($requiredPythonPackages.Count -gt 0) {
+                    "`$requiredPythonPackages = @('$($requiredPythonPackages -join "', '")')" | Add-Content -Path $installSettingsFile
+                }
+            }
+        }
+
+    #endregion UPDATE INSTALL SETTINGS
 
     [console]::CursorVisible = $true
 
