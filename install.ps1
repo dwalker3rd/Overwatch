@@ -833,6 +833,7 @@ Clear-Host
     . $PSScriptRoot\definitions\catalog.ps1
     . $PSScriptRoot\definitions\definitions-regex.ps1
     . $PSScriptRoot\services\services-overwatch-loadearly.ps1
+    . $PSScriptRoot\services\services-overwatch-install.ps1
 
 #region MODULES-PACKAGES
 
