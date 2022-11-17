@@ -37,20 +37,16 @@ function Initialize-AiProject {
     $projectNameUpperCase = $ProjectName.ToUpper()
     $groupNameLowerCase = $GroupName.ToLower()
 
-    $global:AzureProjects = @{
-        Location = @{
-            Data = "$($global:Location.Root)\data\azure\$GroupName"
-            Credentials = "$($global:Location.Root)\data\azure\$GroupName"
-        }
-    }
-    if (!(Test-Path -Path "$($global:Location.Root)\data\azure")) {
-        New-Item -Path "$($global:Location.Root)\data" -Name "azure" -ItemType "directory" | Out-Null
-    }
-    if (!(Test-Path -Path $global:AzureProjects.Location.Data)) {
-        New-Item -Path "$($global:Location.Root)\data\azure" -Name "$GroupName" -ItemType "directory" | Out-Null
+    $global:Product.Config.Location += @{ 
+        Data = "$($global:Product.Config.Location.Root)\$GroupName"
+        Credentials = "$($global:Product.Config.Location.Root)\$GroupName"
     }
 
-    $prefixIni = "$($global:AzureProjects.Location.Data)\$projectNameLowerCase\$projectNameLowerCase-prefix.ini"
+    if (!(Test-Path -Path $global:Product.Config.Location.Data)) {
+        New-Item -Path "$($global:Product.Config.Location.Root)" -Name "$GroupName" -ItemType "directory" | Out-Null
+    }
+
+    $prefixIni = "$($global:Product.Config.Location.Data)\$projectNameLowerCase\$projectNameLowerCase-prefix.ini"
     if (!$Prefix) {
         if (Test-Path $prefixIni) {
             $Prefix = (Get-Content $prefixIni | Where-Object {$_ -like "prefix*"}).split(" : ")[1].Trim()
@@ -65,8 +61,8 @@ function Initialize-AiProject {
 
     $global:AzureProject = @{
         Location = @{
-            Data = "$($global:AzureProjects.Location.Data)\$projectNameLowerCase"
-            Credentials = "$($global:AzureProjects.Location.Data)\$projectNameLowerCase"
+            Data = "$($global:Product.Config.Location.Data)\$projectNameLowerCase"
+            Credentials = "$($global:Product.Config.Location.Data)\$projectNameLowerCase"
         }
         Project = @{
             Name = $projectNameLowerCase
