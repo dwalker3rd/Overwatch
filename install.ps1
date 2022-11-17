@@ -76,7 +76,7 @@ function Copy-File {
                     # parse $pathFile for source subdirectories indicating component and name                
                     $pathKeys = @()
                     $pathKeys += ($pathFile | Split-Path -Parent).Replace("$($global:Location.Root)\source\","",1) -Split "\\"
-                    if (!$pathKeys[1]) { $pathKeys += ($pathFile | Split-Path -LeafBase).Replace("-template","") }
+                    $pathKeys += ($pathFile | Split-Path -LeafBase).Replace("-template","")
 
                     # if the subdirectory is "services", then search the catalog for the component and name/family
                     if (("services") -icontains $pathKeys[0]) {
@@ -98,10 +98,18 @@ function Copy-File {
                     }
                     # otherwise use the parsed $pathFile and capitalize the component and name
                     else {
-                        $key = $pathKeys[0]
-                        $subKey = $pathKeys[1]
-                        $components += $global:Catalog.Keys | Where-Object {$_ -eq $key}
-                        $names += $global:Catalog.$key.Keys | Where-Object {$_ -eq $subKey}
+                        $components = $pathKeys[0]
+                        $names = $pathKeys[1] 
+                        if ($pathKeys[2]) {
+                            $names = 
+                                switch ($pathKeys[2]) {
+                                    "catalog" { "catalog" }
+                                    "environ" { "environ" }
+                                    default {$pathKeys[1]}
+                                }
+                        }
+                        # $components += $global:Catalog.Keys | Where-Object {$_ -eq $key}
+                        # $names += $global:Catalog.$key.Keys | Where-Object {$_ -eq $subKey}
                     }
 
                 }
@@ -110,7 +118,6 @@ function Copy-File {
                 $components = 
                     foreach ($component in $components) {
                         switch ($component) { 
-                            "Environ" { "Core" } 
                             "Providers" { "Provider" } 
                             default {$_} 
                         }
@@ -224,7 +231,7 @@ function Install-Product {
 
     $productToInstall = (Get-Product $Context -ResetCache).Id ?? $Context
 
-    $productLogFile = (Get-Catalog $productToInstall -Type Product).Log ? ((Get-Catalog $productToInstall).Log).ToLower() : $Platform.Instance
+    $productLogFile = (Get-Catalog -Name $productToInstall -Type Product).Log ? ((Get-Catalog -Name $productToInstall -Type Product).Log).ToLower() : $Platform.Instance
     if (!(Test-Log -Name $productLogFile)) {
         New-Log -Name $productLogFile | Out-Null
     }
@@ -286,17 +293,17 @@ function Enable-Product {
 function Install-Provider {
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$true,Position=0)][string]$ProviderName
+        [Parameter(Mandatory=$true,Position=0)][string]$Context
     )
 
-    $providerToInstall = Get-Provider $ProviderName -ResetCache
+    $providerToInstall = (Get-Provider $Context -ResetCache).Id ?? $Context
 
-    $providerLogFile = (Get-Catalog $providerToInstall -Type Provider).Log ? ((Get-Catalog $providerToInstall).Log).ToLower() : $Platform.Instance
+    $providerLogFile = (Get-Catalog -Name $providerToInstall -Type Provider).Log ? ((Get-Catalog -Name $providerToInstall -Type Provider).Log).ToLower() : $Platform.Instance
     if (!(Test-Log -Name $providerLogFile)) {
         New-Log -Name $providerLogFile | Out-Null
     }
 
-    if (Test-Path -Path $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1) {. $PSScriptRoot\install\install-provider-$($providerToInstall.Id).ps1 -UseDefaultResponses:$UseDefaultResponses.IsPresent}
+    if (Test-Path -Path $PSScriptRoot\install\install-provider-$($providerToInstall).ps1) {. $PSScriptRoot\install\install-provider-$($providerToInstall).ps1 -UseDefaultResponses:$UseDefaultResponses.IsPresent}
 }
 
 function Update-Environ {
