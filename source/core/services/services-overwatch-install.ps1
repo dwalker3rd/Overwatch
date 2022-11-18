@@ -72,6 +72,7 @@
                         # otherwise use the parsed $pathFile and capitalize the component and name
                         else {
                             $components = (Get-Culture).TextInfo.ToTitleCase($pathKeys[0])
+                            if ($components -eq "Providers") { $components = "Provider" }
                             $names = (Get-Culture).TextInfo.ToTitleCase($pathKeys[1]) 
                             foreach ($key in $global:Catalog.Keys) {
                                 if ($components -eq $key) { 
@@ -84,18 +85,10 @@
 
                     }
 
-                    # case and spelling corrections
-                    $components = 
-                        foreach ($component in $components) {
-                            switch ($component) { 
-                                "Providers" { "Provider" } 
-                                default {$_} 
-                            }
-                        }
-                    $names = ($global:Environ.OS | Where-Object {$_ -in $names}) ?? $names
-                    $names = ($global:Environ.Platform | Where-Object {$_ -in $names}) ?? $names
-                    $names = ($global:Environ.Product | Where-Object {$_ -in $names}) ?? $names
-                    $names = ($global:Environ.Provider | Where-Object {$_ -in $names}) ?? $names
+                    # $names = ($global:Environ.OS | Where-Object {$_ -in $names}) ?? $names
+                    # $names = ($global:Environ.Platform | Where-Object {$_ -in $names}) ?? $names
+                    # $names = ($global:Environ.Product | Where-Object {$_ -in $names}) ?? $names
+                    # $names = ($global:Environ.Provider | Where-Object {$_ -in $names}) ?? $names
 
                     # if component/name/family are arrays, sort uniquely and comma-separate
                     $Component = ($components | Sort-Object -Unique) -join ","

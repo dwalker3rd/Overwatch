@@ -50,6 +50,38 @@ $global:Product = @{Id="Uninstall"}
             if ($Type -eq "Product") { $Name = $global:Catalog.Product.Keys | Where-Object {$_ -eq $Name} }
             if ($Type -eq "Provider") { $Name = $global:Catalog.Provider.Keys | Where-Object {$_ -eq $Name} }
 
+            # This component is not installed
+            if (!(Invoke-Expression "Get-$Type $Name -ResetCache").IsInstalled) {
+                Write-Host+ -NoTrace "WARN: $Type `"$Name`" is NOT installed." -ForegroundColor DarkYellow
+                Write-Host+ -Iff $(!($Force.IsPresent)) -NoTrace "INFO: To force the uninstall, add the -Force switch." -ForegroundColor DarkYellow
+                Write-Host+ -Iff $($Force.IsPresent) -NoTrace "INFO: Uninstalling with FORCE." -ForegroundColor DarkYellow
+                if (!$Force) { return }
+                $Force = $false
+                Write-Host+
+            }
+
+            Write-Host+ -Iff $($Force.IsPresent) -NoTrace "WARN: Ignoring -Force switch." -ForegroundColor DarkYellow
+            Write-Host+ -Iff $($Force.IsPresent) 
+
+            # This component is protected by the UninstallProtected catalog flag and cannot be uinstalled
+            if ($global:Catalog.$Type.$Name.Installation.Flag -contains "UninstallProtected") {
+                Write-Host+ -NoTrace "WARN: $Type `"$Name`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
+                return
+            }
+
+            # check for dependencies on this component by other installed components
+            # this component cannot be uninstalled if other installed components have dependencies on it
+            $dependents = Get-CatalogDependents -Type $Type -Name $Name -Installed
+            if ($dependents) {
+                Write-Host+ -NoTrace "ERROR: Unable to uninstall the $Name $($Type.ToLower())" -ForegroundColor Red
+                foreach ($dependent in $dependents) {
+                    Write-Host+ -NoTrace "ERROR: The $($dependent.Name) $($dependent.Type) is dependent on the $Name $($Type.ToLower())" -ForegroundColor Red
+                }
+                Write-Host+
+                return
+            }
+
+            # the inevitable "Are you sure?" prompt
             [console]::CursorVisible = $true
             $uninstallTarget = ![string]::IsNullOrEmpty($Type) ? $Type : "Overwatch"
             Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Uninstall $($uninstallTarget.ToLower()) $Name (Y/N)? " -ForegroundColor DarkYellow
@@ -60,34 +92,6 @@ $global:Product = @{Id="Uninstall"}
                 return
             }
             Write-Host+
-
-            if ($global:Catalog.$Type.$Name.Installation.Flag -contains "UninstallProtected") {
-                Write-Host+ -NoTrace "WARN: $Type `"$Name`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
-                return
-            }
-
-            if (!(Invoke-Expression "Get-$Type $Name -ResetCache").IsInstalled) {
-                Write-Host+ -NoTrace "WARN: $Type `"$Name`" is NOT installed." -ForegroundColor DarkYellow
-                Write-Host+ -NoTrace "INFO: To uninstall anyway, add the -Force switch." -ForegroundColor DarkYellow
-                if (!$Force) { return }
-                Write-Host+
-            }
-
-            if ($Type -eq "Product") {
-                $dependentProducts = @()
-                foreach ($key in $global:Catalog.Product.Keys) {
-                    if ([array]$global:Catalog.Product.$key.Installation.Prerequisite.Product -contains $Name) {
-                        if ((Get-Product $key).IsInstalled) {
-                            $dependentProducts += $key
-                        }
-                    }
-                }
-                if ($dependentProducts) {
-                    Write-Host+ -NoTrace "ERROR: Unable to uninstall $($Type.ToLower()) $Name" -ForegroundColor Red
-                    Write-Host+ -NoTrace "ERROR: $($dependentProducts -join ", ") $($dependentProducts.Count -eq 1 ? "is" : "are") dependent on $($Type.ToLower()) $Name`'s services" -ForegroundColor Red
-                    return
-                }
-            }
 
             $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray

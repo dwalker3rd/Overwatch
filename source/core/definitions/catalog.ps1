@@ -337,6 +337,7 @@ $global:Catalog.Provider += @{ TableauServerWC =
         Installation = @{
             Prerequisite = @{
                 Platform = @("TableauServer")
+                Provider = @("Postgres")
             }
         }
     }
