@@ -572,13 +572,13 @@ Clear-Host
             $environFileUpdated = $false
             if ($environFile) {
                 $environFile.Component = "Core"
-                $environFile.Name = "Environ"
+                $environFile.$($environFile.Component) = "Environ"
                 $environFile += @{ Flag = "NOCOPY" }
                 $environFileUpdated = $true
                 $coreFiles += $environFile
-                Write-Host+ -NoTrace -NoTimestamp "  [$($environFile.Component)`:$($environFile.Name)] $($environFile.Destination)" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace -NoTimestamp "  [$($environFile.Component)`:$($environFile.$($environFile.Component))] $($environFile.Destination)" -ForegroundColor DarkGray
             }
-            Remove-File -Path $tempEnvironFile -Quiet
+            Remove-Files -Path $tempEnvironFile
 
             $updatedfiles += $coreFiles
 
@@ -895,14 +895,14 @@ Clear-Host
 #region REMOVE CACHE
 
     if ($installOverwatch -or $classesFileUpdated) {
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\clusterstatus.cache" -Quiet
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\heartbeat.cache" -Quiet
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platforminfo.cache" -Quiet
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformstatus.cache" -Quiet
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformservices.cache" -Quiet
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformtopology.cache" -Quiet
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\providers.cache" -Quiet
-        Remove-File "$PSScriptRoot\data\$($platformInstanceId.ToLower())\products.cache" -Quiet
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\clusterstatus.cache"
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\heartbeat.cache"
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platforminfo.cache"
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformstatus.cache"
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformservices.cache"
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformtopology.cache"
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\providers.cache"
+        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\products.cache"
     }
 
 #endregion REMOVE CACHE
@@ -1126,7 +1126,7 @@ Clear-Host
         #endregion PRODUCTS
         #region SAVE SETTINGS
 
-            Set-InstallSettings
+            Update-InstallSettings
 
         #endregion SAVE SETTINGS
         #region INITIALIZE OVERWATCH

@@ -26,7 +26,9 @@ function global:Get-Files {
 
 function global:Remove-Files {
 
-    [CmdletBinding()]
+    [CmdletBinding(
+        SupportsShouldProcess
+    )]
     Param (
         [Parameter(Mandatory=$false,Position=0)][string[]]$Path = $($(Get-Location).Path),
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
@@ -37,29 +39,46 @@ function global:Remove-Files {
         [switch]$Force
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    # if $Keep -eq 0, then mode is delete
+    # if $Keep -gt 0, then mode is purge, retain $Keep number of the most recent files
+    # if $Keep -gt 0 -and $Days.IsPresent, then retain $Keep days of the most recent files
     
-    $purgeArguments = @{}
-    # if ($Filter) {$purgeArguments += @{Filter = $Filter}}
-    if ($Force) {$purgeArguments += @{Force = $Force}}
-    if ($Recurse) {$purgeArguments += @{Recurse = $Recurse}}   
+    $getParams = @{}
+    if (![string]::IsNullOrEmpty($ComputerName)) {$getParams += @{ComputerName = $ComputerName}}
+    if (![string]::IsNullOrEmpty($Filter)) {$getParams += @{Filter = $Filter}}
 
-    $files = Get-Files -Path $Path -Filter $Filter -ComputerName $ComputerName
+    $removeParams = @{}
+    if ($Force) {$removeParams += @{Force = $Force}}
+    if ($Recurse) {$removeParams += @{Recurse = $Recurse}}   
+
+    $files = Get-Files -Path $Path @getParams
     
     foreach ($f in $files) {
-        if ($Days) {
-            $f.fileInfo = $f.fileInfo | Where-Object {$_.LastWriteTime -lt (Get-Date).AddDays(-$Keep)}}
+
+        if ($Keep -eq 0) {
+            # mode is delete
+        }
         else {
-            $f.fileInfo = $f.fileInfo | Sort-Object -Property LastWriteTime -Descending | Select-Object -Skip $Keep} 
+            # mode is purge
+            if ($Days) {
+                # retain $Keep days of the most recent files
+                $f.fileInfo = $f.fileInfo | Where-Object {$_.LastWriteTime -lt (Get-Date).AddDays(-$Keep)}
+            }
+            else {
+                # retain $Keep number of the most recent files
+                $f.fileInfo = $f.fileInfo | Sort-Object -Property LastWriteTime -Descending | Select-Object -Skip $Keep
+            }
+        }
         
         if ($f.fileInfo) {
-            # $f.Remove();
-            Write-Verbose "$($f.fileInfo.FullName)"
-            Remove-Item $f.fileInfo.FullName @purgeArguments
+            Write-Host+ -IfVerbose -NoTrace -NoTimestamp "Deleted $($f.fileInfo.FullName)" -ForegroundColor Red
+            if($PSCmdlet.ShouldProcess($f.fileInfo.FullName)) {
+                Remove-Item $f.fileInfo.FullName @removeParams
+            }
         }
     }
 
-    return #$files | Where-Object {$_.fileInfo}
+    return
 }
 
 function global:Copy-Files {

@@ -28,5 +28,5 @@ $global:Location +=
     Credentials = "$($global:Location.Root)\data\$($global:Environ.Instance)"
     Views = "$($global:Location.Root)\views"
     Logs = "$($global:Location.Root)\logs"
-    Temp = "$($global:Location.Root)\temp\$($global:Environ.Instance)"
+    Temp = "$($global:Location.Root)\temp"
 }
