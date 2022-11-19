@@ -35,7 +35,7 @@ function global:Initialize-PlatformTopology {
     }
 
     $controller = [string]$global:PlatformTopologyBase.Components.Controller.Nodes.Keys
-    $agents = Get-RMTAgents -Quiet
+    $agents = Get-RMTAgent -Quiet
 
     $platformTopology.Nodes.$controller += @{ Components = @{ Controller = @{ Instances = @{} } }  }
     if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
@@ -272,7 +272,7 @@ function global:Get-RMTStatus {
     
         #region Agents
 
-            $agents = Get-RMTAgents -Controller $controller -Quiet:$Quiet.IsPresent
+            $agents = Get-RMTAgent -Controller $controller -Quiet:$Quiet.IsPresent
 
             foreach ($agent in $agents) {
 
@@ -593,7 +593,7 @@ function global:Restart-RMTController {
 
 }
 
-function global:Request-RMTAgents {
+function global:Request-RMTAgent {
 
     [CmdletBinding()]
     param (
@@ -602,7 +602,8 @@ function global:Request-RMTAgents {
         [Parameter(Mandatory=$false)][Alias("Agent")][string[]]$ComputerName,
         [Parameter(Mandatory=$true)][string]$Context,
         [Parameter(Mandatory=$true)][string]$Reason,
-        [switch]$IfTableauServerIsRunning
+        [switch]$IfTableauServerIsRunning,
+        [switch]$DisableAgentService
     )
 
     if ($ComputerName -and $EnvironmentIdentifier) {
@@ -683,15 +684,15 @@ function global:Request-RMTAgents {
 
             # enable agent service before start
             if ($Command -eq "Start") {
-                Request-RMTService -Context $Context -Command "Enable" -Name "TableauResourceMonitoringToolAgent" -Alias "RMT Agent" -Computername $targetAgents.Name -Reason $Reason
+                Enable-RMTAgentService -Context $Context -Computername $targetAgents.Name -Reason $Reason
             }
 
             # start/stop agent service
             Request-Platform -Command $Command -Target "Agent" -ComputerName $targetAgents.Name -Context $Context -Reason $Reason
 
-            # disable agent service after stop
-            if ($Command -eq "Stop") {
-                Request-RMTService -Context $Context -Command "Disable" -Name "TableauResourceMonitoringToolAgent" -Alias "RMT Agent" -Computername $targetAgents.Name -Reason $Reason
+            # # disable agent service after stop
+            if ($Command -eq "Stop" -and $DisableAgentService) {
+                Disable-RMTAgentService -Context $Context -Computername $targetAgents.Name -Reason $Reason
             }
 
         }
@@ -726,14 +727,70 @@ function global:Request-RMTAgents {
 
 }  
 
-function global:Stop-RMTAgents {
+function global:Disable-RMTAgentService {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][Alias("Agent")][string[]]$ComputerName,
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Disable RMT Agent Service"
+    )
+
+    Set-CursorInvisible
+
+    $params = @{ 
+        Command = "Disable"
+        Name = "TableauResourceMonitoringToolAgent"
+        Alias= "RMT Agent"
+    }
+    if ($Context) { $params += @{ Context = $Context } }
+    if ($Reason) { $params += @{ Reason = $Reason } }
+    if ($ComputerName) { $params += @{ ComputerName = $ComputerName } }
+    $result = Request-RMTService @params
+
+    Set-CursorVisible
+
+    return $result
+
+}
+
+function global:Enable-RMTAgentService {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][Alias("Agent")][string[]]$ComputerName,
+        [Parameter(Mandatory=$false)][string]$Context = "Command",
+        [Parameter(Mandatory=$false)][string]$Reason = "Enable RMT Agent Service"
+    )
+
+    Set-CursorInvisible
+
+    $params = @{ 
+        Command = "Enable"
+        Name = "TableauResourceMonitoringToolAgent"
+        Alias= "RMT Agent"
+    }
+    if ($Context) { $params += @{ Context = $Context } }
+    if ($Reason) { $params += @{ Reason = $Reason } }
+    if ($ComputerName) { $params += @{ ComputerName = $ComputerName } }
+    $result = Request-RMTService @params
+
+    Set-CursorVisible
+
+    return $result
+
+}
+
+
+function global:Stop-RMTAgent {
 
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string[]]$EnvironmentIdentifier,
         [Parameter(Mandatory=$false)][Alias("Agent")][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason = "Stop RMT Agents"
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop RMT Agent",
+        [switch]$DisableAgentService
     )
 
     Set-CursorInvisible
@@ -743,19 +800,17 @@ function global:Stop-RMTAgents {
     if ($Reason) { $params += @{ Reason = $Reason } }
     if ($EnvironmentIdentifier) {$params += @{ EnvironmentIdentifier = $EnvironmentIdentifier } }
     if ($ComputerName) { $params += @{ ComputerName = $ComputerName } }
-    $result = Request-RMTAgents @params
+    if ($DisableAgentService) { $params += @{ DisableAgentService = $true } }
+    $result = Request-RMTAgent @params
 
     Set-CursorVisible
-
-    # $messageStatus = Send-PlatformStatusMessage -MessageType "Alert"
-    # $messageStatus | Out-Null
 
     return $result
 
 }
-Set-Alias -Name Stop-RMTEnvironments -Value Stop-RMTAgents -Scope Global
+Set-Alias -Name Stop-RMTEnvironments -Value Stop-RMTAgent -Scope Global
 
-function global:Start-RMTAgents {
+function global:Start-RMTAgent {
 
     [CmdletBinding()]
     param (
@@ -781,7 +836,7 @@ function global:Start-RMTAgents {
     if ($EnvironmentIdentifier) {$params += @{ EnvironmentIdentifier = $EnvironmentIdentifier } }
     if ($ComputerName) { $params += @{ ComputerName = $ComputerName } }
     if ($IfTableauServerIsRunning) { $params += @{ IfTableauServerIsRunning = $true } }
-    $result = Request-RMTAgents @params
+    $result = Request-RMTAgent @params
 
     Set-CursorVisible
 
@@ -791,9 +846,9 @@ function global:Start-RMTAgents {
     return $result
 
 }
-Set-Alias -Name Start-RMTEnvironments -Value Start-RMTAgents -Scope Global
+Set-Alias -Name Start-RMTEnvironments -Value Start-RMTAgent -Scope Global
 
-function global:Restart-RMTAgents {
+function global:Restart-RMTAgent {
 
     [CmdletBinding()]
     param (
@@ -811,7 +866,7 @@ function global:Restart-RMTAgents {
     if ($Reason) { $params += @{ Reason = $Reason } }
     if ($EnvironmentIdentifier) {$params += @{ EnvironmentIdentifier = $EnvironmentIdentifier } }
     if ($ComputerName) { $params += @{ ComputerName = $ComputerName } }
-    Stop-RMTAgents @params
+    Stop-RMTAgent @params
 
     $params = @{}
     if ($Context) { $params += @{ Context = $Context } }
@@ -819,7 +874,7 @@ function global:Restart-RMTAgents {
     if ($EnvironmentIdentifier) {$params += @{ EnvironmentIdentifier = $EnvironmentIdentifier } }
     if ($ComputerName) { $params += @{ ComputerName = $ComputerName } }
     if ($IfTableauServerIsRunning) { $params += @{ IfTableauServerIsRunning = $true } }
-    $result = Start-RMTAgents @params
+    $result = Start-RMTAgent @params
 
     Set-CursorVisible
 
@@ -832,7 +887,8 @@ function global:Stop-Platform {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
+        [Parameter(Mandatory=$false)][string]$Reason = "Stop platform",
+        [switch]$DisableAgentService
     )
 
     Set-CursorInvisible
@@ -845,8 +901,9 @@ function global:Stop-Platform {
     $params = @{}
     if ($Context) { $params += @{ Context = $Context } }
     if ($Reason) { $params += @{ Reason = $Reason } }
+    if ($DisableAgentService) { $params += @{ DisableAgentService = $true } }
     
-    Stop-RMTAgents @params
+    Stop-RMTAgent @params
 
     $platformStatus = Get-PlatformStatus -ResetCache
 
@@ -888,7 +945,7 @@ function global:Start-Platform {
     if ($Context) { $params += @{ Context = $Context } }
     if ($Reason) { $params += @{ Reason = $Reason } }
     if ($IfTableauServerIsRunning) { $params += @{ IfTableauServerIsRunning = $true } }
-    $result = Start-RMTAgents @params
+    $result = Start-RMTAgent @params
     $result | Out-Null
 
     # postflight checks
