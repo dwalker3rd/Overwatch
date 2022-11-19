@@ -78,7 +78,7 @@ $rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\rmtAdmin
     }
     Set-Alias -Name rmtController -Value Get-RMTController -Scope Global
     
-    function global:Get-RMTAgents {
+    function global:Get-RMTAgent {
         
         [CmdletBinding()]
         param(
@@ -123,7 +123,7 @@ $rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\rmtAdmin
         return $agents | Sort-Object -Property Name
 
     }
-    Set-Alias -Name rmtAgents -Value Get-RMTAgents -Scope Global
+    Set-Alias -Name rmtAgent -Value Get-RMTAgent -Scope Global
 
     function global:Get-RMTEnvironments {
         
