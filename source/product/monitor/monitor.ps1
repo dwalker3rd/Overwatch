@@ -35,6 +35,7 @@ function global:Send-MonitorMessage {
     )
 
     $heartbeat = Get-Heartbeat
+    $heartbeatHistory = Get-HeartbeatHistory
 
     $action = $ReportHeartbeat ? "Report" : "Status"
     $target = $ReportHeartbeat ? "Heartbeat" : "Platform"
@@ -46,7 +47,7 @@ function global:Send-MonitorMessage {
     if (!$heartbeat.IsOK) {
         $errorInterval = 2
         $platformTaskInterval = Get-PlatformTaskInterval -Id $Product.Id
-        $isOKTimestamp = ($heartbeat.History | Where-Object {$_.IsOK})[0].TimeStamp
+        $isOKTimestamp = ($heartbeatHistory | Where-Object {$_.IsOK})[0].TimeStamp
         if ([datetime]::Now -gt $isOKTimestamp.Add($errorInterval*$platformTaskInterval)) {
             $entryType = "Error"
         }
@@ -319,7 +320,8 @@ Open-Monitor
     }
 
     $heartbeat = Get-Heartbeat
-    if (compare-object $heartbeat.history[0] $heartbeat.history[1] -property IsOK,PlatformIsOK,PlatformRollupStatus) {
+    $heartbeatHistory = Get-HeartbeatHistory
+    if (Compare-Object $heartbeatHistory[0] $heartbeatHistory[1] -Property IsOK,PlatformIsOK,PlatformRollupStatus) {
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace "  Heartbeat (Current)" -ForegroundColor Gray
         $message = "<    IsOK <.>48> $($heartbeat.IsOK)"
