@@ -193,6 +193,86 @@
 
     }
 
+    function global:Get-CatalogDependents {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][string]$Type,
+            [Parameter(Mandatory=$true)][string]$Name,
+            [switch]$Installed
+        )
+
+        $dependencies = @()
+        foreach ($key in $global:Catalog.Keys) {
+            foreach ($subKey in $global:Catalog.$key.Keys) {
+                if ([array]$global:Catalog.$key.$subKey.Installation.Prerequisite.$Type -contains $Name) { 
+                    $_obj = switch ($key) {
+                        "OS" { Get-OS }
+                        "Platform" { Get-Platform }
+                        "Product" { 
+                            $_product = Get-Product $subKey 
+                            if (!$_product.IsInstalled -and $Installed) { continue }
+                            $_product
+                        }
+                        "Provider" {
+                            $_provider = Get-Provider $subKey 
+                            if (!$_provider.IsInstalled -and $Installed) { continue }
+                            $_provider
+                        }
+                        default { $null }
+                    }
+                    $dependencies += [PSCustomObject]@{
+                        Type = $key
+                        Name = $subKey
+                        Object = $_obj
+                    }
+                }
+            }
+        }
+
+        return $dependencies
+
+    }
+
+    function global:Get-CatalogDependencies {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][string]$Type,
+            [Parameter(Mandatory=$true)][string]$Name,
+            [switch]$Installed
+        )
+
+        $dependencies = @()
+        foreach ($key in $global:Catalog.$Type.$Name.Installation.Prerequisite.Keys) {
+            foreach ($subKey in $global:Catalog.$Type.$Name.Installation.Prerequisite[$key]) {
+                $_obj = switch ($key) {
+                    "OS" { Get-OS }
+                    "Platform" { Get-Platform }
+                    "Product" { 
+                        $_product = Get-Product $subKey 
+                        if (!$_product.IsInstalled -and $Installed) { continue }
+                        $_product
+                    }
+                    "Provider" {
+                        $_provider = Get-Provider $subKey 
+                        if (!$_provider.IsInstalled -and $Installed) { continue }
+                        $_provider
+                    }
+                    default { $null }
+                }
+                $dependencies += [PSCustomObject]@{
+                    Type = $key
+                    Name = $subKey
+                    Object = $_obj
+                }
+            }
+        }
+
+        return $dependencies
+
+    }
+
 #endregion CATALOG
 
 #endregion OVERWATCH
