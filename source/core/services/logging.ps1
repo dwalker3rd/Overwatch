@@ -629,7 +629,9 @@ function global:Write-Log {
     if (!$Force -and $LogLevels.$EntryType -ge $LogLevels.$LogLevel) { return }
 
     if ([string]::IsNullOrEmpty($Name)) {
-        $Name = (Get-Catalog $Context).Log ? ((Get-Catalog $Context).Log).ToLower() : $Platform.Instance
+        # $Context can be something that is not a valid catalog object such as "Azure Update Management"
+        # thus the need to append -ErrorAction SilentlyContinue to the call to Get-Catalog
+        $Name = (Get-Catalog $Context -ErrorAction SilentlyContinue).Log ? ((Get-Catalog $Context -ErrorAction SilentlyContinue).Log).ToLower() : $Platform.Instance
         if (!(Test-Log -Name $Name)) {
             New-Log -Name $Name | Out-Null
         }
