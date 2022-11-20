@@ -197,10 +197,16 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string]$Type,
-            [Parameter(Mandatory=$true)][string]$Name,
+            [Parameter(Mandatory=$true,Position=0)][string]$Type,
+            [Parameter(Mandatory=$true,Position=1)][string]$Name,
             [switch]$Installed
         )
+
+        $catalogObject = $global:Catalog.$Type.$Name
+        if (!$catalogObject) {
+            Write-Host+ -NoTimestamp -NoTrace "NOTFOUND: A $($Type.ToLower()) named $($Name) was not found in the catalog." -ForegroundColor Red
+            return
+        }
 
         $dependencies = @()
         foreach ($key in $global:Catalog.Keys) {
@@ -238,10 +244,16 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string]$Type,
-            [Parameter(Mandatory=$true)][string]$Name,
+            [Parameter(Mandatory=$true,Position=0)][string]$Type,
+            [Parameter(Mandatory=$true,Position=1)][string]$Name,
             [switch]$Installed
         )
+
+        $catalogObject = $global:Catalog.$Type.$Name
+        if (!$catalogObject) {
+            Write-Host+ -NoTimestamp -NoTrace "NOTFOUND: A $($Type.ToLower()) named $($Name) was not found in the catalog." -ForegroundColor Red
+            return
+        }
 
         $dependencies = @()
         foreach ($key in $global:Catalog.$Type.$Name.Installation.Prerequisite.Keys) {
