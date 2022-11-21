@@ -51,7 +51,7 @@ Clear-Host
     Write-Host+ -NoTrace -NoTimestamp "Discovery" -ForegroundColor DarkGray
     Write-Host+ -NoTrace -NoTimestamp "---------" -ForegroundColor DarkGray
 
-    $overwatchInstallLocation = $PSScriptRoot
+    $overwatchInstallLocation = Get-Location
 
     $installedProducts = @()
     $installedProviders = @()
@@ -510,7 +510,7 @@ Clear-Host
     Write-Host+ -Iff $providerHeaderWritten
 
 #endregion PROVIDERS
-#region PRODUCT IMPACT
+#region UPDATES
 
     if (!$installOverwatch) {
 
@@ -578,7 +578,7 @@ Clear-Host
                 $coreFiles += $environFile
                 Write-Host+ -NoTrace -NoTimestamp "  [$($environFile.Component)`:$($environFile.$($environFile.Component))] $($environFile.Destination)" -ForegroundColor DarkGray
             }
-            Remove-Files -Path $tempEnvironFile
+            # Remove-Files -Path $tempEnvironFile
 
             $updatedfiles += $coreFiles
 
@@ -614,11 +614,11 @@ Clear-Host
             $productFiles = @()
 
             $productSpecificServiceFiles = @()
-            foreach ($productSpecificService in $productSpecificServices) {
-                if (Test-Path "$PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1") {
-                    $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -WhatIf
+            foreach ($productSpecificService in $productSpecificServices.Service | Sort-Object -Unique) {
+                if (Test-Path "$PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1") {
+                    $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1 -WhatIf
                 }
-                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -Component Product -Name $productSpecificService.Product -WhatIf
+                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\services-$($productSpecificService.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1 -WhatIf
             }
             foreach ($productSpecificServiceFile in $productSpecificServiceFiles) {
                 if ($productSpecificServiceFile.Source.FullName -notin $productFiles.Source.FullName) {
@@ -656,6 +656,9 @@ Clear-Host
 
     }
 
+#endregion UPDATES
+#region IMPACT
+
     if ($productFiles) {
         $productIds += ($productFiles.Product -split ",") | Where-Object {$_ -notin $productIds} | Sort-Object -Unique
     }
@@ -691,7 +694,7 @@ Clear-Host
 
     }
 
-#endregion DISABLE PRODUCTS
+#endregion IMPACT
 #region FILES
 
     if ($installOverwatch -or $updatedFiles) {
@@ -795,19 +798,19 @@ Clear-Host
             }    
 
             $definitionsServicesUpdated = $false
-            foreach ($productSpecificService in $productSpecificServices) {
+            foreach ($productSpecificService in $productSpecificServices.Service) {
                 $productFileUpdated = $false
-                $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\definitions-service-$($productSpecificService.Service.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1 -ConfirmCopy)
-                $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.Service.ToLower())\services-$($productSpecificService.Service.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.Service.ToLower()).ps1 -ConfirmCopy)
+                $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1 -ConfirmCopy)
+                $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\services-$($productSpecificService.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1 -ConfirmCopy)
                 if ($productFileUpdated) {
-                    if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.Service.ToLower()).ps1") {
-                        $contentLine = ". `$definitionsPath\definitions-service-$($productSpecificService.Service.ToLower()).ps1"
+                    if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1") {
+                        $contentLine = ". `$definitionsPath\definitions-service-$($productSpecificService.ToLower()).ps1"
                         if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
                             Add-Content -Path $definitionsServices -Value $contentLine
                             $definitionsServicesUpdated = $true
                         }
                     }
-                    $contentLine = ". `$servicesPath\services-$($productSpecificService.Service.ToLower()).ps1"
+                    $contentLine = ". `$servicesPath\services-$($productSpecificService.ToLower()).ps1"
                     if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
                         Add-Content -Path $definitionsServices -Value $contentLine
                         $definitionsServicesUpdated = $true

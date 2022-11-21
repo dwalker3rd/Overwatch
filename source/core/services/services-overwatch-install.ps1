@@ -1,113 +1,158 @@
 #region FILE MANAGEMENT
 
-    function script:Copy-File {
+function script:Copy-File {
 
-        [CmdletBinding(SupportsShouldProcess)]
-        Param (
-            [Parameter(Mandatory=$true,Position=0)][string]$Path,
-            [Parameter(Mandatory=$false,Position=1)][string]$Destination,
-            [Parameter(Mandatory=$false)][string]$Component,
-            [Parameter(Mandatory=$false)][string]$Name,
-            [Parameter(Mandatory=$false)][string]$Family,
-            [switch]$Quiet,
-            [switch]$ConfirmOverwrite,
-            [switch]$ConfirmCopy,
-            [switch]$QueueCopy
-        )
+    [CmdletBinding(SupportsShouldProcess)]
+    Param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Path,
+        [Parameter(Mandatory=$false,Position=1)][string]$Destination,
+        [Parameter(Mandatory=$false)][string]$Component,
+        [Parameter(Mandatory=$false)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$Family,
+        [switch]$Quiet,
+        [switch]$ConfirmOverwrite,
+        [switch]$ConfirmCopy,
+        [switch]$QueueCopy
+    )
 
-        if ($ConfirmCopy -and $QueueCopy) {
-            throw "ConfirmCopy and QueueCopy cannot be used together."
-            return
-        }
+    if ($ConfirmCopy -and $QueueCopy) {
+        throw "ConfirmCopy and QueueCopy cannot be used together."
+        return
+    }
 
-        if (Test-Path -Path $Path) { 
+    if (Test-Path -Path $Path) { 
 
-            $pathFiles = Get-ChildItem $Path
-            $destinationIsDirectory = !(Split-Path $Destination -Extension)
+        $pathFiles = Get-ChildItem $Path
+        $destinationIsDirectory = !(Split-Path $Destination -Extension)
 
-            $copiedFile = $false
-            $whatIfFiles = @()
-            foreach ($pathFile in $pathFiles) {
+        $copiedFile = $false
+        $whatIfFiles = @()
+        foreach ($pathFile in $pathFiles) {
 
-                $destinationFilePath = $destinationIsDirectory ? "$Destination\$(Split-Path $pathFile -Leaf -Resolve)" : $Destination
+            $destinationFilePath = $destinationIsDirectory ? "$Destination\$(Split-Path $pathFile -Leaf -Resolve)" : $Destination
 
-                #region DETERMINE COMPONENT AND NAME
+            #region DETERMINE COMPONENT AND NAME
 
-                    $components = @()
-                    $names = @()
-                    $families = @()
+                $components = @()
+                $names = @()
+                $families = @()
 
-                    if ($Component) {
+                if (![string]::IsNullOrEmpty($Component)) {
 
-                        $components += $Component
-                        $names += ![string]::IsNullOrEmpty($Name) ? $Name : @()
-                        $families += ![string]::IsNullOrEmpty($Family) ? $Family : @()
+                    $components += $Component
+                    $names += ![string]::IsNullOrEmpty($Name) ? $Name : @()
+                    $families += ![string]::IsNullOrEmpty($Family) ? $Family : @()
 
-                    }
-                    else {
+                }
+                else {
 
-                        # parse $pathFile for source subdirectories indicating component and name                
-                        $pathKeys = @()
-                        $pathKeys += ($pathFile | Split-Path -Parent).Replace("$($global:Location.Scripts)\","",1).Replace("source\","",1) -Split "\\"
-                        $pathKeys += ($pathFile | Split-Path -LeafBase).Replace("-template","")
+                    # parse $pathFile for source subdirectories indicating component and name                
+                    $pathKeys = @()
+                    $pathKeys += ($pathFile | Split-Path -Parent).Replace("$($global:Location.Scripts)\","",1).Replace("source\","",1) -Split "\\"
+                    $pathKeys += ($pathFile | Split-Path -LeafBase).Replace("-template","")
 
-                        # if the subdirectory is "services", then search the catalog for the component and name/family
-                        if (("services") -icontains $pathKeys[0]) {
-                            foreach ($key in $global:Catalog.Keys) {
-                                foreach ($subkey in $global:Catalog.$key.Keys) {
-                                    # if ($subkey -in $global:Environ.$key) {
-                                        foreach ($service in $global:Catalog.$key.$subkey.Installation.Prerequisite.Service) {
-                                            if ($service -eq $pathKeys[1]) {
-                                                $components += $global:Catalog.Keys | Where-Object {$_ -eq $key}
-                                                $names += $global:Catalog.$key.Keys | Where-Object {$_ -eq $subKey}
-                                                if ($global:Catalog.$key.$subkey.Family) {
-                                                    $families += $global:Catalog.$key.$subkey.Family
-                                                }
+                    # if the subdirectory is "services", then search the catalog for the component and name/family
+                    if (("services") -icontains $pathKeys[0]) {
+                        foreach ($_key in $global:Catalog.Keys | Where-Object {$_ -ne "Overwatch"}) {
+                            foreach ($_subKey in $global:Catalog.$_key.Keys) {
+                                # if $_key is OS or Platform, then $_subKey must be the OS or Platform installed
+                                if ($_key -in ("OS","Platform") -and $_subKey -notin $global:Environ.$_key) {
+                                    # ignore
+                                }
+                                else {
+                                    foreach ($service in $global:Catalog.$_key.$_subKey.Installation.Prerequisite.Service) {
+                                        if ($service -eq $pathKeys[1]) {
+                                            $components += $global:Catalog.Keys | Where-Object {$_ -eq $_key}
+                                            $names += $global:Catalog.$_key.Keys | Where-Object {$_ -eq $_subKey}
+                                            if ($global:Catalog.$_key.$_subKey.Family) {
+                                                $families += $global:Catalog.$_key.$_subKey.Family
                                             }
                                         }
-                                    # }
+                                    }
                                 }
                             }
                         }
-                        # otherwise use the parsed $pathFile and capitalize the component and name
-                        else {
-                            $components = (Get-Culture).TextInfo.ToTitleCase($pathKeys[0])
-                            if ($components -eq "Providers") { $components = "Provider" }
-                            $names = (Get-Culture).TextInfo.ToTitleCase($pathKeys[1]) 
-                            foreach ($key in $global:Catalog.Keys) {
-                                if ($components -eq $key) { 
-                                    $components = $key
-                                    $names = $global:Catalog.$key.$names.Id
-                                }
-
+                    }
+                    # otherwise use the parsed $pathFile and capitalize the component and name
+                    else {
+                        $components = (Get-Culture).TextInfo.ToTitleCase($pathKeys[0])
+                        if ($components -eq "Providers") { $components = "Provider" }
+                        $names = (Get-Culture).TextInfo.ToTitleCase($pathKeys[1]) 
+                        foreach ($_key in $global:Catalog.Keys) {
+                            if ($components -eq $_key) { 
+                                $components = $_key
+                                $names = $global:Catalog.$_key.$names.Id
                             }
-                        }
 
+                        }
                     }
 
-                    # $names = ($global:Environ.OS | Where-Object {$_ -in $names}) ?? $names
-                    # $names = ($global:Environ.Platform | Where-Object {$_ -in $names}) ?? $names
-                    # $names = ($global:Environ.Product | Where-Object {$_ -in $names}) ?? $names
-                    # $names = ($global:Environ.Provider | Where-Object {$_ -in $names}) ?? $names
+                }
 
-                    # if component/name/family are arrays, sort uniquely and comma-separate
-                    $Component = ($components | Sort-Object -Unique) -join ","
-                    $Name = ($names | Sort-Object -Unique) -join ","
-                    $Family = $families.Count -gt 0 ? ($families | Sort-Object -Unique) -join "," : $null
+                # $names = ($global:Environ.OS | Where-Object {$_ -in $names}) ?? $names
+                # $names = ($global:Environ.Platform | Where-Object {$_ -in $names}) ?? $names
+                # $names = ($global:Environ.Product | Where-Object {$_ -in $names}) ?? $names
+                # $names = ($global:Environ.Provider | Where-Object {$_ -in $names}) ?? $names
 
-                    $familyOrName = ![string]::IsNullOrEmpty($Family) ? $Family : $Name
-                    # Write-Host+ -NoTrace -NoTimestamp "[$Component`:$familyOrName] $pathFile" -ForegroundColor DarkGray
+                # if component/name/family are arrays, sort uniquely and comma-separate
+                $_component = ($components | Sort-Object -Unique) -join ","
+                $_name = ($names | Sort-Object -Unique) -join ","
+                $_family = $families.Count -gt 0 ? ($families | Sort-Object -Unique) -join "," : $null
 
-                #endregion DETERMINE COMPONENT AND NAME
+                $_familyOrComponent = ![string]::IsNullOrEmpty($_family) ? "$_component Family" : $_component
+                $_familyOrName = ![string]::IsNullOrEmpty($_family) ? $_family : $_name
 
-                if (!(Test-Path -Path $destinationFilePath -PathType Leaf)) {
+            #endregion DETERMINE COMPONENT AND NAME
+
+            if (!(Test-Path -Path $destinationFilePath -PathType Leaf)) {
+                if ($PSBoundParameters.ContainsKey('WhatIf')) {
+                    $whatIfFiles += @{
+                        Source = $pathFile
+                        Destination = $destinationFilePath
+                        Component = $_component
+                        $_component = $_name
+                        Family = $_family
+                    }
+                }
+                else {
+                    Copy-Item -Path $pathFile $destinationFilePath
+                    $copiedFile = $true
+                }
+                if (!$Quiet) {
+                    if ($PSBoundParameters.ContainsKey('WhatIf')) {
+                        Write-Host+ -NoTrace -NoTimestamp "  [$_familyOrComponent`:$_familyOrName] $pathFile" -ForegroundColor DarkGray
+                    }
+                    else {
+                        Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  Copied $_ to $destinationFilePath" -ForegroundColor DarkGray}
+                    }
+                }
+            }
+            else {
+
+                # if hash is different, file contents are different. 
+                # but this may be install parameters only, so compare LastWriteTime
+                # update pathFile IFF the hash is different and the source file is newer
+                $pathHashIsDifferent = (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFilePath).hash
+                $destinationFile = Get-ChildItem $destinationFilePath
+                $pathFileIsNewer = $pathFile.LastWriteTime -gt $destinationFile.LastWriteTime
+                $updatePathFile = $pathHashIsDifferent -and $pathFileIsNewer
+
+                if ($pathHashIsDifferent -and !$pathFileNewer) {
+                    Write-Host+ -IfDebug -NoTrace -NoTimestamp "  DEBUG: $pathFile is different from $destinationFile, but $destinationFile is newer." -ForegroundColor DarkGray
+                }
+
+                if (!$updatePathFile) {
+                    # skip copy if the source file contents are identical to the target file contents
+                    # or if the source file's LastWriteTime is older than the path file's LastWriteTime
+                }
+                else {
                     if ($PSBoundParameters.ContainsKey('WhatIf')) {
                         $whatIfFiles += @{
                             Source = $pathFile
                             Destination = $destinationFilePath
-                            Component = $Component
-                            $Component = $Name
-                            Family = $Family
+                            Component = $_component
+                            $_component = $_name
+                            Family = $_family
                         }
                     }
                     else {
@@ -116,58 +161,21 @@
                     }
                     if (!$Quiet) {
                         if ($PSBoundParameters.ContainsKey('WhatIf')) {
-                            Write-Host+ -NoTrace -NoTimestamp "  [$Component`:$familyOrName] $pathFile" -ForegroundColor DarkGray
+                            Write-Host+ -NoTrace -NoTimestamp "  [$_familyOrComponent`:$_familyOrName] $pathFile" -ForegroundColor DarkGray
                         }
                         else {
                             Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  Copied $_ to $destinationFilePath" -ForegroundColor DarkGray}
                         }
                     }
                 }
-                else {
 
-                    # if hash is different, file contents are different. 
-                    # but this may be install parameters only, so compare LastWriteTime
-                    # update pathFile IFF the hash is different and the source file is newer
-                    $pathHashIsDifferent = (Get-FileHash $pathFile).hash -ne (Get-FileHash $destinationFilePath).hash
-                    $destinationFile = Get-ChildItem $destinationFilePath
-                    $pathFileIsNewer = $pathFile.LastWriteTime -gt $destinationFile.LastWriteTime
-                    $updatePathFile = $pathHashIsDifferent -and $pathFileIsNewer
-
-                    if (!$updatePathFile) {
-                        # skip copy if the source file contents are identical to the target file contents
-                        # or if the source file's LastWriteTime is older than the path file's LastWriteTime
-                    }
-                    else {
-                        if ($PSBoundParameters.ContainsKey('WhatIf')) {
-                            $whatIfFiles += @{
-                                Source = $pathFile
-                                Destination = $destinationFilePath
-                                Component = $Component
-                                $Component = $Name
-                                Family = $Family
-                            }
-                        }
-                        else {
-                            Copy-Item -Path $pathFile $destinationFilePath
-                            $copiedFile = $true
-                        }
-                        if (!$Quiet) {
-                            if ($PSBoundParameters.ContainsKey('WhatIf')) {
-                                Write-Host+ -NoTrace -NoTimestamp "  [$Component`:$familyOrName] $pathFile" -ForegroundColor DarkGray
-                            }
-                            else {
-                                Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -NoTrace -NoTimestamp "  Copied $_ to $destinationFilePath" -ForegroundColor DarkGray}
-                            }
-                        }
-                    }
-
-                }
             }
-
-            return $PSBoundParameters.ContainsKey('WhatIf') ? $whatIfFiles : ($ConfirmCopy ? $copiedFile : $null)
-
         }
+
+        return $PSBoundParameters.ContainsKey('WhatIf') ? $whatIfFiles : ($ConfirmCopy ? $copiedFile : $null)
+
     }
+}
 
     # install version
     # function script:Remove-File {
@@ -520,10 +528,10 @@
         Remove-Files "$($global:Location.Scripts)\$($Product.ToLower()).ps1"
     
         $allProductSpecificServices = @()
-        foreach ($key in $global:catalog.Product.Keys) {
-            if ($global:Catalog.Product.$key.Installation.Prerequisite.Service) {
-                if ((Get-Product $global:Catalog.Product.$key.Id).IsInstalled) {
-                    $allProductSpecificServices += $global:Catalog.Product.$key.Installation.Prerequisite.Service
+        foreach ($_key in $global:catalog.Product.Keys) {
+            if ($global:Catalog.Product.$_key.Installation.Prerequisite.Service) {
+                if ((Get-Product $global:Catalog.Product.$_key.Id).IsInstalled) {
+                    $allProductSpecificServices += $global:Catalog.Product.$_key.Installation.Prerequisite.Service
                 }
             }
         }
