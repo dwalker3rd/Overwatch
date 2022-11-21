@@ -772,8 +772,10 @@ Clear-Host
 
             $definitionsServicesUpdated = $false
             foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
-                if (Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services -ConfirmCopy) {
-                    Get-Item $servicesPath\services-$($platformPrerequisiteService.ToLower())*.ps1 | 
+                $platformPrerequisiteServiceFiles = Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services -WhatIf -Quiet
+                foreach ($platformPrerequisiteServiceFile in $platformPrerequisiteServiceFiles) {
+                    Copy-File $platformPrerequisiteServiceFile.Source $platformPrerequisiteServiceFile.Destination
+                    Get-Item $platformPrerequisiteServiceFile.Destination | 
                         Foreach-Object {
                             $contentLine = ". `$servicesPath\$($_.Name)"
                             if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
