@@ -84,26 +84,32 @@ function IsPerResourceVersioning {
     )
     return (Get-VersioningType -Method $Method) -eq $EndpointVersioningType.PerResourceVersioning
 }
+
 function Get-TSServerType {
     param(
         [Parameter(Mandatory=$false,Position=0)][string]$Server
     )
-    $params = @{}
-    if ($Server) { $params += @{Server = $Server} }
-    return (IsTableauCloud @params) ? "TableauCloud" : "TableauServer"
+    $serverType = $global:tsRestApiConfig.Platform.Id ?? "TableauServer"
+    if (![string]::IsNullOrEmpty($Server)) {
+        if (IsTableauCloud -Server $Server) {
+            $serverType = "TableauCloud"
+        }
+    }
+    return $serverType
 }
-
 
 function IsTableauCloud {
     param(
         [Parameter(Mandatory=$false,Position=0)][string]$Server
     )
-    if (!($global:tsRestApiConfig.Platform.id) -and !$Server) {
-        throw "`"Server`" must be specified when the Tableau Server REST API platform is undefined."
-        return
+    $_isTableauCloud = $false
+    if (![string]::IsNullOrEmpty($Server)) {
+        $_isTableauCloud = $Server -like "*online.tableau.com"
     }
-    if ($Server) { return $Server -like "*online.tableau.com" }
-    return $global:tsRestApiConfig.Platform.Id -eq "TableauCloud"
+    elseif (![string]::IsNullOrEmpty($global:tsRestApiConfig.Platform.id)) {
+        $_isTableauCloud = $global:tsRestApiConfig.Platform.Id -eq "TableauCloud"
+    }
+    return $_isTableauCloud
 }
 
 function IsPlatformServer {
