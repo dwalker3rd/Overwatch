@@ -334,45 +334,39 @@
             $platformCimInstance = Get-PlatformCimInstance
             
             $isOK = $platformStatus.IsOK
-            $platformCimInstance | `
-                Where-Object {$_.Class -in 'Service'} | `
-                    ForEach-Object {
-                        $isOK = $isOK -and ($_.Required ? $_.IsOK : $true)
-                    }
+            $platformCimInstance | Where-Object {$_.Class -in 'Service'} | ForEach-Object {
+                $isOK = $isOK -and ($_.Required ? $_.IsOK : $true)
+            }
 
-            $IsStoppedTimeout = $false
+            $platformStatus.Intervention = $false
+            $platformStatus.InterventionReason = $null                    
+
             if (!$isOK) {
                 if ($platformStatus.IsStopped) {
 
-                    Write-Verbose "IsStopped: $($platformStatus.IsStopped)"
-                    Write-Log -Action "IsStopped" -Target "Platform" -EntryType "Warning" -Status $platformStatus.IsStopped
-
                     $productShutdownTimeout = $(Get-Product -Id $platformStatus.EventCreatedBy).ShutdownMax
                     $shutdownTimeout = $productShutdownTimeout.TotalMinutes -gt 0 ? $productShutdownTimeout : $PlatformShutdownMax
-                    # $shutdownTimeout = $platformStatus.EventCreatedBy ? $productShutdownTimeout : $PlatformShutdownMax
-                    $IsStoppedTimeout = $(new-timespan -Start $platformStatus.EventCreatedAt).TotalMinutes -gt $shutdownTimeout.TotalMinutes
-                    $isOK = !$IsStoppedTimeout
+                    $stoppedDuration = New-TimeSpan -Start $platformStatus.EventCreatedAt
+                    $IsStoppedTimeout = $stoppedDuration.TotalMinutes -gt $shutdownTimeout.TotalMinutes
 
-                    Write-Verbose "IsStoppedTimeout: $($IsStoppedTimeout)"
-                    Write-Log -Action "IsStoppedTimeout" -Target "Platform" -EntryType "Warning" -Status $IsStoppedTimeout
+                    $isOK = !$IsStoppedTimeout
+                    $platformStatus.IsStoppedTimeout = $IsStoppedTimeout
+
+                    if ($IsStoppedTimeout) {
+                        $platformStatus.Intervention = $true
+                        $platformStatus.InterventionReason = "Platform STOP duration $($stoppedDuration.TotalMinutes) minutes."
+                    }
             
                 }
             }         
 
             $platformStatus.IsOk = $isOK
             $platformStatus.IsStopped = $platformStatus.RollupStatus -in $PlatformServiceDownState
-            $platformStatus.IsStoppedTimeout = $IsStoppedTimeout
             
             $platformStatus.ByCimInstance = $platformCimInstance
 
-            $platformStatus.Intervention = $false
-            $platformStatus.InterventionReason = $null
-
-            if ($platformStatus.IsStoppedTimeout) {
-                $platformStatus.Intervention = $true
-                $platformStatus.InterventionReason = "Platform STOP has exceeded $($shutdownTimeout.TotalMinutes) minutes"
-            }
-
+            # a event failed intervention will overwrite a stopped timeout intervention (above)
+            # currently there are two interventions.  new interventions will require a priority scheme
             if ($platformStatus.EventStatus -eq $PlatformEventStatus.Failed) {
                 $platformStatus.Intervention = $true
                 $platformStatus.InterventionReason = "Platform $($platformStatus.Event.ToUpper()) has $($platformStatus.EventStatus.ToUpper())"

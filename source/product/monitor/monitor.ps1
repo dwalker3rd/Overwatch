@@ -118,11 +118,9 @@ Open-Monitor
         Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null    
 
         if ($platformStatus.IsStoppedTimeout) {           
-            $status = "Intervention Required!"
-            $logMessage = "  $status : $($platformStatus.InterventionReason)"
-            Write-Log -Context $Product.Id -Action "EventCheck" -Target "Platform" -Status $status -Message $logMessage -EntryType "Warning" -Force
+            Write-Log -Context $Product.Id -Action "STOP" -Target "Platform" -Status InterventionRequired -Message $platformStatus.InterventionReason -EntryType "Warning" -Force
             $message = "<  $status <.>48> $($platformStatus.InterventionReason)"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,Red
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
             Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
         }
 
