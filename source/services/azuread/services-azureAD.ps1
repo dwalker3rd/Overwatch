@@ -304,9 +304,6 @@ function global:Get-AzureADUserProxyAddresses {
         throw "`$Type must be specified with the -Domain switch"
     }
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
-
     $typeIdentifierRegex = switch ($Type) {
         default { "^$($Type):" }
         "" { "^" }
@@ -490,7 +487,6 @@ function global:Get-AzureADUserMembership {
     return $azureADUserMembership | Select-Object -Property $($View ? $AzureADView.User.Membership.$($View) : $AzureADView.User.Membership.Default)
 
 }
-
 
 function global:Send-AzureADInvitation {
 
