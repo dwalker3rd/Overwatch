@@ -124,7 +124,7 @@ function Initialize-AzProject {
         if (Test-Path $prefixIni) {
             $Prefix = (Get-Content $prefixIni | Where-Object {$_ -like "prefix*"}).split(" : ")[1].Trim()
         }
-        $Prefix = $Prefix ?? $global:AzureAD.$tenantKey.Prefix
+        $Prefix = ![string]::IsNullOrEmpty($Prefix) ? $Prefix : $global:AzureAD.$tenantKey.Prefix
     }
     if (!(Test-Path $prefixIni)) {
         New-Item -Path $prefixIni -ItemType File | Out-Null
@@ -937,7 +937,7 @@ function global:Grant-AiProjectRole {
         }
 
         foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-            $resourceFromScope = Get-AiProjectResourceFromScope -Tenant $AzureProject.Tenant -Scope $unauthorizedProjectRoleAssignment.Scope
+            $resourceFromScope = Get-AiProjectResourceFromScope -AzureProject $AzureProject -Scope $unauthorizedProjectRoleAssignment.Scope
             $roleAssignments += [PsCustomObject]@{
                 resourceID = $resourceFromScope.resourceType + "-" + $resourceFromScope.resourceName
                 resourceType = $resourceFromScope.resourceType
@@ -1076,7 +1076,14 @@ function global:Grant-AiProjectRole {
                     if ($currentRoleAssignmentsThisResourceScope) {
                         foreach ($currentRoleAssignment in $currentRoleAssignmentsThisResourceScope) {
                             if ($currentRoleAssignment.RoleDefinitionName -notin $requiredRoleAssignments.role -or ($RemoveUnauthorizedRoleAssignments -and $unauthorizedRoleAssignment)) {
+
+                                $resourceLocksCanNotDelete = Get-AzResourceLock -Scope $resourceScope | Where-Object {$_.Properties.level -eq "CanNotDelete"}
+                                $resourceLocksCanNotDelete | Foreach-Object {Remove-AzResourceLock -Scope $resourceScope -LockName $_.Name -Force}
+
                                 Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -SignInName $signIn | Out-Null
+
+                                $resourceLocksCanNotDelete | Foreach-Object {Set-AzResourceLock -Scope $resourceScope -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force}
+
                                 $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
                                 Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
                                 $message = "-$($currentRoleAssignment.RoleDefinitionName)"

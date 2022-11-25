@@ -24,7 +24,6 @@ function global:Initialize-AzureProjects {
         }
     }
 
-}       
-Set-Alias -Name azProjInit -Value Initialize-AzureProjects -Scope Global
+}
 
 Initialize-AzureProjects
