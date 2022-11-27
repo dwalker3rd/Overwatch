@@ -253,9 +253,19 @@ $global:Catalog.Product += @{ AzureProjects =
         Publisher = "Overwatch"
         Installation = @{
             Prerequisite = @{
-                Service = @("Azure")
+                Service = @("Azure","AzureAD")
             }
         }
+    }
+}
+
+$global:Catalog.Product += @{ AzureRunCommand = 
+    [Product]@{
+        Id = "AzureRunCommand"
+        Name = "AzureRunCommand"
+        DisplayName = "AzureRunCommand"
+        Description = "Allows Azure to run remote Overwatch commands."
+        Publisher = "Overwatch"
     }
 }
 

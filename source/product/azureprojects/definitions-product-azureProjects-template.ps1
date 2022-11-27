@@ -5,12 +5,7 @@ $definitionsPath = $global:Location.Definitions
 
 $global:Product = $global:Catalog.Product.AzureProjects
 
-$global:Product.Config = @{
-    Location = @{
-        Base = "$($global:Location.Root)\data"
-    }
-}
-$global:Product.Config.Location += @{ Root = "$($global:Product.Config.Location.Base)\azure" }
+$global:Product.Config = @{}
 
 return $global:Product
 

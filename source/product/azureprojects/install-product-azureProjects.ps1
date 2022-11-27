@@ -12,8 +12,8 @@ if (!$NoNewLine) {
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 }
 
-if (!(Test-Path -Path "$($product.Config.Location.Root)")) {
-    New-Item -Path "$($product.Config.Location.Base)" -Name "azure" -ItemType "directory" | Out-Null
+if (!(Test-Path -Path "$($global:Azure.Data)")) {
+    New-Item -Path "$($global:Location.Data)" -Name "azure" -ItemType "directory" | Out-Null
 }
 
 Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\definitions-product-$($product.Id.ToLower())-template.ps1" "$($global:Location.Root)\definitions\definitions-product-$($product.Id.ToLower()).ps1" -Quiet
