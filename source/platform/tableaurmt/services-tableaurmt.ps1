@@ -346,6 +346,12 @@ function global:Get-RMTStatus {
 
         #endregion Environments
 
+        $rmtStatus.RollupStatus = $rmtStatus.IsOK ? "Connected" : "Degraded"
+
+    }
+    else {
+        $rmtStatus.IsOK = $controller.IsOK
+        $rmtStatus.RollupStatus = $controller.RollupStatus
     }
 
     Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -Indent -2
@@ -354,7 +360,6 @@ function global:Get-RMTStatus {
     Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
     Write-Host+ -Iff $(!$Quiet)
 
-    $rmtStatus.RollupStatus = $rmtStatus.IsOK ? "Connected" : "Degraded"
 
     $rmtStatus | Write-Cache rmtstatus
 
