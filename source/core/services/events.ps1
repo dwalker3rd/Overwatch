@@ -53,7 +53,6 @@ function global:Reset-PlatformEvent {
     $platformStatus.EventUpdatedAt = [datetime]::MinValue
     $platformStatus.EventCompletedAt = [datetime]::MinValue
     $platformStatus.EventHasCompleted = $false
-    $platformStatus.EventHistory = @()
 
     $platformStatus | Write-Cache platformstatus
 
@@ -79,6 +78,8 @@ function global:Initialize-PlatformEventHistory {
         EventUpdatedAt = [datetime]::MinValue
         EventCompletedAt = [datetime]::MinValue
         EventHasCompleted = $false
+        ComputerName = $env:COMPUTERNAME
+        TimeStamp = [datetime]::Now
     }
 
     $platformEventHistory | Write-Cache platformEventHistory
@@ -112,6 +113,8 @@ function Update-PlatformEventHistory {
         EventUpdatedAt = $PlatformStatus.EventUpdatedAt
         EventCompletedAt = $PlatformStatus.EventCompletedAt
         EventHasCompleted = $PlatformStatus.EventHasCompleted
+        ComputerName = $env:COMPUTERNAME
+        TimeStamp = [datetime]::Now
     }
 
     $platformEventHistory | Write-Cache platformEventHistory
@@ -207,8 +210,20 @@ function global:Get-PlatformEventHistory {
             return $null
         }
     }
+
+    # retrofixes after class change
+    foreach ($_event in $platformEventHistory) {
+        if (!$_event.ComputerName) { $_event.ComputerName = $env:COMPUTERNAME }
+        if ((Get-Date($_event.EventCreatedAt)) -ne [datetime]::MinValue -and $null -ne $_event.EventCreatedAt) {
+            if ((Get-Date($_event.EventUpdatedAt)) -eq [datetime]::MinValue) { $_event.EventUpdatedAt = $_event.EventCreatedAt}
+            if ((Get-Date($_event.EventCompletedAt)) -eq [datetime]::MinValue) { $_event.EventCompletedAt = $_event.EventCreatedAt}
+        }
+        if ($_event.TimeStamp = [datetime]::MinValue) {
+            $_event.TimeStamp = (@((Get-Date($_event.EventCreatedAt) -Millisecond 0),(Get-Date($_event.EventUpdatedAt) -Millisecond 0),(Get-Date($_event.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1)
+        }
+    }
     
-    $platformEventHistory = $platformEventHistory | Sort-Object -Property EventCreatedAt
+    $platformEventHistory = $platformEventHistory | Sort-Object -Property TimeStamp
 
     if ($Event) {$platformEventHistory = $platformEventHistory | Where-Object {$_.Event -eq $Event}}
     if ($EventStatus) {$platformEventHistory = $platformEventHistory | Where-Object {$_.EventStatus -eq $EventStatus}}
@@ -238,26 +253,37 @@ function global:Get-PlatformEventHistory {
 
 function global:Show-PlatformEvent {
 
-    $platformStatus = Get-PlatformStatus -CacheOnly
+    param(
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+    )
 
-    $properties = $platformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory" -or $_.name -like "IsStopped*" -or $_.name -like "Intervention*"}
-    $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}
-    $maxLength = ($propertyNameLengths | Measure-Object -Maximum).Maximum
+    if ($ComputerName -eq $env:COMPUTERNAME) {
 
-    Write-Host+
-    foreach ($property in $properties) {
-        $message = "<$($property.Name) < >$($maxLength+2)> "
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Green,DarkGray
-        $value = switch ($property.Value.GetType().Name) {
-            default { $property.Value}
-            "ArrayList" {
-                "{$($property.Value -join ", ")}"
+        $platformStatus = Get-PlatformStatus -CacheOnly
+
+        $properties = $platformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory" -or $_.name -like "IsStopped*" -or $_.name -like "Intervention*"}
+        $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}
+        $maxLength = ($propertyNameLengths | Measure-Object -Maximum).Maximum
+
+        Write-Host+
+        foreach ($property in $properties) {
+            $message = "<$($property.Name) < >$($maxLength+2)> "
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Green,DarkGray
+            $value = switch ($property.Value.GetType().Name) {
+                default { $property.Value}
+                "ArrayList" {
+                    "{$($property.Value -join ", ")}"
+                }
             }
+            Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor Green,Gray
         }
-        Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor Green,Gray
+
     }
 
-    Get-PlatformEventHistory | Format-Table -Property Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventUpdatedAt, EventCompletedAt, EVentHasCompleted, EventStatusTarget
+    $platformEventHistory = Get-PlatformEventHistory -ComputerName $ComputerName
+    $platformEventHistory | 
+        Sort-Object -Property TimeStamp -Descending | 
+            Format-Table -Property ComputerName, Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventUpdatedAt, EventCompletedAt, EventHasCompleted, EventStatusTarget, TimeStamp
 
 }
 
