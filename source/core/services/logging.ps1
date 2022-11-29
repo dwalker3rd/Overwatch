@@ -503,8 +503,8 @@ function global:Summarize-Log {
     foreach ($node in $ComputerName) {
 
         $platformEventHistory = Get-PlatformEventHistory -ComputerName $node
-        if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -gt $After}}
-        if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -lt $Before}}
+        if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {$_.TimeStamp -gt $After}}
+        if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {$_.TimeStamp -lt $Before}}
 
         if (![string]::IsNullOrEmpty($ShowDetails) -and $ShowDetails -ne "None") {
 
@@ -512,10 +512,10 @@ function global:Summarize-Log {
 
             #find matching platform events
             foreach ($logEntry in $logEntriesByNode) {
-                $_event = $platformEventHistory | Where-Object {(@((Get-Date($_.EventCreatedAt) -Millisecond 0),(Get-Date($_.EventUpdatedAt) -Millisecond 0),(Get-Date($_.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
+                $_event = $platformEventHistory | Where-Object {$_.TimeStamp -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
                 if ($_event) {
                     $_eventColor = $logEntry.Type -eq "Event" ? $eventColorBright : $eventColorDark
-                    $_timestampDiff = (@((Get-Date($_event.EventCreatedAt) -Millisecond 0),(Get-Date($_event.EventUpdatedAt) -Millisecond 0),(Get-Date($_event.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) - $logEntry.timeStamp
+                    $_timestampDiff = $_.TimeStamp - $logEntry.timeStamp
                     if (!($_event.Event -eq "Start" -and $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30)) {
                         $logEntry | Add-Member -NotePropertyName Event -NotePropertyValue "$($_eventColor)$($_event.Event)$($defaultColor)" 
                         $logEntry | Add-Member -NotePropertyName EventStatus -NotePropertyValue "$($_eventColor)$($_event.EventStatus)$($defaultColor)" 
