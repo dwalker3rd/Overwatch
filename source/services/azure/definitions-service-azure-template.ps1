@@ -1,6 +1,5 @@
 # The following line indicates a post-installation configuration to the installer
-# Manual Configuration > Service > Azure > Configure Azure AD tenants
-# Manual Configuration > Service > Azure > Add MsGraph credentials to vault
+# Manual Configuration > Service > Azure > Configure Azure Projects
 
 function global:Initialize-AzureProjects {
 
@@ -20,10 +19,26 @@ function global:Initialize-AzureProjects {
                     Project = @{}
                 }
             }
+            Defaults = @{
+                Resources = @{
+                    Minimum = @(
+                        @{
+                            resourceType = "StorageAccount"
+                            resourceName = ""
+                            resourceID = "StorageAccount"
+                        },
+                        @{
+                            resourceType = "StorageContainer"
+                            resourceName = ""
+                            resourceID = "StorageContainer"
+                        }
+                    )
+                }
+            }
 
         }
     }
 
-}
+}       
 
 Initialize-AzureProjects
