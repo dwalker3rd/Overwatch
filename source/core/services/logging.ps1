@@ -239,18 +239,11 @@ function global:Summarize-Log {
         [switch]$UseDefaultView,
         [switch]$Today,
         [switch]$Yesterday,
-        [Parameter(Mandatory=$false)][ValidateSet("All","Event","Error","Warning","Information","None")][string[]]$ShowDetails = "None"
+        [Parameter(Mandatory=$false)][ValidateSet("All","Event","Error","Warning","Information","None","Min")][string[]]$ShowDetails = "None"
     )
 
-    $_ShowDetails = @()
-    $_ShowDetails += $ShowDetails
-    if ($_ShowDetails -eq "All") { 
-        $_ShowDetails = @() 
-        $_ShowDetails += @("Error","Warning","Information") 
-    }
-    $ShowDetails = @()
-    $ShowDetails += $_ShowDetails
-    $ShowDetails += "Event"
+    if ($ShowDetails -eq "All") { $ShowDetails += @("Event","Error","Warning","Information") }
+    if ($ShowDetails -eq "Min") { $ShowDetails += @("Event","Error","Warning") }
 
     $defaultColor = $global:consoleSequence.BackgroundForegroundDefault
     
@@ -505,38 +498,38 @@ function global:Summarize-Log {
 
         }
 
-    }
+        $platformEventHistory = Get-PlatformEventHistory
+        if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -gt $After}}
+        if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -lt $Before}}
 
-    $platformEventHistory = Get-PlatformEventHistory
-    if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -gt $After}}
-    if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -lt $Before}}
+        if (![string]::IsNullOrEmpty($ShowDetails) -and $ShowDetails -ne "None") {
 
-    if (![string]::IsNullOrEmpty($ShowDetails) -and $ShowDetails -ne "None") {
+            $logEntries = $logEntries | Where-Object {$_.type -in $ShowDetails}
 
-        $logEntries = $logEntries | Where-Object {$_.type -in $ShowDetails}
-
-        #find matching platform events
-        foreach ($logEntry in $logEntries) {
-            $_event = $platformEventHistory | Where-Object {(@((Get-Date($_.EventCreatedAt) -Millisecond 0),(Get-Date($_.EventUpdatedAt) -Millisecond 0),(Get-Date($_.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
-            if ($_event) {
-                $_eventColor = $logEntry.Type -eq "Event" ? $eventColorBright : $eventColorDark
-                $_timestampDiff = (@((Get-Date($_event.EventCreatedAt) -Millisecond 0),(Get-Date($_event.EventUpdatedAt) -Millisecond 0),(Get-Date($_event.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) - $logEntry.timeStamp
-                if (!($_event.Event -eq "Start" -and $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30)) {
-                    $logEntry | Add-Member -NotePropertyName Event -NotePropertyValue "$($_eventColor)$($_event.Event)$($defaultColor)" 
-                    $logEntry | Add-Member -NotePropertyName EventStatus -NotePropertyValue "$($_eventColor)$($_event.EventStatus)$($defaultColor)" 
+            #find matching platform events
+            foreach ($logEntry in $logEntries) {
+                $_event = $platformEventHistory | Where-Object {(@((Get-Date($_.EventCreatedAt) -Millisecond 0),(Get-Date($_.EventUpdatedAt) -Millisecond 0),(Get-Date($_.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
+                if ($_event) {
+                    $_eventColor = $logEntry.Type -eq "Event" ? $eventColorBright : $eventColorDark
+                    $_timestampDiff = (@((Get-Date($_event.EventCreatedAt) -Millisecond 0),(Get-Date($_event.EventUpdatedAt) -Millisecond 0),(Get-Date($_event.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) - $logEntry.timeStamp
+                    if (!($_event.Event -eq "Start" -and $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30)) {
+                        $logEntry | Add-Member -NotePropertyName Event -NotePropertyValue "$($_eventColor)$($_event.Event)$($defaultColor)" 
+                        $logEntry | Add-Member -NotePropertyName EventStatus -NotePropertyValue "$($_eventColor)$($_event.EventStatus)$($defaultColor)" 
+                    }
                 }
+            }        
+
+            # Write-Host+ -NoTimestamp -NoTrace "   $($global:consoleSequence.ForegroundDarkGrey)Details: $($ShowDetails -join ", ")$($defaultColor)"
+
+            if ($logEntries.Count -gt 0) {
+                $logEntries | 
+                    Sort-Object -Property TimeStamp -Descending | 
+                        Select-Object LogName,Event,EventStatus -ExpandProperty logEntry |
+                            Select-Object ComputerName,LogName,Index,TimeStamp,EntryType,Context,Action,Target,Status,Event,EventStatus,Message | 
+                                Format-Table * -GroupBy ComputerName # -HideTableHeaders
             }
-        }        
-
-        # Write-Host+ -NoTimestamp -NoTrace "   $($global:consoleSequence.ForegroundDarkGrey)Details: $($ShowDetails -join ", ")$($defaultColor)"
-
-        if ($logEntries.Count -gt 0) {
-            $logEntries | 
-                Sort-Object -Property TimeStamp -Descending | 
-                    Select-Object LogName,Event,EventStatus -ExpandProperty logEntry |
-                        Select-Object ComputerName,LogName,Index,TimeStamp,EntryType,Context,Action,Target,Status,Event,EventStatus,Message | 
-                            Format-Table * -GroupBy ComputerName # -HideTableHeaders
         }
+
     }
 
 }
