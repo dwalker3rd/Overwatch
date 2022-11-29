@@ -36,13 +36,7 @@ $global:Product = @{Id="Cleanup"}
     # abort if a platform event is in progress
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
         $action = "Cleanup"; $target = $global.Platform.Id; $status = "Aborted"
-        $message = "$($global:Product.Id) $($status.ToLower()) because "
-        if ($platformStatus.IsStopped) {
-            $message += "$($Platform.Name) is STOPPED"
-        }
-        else {
-            $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
-        }
+        $message = $platformStatus.IsStopped ? "Platform is STOPPED" : "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         return

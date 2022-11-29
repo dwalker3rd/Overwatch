@@ -27,11 +27,12 @@ Cache object properties (not the content of the cache).
 function global:Get-Cache {
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][timespan]$MaxAge = [timespan]::MaxValue
     ) 
 
     $path = "$($global:Location.Data)\$($Name).cache"
-    $cache = [CacheObject]::new($path, $MaxAge)
+    $cache = [CacheObject]::new($path, $ComputerName, $MaxAge)
 
     return $cache
 }

@@ -743,7 +743,6 @@ function global:Update-TSRestApiMethods {
 }
 
 #endregion CONFIG
-
 #region INVOKE
 
 function global:Invoke-TSRestApiMethod {
@@ -759,15 +758,24 @@ function global:Invoke-TSRestApiMethod {
     )
 
     if ($Method -notin $global:tsRestApiConfig.SpecialMethods -and !$global:tsRestApiConfig.Token) {
-        $responseError = @{
-            code = "401002"
-            summary = "Unauthorized Access"
-            detail = "Invalid authentication credentials were provided"
+
+        $creds = Get-Credentials $global:tsRestApiConfig.Credentials
+
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$global:tsRestApiConfig.ContentUrl)
+        if (!$responseError) {
+            $global:tsRestApiConfig.Token = $response.token
+            $global:tsRestApiConfig.SiteId = $response.site.id
+            $global:tsRestApiConfig.ContentUrl = $response.site.contentUrl
+            $global:tsRestApiConfig.UserId = $response.user.id 
         }
-        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ $errorMessage -ForegroundColor Red
-        # Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
-        return $null, $null, $responseError
+        else {
+            $responseError = @{
+                code = "401002"
+                summary = "Unauthorized Access"
+                detail = "Invalid authentication credentials were provided"
+            }
+            return $null, $null, $responseError
+        }
     }
 
     $responseRoot = (IsRestApiVersioning -Method $Method) ? "tsResponse" : $null

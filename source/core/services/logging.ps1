@@ -8,6 +8,7 @@ $global:logFieldsQuoted = @("Target","Status","Message","Data")
 $global:CommonParameters = $([System.Management.Automation.Internal.CommonParameters]).DeclaredProperties.Name
 $global:LogLevels = @{
     None = 0
+    Event = 50
     Error = 100
     Warning = 200
     Information = 300
@@ -231,16 +232,25 @@ function global:Summarize-Log {
         [Parameter(Mandatory=$false)][int32]$Hours,
         [Parameter(Mandatory=$false)][int32]$Minutes,
         [Parameter(Mandatory=$false)][Alias("Until")][object]$Before,
+        [Parameter(Mandatory=$false)][object]$During,
         [Parameter(Mandatory=$false)][Alias("Last")][int32]$Newest,
         [Parameter(Mandatory=$false)][Alias("First")][int32]$Oldest,
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$UseDefaultView,
         [switch]$Today,
         [switch]$Yesterday,
-        [Parameter(Mandatory=$false)][ValidateSet("All","Error","Warning","None")][string[]]$ShowIssues = "None"
+        [Parameter(Mandatory=$false)][ValidateSet("All","Event","Error","Warning","Information","None")][string[]]$ShowDetails = "None"
     )
 
-    if ($ShowIssues -eq "All") { $ShowIssues = @("Error","Warning") }
+    $_ShowDetails = @()
+    $_ShowDetails += $ShowDetails
+    if ($_ShowDetails -eq "All") { 
+        $_ShowDetails = @() 
+        $_ShowDetails += @("Error","Warning","Information") 
+    }
+    $ShowDetails = @()
+    $ShowDetails += $_ShowDetails
+    $ShowDetails += "Event"
 
     $defaultColor = $global:consoleSequence.BackgroundForegroundDefault
     
@@ -290,6 +300,7 @@ function global:Summarize-Log {
     }
 
     Write-Host+ -ResetAll
+    Write-Host+
 
     $summary = @()
     $summaryFormatted = @()
@@ -335,6 +346,8 @@ function global:Summarize-Log {
                 $warningCount = $warnings.Count ?? 0
                 $errors = $totals | Where-Object {$_.Name -eq "Error"}
                 $errorCount = $errors.Count ?? 0
+                $events = $totals | Where-Object {$_.Name -eq "event"}
+                # $eventCount = $events.Count ?? 0
 
                 # this is only used to determine max column width in the table headers below
                 $summary += [PSCustomObject]@{
@@ -350,16 +363,20 @@ function global:Summarize-Log {
                 }
 
                 $infoColor = $infoCount -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGrey
-                $warningColor = $warningCount -gt 0 ? $global:consoleSequence.BrightForegroundYellow : $global:consoleSequence.ForegroundDarkGrey
-                $errorColor = $errorCount -gt 0 ? $global:consoleSequence.BrightForegroundRed : $global:consoleSequence.ForegroundDarkGrey
+                $warningColor = $warningCount -gt 0 ? $global:consoleSequence.ForegroundYellow : $global:consoleSequence.ForegroundDarkGrey
+                $errorColor = $errorCount -gt 0 ? $global:consoleSequence.ForegroundRed : $global:consoleSequence.ForegroundDarkGrey
+                $eventColorBright = $global:consoleSequence.BrightForegroundCyan
+                $eventColorDark = $global:consoleSequence.ForegroundCyan
                 $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $defaultColor)
                 $countColor = $logEntry.Count -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGrey
         
                 # format summary rows with console sequences to control color
                 $summaryFormatted += [PSCustomObject]@{
+                    # these fields are NOT displayed
                     PSTypeName = "Overwatch.Log.Summary"
-                    # ComputerName = "$($logColor)$($node.ToLower())$($defaultColor)"
-                    ComputerName = $node
+                    Node = $node.ToLower()
+                    # these fields ARE displayed
+                    ComputerName = "$($logColor)$($node.ToLower())$($defaultColor)"
                     Log = "$($logColor)$($logName)$($emptyString.PadLeft($formatData.Log.Width-$logName.Length))$($defaultColor)"
                     Rows = "$($countColor)$($logEntry.Count)$($defaultColor)"
                     Information = "$($infoColor)$($infoCount)$($defaultColor)"
@@ -369,54 +386,81 @@ function global:Summarize-Log {
                     MaxTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
                 }
 
+                $_fieldsToHightlight = @("LogName","TimeStamp","EntryType","Message","Context","Action","Target","Status")
+
                 foreach ($_info in $infos.Group) {
+                    $_timestamp = $_info.Timestamp
                     foreach ($key in $_info.psobject.properties.name) {
-                        $_info.$key = "$($infoColor)$($_info.$key)$($defaultColor)"
+                        if ($_info.$key -ne "ComputerName") {
+                            $_info.$key = "$($global:consoleSequence.ForegroundDarkGrey)$($_info.$key)$($defaultColor)"
+                        }
                     }
                     $logEntries += [PSCustomObject]@{
-                        node = $node
-                        logName = "$($infoColor)$($logName)$($defaultColor)"
-                        type = "Information"
-                        logEntry = $_info
+                        Node = $node
+                        LogName = "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
+                        Type = "Information"
+                        LogEntry = $_info
+                        TimeStamp = $_timeStamp
                     }
                 }
                 foreach ($_warning in $warnings.Group) {
+                    $_timeStamp = $_warning.TimeStamp
                     foreach ($key in $_warning.psobject.properties.name) {
                         $_warning.$key = 
-                            switch ($key) {
-                                "ComputerName" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
-                                "EntryType" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
-                                # "Status" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
-                                "Message" { "$($warningColor)$($_warning.$key)$($defaultColor)" }
-                                default { "$($global:consoleSequence.ForegroundDarkGrey)$($_warning.$key)$($defaultColor)" }
+                            if ($key -in $_fieldsToHightlight) {
+                                "$($warningColor)$($_warning.$key)$($defaultColor)"
+                            }
+                            else {
+                                "$($global:consoleSequence.ForegroundDarkGrey)$($_warning.$key)$($defaultColor)" 
                             }
                     }
                     $logEntries += [PSCustomObject]@{
-                        node = $node
-                        logName = "$($warningColor)$($logName)$($defaultColor)"
-                        type = "Warning"
-                        logEntry = $_warning
+                        Node = $node
+                        LogName = "LogName" -in $_fieldsToHightlight ? "$($warningColor)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
+                        Type = "Warning"
+                        LogEntry = $_warning
+                        TimeStamp = $_timeStamp
                     }
                 }
                 foreach ($_error in $errors.Group) {
+                    $_timeStamp = $_error.TimeStamp
                     foreach ($key in $_error.psobject.properties.name) {
                         $_error.$key = 
-                            switch ($key) {
-                                "ComputerName" { "$($errorColor)$($_error.$key)$($defaultColor)" }
-                                "EntryType" { "$($errorColor)$($_error.$key)$($defaultColor)" }
-                                # "Status" { "$($errorColor)$($_error.$key)$($defaultColor)" }
-                                "Message" { "$($errorColor)$($_error.$key)$($defaultColor)" }
-                                default { "$($global:consoleSequence.ForegroundDarkGrey)$($_error.$key)$($defaultColor)" }
+                            if ($key -in $_fieldsToHightlight) {
+                                "$($errorColor)$($_error.$key)$($defaultColor)"
+                            }
+                            else {
+                                "$($global:consoleSequence.ForegroundDarkGrey)$($_error.$key)$($defaultColor)" 
                             }
                     }
                     $logEntries += [PSCustomObject]@{
-                        node = $node
-                        logName = "$($errorColor)$($logName)$($defaultColor)"
-                        type = "Error"
-                        logEntry = $_error
+                        Node = $node
+                        LogName = "LogName" -in $_fieldsToHightlight ? "$($errorColor)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
+                        Type = "Error"
+                        LogEntry = $_error
+                        TimeStamp = $_timeStamp
                     }
                 }
-
+                foreach ($_event in $events.Group) {
+                    $_timeStamp = $_event.TimeStamp
+                    # $_fieldsToHightlight = @("EntryType","Context","Action","Target","Status")
+                    foreach ($key in $_event.psobject.properties.name) {
+                        $_event.$key = 
+                            if ($key -in $_fieldsToHightlight) {
+                                "$($eventColorBright)$($_event.$key)$($defaultColor)"
+                            }
+                            else {
+                                "$($global:consoleSequence.ForegroundDarkGrey)$($_event.$key)$($defaultColor)" 
+                            }
+                    }
+                    $logEntries += [PSCustomObject]@{
+                        Node = $node
+                        LogName = "LogName" -in $_fieldsToHightlight ? "$($eventColorBright)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
+                        Type = "Event"
+                        LogEntry = $_event
+                        TimeStamp = $_timeStamp
+                    }
+                }
             }
             
         }
@@ -426,11 +470,11 @@ function global:Summarize-Log {
 
     foreach ($node in $ComputerName) {
 
-        $summaryFormattedByNode = $summaryFormatted | Where-Object {$_.ComputerName -eq $node}
+        $summaryFormattedByNode = $summaryFormatted | Where-Object {$_.Node -eq $node}
         if ($summaryFormattedByNode) {
 
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " -ForegroundColor Darkgray
-            Write-Host+ -NoTrace -NoTimestamp $node
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " 
+            Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Darkgray
             Write-Host+
 
             # write column labels
@@ -457,21 +501,41 @@ function global:Summarize-Log {
                 }
             }
 
-            $summaryFormattedByNode | Where-Object {$_.ComputerName -eq $node} | Format-Table -HideTableHeaders
+            $summaryFormattedByNode | Where-Object {$_.Node -eq $node} | Format-Table -HideTableHeaders
 
         }
 
     }
 
-    if (![string]::IsNullOrEmpty($ShowIssues) -and $ShowIssues -ne "None") {
-        $logEntries = $logEntries | Where-Object {$_.type -in $ShowIssues}
-        Write-Host+ -NoTimestamp -NoTrace "   $($global:consoleSequence.ForegroundDarkGrey)Details: $($ShowIssues -join ", ")$($defaultColor)"
+    $platformEventHistory = Get-PlatformEventHistory
+    if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -gt $After}}
+    if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -lt $Before}}
+
+    if (![string]::IsNullOrEmpty($ShowDetails) -and $ShowDetails -ne "None") {
+
+        $logEntries = $logEntries | Where-Object {$_.type -in $ShowDetails}
+
+        #find matching platform events
+        foreach ($logEntry in $logEntries) {
+            $_event = $platformEventHistory | Where-Object {(@((Get-Date($_.EventCreatedAt) -Millisecond 0),(Get-Date($_.EventUpdatedAt) -Millisecond 0),(Get-Date($_.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
+            if ($_event) {
+                $_eventColor = $logEntry.Type -eq "Event" ? $eventColorBright : $eventColorDark
+                $_timestampDiff = (@((Get-Date($_event.EventCreatedAt) -Millisecond 0),(Get-Date($_event.EventUpdatedAt) -Millisecond 0),(Get-Date($_event.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) - $logEntry.timeStamp
+                if (!($_event.Event -eq "Start" -and $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30)) {
+                    $logEntry | Add-Member -NotePropertyName Event -NotePropertyValue "$($_eventColor)$($_event.Event)$($defaultColor)" 
+                    $logEntry | Add-Member -NotePropertyName EventStatus -NotePropertyValue "$($_eventColor)$($_event.EventStatus)$($defaultColor)" 
+                }
+            }
+        }        
+
+        # Write-Host+ -NoTimestamp -NoTrace "   $($global:consoleSequence.ForegroundDarkGrey)Details: $($ShowDetails -join ", ")$($defaultColor)"
+
         if ($logEntries.Count -gt 0) {
             $logEntries | 
-                Select-Object logName -ExpandProperty logEntry |
-                    Select-Object ComputerName,logName,Index,TimeStamp,EntryType,Context,Action,Status,Target,Message | 
-                        Sort-Object -Property TimeStamp | 
-                            Format-Table # -HideTableHeaders
+                Sort-Object -Property TimeStamp -Descending | 
+                    Select-Object LogName,Event,EventStatus -ExpandProperty logEntry |
+                        Select-Object ComputerName,LogName,Index,TimeStamp,EntryType,Context,Action,Target,Status,Event,EventStatus,Message | 
+                            Format-Table * -GroupBy ComputerName # -HideTableHeaders
         }
     }
 
@@ -492,7 +556,7 @@ function global:Remove-Log {
     $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
 
     $log = Get-Log -Name $Name -Path $Path -ComputerName $ComputerName | 
-        Where-Object {([LogObject]$_).Exists()} | ForEach-Object {
+        Where-Object {([LogObject]$_event).Exists()} | ForEach-Object {
             ([LogObject]$_).Remove()
     }
 
@@ -618,15 +682,16 @@ function global:Write-Log {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][string]$Message,
         [Parameter(Mandatory=$false)][string]$Data,
-        [Parameter(Mandatory=$false)][ValidateSet("Information","Warning","Error","Verbose","Debug")][string]$EntryType = 'Information',
+        [Parameter(Mandatory=$false)][ValidateSet("Information","Warning","Error","Verbose","Debug","Event")][string]$EntryType = 'Information',
         [Parameter(Mandatory=$false)][string]$Action="Log",
         [Parameter(Mandatory=$false)][string]$Status,
         [Parameter(Mandatory=$false)][string]$Target,
         [Parameter(Mandatory=$false)][string]$LogLevel = "Warning",
+        [Parameter(Mandatory=$false)][datetime]$TimeStamp = [datetime]::Now,
         [switch]$Force
     )
 
-    if (!$Force -and $LogLevels.$EntryType -ge $LogLevels.$LogLevel) { return }
+    if (!$Force -and $LogLevels.$EntryType -gt $LogLevels.$LogLevel) { return }
 
     if ([string]::IsNullOrEmpty($Name)) {
         # $Context can be something that is not a valid catalog object such as "Azure Update Management"
@@ -642,7 +707,7 @@ function global:Write-Log {
     $logEntry = 
         [LogEntry]@{
             Index = -1
-            TimeStamp = $(Get-Date)
+            TimeStamp = $TimeStamp
             EntryType = $EntryType
             Context = $Context
             Action = $Action

@@ -38,7 +38,7 @@ function global:Send-Message {
         # Write-Host+ "Messaging DISABLED" -ForegroundColor DarkYellow -NoSeparator
         # Write-Host+ "Message from $($Message.Source) not sent" -ForegroundColor Gray -NoSeparator
         # Write-Host+
-        Write-Log -EntryType "Warning" -Action "Send-Message" -Target $Message.Source -Message "Messaging disabled" -Force
+        Write-Log -Context "Messaging" -EntryType "Information" -Action "Send-Message" -Target $Message.Source -Status "Disabled" -Message "Messaging disabled" -Force
         return "Disabled"
     }
 

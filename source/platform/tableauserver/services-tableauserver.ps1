@@ -65,7 +65,7 @@ function global:Show-PlatformStatus {
     if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         Write-Host+
         if ($platformStatus.IsStopped) {
-            $message = "$($Platform.Name) is STOPPED"
+            $message = "Platform is STOPPED"
         }
         if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
             $message = "$($Platform.Name) $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper())"
@@ -340,7 +340,7 @@ function global:Request-Platform {
 
         [CmdletBinding()] param (
             [Parameter(Mandatory=$false)][string]$Context = "Command",
-            [Parameter(Mandatory=$false)][string]$Reason
+            [Parameter(Mandatory=$false)][string]$Reason = "Restart platform"
         )
 
         Stop-Platform -Context $Context -Reason $Reason

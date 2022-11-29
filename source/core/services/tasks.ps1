@@ -222,6 +222,28 @@ function global:Wait-PlatformTask {
 }
 Set-Alias -Name taskWait -Value Wait-PlatformTask -Scope Global
 
+function global:Stop-PlatformTasks {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [switch]$Quiet
+    ) 
+
+    Write-Host+ -Iff (!$Quiet)
+
+    $productsWithTask = Get-Product | Where-Object {$_.HasTask}
+    foreach ($productWithTask in $productsWithTask) {
+        $task = Get-PlatformTask -Id $productWithTask.Id
+        $message = "<$($productWithTask.Id) <.>32> $($task.Status.ToUpper())"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
+        Write-Log -EntryType "Warning" -Action "Stop-PlatformTasks" -Target $productWithTask.Id -Status $task.Status -Force
+    }
+
+    Write-Host+ -Iff (!$Quiet)
+
+}
+
 function global:Disable-PlatformTasks {
 
     [CmdletBinding()]
@@ -322,6 +344,7 @@ function global:Enable-PlatformTasks {
     Write-Host+ -Iff (!$Quiet)
 
 }
+Set-Alias -Name Start-PlatformTasks -Value Enable-PlatformTasks -Scope Global
 
 function global:Enable-PlatformTask {
 

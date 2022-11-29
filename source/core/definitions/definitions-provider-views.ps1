@@ -245,6 +245,11 @@ $global:UserMapView = @{
     )
 }
 
+$global:PlatformEventView = @{
+    Default = $([PlatformEvent]@{}).psobject.properties.name
+    Min = @("Event","EventStatus","EventReason","EventStatusTarget","EventCreatedBy","EventCreatedAt","EventUpdatedAt","EventCompletedAt","EventHasCompleted","ComputerName")
+}
+
 return $Provider
 
 #endregion PROVIDER DEFINITIONS

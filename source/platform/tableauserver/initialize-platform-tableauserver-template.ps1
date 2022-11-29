@@ -44,7 +44,7 @@ try {
     $platformStatus = Get-PlatformStatus 
     if ($platformStatus.IsStopped) {
         $tsRestApiAvailable = $false
-        $errormessage = "$($Platform.Name) is STOPPED"
+        $errormessage = "Platform is STOPPED"
         throw $errormessage
     }
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {

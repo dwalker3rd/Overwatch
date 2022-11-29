@@ -24,8 +24,8 @@ $global:Location +=
     Postflight = "$($global:Location.Root)\postflight"
     Help = "$($global:Location.Root)\help"
 
-    Data = "$($global:Location.Root)\data\$($global:Environ.Instance)"
-    Credentials = "$($global:Location.Root)\data\$($global:Environ.Instance)"
+    Data = "$($global:Location.Root)\data"
+    Credentials = "$($global:Location.Root)\data"
     Views = "$($global:Location.Root)\views"
     Logs = "$($global:Location.Root)\logs"
     Temp = "$($global:Location.Root)\temp"

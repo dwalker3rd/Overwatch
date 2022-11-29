@@ -75,6 +75,8 @@ class PlatformEvent {
     [datetime]$EventUpdatedAt
     [datetime]$EventCompletedAt
     [bool]$EventHasCompleted
+    [string]$ComputerName
+    [datetime]$TimeStamp
 }
 
 class PlatformCim {
@@ -402,16 +404,25 @@ class CacheObject : FileObject {
     }
     CacheObject(
         [string]$Path,
+        [string]$ComputerName
+    ){
+        ([FileObject]$this).Init($Path,$ComputerName,@{})
+        $this.Init([timespan]::MaxValue)
+    }
+    CacheObject(
+        [string]$Path,
+        [string]$ComputerName,
         [timespan]$MaxAge
     ){
-        ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{})
+        ([FileObject]$this).Init($Path,$ComputerName,@{})
         $this.Init($MaxAge)}  
     CacheObject(
         [string]$Path,
+        [string]$ComputerName,
         [timespan]$MaxAge,
         [hashtable]$Options
     ){
-        ([FileObject]$this).Init($Path,$env:COMPUTERNAME,$Options)
+        ([FileObject]$this).Init($Path,$ComputerName,$Options)
         $this.Init($MaxAge)}          
 
     [void]Validate(){}

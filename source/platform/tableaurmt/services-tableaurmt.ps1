@@ -967,7 +967,7 @@ function global:Restart-Platform {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$false)][string]$Reason,
+        [Parameter(Mandatory=$false)][string]$Reason = "Restart platform",
         [switch]$IfTableauServerIsRunning
     )
 

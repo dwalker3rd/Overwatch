@@ -63,7 +63,7 @@ function Assert-SyncError {
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
-        $message = "$($global:Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
+        $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
@@ -76,13 +76,7 @@ function Assert-SyncError {
     # abort if a platform event is in progress
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
         $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
-        $message = "$($global:Product.Id) $($status.ToLower()) because "
-        if ($platformStatus.IsStopped) {
-            $message += "$($Platform.Name) is STOPPED"
-        }
-        else {
-            $message += "platform $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper()) on $($Platform.Name)"
-        }
+        $message = $platformStatus.IsStopped ? "Platform is STOPPED" : "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
@@ -92,7 +86,7 @@ function Assert-SyncError {
     # abort if heartbeat indicates status is not ok
     If (!$heartbeat.IsOK) {
         $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
-        $message = "$($global:Product.Id) $($status.ToLower()) because $($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
+        $message = "$($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
         Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message

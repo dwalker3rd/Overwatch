@@ -323,6 +323,9 @@
                 return $platformStatus
             }
 
+            # this assumes that $platformStatus.Event is the same as the platform state
+            # TODO: manage events if $platformStatus doesn't match platform state
+            # how is Overwatch handling when the platform state is restarting b/c that's a STOP and START event
             if ($platformStatus.RollupStatus -in @("Stopping","Starting","Restarting") -and !$platformStatus.Event) {
                 $command = switch ($platformStatus.RollupStatus) {
                     "Stopping" {"Stop"}
@@ -361,21 +364,26 @@
             }         
 
             $platformStatus.IsOk = $isOK
+
+            # this overrides $platformStatus.IsStopped
+            # TODO: as above, manage events if $platformStatus doesn't match platform state
             $platformStatus.IsStopped = $platformStatus.RollupStatus -in $PlatformServiceDownState
             
             $platformStatus.ByCimInstance = $platformCimInstance
 
-            # a event failed intervention will overwrite a stopped timeout intervention (above)
+            # an event failed intervention will overwrite a stopped timeout intervention (above)
             # currently there are two interventions.  new interventions will require a priority scheme
             if ($platformStatus.EventStatus -eq $PlatformEventStatus.Failed) {
                 $platformStatus.Intervention = $true
                 $platformStatus.InterventionReason = "Platform $($platformStatus.Event.ToUpper()) has $($platformStatus.EventStatus.ToUpper())"
             }
 
+            # update timestamp for active event
             if ($platformStatus.Event) {
                 $platformStatus.EventUpdatedAt = [datetime]::Now
             }
             
+            # platform has reached EventStatusTarget for the current event
             if ($platformStatus.RollupStatus -eq $platformStatus.EventStatusTarget) {
                     $platformStatus.EventHasCompleted = $true
                     $platformStatus.EventStatus = $PlatformEventStatus.Completed

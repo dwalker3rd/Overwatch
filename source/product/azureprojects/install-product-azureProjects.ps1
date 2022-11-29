@@ -12,7 +12,7 @@ if (!$NoNewLine) {
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 }
 
-if (!(Test-Path -Path "$($global:Azure.Data)")) {
+if (!(Test-Path -Path "$($global:Location.Data)\azure")) {
     New-Item -Path "$($global:Location.Data)" -Name "azure" -ItemType "directory" | Out-Null
 }
 
