@@ -498,16 +498,20 @@ function global:Summarize-Log {
 
         }
 
-        $platformEventHistory = Get-PlatformEventHistory
+    }
+
+    foreach ($node in $ComputerName) {
+
+        $platformEventHistory = Get-PlatformEventHistory -ComputerName $node
         if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -gt $After}}
         if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -lt $Before}}
 
         if (![string]::IsNullOrEmpty($ShowDetails) -and $ShowDetails -ne "None") {
 
-            $logEntries = $logEntries | Where-Object {$_.type -in $ShowDetails}
+            $logEntriesByNode = $logEntries | Where-Object {$_.type -in $ShowDetails -and $_.Node -eq $node}
 
             #find matching platform events
-            foreach ($logEntry in $logEntries) {
+            foreach ($logEntry in $logEntriesByNode) {
                 $_event = $platformEventHistory | Where-Object {(@((Get-Date($_.EventCreatedAt) -Millisecond 0),(Get-Date($_.EventUpdatedAt) -Millisecond 0),(Get-Date($_.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
                 if ($_event) {
                     $_eventColor = $logEntry.Type -eq "Event" ? $eventColorBright : $eventColorDark
@@ -521,8 +525,8 @@ function global:Summarize-Log {
 
             # Write-Host+ -NoTimestamp -NoTrace "   $($global:consoleSequence.ForegroundDarkGrey)Details: $($ShowDetails -join ", ")$($defaultColor)"
 
-            if ($logEntries.Count -gt 0) {
-                $logEntries | 
+            if ($logEntriesByNode.Count -gt 0) {
+                $logEntriesByNode | 
                     Sort-Object -Property TimeStamp -Descending | 
                         Select-Object LogName,Event,EventStatus -ExpandProperty logEntry |
                             Select-Object ComputerName,LogName,Index,TimeStamp,EntryType,Context,Action,Target,Status,Event,EventStatus,Message | 

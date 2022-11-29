@@ -54,10 +54,11 @@ Overwatch (or null) object.
 function global:Read-Cache {
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][timespan]$MaxAge = [timespan]::MaxValue
     )
 
-    $cache = Get-Cache $Name -MaxAge $MaxAge
+    $cache = Get-Cache $Name -MaxAge $MaxAge -ComputerName $ComputerName
 
     if ($cache.Exists()) {
         if ($cache.Expired()) {

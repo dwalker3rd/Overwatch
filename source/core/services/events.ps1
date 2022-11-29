@@ -120,6 +120,20 @@ function Update-PlatformEventHistory {
 
 }
 
+function global:Log-PlatformEventHistory {
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+
+    param()
+
+    foreach ($platformEvent in (Get-PlatformEventHistory)) {
+        # $logName = $platformEvent.EventCreatedBy.ToLower() -eq "command" ? "command" : $Platform.Instance
+        $timeStamp = @((Get-Date($platformEvent.EventCreatedAt) -Millisecond 0),(Get-Date($platformEvent.EventUpdatedAt) -Millisecond 0),(Get-Date($platformEvent.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1
+        Write-Log -Context $platformEvent.EventCreatedBy <# -Name $logName #> -EntryType Event -TimeStamp $timeStamp -Action $platformEvent.Event -Target Platform -Status $platformEvent.EventStatus -Message $platformEvent.EventReason
+    }
+
+}
+
 function global:Get-PlatformEventHistory {
 
     [CmdletBinding()]
@@ -132,7 +146,7 @@ function global:Get-PlatformEventHistory {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][Alias("Since")][object]$After,
         [Parameter(Mandatory=$false)][Alias("Until")][object]$Before,
-        # [Parameter(Mandatory=$false)][datetime]$At,
+        [Parameter(Mandatory=$false)][datetime]$At,
         [Parameter(Mandatory=$false)][Alias("Last")][int32]$Newest,
         [Parameter(Mandatory=$false)][Alias("First")][int32]$Oldest,
         [Parameter(Mandatory=$false)][int32]$Days,
@@ -182,11 +196,16 @@ function global:Get-PlatformEventHistory {
         }
     }
 
-    if ($(get-cache platformEventHistory).Exists()) {
-        $platformEventHistory = [PlatformEvent[]](Read-Cache platformEventHistory)
+    if ($(get-cache platformEventHistory -ComputerName $ComputerName).Exists()) {
+        $platformEventHistory = [PlatformEvent[]](Read-Cache platformEventHistory -ComputerName $ComputerName)
     }
     else {
-        $platformEventHistory = [PlatformEvent[]](Initialize-PlatformEventHistory)
+        if ($ComputerName -eq $env:COMPUTERNAME) {
+            $platformEventHistory = [PlatformEvent[]](Initialize-PlatformEventHistory)
+        }
+        else {
+            return $null
+        }
     }
     
     $platformEventHistory = $platformEventHistory | Sort-Object -Property EventCreatedAt
@@ -199,11 +218,12 @@ function global:Get-PlatformEventHistory {
 
     if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -gt $After -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -gt $After}}
     if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -lt $Before}}
-    # if ($At) {
-    #     $_event = $platformEventHistory | Where-Object {(@((Get-Date($_.EventCreatedAt) -Millisecond 0),(Get-Date($_.EventUpdatedAt) -Millisecond 0),(Get-Date($_.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) -le (Get-Date($At) -Millisecond 0)} | Select-Object -Last 1
-    #     $_timestampDiff = (@((Get-Date($_event.EventCreatedAt) -Millisecond 0),(Get-Date($_event.EventUpdatedAt) -Millisecond 0),(Get-Date($_event.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) - (Get-Date($At) -Millisecond 0)
-    #     $platformEventHistory = $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30 ? $null : $_event
-    # }
+    if ($Before) {$platformEventHistory = $platformEventHistory | Where-Object {(Get-Date($_.EventCreatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventUpdatedAt) -Millisecond 0) -lt $Before -or (Get-Date($_.EventCompletedAt) -Millisecond 0) -lt $Before}}
+    if ($At) {
+        $_event = $platformEventHistory | Where-Object {(@((Get-Date($_.EventCreatedAt) -Millisecond 0),(Get-Date($_.EventUpdatedAt) -Millisecond 0),(Get-Date($_.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) -le (Get-Date($At) -Millisecond 0)} | Select-Object -Last 1
+        $_timestampDiff = (@((Get-Date($_event.EventCreatedAt) -Millisecond 0),(Get-Date($_event.EventUpdatedAt) -Millisecond 0),(Get-Date($_event.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1) - (Get-Date($At) -Millisecond 0)
+        $platformEventHistory = $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30 ? $null : $_event
+    }
     if ($Newest) {$platformEventHistory = $platformEventHistory | Select-Object -Last $Newest}
     if ($Oldest) {$platformEventHistory = $platformEventHistory | Select-Object -First $Oldest}
 
