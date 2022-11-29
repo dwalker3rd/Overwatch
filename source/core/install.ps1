@@ -352,7 +352,7 @@ Clear-Host
 #endregion IMAGES
 #region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","data\$platformInstanceId","install\data","views")
+    $requiredDirectories = @("config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","install\data","views")
 
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
