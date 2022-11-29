@@ -239,11 +239,11 @@ function global:Summarize-Log {
         [switch]$UseDefaultView,
         [switch]$Today,
         [switch]$Yesterday,
-        [Parameter(Mandatory=$false)][ValidateSet("All","Event","Error","Warning","Information","None","Min")][string[]]$ShowDetails = "None"
+        [Parameter(Mandatory=$false)][ValidateSet("All","Event","Error","Warning","Information","None","Default")][string[]]$ShowDetails = "Default"
     )
 
     if ($ShowDetails -eq "All") { $ShowDetails += @("Event","Error","Warning","Information") }
-    if ($ShowDetails -eq "Min") { $ShowDetails += @("Event","Error","Warning") }
+    if ($ShowDetails -eq "Default") { $ShowDetails += @("Event","Error","Warning") }
 
     $defaultColor = $global:consoleSequence.BackgroundForegroundDefault
     
@@ -360,7 +360,7 @@ function global:Summarize-Log {
                 $errorColor = $errorCount -gt 0 ? $global:consoleSequence.ForegroundRed : $global:consoleSequence.ForegroundDarkGrey
                 $eventColorBright = $global:consoleSequence.BrightForegroundCyan
                 $eventColorDark = $global:consoleSequence.ForegroundCyan
-                $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $defaultColor)
+                $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $global:consoleSequence.ForegroundDarkGrey)
                 $countColor = $logEntry.Count -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGrey
         
                 # format summary rows with console sequences to control color
