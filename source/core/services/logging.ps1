@@ -659,7 +659,7 @@ function global:Test-Log {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+    $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $ComputerName) + $($Name ? "\$($Name).log" : "\*.log")
 
     if (!(Test-Path $Path)) {return $false}
 
