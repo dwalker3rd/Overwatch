@@ -35,13 +35,13 @@ if ($agents) {
     $messageStatus | Out-Null
 
     $skippedEnvironments = $result.Skipped.Environments
-    Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($skippedEnvironments.Identifier | ConvertTo-Json -Compress) ?? "None") -Force
+    Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Message ("Skipped $($skippedEnvironments.Identifier -join ",")" ?? "None") -Force
 
     while ($skippedEnvironments.Count -gt 0) { 
 
         $message = "<Wait $sleepSeconds seconds <.>48> PENDING"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkYellow,DarkGray,DarkGray
-        Write-Log -Context StartRMTAgents -Action Sleeping -Status Pending -Data "$sleepSeconds seconds" -Force
+        Write-Log -Context StartRMTAgents -Action Sleeping -Status Pending -Message "Wait $sleepSeconds seconds" -Force
         
         Start-Sleep -Seconds $sleepSeconds
         $sleepSeconds = $sleepSeconds -lt $sleepSecondsMax ? $sleepSeconds + $sleepSecondsIncrement : $sleepSecondsMax
@@ -71,10 +71,10 @@ if ($agents) {
 
                 if ($result.Skipped.Agents.Count -eq 0) {
                     $skippedEnvironments = $skippedEnvironments | Where-Object {$_.Identifier -ne $environ.Identifier}
-                    Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($skippedEnvironments.Identifier | ConvertTo-Json -Compress) ?? "None") -Force
+                    Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Message ("Skipped $($skippedEnvironments.Identifier -join ",")" ?? "None") -Force
                 }
                 else {
-                    Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Data (($result.Skipped.Agents.Name | ConvertTo-Json -Compress) ?? "None") -Force
+                    Write-Log -Context StartRMTAgents -Target Environments -Status Skipped -Message ("Skipped $($result.Skipped.Agents.Name -join ",")" ?? "None") -Force
                 }
 
             }

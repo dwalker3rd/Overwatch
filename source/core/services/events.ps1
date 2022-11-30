@@ -97,13 +97,13 @@ function Update-PlatformEventHistory {
 
     $platformEventHistory = [PlatformEvent[]](Get-PlatformEventHistory)
 
-    if ($platformEventHistory.Count -lt $PlatformEventHistoryMax) {
-        $platformEventHistory += @{}
+    if ($platformEventHistory.Count -gt $PlatformEventHistoryMax) {
+        $platformEventHistory = 
+            ($platformEventHistory | Sort-Object -Property TimeStamp -Descending)[0..$PlatformEventHistoryMax] | 
+                Sort-Object -Property TimeStamp
     }
-    for ($i = $platformEventHistory.Count-1; $i -gt 0; $i--) {
-        $platformEventHistory[$i] = $platformEventHistory[$i-1]
-    }
-    $platformEventHistory[0] = @{
+
+    $platformEventHistory += [PlatformEvent]@{
         Event = $PlatformStatus.Event
         EventStatus = $PlatformStatus.EventStatus
         EventReason = $PlatformStatus.EventReason

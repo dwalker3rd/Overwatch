@@ -10,7 +10,8 @@ function global:New-EncryptionKey {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $Name = $Name.ToLower()
@@ -18,7 +19,7 @@ function global:New-EncryptionKey {
     $key = New-Object Byte[] 32
     [Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($key)
     
-    Add-ToVault -Vault Key -Name $Name -InputObject $key
+    Add-ToVault -Vault Key -Name $Name -InputObject $key -ComputerName $ComputerName
 
     return $key
 

@@ -22,11 +22,12 @@ Vault object properties (not the content of the vault).
 #>
 function global:Get-Vault {
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name
+        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     ) 
 
     $path = "$($global:Location.Data)\$($Name).vault"
-    $vault = [VaultObject]::new($path)
+    $vault = [VaultObject]::new($path, $ComputerName)
 
     return $vault
 }
@@ -44,10 +45,11 @@ Boolean. $true: the vault exists. $false: the vault does not exist.
 #>
 function global:Test-Vault {
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name
+        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     ) 
 
-    $vault = Get-Vault $Name
+    $vault = Get-Vault $Name -ComputerName $ComputerName
     
     return $null -ne $vault.FileInfo
 }
@@ -66,17 +68,26 @@ function global:Get-VaultKeys {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Vault
+        [Parameter(Mandatory=$true,Position=0)][string]$Vault,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    return (Read-Vault $Vault).keys
+    return (Read-Vault $Vault -ComputerName $ComputerName).keys
 
 }
 function global:Get-KeysFromSecretVault {
-    return Get-VaultKeys -Vault secret
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    )
+    return Get-VaultKeys -Vault secret -ComputerName $ComputerName
 }
 function global:Get-KeysFromKeyVault {
-    return Get-VaultKeys -Vault key
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    )
+    return Get-VaultKeys -Vault key -ComputerName $ComputerName
 }
 <# 
 .Synopsis
@@ -91,11 +102,12 @@ Overwatch (or null) object.
 #>
 function global:Read-Vault {
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name
+        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
-    $vault = Get-Vault $Name
+    $vault = Get-Vault $Name -ComputerName $ComputerName
     if ($vault.Exists()) {
-        $lock = Lock-Vault $Name -Share "Read"
+        $lock = Lock-Vault $Name -ComputerName $ComputerName -Share "Read"
         if ($lock) {
             $outputObject = Import-Clixml $vault.Path
             # $outputObject = Get-Content $vault.Path | ConvertFrom-Json | ConvertTo-Hashtable
@@ -124,17 +136,18 @@ The object to be vaultd.
 function global:Write-Vault {
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
-        [Parameter(Mandatory=$true,ValueFromPipeline)][Object]$InputObject
+        [Parameter(Mandatory=$true,ValueFromPipeline)][Object]$InputObject,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     begin {
-        $vault = Get-Vault $Name
+        $vault = Get-Vault $Name -ComputerName $ComputerName
         $outputObject = @()
     }
     process {
         $outputObject += $InputObject
     }
     end {
-        $lock = Lock-Vault $Name -Share "None"
+        $lock = Lock-Vault $Name -ComputerName $ComputerName -Share "None" 
         if ($lock) {
             $outputObject  | Export-Clixml $vault.Path
             # $outputobject | ConvertTo-Json | Set-Content $vault.Path
@@ -162,10 +175,11 @@ function global:Lock-Vault {
 
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][ValidateSet("Read","None")][String]$Share = "Read"
     )
 
-    $vault = Get-Vault $Name
+    $vault = Get-Vault $Name -ComputerName $ComputerName
     $lockFile = $vault.FullPathName -replace $vault.Extension,".lock"
     
     $lockRetryAttempts = 0
@@ -176,8 +190,8 @@ function global:Lock-Vault {
         try {
             if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
                 $message = "Unable to acquire lock after $($lockRetryAttempts) attempts."
-                $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-                Write-Log -Action "LockVault" -Target $vault.FileNameWithoutExtension -Status "Error" -Message $message -Data $lockMeta -EntryType "Error"
+                # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+                Write-Log -Action "LockVault" -Target $vault.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error" # -Data $lockMeta 
                 return $null
             }
             $lockRetryAttempts++
@@ -190,8 +204,8 @@ function global:Lock-Vault {
 
     if ($lockRetryAttempts -gt 2) {
         $message = "Lock acquired after $($lockRetryAttempts) attempts."
-        $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-        Write-Log -Action "LockVault" -Target $vault.FileNameWithoutExtension -Status "Success" -Message $message -Data $lockMeta -Force
+        # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+        Write-Log -Action "LockVault" -Target $vault.FileNameWithoutExtension -Status "Success" -Message $message -Force # -Data $lockMeta
     }
 
     return $FileStream
@@ -234,10 +248,11 @@ Boolean result from Test-Path
 function global:Test-IsVaultLocked {
 
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name
+        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $vault = Get-Vault $Name
+    $vault = Get-Vault $Name -ComputerName $ComputerName
     $lockFile = $vault.FullPathName -replace $vault.Extension,".lock"
 
     return Test-Path -Path $lockFile
@@ -257,18 +272,19 @@ None
 function global:Wait-VaultUnlocked {
 
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name
+        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $vault = Get-Vault $Name
+    $vault = Get-Vault $Name -ComputerName $ComputerName
     # $lockFile = $vault.FullPathName -replace $vault.Extension,".lock"
 
     $lockRetryAttempts = 0
     while (Test-IsVaultLocked $vault.FileNameWithoutExtension) {
         if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
             $message = "Timeout waiting for lock to be released."
-            $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-            Write-Log -Action "WaitVault" -Target $vault.FileNameWithoutExtension -Status "Timeout" -Message $message -Data $lockMeta -EntryType "Warning"
+            # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+            Write-Log -Action "WaitVault" -Target $vault.FileNameWithoutExtension -Status "Timeout" -Message $message -EntryType "Warning" # -Data $lockMeta
             throw "($message -replace ".","") on $($vault.FileNameWithoutExtension)."
         }
         $lockRetryAttempts++
@@ -277,8 +293,8 @@ function global:Wait-VaultUnlocked {
 
     if ($lockRetryAttempts -gt 1) {
         $message = "Lock released."
-        $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-        Write-Log -Action "WaitVault" -Target $vault.FileNameWithoutExtension -Status "VaultAvailable" -Message $message -Data $lockMeta -Force
+        # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+        Write-Log -Action "WaitVault" -Target $vault.FileNameWithoutExtension -Status "VaultAvailable" -Message $message -Force  # -Data $lockMeta
     }
 
     return
@@ -303,16 +319,17 @@ function global:Add-ToVault {
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Vault,
         [Parameter(Mandatory=$true,Position=1)][string]$Name,
-        [Parameter(Mandatory=$true)][object]$InputObject
+        [Parameter(Mandatory=$true)][object]$InputObject,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $Name = $Name.ToLower()
     
-    $vaultContent = Read-Vault $Vault
+    $vaultContent = Read-Vault $Vault -ComputerName $ComputerName
 
     if ($vaultContent.$Name) {$vaultContent.Remove($Name)}
     $vaultContent += @{$Name=$InputObject}
-    $vaultContent | Write-Vault $Vault
+    $vaultContent | Write-Vault $Vault -ComputerName $ComputerName
 
 }
 
@@ -329,12 +346,13 @@ function global:Get-FromVault {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Vault,
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $Name = $Name.ToLower()
 
-    $vaultContent = Read-Vault $Vault
+    $vaultContent = Read-Vault $Vault -ComputerName $ComputerName
     # if (!$vaultContent -or !$vaultContent.$Name) {
     #     throw "Item $Name was not found in the vault."
     # }
@@ -354,17 +372,18 @@ function global:Remove-FromVault {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Vault,
-        [Parameter(Mandatory=$true,Position=1)][string]$Name
+        [Parameter(Mandatory=$true,Position=1)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )  
 
     $Name = $Name.ToLower()
     
-    $vaultContent = Read-Vault $Vault
+    $vaultContent = Read-Vault $Vault -ComputerName $ComputerName
     if (!$vaultContent -or !$vaultContent.$Name) {
         throw "Item $Name was not found in the vault."
     }
     
     $vaultContent.Remove($Name)
-    $vaultContent | Write-Vault $Vault
+    $vaultContent | Write-Vault $Vault -ComputerName $ComputerName
 
 }

@@ -3,13 +3,14 @@
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false,ValueFromPipeline)][string]$ConnectionString
+        [Parameter(Mandatory=$false,ValueFromPipeline)][string]$ConnectionString,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     
     $Name = $Name.ToLower()
     $Key = New-EncryptionKey $Name
     $encryptedConnectionString = $connectionString | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $key
-    Add-ToVault -Vault ConnectionStrings -Name $Name -InputObject @{ "connectionString" = $encryptedConnectionString }
+    Add-ToVault -Vault ConnectionStrings -Name $Name -InputObject @{ "connectionString" = $encryptedConnectionString } -ComputerName $ComputerName
 
     return
 
@@ -20,12 +21,13 @@ function global:Get-ConnectionString {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][object]$Key
+        [Parameter(Mandatory=$false)][object]$Key,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $Name = $Name.ToLower()
-    $Key = $Key ?? (Get-FromVault -Vault Key -Name $Name)
-    $connectionString =  (Get-FromVault -Vault ConnectionStrings -Name $Name).connectionString | ConvertTo-SecureString -Key $Key | ConvertFrom-SecureString -AsPlainText
+    $Key = $Key ?? (Get-FromVault -Vault Key -Name $Name -ComputerName $ComputerName)
+    $connectionString =  (Get-FromVault -Vault ConnectionStrings -Name $Name -ComputerName $ComputerName).connectionString | ConvertTo-SecureString -Key $Key | ConvertFrom-SecureString -AsPlainText
 
     return $connectionString
 
@@ -38,12 +40,13 @@ function global:Remove-ConnectionString {
         ConfirmImpact = 'High'
     )]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name
+        [Parameter(Mandatory=$false,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     if($PSCmdlet.ShouldProcess($Name)) {
-        Remove-FromVault -Vault Key -Name $Name
-        Remove-FromVault -Vault ConnectionStrings -Name $Name
+        Remove-FromVault -Vault Key -Name $Name -ComputerName $ComputerName
+        Remove-FromVault -Vault ConnectionStrings -Name $Name -ComputerName $ComputerName
     }
 
 }

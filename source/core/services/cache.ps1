@@ -27,7 +27,7 @@ Cache object properties (not the content of the cache).
 function global:Get-Cache {
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][timespan]$MaxAge = [timespan]::MaxValue
     ) 
 
@@ -54,7 +54,7 @@ Overwatch (or null) object.
 function global:Read-Cache {
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][timespan]$MaxAge = [timespan]::MaxValue
     )
 
@@ -65,7 +65,7 @@ function global:Read-Cache {
             $cache = Clear-Cache $cache.FileNameWithoutExtension
             return $null
         }
-        $lock = Lock-Cache $Name -Share "Read"
+        $lock = Lock-Cache $cache -Share "Read"
         if ($lock) {
             $outputObject = Import-Clixml $cache.Path
             Unlock-Cache $lock
@@ -94,17 +94,18 @@ function global:Write-Cache {
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
         [Parameter(ValueFromPipeline)][Object]$InputObject,
-        [Parameter(Mandatory=$false)][int]$Depth=2
+        [Parameter(Mandatory=$false)][int]$Depth=2,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     begin {
-        $cache = Get-Cache $Name
+        $cache = Get-Cache $Name -ComputerName $ComputerName
         $outputObject = @()
     }
     process {
         $outputObject += $InputObject
     }
     end {
-        $lock = Lock-Cache $Name -Share "None"
+        $lock = Lock-Cache $cache -Share "None"
         if ($lock) {
             $outputObject  | Export-Clixml $cache.Path -Depth $Depth
             Unlock-Cache $lock
@@ -127,14 +128,16 @@ Stubbed cache object.
 #>
 function global:Clear-Cache {
     param (
-        [Parameter(Mandatory=$false,Position=0)][String]$Name='*'
+        [Parameter(Mandatory=$false,Position=0)][String]$Name='*',
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
-    $cache = Get-Cache $Name
+    
+    $cache = Get-Cache $Name -ComputerName $ComputerName
     if ($cache.Exists()) {
         foreach ($fileInfo in $cache.FileInfo) {
-            $cacheName = $fileInfo.BaseName
+            # $cacheName = $fileInfo.BaseName
             $cachePath = $fileInfo.FullName
-            $lock = Lock-Cache $cacheName -Share "None"
+            $lock = Lock-Cache $cache -Share "None"
             if ($lock) {
                 Remove-Files $cachePath -Verbose:$false
                 Unlock-Cache $lock
@@ -163,14 +166,14 @@ The FileStream object for the lock file.
 function global:Lock-Cache {
 
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$true,Position=0)][object]$Cache,
         [Parameter(Mandatory=$false)][ValidateSet("Open","OpenOrCreate")][String]$Mode = "OpenOrCreate",
         [Parameter(Mandatory=$false)][ValidateSet("Read","Write","ReadWrite")][String]$Access = ($Share -eq "None" ? "ReadWrite" : "Read"),
         [Parameter(Mandatory=$false)][ValidateSet("Read","None")][String]$Share = "Read"
     )
 
-    $cache = Get-Cache $Name
-    $lockFile = $cache.FullPathName -replace $cache.Extension,".lock"
+    # $cache = Get-Cache $Name -ComputerName $ComputerName
+    $lockFile = $Cache.FullPathName -replace $Cache.Extension,".lock"
     
     $lockRetryAttempts = 0
     while (!($Access -eq "ReadWrite" -and $FileStream.CanWrite) -and !($Access -eq "Read" -and $FileStream.CanRead)) {
@@ -181,7 +184,7 @@ function global:Lock-Cache {
             if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
                 $message = "Unable to acquire lock after $($lockRetryAttempts) attempts."
                 # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-                Write-Log -Action "LockCache" -Target $cache.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error" # -Data $lockMeta
+                Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error" # -Data $lockMeta
                 return $null
             }
             $lockRetryAttempts++
@@ -195,7 +198,7 @@ function global:Lock-Cache {
     if ($lockRetryAttempts -gt 2) {
         $message = "Lock acquired after $($lockRetryAttempts) attempts."
         # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-        Write-Log -Action "LockCache" -Target $cache.FileNameWithoutExtension -Status "Success" -Message $message -Force # -Data $lockMeta
+        Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Success" -Message $message -Force # -Data $lockMeta
     }
 
     return $FileStream
@@ -238,10 +241,11 @@ Boolean result from Test-Path
 function global:Test-IsCacheLocked {
 
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name
+        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $cache = Get-Cache $Name
+    $cache = Get-Cache $Name -ComputerName $ComputerName
     $lockFile = $cache.FullPathName -replace $cache.Extension,".lock"
 
     return Test-Path -Path $lockFile
@@ -261,18 +265,19 @@ None
 function global:Wait-CacheUnlocked {
 
     param (
-        [Parameter(Mandatory=$true,Position=0)][String]$Name
+        [Parameter(Mandatory=$true,Position=0)][String]$Name,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $cache = Get-Cache $Name
+    $cache = Get-Cache $Name -ComputerName $ComputerName
     # $lockFile = $cache.FullPathName -replace $cache.Extension,".lock"
 
     $lockRetryAttempts = 0
     while (Test-IsCacheLocked $cache.FileNameWithoutExtension) {
         if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
             $message = "Timeout waiting for lock to be released."
-            $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-            Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "Timeout" -Message $message -Data $lockMeta -EntryType "Warning"
+            # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+            Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "Timeout" -Message $message -EntryType "Warning" # -Data $lockMeta 
             throw "($message -replace ".","") on $($cache.FileNameWithoutExtension)."
         }
         $lockRetryAttempts++
@@ -281,8 +286,8 @@ function global:Wait-CacheUnlocked {
 
     if ($lockRetryAttempts -gt 1) {
         $message = "Lock released."
-        $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-        Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "CacheAvailable" -Message $message -Data $lockMeta -Force
+        # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+        Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "CacheAvailable" -Message $message -Force # -Data $lockMeta
     }
 
     return

@@ -80,7 +80,8 @@ function global:Set-Credentials {
         [Parameter(Mandatory=$false)][Alias("Id")][string]$UserName,
         [Parameter(Mandatory=$false)][Alias("Token")][string]$Password,
         [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$KeyVault = "key"
+        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     
     $Name = $Name.ToLower()
@@ -88,8 +89,8 @@ function global:Set-Credentials {
     $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
     $PasswordEncrypted = $Credentials.Password | ConvertFrom-SecureString -Key $Key
 
-    Add-ToVault -Vault $KeyVault -Name $Name -InputObject $Key 
-    Add-ToVault -Vault $SecretVault -Name $Name -InputObject @{ $Credentials.UserName = $PasswordEncrypted } 
+    Add-ToVault -Vault $KeyVault -Name $Name -InputObject $Key -ComputerName $ComputerName
+    Add-ToVault -Vault $SecretVault -Name $Name -InputObject @{ $Credentials.UserName = $PasswordEncrypted } -ComputerName $ComputerName
 
     return
 
@@ -121,14 +122,15 @@ function global:Get-Credentials {
         [Parameter(Mandatory=$false)][object]$Key,
         [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
         [Parameter(Mandatory=$false)][object]$KeyVault = "key",
-        [switch]$Credssp
+        [switch]$Credssp,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $Name = $Name.ToLower()
 
-    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name)
+    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name -ComputerName $ComputerName)
 
-    $creds = Get-FromVault -Vault $SecretVault -Name $Name
+    $creds = Get-FromVault -Vault $SecretVault -Name $Name -ComputerName $ComputerName
     if (!$creds) {return}
 
     $UserName = $creds.keys[0]
@@ -168,12 +170,13 @@ function global:Remove-Credentials {
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$KeyVault = "key"
+        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     if($PSCmdlet.ShouldProcess($Name)) {
-        Remove-FromVault -Vault $KeyVault -Name $Name
-        Remove-FromVault -Vault $SecretVault -Name $Name
+        Remove-FromVault -Vault $KeyVault -Name $Name -ComputerName $ComputerName
+        Remove-FromVault -Vault $SecretVault -Name $Name -ComputerName $ComputerName
     }
 
 }
@@ -214,12 +217,13 @@ function global:Test-Credentials {
         [Parameter(Mandatory=$false)][object]$Key,
         [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
         [Parameter(Mandatory=$false)][object]$KeyVault = "key",
-        [switch]$NoValidate
+        [switch]$NoValidate,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $Name = $Name.ToLower()
 
-    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name)
+    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name -ComputerName $ComputerName)
 
     # if (!$(Test-Path -path $credentialFile)) {return $false}
     

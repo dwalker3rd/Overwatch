@@ -10,7 +10,7 @@
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
         )
 
-        $environFile = [FileObject]::new("$($global:Location.Scripts)\environ.ps1",$ComputerName)
+        $environFile = [FileObject]::new("environ.ps1",$ComputerName)
         $environFileContent = Get-Content $environFile.Path
         $environFileContent = $environFileContent.Replace("global:","")
         $environLocationRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')

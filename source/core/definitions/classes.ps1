@@ -195,16 +195,16 @@ class FileObject {
 
     hidden [string]$ValidFileNameExtension = "\..+$"
 
-    FileObject(){}
-    FileObject([string]$Path) {$this.Init($Path,$env:COMPUTERNAME,@{})}
-    FileObject([string]$Path,[string]$ComputerName) {$this.Init($Path,$ComputerName,@{})}
-    FileObject([string]$Path,[string]$ComputerName,[hashtable]$Options) {$this.Init($Path,$ComputerName,$Options)}
+    FileObject() {}
+    FileObject([string]$Path) { $this.Init($Path,$env:COMPUTERNAME,@{}) }
+    FileObject([string]$Path,[string]$ComputerName) { $this.Init($Path,$ComputerName,@{}) }
+    FileObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { $this.Init($Path,$ComputerName,$Options) }
     
     [void] Init(
         [string]$Path,
         [string]$ComputerName,
         [hashtable]$Options
-    ){
+    ) {
         # validate
         if (!$this.IsValidPath($Path)) {return}
         if (!$this.IsValidComputer($ComputerName)) {return}
@@ -232,7 +232,7 @@ class FileObject {
 
     [bool]IsValidPath(
         [string]$Path
-    ){
+    ) {
         # path spec
         if (!$(Test-Path $Path -IsValid)) {
             Write-Warning "Invalid path '$($Path)'."
@@ -254,7 +254,7 @@ class FileObject {
 
     [bool]IsValidComputer(
         [string]$ComputerName
-    ){
+    ) {
         # valid characters
         if ($ComputerName -notmatch '^[a-z0-9-]+$') {
             Write-Warning "The computer name '$($ComputerName)' contains invalid characters."
@@ -272,7 +272,7 @@ class FileObject {
     }
 
     [object]New(
-    ){
+    ) {
         if ($this.Exists($this.Path)) {
             Write-Warning "The file '$($this.Path)' already exists."
             return $null}
@@ -292,18 +292,18 @@ class FileObject {
     }
 
     [object]Get(
-    ){
+    ) {
         return $this.Get(@{})
     }
     [object]Get(
         [hashtable]$Options
-    ){
+    ) {
         $this.FileInfo = Get-ChildItem -Path $this.Path @Options -ErrorAction SilentlyContinue
         return $this.FileInfo
     }
 
     [void]Remove(
-    ){
+    ) {
         if (!$this.FileInfo) {
             Write-Warning "FileInfo is null."
             return}
@@ -318,7 +318,7 @@ class FileObject {
         $this.FileInfo.Delete()
     }
 
-    [bool]Exists() {return $this.Exists($this.Path)}
+    [bool]Exists() {return $this.Exists($this.Path) }
     [bool]Exists([string]$Path) {return Test-Path $Path}
 
     [bool]IsUnc([string]$Path) {return $Path -match "^\\\\[^\.\?].+$"}
@@ -326,7 +326,7 @@ class FileObject {
     [string]ToUnc(
         [string]$Path,
         [string]$ComputerName
-    ){
+    ) {
         if (!$this.IsValidPath($Path)) {return $null}
         if (!$this.IsValidComputer($ComputerName)) {return $null}
 
@@ -335,12 +335,12 @@ class FileObject {
     }
     
     [bool]IsLocal() {return $env:COMPUTERNAME -eq $this.ComputerName}
-    [bool]IsRemote() {return !$this.IsLocal()}
+    [bool]IsRemote() {return !$this.IsLocal() }
 
-    [bool]IsDirectory() {return $this.IsDirectory($this.Path)}
+    [bool]IsDirectory() {return $this.IsDirectory($this.Path) }
     [bool]IsDirectory([string]$Path) {return Test-Path $Path -PathType Container}
 
-    [bool]IsFile() {return $this.IsFile($this.Path)}
+    [bool]IsFile() {return $this.IsFile($this.Path) }
     [bool]IsFile([string]$Path) {return Test-Path $Path -PathType Leaf}
 
     [int]FileCount() {return $(Resolve-Path $this.Path).Length}
@@ -353,21 +353,15 @@ class LogObject : FileObject {
 
     hidden [string]$ValidFileNameExtension = "^\.log$"
 
-    LogObject():base(){}
-    LogObject([string]$Path) {
-        ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{})
-        $this.Init()}
-    LogObject([string]$Path,[string]$ComputerName) {
-        ([FileObject]$this).Init($Path,$ComputerName,@{})
-        $this.Init()}  
-    LogObject([string]$Path,[string]$ComputerName,[hashtable]$Options) {
-        ([FileObject]$this).Init($Path,$ComputerName,$Options)
-        $this.Init()}  
+    LogObject():base() {}
+    LogObject([string]$Path) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{}); $this.Init() }
+    LogObject([string]$Path,[string]$ComputerName) { ([FileObject]$this).Init($Path,$ComputerName,@{}); $this.Init() }  
+    LogObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options); $this.Init() }  
 
     [void]Validate() {}
 
     [void]Init(
-    ){
+    ) {
         # properties
         # $this.Name = (Get-Culture).TextInfo.ToTitleCase($this.FileNameWithoutExtension)
         $this.Name = $this.FileNameWithoutExtension
@@ -378,7 +372,7 @@ class LogObject : FileObject {
 
     [object]New(
         [object]$Header
-    ){
+    ) {
         if (([FileObject]$this).New()) {
             Add-Content -Path $this.Path -Value $Header
         }
@@ -396,41 +390,18 @@ class CacheObject : FileObject {
 
     hidden [string]$ValidFileNameExtension = "^\.cache$"
 
-    CacheObject():base(){}
-    CacheObject(
-        [string]$Path
-    ){
-        ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{})
-        $this.Init([timespan]::MaxValue)
-    }
-    CacheObject(
-        [string]$Path,
-        [string]$ComputerName
-    ){
-        ([FileObject]$this).Init($Path,$ComputerName,@{})
-        $this.Init([timespan]::MaxValue)
-    }
-    CacheObject(
-        [string]$Path,
-        [string]$ComputerName,
-        [timespan]$MaxAge
-    ){
-        ([FileObject]$this).Init($Path,$ComputerName,@{})
-        $this.Init($MaxAge)}  
-    CacheObject(
-        [string]$Path,
-        [string]$ComputerName,
-        [timespan]$MaxAge,
-        [hashtable]$Options
-    ){
-        ([FileObject]$this).Init($Path,$ComputerName,$Options)
-        $this.Init($MaxAge)}          
+    CacheObject():base() {}
+    CacheObject([string]$Path) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{});$this.Init([timespan]::MaxValue) }
+    CacheObject([string]$Path,[string]$ComputerName) { ([FileObject]$this).Init($Path,$ComputerName,@{});$this.Init([timespan]::MaxValue) }
+    CacheObject([string]$Path,[string]$ComputerName,[timespan]$MaxAge) { ([FileObject]$this).Init($Path,$ComputerName,@{});$this.Init($MaxAge) }
+    CacheObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options);$this.Init([timespan]::MaxValue) }  
+    CacheObject([string]$Path,[string]$ComputerName,[timespan]$MaxAge,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options);$this.Init($MaxAge) }          
 
-    [void]Validate(){}
+    [void]Validate() {}
 
     [void]Init(
         [timespan]$MaxAge
-    ){
+    ) {
         # params
         $this.MaxAge = $MaxAge
         
@@ -452,25 +423,16 @@ class VaultObject : FileObject {
 
     hidden [string]$ValidFileNameExtension = "^\.vault$"
 
-    VaultObject():base(){}
-    VaultObject(
-        [string]$Path
-    ){
-        ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{})
-        $this.Init()
-    }
-    VaultObject(
-        [string]$Path,
-        [hashtable]$Options
-    ){
-        ([FileObject]$this).Init($Path,$env:COMPUTERNAME,$Options)
-        $this.Init()
-    }          
+    VaultObject():base() {}
+    VaultObject([string]$Path) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{});$this.Init() }
+    VaultObject([string]$Path,[hashtable]$Options) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,$Options);$this.Init() } 
+    VaultObject([string]$Path,[string]$ComputerName) { ([FileObject]$this).Init($Path,$ComputerName,@{});$this.Init() }      
+    VaultObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options);$this.Init() }     
 
-    [void]Validate(){}
+    [void]Validate() {}
 
     [void]Init(
-    ){
+    ) {
         # params
         
         # properties

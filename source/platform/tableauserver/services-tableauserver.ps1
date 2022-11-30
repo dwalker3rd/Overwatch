@@ -484,7 +484,7 @@ function global:Cleanup-Platform {
             $message = "<  TSM Maintenance Cleanup <.>48> SUCCESS"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
-            Write-Log -Context "Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Data $cleanupPlatformJob.args -Force
+            Write-Log -Context "Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Force # -Data $cleanupPlatformJob.args
             # $result = Send-PlatformJobMessage -Context "Cleanup" -Id $cleanupPlatformJob.Id -NoThrottle
             # $result | Out-Null
 
@@ -860,14 +860,14 @@ function global:Write-PlatformJobStatusToLog {
 
     $platformJob = Get-PlatformJob $Id
 
-    $data = $null
+    # $data = $null
     $message = $platformJob.statusMessage
     if ($platformJob.status -eq "Succeeded") {
-        $data = "Duration: $($platformJob.completedAt - $platformJob.createdAt) ms"
+        # $data = "Duration: $($platformJob.completedAt - $platformJob.createdAt) ms"
         $message = "This job completed successfully at $($epoch.AddSeconds($platformJob.completedAt/1000).ToString('u'))."
     }
 
-    Write-Log -Context "PlatformJob" -Action $platformJob.jobType -Target $platformJob.id -Status $platformJob.status -Message $message -Data $data -Force 
+    Write-Log -Context "PlatformJob" -Action $platformJob.jobType -Target $platformJob.id -Status $platformJob.status -Message $message -Force # -Data $data 
 
 }
 

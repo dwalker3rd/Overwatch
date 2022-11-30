@@ -463,7 +463,7 @@ function global:Request-RMTService {
         $result = $response.StartType -eq $StartupType ? "Success" : "Failure"
 
         $logEntryType = $result -eq "Success" ? "Information" : "Error" 
-        Write-Log -Context $Context -Action $command -Target "$node\$Alias" -EntryType $logEntryType -Status $result -Data $Name -Force
+        Write-Log -Context $Context -Action $command -Target "$node\$Alias" -EntryType $logEntryType -Status $result -Force # -Data $Name 
 
         $message = "$($emptyString.PadLeft(8,"`b")) $($result.ToUpper())$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($result -eq "SUCCESS" ? "DarkGreen" : "DarkRed" )

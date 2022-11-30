@@ -21,17 +21,14 @@ function global:Clear-Log {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name = $global:Platform.Instance,
+        [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][Alias("Newest")][int32]$Tail = $script:logMinRecordCount
     )
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
-
     foreach ($node in $ComputerName) {
+        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
         $rows = Import-Csv -Path ([LogObject]$log).Path | Select-Object -Last $($Tail) 
         $rows | Export-Csv -Path ([LogObject]$log).Path -QuoteFields $logFieldsQuoted -NoTypeInformation
@@ -50,7 +47,9 @@ function global:Optimize-Log {
         [Parameter(Mandatory=$false)][Alias("Newest")][int32]$Tail = $logOptimalRecordCount
     )
 
-    Clear-Log -Name $Name -Path $Path -ComputerName $ComputerName -Tail $logOptimalRecordCount
+    foreach ($node in $ComputerName) {
+        Clear-Log -Name $Name -Path $Path -ComputerName $node -Tail $logOptimalRecordCount
+    }
 
     return
 
@@ -67,14 +66,9 @@ function global:Get-Log {
         [switch]$UseDefaultView
     )
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
-
     $log = foreach ($node in $ComputerName) {
-
+        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         [LogObject]::new($Path, $node)
-
     }
 
     return $log | Select-Object -Property $($View ? $LogObjectView.$($View) : $($LogObjectView.$($Name) -and !$UseDefaultView ? $LogObjectView.$($Name) : $LogObjectView.Default))
@@ -85,16 +79,14 @@ function global:New-Log {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name,
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     )
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
-
     $newLog = foreach ($node in $ComputerName){
+        if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         [LogObject]::new($Path, $node).New($logFileHeader)
     }
 
@@ -110,22 +102,21 @@ function global:Watch-Log {
         [Parameter(Mandatory=$false)][int]$Seconds = 15,
         [Parameter(Mandatory=$false)][int]$Tail = 10,
         [Parameter(Mandatory=$false)][string]$View,
-        [switch]$UseDefaultView
+        [switch]$UseDefaultView,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     ) 
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $logEntry = read-log -Name $Name -Tail 10
+    $logEntry = Read-Log -Name $Name -ComputerName $ComputerName -Tail 10
     $lastIndex = $logEntry[$logEntry.Count-1].Index
     $logEntry | Select-Object -Property $($View ? $LogEntryView.$($View) : $($LogEntryView.$($Name) -and !$UseDefaultView ? $LogEntryView.$($Name) : $LogEntryView.Default)) | Format-Table
 
     while ($true) {
-        $logEntry = read-log -Name $Name -FromIndex $lastIndex
+        $logEntry = Read-Log -Name $Name -ComputerName $ComputerName -FromIndex $lastIndex
         if ($logEntry) {
             $lastIndex = $logEntry[$logEntry.Count-1].Index
             $logEntry | Select-Object -Property $($View ? $LogEntryView.$($View) : $($LogEntryView.$($Name) -and !$UseDefaultView ? $LogEntryView.$($Name) : $LogEntryView.Default)) | Format-Table
         }
-        start-sleep -Seconds $Seconds
+        Start-Sleep -Seconds $Seconds
     }
 
     return 
@@ -168,7 +159,10 @@ function global:Read-Log {
     $logEntry = @()
     foreach ($node in $ComputerName) {
 
+        # if $Name not specified, get the node's platform instance
         if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+
+        # if $Path not specified, build the path with the node's $Location.Logs definition and $Name
         $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
 
         $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
@@ -307,9 +301,7 @@ function global:Summarize-Log {
         $logs = @() 
         if (![string]::IsNullOrEmpty($Name)) {
             $log = Get-Log -Name $Name -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
-            if ($log) {
-                $logs += Get-Log $Name
-            }
+            if ($log) { $logs += $log }
         }
         else {
             foreach ($logFileInfo in (Get-Log -ComputerName $node).FileInfo) {
@@ -552,13 +544,17 @@ function global:Remove-Log {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     )
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    $log = @()
+    foreach ($node in $ComputerName) {
 
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
+        # if $Path not specified, build the path with the node's $Location.Logs definition and $Name
+        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
 
-    $log = Get-Log -Name $Name -Path $Path -ComputerName $ComputerName | 
-        Where-Object {([LogObject]$_event).Exists()} | ForEach-Object {
-            ([LogObject]$_).Remove()
+        $log += Get-Log -Name $Name -Path $Path -ComputerName $node | 
+            Where-Object {([LogObject]$_event).Exists()} | ForEach-Object {
+                ([LogObject]$_).Remove()
+        }
+
     }
 
     return $log
@@ -568,19 +564,20 @@ function global:Repair-Log {
     
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name = $global:Platform.Instance,
+        [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
-        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     )
-
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
 
     foreach ($node in $ComputerName) {
 
-        $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
-        if ($log) {
+        if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log") 
+        $logs = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
+
+        $logEntry = @()
+        foreach ($log in $logs) {
+
             $logEntry = Import-Csv -Path ([LogObject]$log).Path
 
             if ($($logEntry.Index | Sort-Object -Unique) -eq -1) {
@@ -591,6 +588,7 @@ function global:Repair-Log {
 
             $logEntry | Select-Object -Property $logFieldsDefault | 
                 Export-Csv -Path ([LogObject]$log).Path -QuoteFields $logFieldsQuoted -NoTypeInformation
+
         }
 
     }
@@ -611,11 +609,13 @@ function global:Merge-Log {
 
     Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
-    $pathFrom = $Path ? $Path : "$($global:Location.Logs)" + $($From ? "\$($From).log" : "\*.log")
-    $pathTo = $global:Location.Logs + $($To ? "\$($To).log" : "\merged.log")
-
     foreach ($node in $ComputerName) {
+
+        $pathFrom = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($From ? "\$($From).log" : "\*.log")
+        $pathTo = (Get-EnvironConfig Location.Logs -ComputerName $node) + $($To ? "\$($To).log" : "\merged.log")  
         $logs = Get-Log -Name $From -Path $pathFrom -ComputerName $node | Where-Object {([LogObject]$_).Exists() -and ([LogObject]$_).Name -ne $Exclude}
+
+        $logEntry = @()
         foreach ($log in $logs.FileInfo) {
 
             $logEntry += Import-Csv -Path $log | Foreach-Object {
@@ -633,20 +633,21 @@ function global:Merge-Log {
             }  
 
         }
+
+        $logEntry = $logEntry | Sort-Object -Property TimeStamp
+
+        if ($($logEntry.Index | Sort-Object -Unique) -eq -1) {
+            throw {"$($log.Path) cannot be reindexed."}
+        }
+    
+        for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i}
+    
+        $logEntry | Select-Object -Property $logFieldsDefault | 
+            Export-Csv -Path $pathTo -QuoteFields $logFieldsQuoted -NoTypeInformation
     }
-
-    $logEntry = $logEntry | Sort-Object -Property TimeStamp
-
-    if ($($logEntry.Index | Sort-Object -Unique) -eq -1) {
-        throw {"$($log.Path) cannot be reindexed."}
-    }
-
-    for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i}
-
-    $logEntry | Select-Object -Property $logFieldsDefault | 
-        Export-Csv -Path $pathTo -QuoteFields $logFieldsQuoted -NoTypeInformation
 
     return
+    
 }
 
 function global:Test-Log {
@@ -655,20 +656,18 @@ function global:Test-Log {
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
+    $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
 
     if (!(Test-Path $Path)) {return $false}
 
     $log = Get-Log -Name $Name -Path $Path -ComputerName $ComputerName
 
-    Write-Host+ -NoTrace -IfDebug "Row Count: $(([LogObject]$log).Count())"
-    Write-Host+ -NoTrace -IfDebug "logMaxRecordCount: $logMaxRecordCount"
-    Write-Host+ -NoTrace -IfDebug "logOptimalRecordCount: $logOptimalRecordCount"
+    # Write-Host+ -NoTrace -IfDebug "Row Count: $(([LogObject]$log).Count())"
+    # Write-Host+ -NoTrace -IfDebug "logMaxRecordCount: $logMaxRecordCount"
+    # Write-Host+ -NoTrace -IfDebug "logOptimalRecordCount: $logOptimalRecordCount"
 
     return ([LogObject]$log).Exists()
 }
@@ -703,7 +702,7 @@ function global:Write-Log {
         }
     }
 
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
+    # $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
 
     $logEntry = 
         [LogEntry]@{
@@ -719,12 +718,16 @@ function global:Write-Log {
         }    
     
     foreach ($node in $ComputerName) {
+
+        # if $Path not specified, build the path with the node's $Location.Logs definition and $Name
+        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
+
         if ($log) {
 
             $logRecordCount = ([LogObject]$log).Count()
             if ($logRecordCount -ge $logMaxRecordCount) {
-                Optimize-Log -Name $Name -Tail $logOptimalRecordCount
+                Optimize-Log -Name $Name -ComputerName $node -Tail $logOptimalRecordCount
                 $logRecycleData = @{
                     name = $Name
                     logRecordCount = $logRecordCount
@@ -732,11 +735,11 @@ function global:Write-Log {
                     logOptimalRecordCount = $logOptimalRecordCount
                     timestamp = Get-Date -AsUTC
                 } | ConvertTo-Json -Compress
-                Write-Log -Name $Name -Action Recycle -Target $Name -Data $logRecycleData -Force
+                Write-Log -Name $Name -ComputerName $node -Action Recycle -Target $Name -Data $logRecycleData -Force
             }
 
             try {
-                $lastLogEntry = Read-Log -Tail 1 -Path ([LogObject]$log).Path
+                $lastLogEntry = Read-Log -ComputerName $node -Tail 1 -Path ([LogObject]$log).Path
                 $logEntry.Index = [int]$lastLogEntry.Index
             }
             catch {
