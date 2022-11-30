@@ -180,8 +180,8 @@ function global:Lock-Cache {
         try {
             if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
                 $message = "Unable to acquire lock after $($lockRetryAttempts) attempts."
-                $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-                Write-Log -Action "LockCache" -Target $cache.FileNameWithoutExtension -Status "Error" -Message $message -Data $lockMeta -EntryType "Error"
+                # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+                Write-Log -Action "LockCache" -Target $cache.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error" # -Data $lockMeta
                 return $null
             }
             $lockRetryAttempts++
@@ -194,8 +194,8 @@ function global:Lock-Cache {
 
     if ($lockRetryAttempts -gt 2) {
         $message = "Lock acquired after $($lockRetryAttempts) attempts."
-        $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-        Write-Log -Action "LockCache" -Target $cache.FileNameWithoutExtension -Status "Success" -Message $message -Data $lockMeta -Force
+        # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+        Write-Log -Action "LockCache" -Target $cache.FileNameWithoutExtension -Status "Success" -Message $message -Force # -Data $lockMeta
     }
 
     return $FileStream

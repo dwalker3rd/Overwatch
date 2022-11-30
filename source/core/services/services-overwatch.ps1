@@ -2,40 +2,21 @@
 
 #region OVERWATCH
 
-    function global:Get-Overwatch {
+    function global:Get-EnvironConfig {
 
         [CmdletBinding()] 
-        param ()
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string]$Key,
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        )
 
-        return $global:Overwatch
-
-    }
-
-    function global:Get-Environ {
-
-        [CmdletBinding()] 
-        param ()
-
-        return $global:Environ
-
-    }
-
-    function global:Get-OS {
-
-        [CmdletBinding()] 
-        param ()
-
-        return $global:OS
-
-    }
-
-    function global:Get-Platform {
-
-        [CmdletBinding()] 
-        param ()
-
-        return $global:Platform
-
+        $environFile = [FileObject]::new("$($global:Location.Scripts)\environ.ps1",$ComputerName)
+        $environFileContent = Get-Content $environFile.Path
+        $environFileContent = $environFileContent.Replace("global:","")
+        $environLocationRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')
+        $environFileContent = $environFileContent.Replace($environLocationRoot, ([FileObject]::new($environLocationRoot,$ComputerName)).Path)
+        Invoke-Expression ($environFileContent | Out-String)
+        return Invoke-Expression "`$$Key"
     }
 
     function global:Get-Product {
@@ -213,8 +194,8 @@
             foreach ($subKey in $global:Catalog.$key.Keys) {
                 if ([array]$global:Catalog.$key.$subKey.Installation.Prerequisite.$Type -contains $Name) { 
                     $_obj = switch ($key) {
-                        "OS" { Get-OS }
-                        "Platform" { Get-Platform }
+                        "OS" { Get-EnvironConfig Environ.OS }
+                        "Platform" { Get-EnvironConfig Environ.Platform }
                         "Product" { 
                             $_product = Get-Product $subKey 
                             if (!$_product.IsInstalled -and $Installed) { continue }
@@ -259,8 +240,8 @@
         foreach ($key in $global:Catalog.$Type.$Name.Installation.Prerequisite.Keys) {
             foreach ($subKey in $global:Catalog.$Type.$Name.Installation.Prerequisite[$key]) {
                 $_obj = switch ($key) {
-                    "OS" { Get-OS }
-                    "Platform" { Get-Platform }
+                    "OS" { Get-EnvironConfig Environ.OS }
+                    "Platform" { Get-EnvironConfig Environ.Platform }
                     "Product" { 
                         $_product = Get-Product $subKey 
                         if (!$_product.IsInstalled -and $Installed) { continue }

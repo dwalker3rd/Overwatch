@@ -31,7 +31,7 @@ $global:CacheObjectView = @{
 } 
 
 $global:LogEntryView = @{
-    Default = $([LogEntry]@{}).psobject.properties.name
+    Default = $([LogEntry]@{}).psobject.properties.name | Where-Object {$_ -ne "Data"}
     Min = @(
         "Index",
         @{
@@ -58,14 +58,15 @@ $global:LogEntryView = @{
                     $_.Message)
             }
         },
-        @{
-            Name="Data"
-            Expression = {
-                ($_.Data.Length -gt $global:ViewSettings.MaxStringLength ? 
-                    ((Test-Json $_.Data) ? "$($_.Data.Substring(0,($global:ViewSettings.MaxStringLength-2)))...}" : "$($_.Data.Substring(0,($global:ViewSettings.MaxStringLength-1)))...") : 
-                    $_.Data)
-            }
-        },"ComputerName"
+        # @{
+        #     Name="Data"
+        #     Expression = {
+        #         ($_.Data.Length -gt $global:ViewSettings.MaxStringLength ? 
+        #             ((Test-Json $_.Data) ? "$($_.Data.Substring(0,($global:ViewSettings.MaxStringLength-2)))...}" : "$($_.Data.Substring(0,($global:ViewSettings.MaxStringLength-1)))...") : 
+        #             $_.Data)
+        #     }
+        # },
+        "ComputerName"
     )
 } 
 

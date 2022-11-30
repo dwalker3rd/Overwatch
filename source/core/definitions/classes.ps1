@@ -369,7 +369,8 @@ class LogObject : FileObject {
     [void]Init(
     ){
         # properties
-        $this.Name = (Get-Culture).TextInfo.ToTitleCase($this.FileNameWithoutExtension)
+        # $this.Name = (Get-Culture).TextInfo.ToTitleCase($this.FileNameWithoutExtension)
+        $this.Name = $this.FileNameWithoutExtension
 
         # validate
         $this.Validate()

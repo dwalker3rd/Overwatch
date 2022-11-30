@@ -72,7 +72,9 @@ function global:Get-Log {
     $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
 
     $log = foreach ($node in $ComputerName) {
+
         [LogObject]::new($Path, $node)
+
     }
 
     return $log | Select-Object -Property $($View ? $LogObjectView.$($View) : $($LogObjectView.$($Name) -and !$UseDefaultView ? $LogObjectView.$($Name) : $LogObjectView.Default))
@@ -134,7 +136,7 @@ function global:Read-Log {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name=$global:Platform.Instance,
+        [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][Alias("Instance")][string]$Context,
@@ -163,10 +165,12 @@ function global:Read-Log {
     if ($ToIndex -and $ToIndex -eq 0) {throw "Invalid ToIndex"}
     if ($FromIndex -and $ToIndex -and $FromIndex -ge $ToIndex) {throw "Invalid FromIndex:ToIndex"}
 
-    $Path = $Path ? $Path : "$($global:Location.Logs)" + $($Name ? "\$($Name).log" : "\*.log")
-
     $logEntry = @()
     foreach ($node in $ComputerName) {
+
+        if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+
         $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
         if ($log) {
             $rows = Import-Csv -Path ([LogObject]$log).Path  | 
