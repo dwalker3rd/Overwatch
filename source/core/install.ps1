@@ -365,8 +365,11 @@ Clear-Host
         Write-Host+ -NoTrace -NoTimestamp "-----------------" -ForegroundColor DarkGray
 
         foreach ($missingDirectory in $missingDirectories) {
-            New-Item -ItemType Directory -Path $missingDirectory -Force
+            $_dir = New-Item -ItemType Directory -Path $missingDirectory -Force
+            Write-Host+ -NoTrace -NoTimeStamp "Directory: $($_dir.FullName)"
         }
+
+        Write-Host+
 
     }
 
@@ -978,8 +981,11 @@ Clear-Host
         Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
 
         foreach ($missingDirectory in $missingDirectories) {
-            New-Item -ItemType Directory -Path $missingDirectory -Force
+            $_dir = New-Item -ItemType Directory -Path $missingDirectory -Force
+            Write-Host+ -NoTrace -NoTimeStamp "Directory: $($_dir.FullName)"
         }
+
+        Write-Host+
 
     }
 
