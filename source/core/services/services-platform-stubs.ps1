@@ -1,7 +1,5 @@
     #region STUBS
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     function global:Get-PlatformInfo {
 
         [CmdletBinding()]

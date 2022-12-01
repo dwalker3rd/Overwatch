@@ -14,8 +14,6 @@ function global:Connect-AzAccount+ {
         [Parameter(Mandatory=$true)][string]$Tenant
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
@@ -45,8 +43,6 @@ function global:New-AzResourceGroup+ {
         [Parameter(Mandatory=$false)][string]$Location = $global:AzureAD.$tenantKey.Defaults.Location
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
@@ -65,8 +61,6 @@ function global:New-AzStorageAccount+ {
         [Parameter(Mandatory=$false)][string]$Location = $global:AzureAD.$tenantKey.Defaults.Location,
         [Parameter(Mandatory=$false)][int]$RetentionDays = $global:AzureAD.$tenantKey.Defaults.StorageAccount.SoftDelete.RetentionDays
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
@@ -89,8 +83,6 @@ function global:New-AzStorageContainer+ {
         [Parameter(Mandatory=$true)][string]$ContainerName,
         [Parameter(Mandatory=$false)][ValidateSet("Container","Blob","Off")][string]$Permission = $global:AzureAD.$tenantKey.Defaults.StorageAccount.Permission
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
@@ -190,8 +182,6 @@ function global:Get-AzMlWorkspace {
         [Parameter(Mandatory=$true)][Alias("ResourceGroup")][string]$ResourceGroupName,
         [Parameter(Mandatory=$true)][Alias("Workspace")][string]$WorkspaceName
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     return (az ml workspace show --resource-group $ResourceGroupName --workspace $WorkspaceName | ConvertFrom-Json)
 

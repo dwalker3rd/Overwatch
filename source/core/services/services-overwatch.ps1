@@ -451,8 +451,6 @@
             [Parameter(Mandatory=$true)][string]$ComputerName
         )
 
-        Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
         return (Resolve-DnsName $ComputerName).IPAddress
 
     }
@@ -463,8 +461,6 @@
         param (
             [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Keys)
         )
-
-        Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
         $leader = Format-Leader -Length 47 -Adjust ((("  Network Connections").Length))
         Write-Host+ -NoTrace "  Network Connections",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
@@ -507,8 +503,6 @@
 
         [CmdletBinding()]
         param ()
-
-        Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
         $leader = Format-Leader -Length 47 -Adjust ((("  Powershell Remoting").Length))
         Write-Host+ -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
@@ -601,8 +595,6 @@
         )
 
         begin {
-                
-            Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
             If (!$PassFailOnly) {Write-Host+}
 
@@ -752,8 +744,6 @@
         param (
             [Parameter(Mandatory=$false)][string]$View
         )
-
-        Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
         $PlatformServices = Get-PlatformService -ErrorAction SilentlyContinue
         $PlatformProcesses = Get-PlatformProcess -ErrorAction SilentlyContinue

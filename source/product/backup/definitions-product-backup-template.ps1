@@ -1,7 +1,5 @@
 ﻿#region PRODUCT DEFINITIONS
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $definitionsPath = $global:Location.Definitions
     . $definitionsPath\classes.ps1
 

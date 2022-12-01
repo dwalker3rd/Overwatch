@@ -28,8 +28,6 @@ function global:Send-Message {
         [Parameter(Mandatory=$false,Position=0)][object]$Message
     )
 
-    # Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $json = $Message | ConvertTo-Json -Depth 99
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
@@ -68,7 +66,6 @@ function global:Send-PlatformStatusMessage {
         [switch]$NoThrottle
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     Write-Log -EntryType "Debug" -Action "Send-PlatformStatusMessage" -Target "Platform" -Message ($MessageType | ConvertTo-Json)
 
     $sections = @(
@@ -165,7 +162,6 @@ function global:Send-PlatformJobMessage {
     )
     $platformJob = Get-PlatformJob $Id
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $product = $Context ? (Get-Product $Context) : $global:Product
     $serverInfo = Get-ServerInfo
@@ -224,7 +220,6 @@ function global:Send-TaskMessage {
         [switch]$NoThrottle
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     $serverInfo = Get-ServerInfo
 
@@ -278,7 +273,6 @@ function global:Send-PlatformEventMessage {
         [switch]$NoThrottle
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     # $serverInfo = Get-ServerInfo
     # $platformStatus = Get-PlatformStatus
@@ -347,7 +341,6 @@ function global:Send-LicenseMessage {
         [switch]$NoThrottle
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     # $now = Get-Date
     $30days = New-TimeSpan -days 30

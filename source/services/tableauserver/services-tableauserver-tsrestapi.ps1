@@ -1188,8 +1188,6 @@ function global:Get-TSCurrentSession {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     return Get-TSObjects -Method GetCurrentSession
 
 }
@@ -1569,8 +1567,6 @@ function global:Get-TSCurrentUser {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     return (Get-TSCurrentSession).user
 
 }
@@ -1600,8 +1596,6 @@ function global:Get-TSUserMembership {
         [Parameter(Mandatory=$false,Position=0)][object]$User = (Get-TSCurrentUser)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     return Get-TSObjects -Method GetUserMembership -Params @($User.Id)
 
 }
@@ -1616,8 +1610,6 @@ function global:Add-TSUser {
         [Parameter(Mandatory=$false)][string]$Email,
         [Parameter(Mandatory=$false)][string]$SiteRole
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ([string]::IsNullOrEmpty($FullName)) {
         $errorMessage = "$($Site.contentUrl)\$Username : FullName is missing or invalid."
@@ -1670,8 +1662,6 @@ function global:Update-TSUser {
         [Parameter(Mandatory=$false)][string]$SiteRole
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     if ($FullName -eq $User.fullName -and $Email -eq $User.name -and $SiteRole -eq $User.siteRole) {return}
 
     $action = $SiteRole -eq "Unlicensed" ? "DisableUser" : "UpdateUser"
@@ -1718,8 +1708,6 @@ function global:Update-TSUserPassword {
         [Parameter(Mandatory=$true)][string]$Password
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     # $response is an update object (NOT a user object) or an error object
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "UpdateUserPassword" -Params @($User.id,$Password)
     if ($responseError) { #}.code -eq "401002") {
@@ -1744,8 +1732,6 @@ function global:Remove-TSUser {
         [Parameter(Mandatory=$true)][object]$Site,
         [Parameter(Mandatory=$true)][object]$User
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     # Switch-TSSite $tsSite.contentUrl
 
@@ -1835,8 +1821,6 @@ function global:Add-TSUserToGroup {
         [Parameter(Mandatory=$true)][object[]]$User
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     # $usersAddedToGroup = 0
     $User | ForEach-Object {
         $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddUserToGroup" -Params @($Group.Id,$_.Id)
@@ -1865,8 +1849,6 @@ function global:Remove-TSUserFromGroup {
         [Parameter(Mandatory=$true)][object]$Group,
         [Parameter(Mandatory=$true)][object[]]$User
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     # $usersRemovedFromGroup = 0
     $User | ForEach-Object {
@@ -2015,8 +1997,6 @@ function global:Get-TSProjectPermissions {
         [Parameter(Mandatory=$true,Position=0)][object[]]$Projects
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $projectPermissions = @{}
     foreach ($project in $Projects) {
         $projectPermissions += @{$project.id = Get-TSObjects -Method GetProjectPermissions -Params @($Project.Id,$Type)}
@@ -2043,8 +2023,6 @@ function global:Add-TSProjectPermissions {
         )]
         [string[]]$Capabilities 
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
@@ -2089,8 +2067,6 @@ function global:Remove-TSProjectPermissions {
         )]
         [string[]]$Capabilities 
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
@@ -2602,8 +2578,6 @@ function global:Get-TSViews {
     param(
         [Parameter(Mandatory=$false)][object]$Workbook
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($Workbook) {
         return Get-TSObjects -Method "GetViewsForWorkbook" -Params @($Workbook.id)
@@ -3166,8 +3140,6 @@ function global:Get-TSFavorites+ {
         [Parameter(Mandatory=$false)][object]$Datasources = (Get-TSDatsources+)
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $favoritesPlus = @()
     foreach ($user in ($UsersWithFavorites ?? $Users)) {
         $favorites = Get-TSObjects -Method GetFavorites -Params @($user.id) 
@@ -3286,8 +3258,6 @@ function global:Add-TSFavorite {
         [Parameter(Mandatory=$true)][string]$Type,
         [Parameter(Mandatory=$true)][Alias("Workbook","View","DataSource","Project")][object]$InputObject
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddFavorites" -Params @($User.id,($Label.replace("&","&amp;")),$Type,$InputObject.id)
     if ($responseError.code) {
@@ -3529,8 +3499,6 @@ function global:Sync-TSGroups {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [switch]$Delta
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $startTime = Get-Date -AsUTC
     $lastStartTime = (Read-Cache "AzureADSyncGroups").LastStartTime ?? [datetime]::MinValue

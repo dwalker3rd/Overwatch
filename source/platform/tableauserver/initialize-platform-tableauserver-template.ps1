@@ -1,7 +1,5 @@
 #region INIT
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 Set-CursorInvisible
 
 Write-Host+

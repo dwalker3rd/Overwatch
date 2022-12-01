@@ -1,8 +1,6 @@
 #Requires -RunAsAdministrator
 #Requires -Version 7
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 $global:DebugPreference = "SilentlyContinue"
 $global:InformationPreference = "Continue"
 $global:VerbosePreference = "SilentlyContinue"

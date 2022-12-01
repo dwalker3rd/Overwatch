@@ -9,8 +9,6 @@ function global:Get-Files {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $params = @{}
     if ($Filter) {$params += @{Filter = $Filter}}
     if ($Recurse) {$params += @{Recurse = $true}}

@@ -23,8 +23,6 @@ https://www.twilio.com/docs/usage/tutorials/how-to-make-http-basic-request-twili
 https://www.twilio.com/docs/glossary/what-e164
 #>
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 function global:Send-TwilioSMS {
 
     [CmdletBinding()] 

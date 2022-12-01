@@ -28,8 +28,6 @@ $mimeKit = Get-Package -Name MimeKit
 Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mailKit.Name).$($mailKit.Version)\lib\net48\MailKit.dll"
 Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mimeKit.Name).$($mimeKit.Version)\lib\net48\MimeKit.dll"
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 function global:Send-SMTP {
  
     [CmdletBinding()]

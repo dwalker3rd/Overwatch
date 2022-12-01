@@ -16,8 +16,6 @@ Skip alert on first error to allow platform time to recover
 
 #>
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $definitionsPath = $global:Location.Definitions
     . $definitionsPath\classes.ps1
 

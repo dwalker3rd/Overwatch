@@ -1,7 +1,5 @@
 #region PREFLIGHT
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     Test-Connections
     Test-PSRemoting
 

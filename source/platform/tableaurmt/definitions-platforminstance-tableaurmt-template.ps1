@@ -1,7 +1,5 @@
 ﻿#region INSTANCE DEFINITIONS
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $global:Platform.Instance = "<platformInstanceId>"
     $global:Platform.Uri = [System.Uri]::new("<platformInstanceUrl>")
     $global:Platform.Domain = "<platformInstanceDomain>"

@@ -1,7 +1,5 @@
 #region INIT
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     Write-Host+
     $message = "Platform Initialization"
     $leader = Format-Leader -Length 47 -Adjust $message.Length

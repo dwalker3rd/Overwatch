@@ -8,8 +8,6 @@
         [Parameter(Mandatory=$false)][int32]$SampleInterval = $PerformanceMeasurementampleInterval
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $Measurements = @()
 
     foreach ($node in $ComputerName) {
@@ -65,8 +63,6 @@ function global:Get-ServerInfo {
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     ) 
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     # if ($(Get-Cache serverinfo).Exists()) {
     #     Write-Information  "Read-Cache serverinfo"
@@ -124,8 +120,6 @@ function global:Get-ServerStatus {
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $lastRunTime = Read-Cache lastruntime
     if (!$lastRunTime) {$lastRunTime = $(Get-Date).AddHours(-1)}
@@ -283,8 +277,6 @@ param (
     [switch]$AllowDuplicates
 )
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 if (!$(Test-Path $Path)) {throw "$($Path) does not exist"}
 
 foreach ($node in $ComputerName) {
@@ -322,8 +314,6 @@ param(
     [Parameter(Mandatory=$false)][int[]]$IgnoreDriveType = $global:ignoreDriveType,
     [Parameter(Mandatory=$false)][string[]]$IgnoreDisks = $global:ignoreDisks
 )
-
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
 return Get-CimInstance -ClassName Win32_LogicalDisk -ComputerName $ComputerName |
     Where-Object {$_.DriveType -notin $ignoreDriveType} | Where-Object {$_.Name -notin $ignoreDisks} |

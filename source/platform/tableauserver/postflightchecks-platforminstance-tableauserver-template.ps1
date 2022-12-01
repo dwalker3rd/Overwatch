@@ -1,7 +1,5 @@
 #region POSTFLIGHT
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     #region IncompletePreflightChecks
 
         if (!$global:PreflightChecksCompleted) {

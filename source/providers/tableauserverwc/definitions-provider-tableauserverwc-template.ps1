@@ -1,7 +1,5 @@
 #region PROVIDER DEFINITIONS
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 $definitionsPath = $global:Location.Definitions
 . $definitionsPath\catalog.ps1
 . $definitionsPath\classes.ps1

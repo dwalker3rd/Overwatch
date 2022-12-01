@@ -1,7 +1,5 @@
 ﻿#region PLATFORM DEFINITIONS
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $global:Platform =
         [Platform]@{
             Id = "AlteryxServer"

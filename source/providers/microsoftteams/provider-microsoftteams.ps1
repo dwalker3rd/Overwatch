@@ -15,8 +15,6 @@ Build-Section builds a section for a legacy actionable message card.
 https://docs.microsoft.com/en-us/outlook/actionable-messages/message-card-reference#section-fields
 #>
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 function Build-Section {
 
     [CmdletBinding()]

@@ -6,8 +6,6 @@ function global:Initialize-TsmApiConfiguration {
         [switch]$ResetCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $global:tsmApiConfig = @{
         Server = $Server ? $Server : "localhost"
         Port = "8850"
@@ -199,8 +197,6 @@ function global:New-TsmApiSession {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $creds = Get-Credentials $global:tsmApiConfig.Credentials
     $headers = $global:tsmApiConfig.Method.Login.Headers
     $body = $global:tsmApiConfig.Method.Login.Body.replace("<0>",$creds.UserName).replace("<1>",$creds.GetNetworkCredential().Password)
@@ -220,8 +216,6 @@ function global:Remove-TsmApiSession {
     [CmdletBinding()]
     param()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     return Invoke-TsmApiMethod -Method "Logout"
 
 }
@@ -235,8 +229,6 @@ function global:Invoke-TsmApiMethod {
         [Parameter(Mandatory=$false,Position=1)][string[]]$Params,
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $path = $global:tsmApiConfig.Method.$Method.Path 
     $httpMethod = $global:tsmApiConfig.Method.$Method.HttpMethod
@@ -277,8 +269,6 @@ function global:Get-TableauServerStatus {
     param (
         [switch]$ResetCache
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $tableauServerStatus = $null
 

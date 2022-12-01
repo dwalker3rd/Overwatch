@@ -7,8 +7,6 @@ function global:Get-PlatformInfo {
         [switch][Alias("Update")]$ResetCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     if ($(get-cache platforminfo).Exists() -and !$ResetCache) {
         Write-Debug "Read-Cache platforminfo"
         $platformInfo = Read-Cache platforminfo # -MaxAge $(New-TimeSpan -Minutes 1)
@@ -51,8 +49,6 @@ function global:Get-PlatformProcess {
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$ResetCache
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if (!$ResetCache) {
         if ($(get-cache platformprocesses ).Exists()) {
@@ -141,8 +137,6 @@ function global:Get-PlatformService {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
         [Parameter(Mandatory=$false)][string]$View
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $platformTopology = Get-PlatformTopology -Online
 
@@ -244,8 +238,6 @@ function global:Get-AlteryxServerStatus {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
         [Parameter(Mandatory=$false)][ValidateSet("Controller","Database","Gallery","Worker")][string]$Component
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $platformTopology = Get-PlatformTopology
 
@@ -435,8 +427,6 @@ function global:Invoke-AlteryxService {
         [switch]$Log
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     #$hasValue = $false
     if ($p0 -match "=") {
         #$hasValue = $true
@@ -516,8 +506,6 @@ function global:Get-PlatformJob {
     param (
         [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName= (Get-PlatformTopology components.worker.nodes -Online -Keys)
     ) 
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
                 
     $jobs = Get-PlatformProcess -ComputerName $ComputerName | 
         Where-Object {$_.DisplayName -eq $PlatformDictionary.AlteryxEngineCmd -and $_.Status -eq "Active"}
@@ -534,8 +522,6 @@ function global:Watch-PlatformJob {
         [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = (Get-PlatformTopology components.worker.nodes -Online -Keys),
         [Parameter(Mandatory=$false)][int32]$Seconds = 15
     ) 
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $timer = [Diagnostics.Stopwatch]::StartNew()
 
@@ -597,8 +583,6 @@ function global:Stop-PlatformJob {
         Invoke-Command -Session $psSession {Stop-Process -Id $using:ProcessId -Force | Wait-Process -Timeout 15} 
         Remove-PSSession $psSession
     }
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
                 
     $jobs = Get-PlatformJob -ComputerName $ComputerName 
 
@@ -657,8 +641,6 @@ function global:Request-PlatformComponent {
         [switch]$Active,
         [switch]$Passive
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     # REQUIRED!
     # use a reinitialized **COPY** of the topology (in-memory and cached topologies are not affected)
@@ -769,8 +751,6 @@ function global:Request-Platform {
         [Parameter(Mandatory=$true)][string]$Reason
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     Write-Host+ -NoTrace "$($Command)","$($global:Platform.Name)" # -ForegroundColor ($Command -eq "Start" ? "Green" : "Red"),Gray
     Write-Log -Action $Command -Message "$($Command) $($global:Platform.Name)"
 
@@ -862,8 +842,6 @@ function global:Start-Platform {
         [Parameter(Mandatory=$false)][string]$Reason = "Start platform"
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     Request-Platform -Command Start -Context $Context -Reason $Reason
 }
 function global:Stop-Platform {
@@ -872,8 +850,6 @@ function global:Stop-Platform {
         [Parameter(Mandatory=$false)][string]$Context = "Command",
         [Parameter(Mandatory=$false)][string]$Reason = "Stop platform"
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     Request-Platform -Command Stop -Context $Context -Reason $Reason
 }
@@ -944,8 +920,6 @@ function global:Backup-Platform {
 
     [CmdletBinding()] param()
     
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     Write-Host+ -NoTrace "Backup Running ..."
     Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running" -Message "Running" -Force
     Send-TaskMessage -Id "Backup" -Status "Running"
@@ -1221,8 +1195,6 @@ function global:Initialize-PlatformTopology {
         [switch]$ResetCache,
         [switch]$NoCache
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($Nodes) {$ResetCache = $true}
     if (!$ResetCache -and !$NoCache) {

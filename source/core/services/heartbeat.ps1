@@ -52,8 +52,6 @@ function global:Get-Heartbeat {
     [CmdletBinding()]
     param ()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     if ($(get-cache heartbeat).Exists()) {
         $heartbeat = Read-Cache heartbeat 
     }

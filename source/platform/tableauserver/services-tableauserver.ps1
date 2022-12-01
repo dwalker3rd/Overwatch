@@ -9,8 +9,6 @@ function global:Get-PlatformStatusRollup {
         [switch]$ResetCache
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $params = @{}
     if ($ResetCache) {$params += @{ResetCache = $true}}
     $tableauServerStatus = Get-TableauServerStatus @params
@@ -177,8 +175,6 @@ param (
     [Parameter(Mandatory=$false)][string]$View,
     [switch]$ResetCache
 )
-
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
 if ($(get-cache platformservices).Exists() -and !$ResetCache) {
     Write-Debug "Read-Cache platformservices"
@@ -556,8 +552,6 @@ function global:Backup-Platform {
 
 [CmdletBinding()] param()
 
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
 Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running"
 Write-Information "Running"
 Send-TaskMessage -Id "Backup" -Status "Running"
@@ -617,8 +611,6 @@ function global:Get-PlatformJob {
         [switch]$Latest
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     if ($Id) {
         $platformJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
     }
@@ -648,8 +640,6 @@ function global:Show-PlatformJob {
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$Latest
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     $platformJobs = Get-PlatformJob -Id $Id -Status $Status -Type $Type
 
@@ -719,8 +709,6 @@ function global:Watch-PlatformJob {
     $Command = "Add"
     if ($Update) {$Command = "Update"}
     if ($Remove) {$Command = "Remove"}
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $platformJob = Get-PlatformJob -Id $Id
     if (!$platformJob) {return}
@@ -816,8 +804,6 @@ function global:Show-Watchlist {
         [Parameter(Mandatory=$false)][string]$View="Watchlist"
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     Update-PlatformJob
 
     return (Read-Watchlist $Watchlist) | Select-Object -Property $($View ? $PlatformJobView.$($View) : $PlatformJobView.Default)
@@ -881,8 +867,6 @@ function global:Wait-PlatformJob {
         [Parameter(Mandatory=$false)][int]$TimeoutSeconds = 300,
         [Parameter(Mandatory=$false)][int]$ProgressSeconds
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $platformJob = Invoke-TsmApiMethod -Method "AsyncJob" -Params @($Id)
 
@@ -954,8 +938,6 @@ function global:Initialize-PlatformTopology {
 param (
     [switch]$ResetCache
 )
-
-Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
 if (!$ResetCache) {
     if ($(get-cache platformtopology).Exists()) {
@@ -1122,8 +1104,6 @@ function global:Get-PlatformLicenses {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $response = Invoke-TsmApiMethod -Method "ProductKeys"
 
     return $response | Select-Object -Property $($View ? $LicenseView.$($View) : $LicenseView.Default)
@@ -1232,8 +1212,6 @@ function global:Confirm-PlatformLicenses {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $indent = Format-Leader -Character " " -Length 6
 
     $leader = Format-Leader -Length 47 -Adjust ((("  EULA Compliance").Length))
@@ -1323,8 +1301,6 @@ function global:Test-TsmController {
     [CmdletBinding()]
     param ()
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $leader = Format-Leader -Length 47 -Adjust ((("  TSM Controller").Length))
     Write-Host+ -NoTrace "  TSM Controller",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -1370,8 +1346,6 @@ function global:Test-RepositoryAccess {
     param (
         [Parameter(Mandatory=$true)][string[]]$ComputerName
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $leader = Format-Leader -Length 47 -Adjust ((("  Postgres Access").Length))
     Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray

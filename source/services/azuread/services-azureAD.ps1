@@ -37,8 +37,6 @@ function global:Connect-AzureAD {
         [Parameter(Mandatory=$true,Position=0)][string]$Tenant
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
@@ -90,8 +88,6 @@ function global:Invoke-AzureADRestMethod {
         [Parameter(Mandatory=$true)][object]$params
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
@@ -137,8 +133,6 @@ function global:Get-AzureADUser {
         [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
@@ -207,8 +201,6 @@ function global:Reset-AzureADUserPassword {
         [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
@@ -405,8 +397,6 @@ function global:Get-AzureADUser+ {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
@@ -444,8 +434,6 @@ function global:IsMember {
         [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
@@ -476,8 +464,6 @@ function global:Get-AzureADUserMembership {
         [Parameter(Mandatory=$false)][string]$View
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
@@ -498,8 +484,6 @@ function global:Send-AzureADInvitation {
         [Parameter(Mandatory=$false)][string]$Message,
         [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
@@ -673,8 +657,6 @@ function global:Get-AzureADObjects {
         [switch]$Delta,
         [switch]$NoCache
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($NoCache) {$Delta = $false}
 
@@ -919,8 +901,6 @@ function global:Export-AzureADObjects {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][ValidateSet("Groups","Users")][string]$Type
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
@@ -1000,8 +980,6 @@ function global:Get-DeltaLink {
         [Parameter(Mandatory=$true)][ValidateSet("Groups","Users")][string]$Type
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $deltaLinks = @{
         Groups = $null
         Users = $null
@@ -1042,8 +1020,6 @@ function global:Set-DeltaLink {
         [switch]$AllowNull
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $tenantLowerCase = $Tenant.ToLower()
     $typeLowerCaseSingular = $Type.ToLower().Substring(0,$Type.Length-1)
     # $typeTitleCase = (Get-Culture).TextInfo.ToTitleCase($Type)
@@ -1079,8 +1055,6 @@ function global:Read-AzureADCache {
         [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After,
         [switch]$AsArray
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $tenantLowerCase = $Tenant.ToLower()
     $typeLowerCase = $Type.ToLower()
@@ -1185,8 +1159,6 @@ function global:Get-AzureADGroups {
         [switch]$AsArray
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $cacheParams = @{
         Tenant = $Tenant
         Type = "Groups"
@@ -1212,8 +1184,6 @@ function global:Get-AzureADUsers {
         [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After,
         [switch]$AsArray
     )
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     $cacheParams = @{
         Tenant = $Tenant

@@ -27,8 +27,6 @@ function global:Register-PlatformTask {
         [switch]$Disable
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
-
     $product = Get-Product -Id $Id
     if (!$TaskName) {$TaskName = $product.TaskName}
     if (!$Description) {$Description = $product.Description}
@@ -553,8 +551,6 @@ function global:Unregister-PlatformTask {
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName
     ) 
-
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
     
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
 
