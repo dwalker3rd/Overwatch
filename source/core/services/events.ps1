@@ -65,7 +65,9 @@ function global:Reset-PlatformEvent {
 function global:Initialize-PlatformEventHistory {
 
     [CmdletBinding()]
-    param()
+    param (
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    )
 
     $platformEventHistory = @()
     $platformEventHistory += [PlatformEvent]@{
@@ -78,7 +80,7 @@ function global:Initialize-PlatformEventHistory {
         EventUpdatedAt = [datetime]::MinValue
         EventCompletedAt = [datetime]::MinValue
         EventHasCompleted = $false
-        ComputerName = $env:COMPUTERNAME
+        ComputerName = $COMPUTERNAME
         TimeStamp = [datetime]::Now
     }
 
@@ -92,10 +94,11 @@ function Update-PlatformEventHistory {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)][object]$PlatformStatus
+        [Parameter(Mandatory=$true)][object]$PlatformStatus,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $platformEventHistory = [PlatformEvent[]](Get-PlatformEventHistory)
+    $platformEventHistory = [PlatformEvent[]](Get-PlatformEventHistory -ComputerName $ComputerName)
 
     if ($platformEventHistory.Count -gt $PlatformEventHistoryMax) {
         $platformEventHistory = 
@@ -113,11 +116,11 @@ function Update-PlatformEventHistory {
         EventUpdatedAt = $PlatformStatus.EventUpdatedAt
         EventCompletedAt = $PlatformStatus.EventCompletedAt
         EventHasCompleted = $PlatformStatus.EventHasCompleted
-        ComputerName = $env:COMPUTERNAME
+        ComputerName = $COMPUTERNAME
         TimeStamp = [datetime]::Now
     }
 
-    $platformEventHistory | Write-Cache platformEventHistory
+    $platformEventHistory | Write-Cache platformEventHistory -ComputerName $ComputerName
 
     return
 
@@ -127,9 +130,11 @@ function global:Log-PlatformEventHistory {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
 
-    param()
+    param(
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    )
 
-    foreach ($platformEvent in (Get-PlatformEventHistory)) {
+    foreach ($platformEvent in (Get-PlatformEventHistory -ComputerName $ComputerName)) {
         # $logName = $platformEvent.EventCreatedBy.ToLower() -eq "command" ? "command" : $Platform.Instance
         $timeStamp = @((Get-Date($platformEvent.EventCreatedAt) -Millisecond 0),(Get-Date($platformEvent.EventUpdatedAt) -Millisecond 0),(Get-Date($platformEvent.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1
         Write-Log -Context $platformEvent.EventCreatedBy <# -Name $logName #> -EntryType Event -TimeStamp $timeStamp -Action $platformEvent.Event -Target Platform -Status $platformEvent.EventStatus -Message $platformEvent.EventReason
