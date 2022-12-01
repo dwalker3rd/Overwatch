@@ -254,7 +254,7 @@ function global:Get-PlatformEventHistory {
 function global:Show-PlatformEvent {
 
     param(
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     if ($ComputerName -eq $env:COMPUTERNAME) {
