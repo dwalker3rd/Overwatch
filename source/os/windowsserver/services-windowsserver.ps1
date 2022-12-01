@@ -764,7 +764,7 @@ $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyCon
 
 Invoke-Command -Session $psSession {
     Get-Service -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {
-        if ($_.StartMode -ne $using:StartupType) {
+        if ($_.StartupType -ne $using:StartupType) {
             Set-Service -Name $_.Name -StartupType $using:StartupType
         }
     }

@@ -1,7 +1,13 @@
 ﻿[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls11  
 
 switch ($PSVersionTable.PSVersion.Major) {
-    default {$global:pwsh = "C:\Program Files\PowerShell\7\pwsh.exe"}
+    7 {
+        $global:pwsh = "C:\Program Files\PowerShell\7\pwsh.exe"
+        $global:PSSessionConfigurationName = 'PowerShell.7'
+    }
+    default {
+        throw "Overwatch requireds Powershell 7."
+    }
 }
 
 #region CLASSES
