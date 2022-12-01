@@ -669,12 +669,12 @@ function script:Copy-File {
                             # if the file belongs to a Product or Provider that is NOT installed, ignore the post-installation configuration
                             if (!(Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId")) { continue }
                         }
+                        $postInstallConfig = $true
                         $message = "$manualConfigObjectType > $manualConfigObjectId > $manualConfigAction > Edit $(Split-Path $manualConfigFile -Leaf)"
                         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
                     }
                 }
             }
-            $postInstallConfig = $true
         }
 
         #region FILES NOT IN SOURCE
