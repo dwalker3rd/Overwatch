@@ -75,16 +75,20 @@ $global:WarningPreference = "SilentlyContinue"
 
         # configure trusted hosts (for this node)
         $trustedHosts = Get-Item WSMan:\localhost\Client\TrustedHosts
-        foreach ($node in (pt nodes -k)) {
-            if ($node -notin $trustedHosts) {
-                $ignoreOutput = Set-Item WSMan:\localhost\Client\TrustedHosts -Value $node -Concatenate -Force
+        if ($trustedHosts.Value -notcontains "*") {
+            foreach ($node in (pt nodes -k)) {
+                if ($node -notin $trustedHosts.Value) {
+                    $ignoreOutput = Set-Item WSMan:\localhost\Client\TrustedHosts -Value $node -Concatenate -Force
+                }
             }
         }
 
         # enable WSMan Credssp for Server (for remote nodes)
         $psSession = Get-PsSession+ -ComputerName (pt nodes -k | Where-Object {$_ -ne $thisNode})
-        $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
-        $ignoreOutput = Remove-PSSession $psSession
+        if ($null -ne $psSession) {
+            $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
+            $ignoreOutput = Remove-PSSession $psSession
+        }
 
         $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
