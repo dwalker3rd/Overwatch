@@ -659,44 +659,45 @@ function global:Request-PlatformComponent {
     # REQUIRED!
     # use a reinitialized **COPY** of the topology (in-memory and cached topologies are not affected)
     # this ensures that nodes that were removed/offlines are processed by this function
-    $platformTopology = Get-PlatformTopology -ResetCache
+    $_platformTopology = Initialize-PlatformTopology -NoCache
 
     if ($Active -or $Passive) {
-        if ($Component -ne $platformTopology.Components.Controller.Name) {throw "The Active and Passive switches are only valid with a Controller."}
+        if ($Component -ne $_platformTopology.Components.Controller.Name) {throw "The Active and Passive switches are only valid with a Controller."}
         if ($Active -and $Passive) {throw "The Active and Passive switches cannot be combined."}
     }
 
     $componentType = switch ($Component) {
-        $platformTopology.Components.Controller.Name {$Active ? "Active" : "Passive"}
+        $_platformTopology.Components.Controller.Name {$Active ? "Active" : "Passive"}
         default {$null}
     }
     if ($componentType) {$componentType = "$($componentType.Trim()) "}
 
     $Command = (Get-Culture).TextInfo.ToTitleCase($Command)
     $Component = (Get-Culture).TextInfo.ToTitleCase($Component)
-    $ComputerName = $ComputerName ? $ComputerName : $platformTopology.Components.$component.Nodes
+    $ComputerName = $ComputerName ? $ComputerName : $_platformTopology.Components.$component.Nodes
 
     Write-Host+ -NoTrace "$($Command)","$($componentType)$($Component)" # -ForegroundColor ($Command -eq "Start" ? "Green" : "Red"),Gray
     Write-Log -Action $Command -Message "$($Command) $($componentType)$($Component)"        
 
     switch ($Component) {
-        $platformTopology.Components.Database.Name {
-            if ($platformTopology.Components.Controller.EmbeddedMongoDBEnabled) {
+        $_platformTopology.Components.Database.Name {
+            if ($_platformTopology.Components.Controller.EmbeddedMongoDBEnabled) {
                 Write-Host+ -NoTrace  "No external database." -ForegroundColor Yellow
                 return
             }
             # TODO: add support for managing an external db
         }
-        $platformTopology.Components.Controller.Name {
-            if ($Passive -and !$platformTopology.Components.Controller.Passive) {
+        $_platformTopology.Components.Controller.Name {
+            if ($Passive -and !$_platformTopology.Components.Controller.Passive) {
                 Write-Host+ -NoTrace  "No passive controller." -ForegroundColor Yellow
                 return
             }
             # TODO: add support for managing a passive controller
         }
-        # $platformTopology.Components.Worker.Name {
-        #     Stop-PlatformJob $ComputerName
-        # }
+        $_platformTopology.Components.Worker.Name {
+            # initial attempt before STOP command: all jobs may not stop
+            Stop-PlatformJob $ComputerName
+        }
     }
 
     $serviceStatus = Get-AlteryxServerStatus -ComputerName $ComputerName
@@ -711,7 +712,9 @@ function global:Request-PlatformComponent {
 
         Invoke-AlteryxService $Command.ToLower() -ComputerName $ComputerName -Log     
         
-        if ($Command -eq "Stop" -and $Component -eq $platformTopology.Components.Worker.Name) {
+        if ($Command -eq "Stop" -and $Component -eq $_platformTopology.Components.Worker.Name) {
+            # second attempt in case any jobs did not stop during initial attempt, or ...
+            # stop any new jobs that may have started between initial attempt and completion of STOP command
             Stop-PlatformJob $ComputerName
         }
 
@@ -730,7 +733,25 @@ function global:Request-PlatformComponent {
         }
         
         if ($serviceStatus.Status -ne $targetState) {throw "Failed to $($Command) $($componentType)$($Component)"}
-    } 
+    }
+
+    # set AlteryxService to Manual if STOP command
+    # set AlteryxService to AutomaticDelayedStart if START command
+    # TODO: the StartupType for the START command could be configurable
+    switch ($Component) {
+        # ignore external database
+        $_platformTopology.Components.Database.Name {}
+        default {
+            $startupType = switch ($Command) {
+                "Stop" { "Manual" }
+                "Start" { "AutomaticDelayedStart" }
+            }
+            Set-PlatformService -Name "AlteryxService" -StartupType $startupType -ComputerName $ComputerName
+            foreach ($node in $ComputerName) {
+                Write-Host+ -NoTrace  "$($componentType)$($Component) on $($node) startup is",$startupType -ForegroundColor Gray,($Command -eq "Start" ? "Green" : "Red")
+            }
+        }
+    }
 
     return
 }
@@ -1193,13 +1214,14 @@ function global:Initialize-PlatformTopology {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string[]]$Nodes,
-        [switch]$ResetCache
+        [switch]$ResetCache,
+        [switch]$NoCache
     )
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
 
     if ($Nodes) {$ResetCache = $true}
-    if (!$ResetCache) {
+    if (!$ResetCache -and !$NoCache) {
         if ($(get-cache platformtopology).Exists()) {
             return Read-Cache platformtopology
         }
@@ -1220,7 +1242,7 @@ function global:Initialize-PlatformTopology {
             Components = @{}
         }
         if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
-            if ($node -match $RegexPattern.PlatformTopology.Alias.Match) {
+            if ($node -match $global:RegexPattern.PlatformTopology.Alias.Match) {
                 $ptAlias = ""
                 foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
                     $ptAlias += $Matches[$i]
@@ -1319,7 +1341,7 @@ function global:Initialize-PlatformTopology {
         throw "Found multiple active controllers"
     }
 
-    if ($platformTopology.Nodes) {
+    if (!$NoCache -and $platformTopology.Nodes) {
         $platformTopology | Write-Cache platformtopology
     }
 
