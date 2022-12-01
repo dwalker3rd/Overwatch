@@ -586,6 +586,13 @@ Clear-Host
             $updatedfiles += $coreFiles
 
         #endregion CORE
+        #region PowerShell
+
+            $psFiles = @()
+            $psFiles += Copy-File $PSScriptRoot\source\core\powershell\config-ps-*.ps* $PSScriptRoot\config -WhatIf
+            $updatedFiles += $psFiles
+
+        #endregion PowerShell
         #region OS
 
             $osFiles = @()
@@ -722,6 +729,11 @@ Clear-Host
             . $PSScriptRoot\environ.ps1
 
         #endregion ENVIRON
+        #region PowerShell
+
+            Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config
+
+        #endregion PowerShell
         #region OS
 
             Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1
@@ -1066,6 +1078,8 @@ Clear-Host
     [console]::CursorVisible = $false
 
         #region CONFIG
+
+            if (Test-Path "$PSScriptRoot\config\config-ps-remoting.ps1") {. "$PSScriptRoot\config\config-ps-remoting.ps1" }
 
             if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1" }
             if (Test-Path "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1") {. "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1" }

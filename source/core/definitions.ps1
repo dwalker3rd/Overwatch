@@ -2,8 +2,8 @@
 
 switch ($PSVersionTable.PSVersion.Major) {
     7 {
-        $global:pwsh = "C:\Program Files\PowerShell\7\pwsh.exe"
-        $global:PSSessionConfigurationName = 'PowerShell.7'
+        $global:pwsh = "C:\Program Files\PowerShell\$($PSVersionTable.PSVersion.Major)\pwsh.exe"
+        $global:PSSessionConfigurationName = "PowerShell.$($PSVersionTable.PSVersion.Major)"
     }
     default {
         throw "Overwatch requireds Powershell 7."
