@@ -1063,13 +1063,9 @@ Clear-Host
 
         #region CONFIG
 
-            if ($Update) {
-
-                if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower())") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower())" }
-                if (Test-Path "$PSScriptRoot\config\config-platform-$($platformId.ToLower())") {. "$PSScriptRoot\config\config-platform-$($platformId.ToLower())" }
-                if (Test-Path "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower())") {. "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower())" }
-
-            }
+            if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1" }
+            if (Test-Path "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1") {. "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1" }
+            if (Test-Path "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower()).ps1") {. "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower()).ps1" }
 
         #endregion CONFIG
         #region PROVIDERS
