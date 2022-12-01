@@ -459,6 +459,7 @@ function global:Request-RMTService {
         $response = Invoke-Command -Session $psSession {
             Get-Service -Name $using:Name -ErrorAction SilentlyContinue           
         }
+        Remove-PSSession $psSession
 
         $result = $response.StartType -eq $StartupType ? "Success" : "Failure"
 
@@ -513,6 +514,7 @@ function global:Request-Platform {
         $response = Invoke-Command -Session $psSession {
             . $using:rmtAdmin $using:Command
         }
+        Remove-PSSession $psSession
 
         $result = ($response | Select-String -Pattern $successPattern -Quiet) ? "Success" : "Failure"
 

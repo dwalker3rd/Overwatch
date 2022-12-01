@@ -486,7 +486,10 @@ function global:Invoke-AlteryxService {
         $exceptionMessage = $_.Exception.Message
         $status = "Failure"
         $Log = $true
-    } 
+    }
+    finally {
+        Remove-PSSession $psSession
+    }
 
     if ($hasResult) {Write-Verbose "Result = $($result)"}
 
@@ -592,6 +595,7 @@ function global:Stop-PlatformJob {
 
         $psSession = Get-PSSession+ -ComputerName $ComputerName
         Invoke-Command -Session $psSession {Stop-Process -Id $using:ProcessId -Force | Wait-Process -Timeout 15} 
+        Remove-PSSession $psSession
     }
 
     Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"

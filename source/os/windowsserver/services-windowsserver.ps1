@@ -381,82 +381,87 @@ return $svc
 
 function global:Confirm-LogOnAsAService {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$true,Position=0)][string]$Name,
-    [Parameter(Mandatory=$true)][string]$Policy,
-    [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
-)
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$Policy,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+    )
 
-$results = @()
-$psSession = Get-PSSession+ -ComputerName $ComputerName
-$results = Invoke-Command -Session $psSession {
-    secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
-    $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
-    $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith($using:Policy)}
-    [PSCustomObject]@{
-        ComputerName = $env:COMPUTERNAME
-        Policy = $using:Policy
-        Setting = $seServiceLogonRight.split("=")[1]
-        Name = $using:Name
-        IsOK = $seServiceLogonRight.IndexOf($using:Name) -gt -1
+    $results = @()
+    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $results = Invoke-Command -Session $psSession {
+        secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
+        $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
+        $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith($using:Policy)}
+        [PSCustomObject]@{
+            ComputerName = $env:COMPUTERNAME
+            Policy = $using:Policy
+            Setting = $seServiceLogonRight.split("=")[1]
+            Name = $using:Name
+            IsOK = $seServiceLogonRight.IndexOf($using:Name) -gt -1
+        }
+        Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
     }
-    Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
-} 
+    Remove-PsSession $psSession
 
 return $results | Select-Object -Property ComputerName, Policy, Setting, Name, IsOK | Sort-Object ComputerName
 }
 
 function global:Grant-LogOnAsAService {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$true,Position=0)][string]$Name,
-    [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
-)
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+    )
 
-$psSession = Get-PSSession+ -ComputerName $ComputerName
-Invoke-Command -Session $psSession {
-    secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
-    Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
-    $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
-    Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-    if ($seServiceLogonRight.IndexOf($using:Name) -eq -1) {
-        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight + "," + $using:Name) | Out-File "$($using:Location.Data)\secpol.cfg"
+    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    Invoke-Command -Session $psSession {
+        secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
+        Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
         $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
         $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
         Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-        secedit /configure /db c:\windows\security\local.sdb /cfg "$($using:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
+        if ($seServiceLogonRight.IndexOf($using:Name) -eq -1) {
+            $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight + "," + $using:Name) | Out-File "$($using:Location.Data)\secpol.cfg"
+            $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
+            $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
+            Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
+            secedit /configure /db c:\windows\security\local.sdb /cfg "$($using:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
+        }
+        # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
     }
-    # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
-}
+    Remove-PsSession $psSession
+
 }
 
 function global:Revoke-LogOnAsAService {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$true,Position=0)][string]$Name,
-    [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
-)
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+    )
 
-$psSession = Get-PSSession+ -ComputerName $ComputerName
-Invoke-Command -Session $psSession {
-    secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
-    Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
-    $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
-    Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-    if ($seServiceLogonRight.IndexOf($using:Name) -gt -1) {
-        $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight.replace($using:Name,"").replace(",,",",").replace("= ,","= ")) | Out-File "$($using:Location.Data)\secpol.cfg"
+    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    Invoke-Command -Session $psSession {
+        secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
+        Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
         $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
         $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
         Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
-        secedit /configure /db c:\windows\security\local.sdb /cfg "$($using:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
+        if ($seServiceLogonRight.IndexOf($using:Name) -gt -1) {
+            $secpolcfg.replace($seServiceLogonRight,$seServiceLogonRight.replace($using:Name,"").replace(",,",",").replace("= ,","= ")) | Out-File "$($using:Location.Data)\secpol.cfg"
+            $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
+            $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith("SeServiceLogonRight")}
+            Write-Output "$($env:COMPUTERNAME): $($seServiceLogonRight)"
+            secedit /configure /db c:\windows\security\local.sdb /cfg "$($using:Location.Data)\secpol.cfg" /areas User_Rights | Out-Null
+        }
+        # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
     }
-    # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
-}
+    Remove-PsSession $psSession
+
 }
 
 function Join-SecurityArrays {
@@ -697,28 +702,28 @@ Write-Host+
 
 function global:Request-PlatformService {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$true)][ValidateSet("Start","Stop")][string]$Command,
-    [Parameter(Mandatory=$true)][string]$Name,
-    [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
-    [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME
-)
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][ValidateSet("Start","Stop")][string]$Command,
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
+        [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME
+    )
 
-$psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+    $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
-Invoke-Command -Session $psSession {
-    if ($using:Command -eq "Stop") {
-        Stop-Service -Name $using:Name -ErrorAction SilentlyContinue
+    Invoke-Command -Session $psSession {
+        if ($using:Command -eq "Stop") {
+            Stop-Service -Name $using:Name -ErrorAction SilentlyContinue
+        }
+        elseif ($using:Command -eq "Start") {
+            Start-Service -Name $using:Name -ErrorAction SilentlyContinue
+        }
     }
-    elseif ($using:Command -eq "Start") {
-        Start-Service -Name $using:Name -ErrorAction SilentlyContinue
-    }
-}
 
-Remove-PSSession $psSession
+    Remove-PSSession $psSession
 
-return 
+    return 
 
 }
 
@@ -753,23 +758,25 @@ Request-PlatformService -Command "Start" -Name $Name -ComputerName $ComputerName
 
 function global:Set-PlatformService {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
-    [Parameter(Mandatory=$true)][string]$Name,
-    [Parameter(Mandatory=$true)][ValidateSet("Manual","Automatic","AutomaticDelayedStart","Disabled")][Microsoft.PowerShell.Commands.ServiceStartupType]$StartupType
-)
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = "localhost",
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][ValidateSet("Manual","Automatic","AutomaticDelayedStart","Disabled")][Microsoft.PowerShell.Commands.ServiceStartupType]$StartupType
+    )
 
-$psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+    $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
-Invoke-Command -Session $psSession {
-    Get-Service -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {
-        if ($_.StartupType -ne $using:StartupType) {
-            Set-Service -Name $_.Name -StartupType $using:StartupType
+    Invoke-Command -Session $psSession {
+        Get-Service -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.StartupType -ne $using:StartupType) {
+                Set-Service -Name $_.Name -StartupType $using:StartupType
+            }
         }
     }
-}
 
-return
+    Remove-PsSession $psSession
+
+    return
 
 }

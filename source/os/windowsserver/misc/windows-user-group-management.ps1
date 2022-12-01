@@ -5,7 +5,7 @@ function global:Get-LocalGroup+ {
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$SID,
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session,
+        # [Parameter(Mandatory=$false)][object[]]$Session,
         [Parameter(Mandatory=$false)][string]$View
     )
 
@@ -34,7 +34,8 @@ function global:Get-LocalGroup+ {
         $group | Add-Member -NotePropertyName ComputerName -NotePropertyValue $group.PSComputerName -ErrorAction SilentlyContinue
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return $groups | Select-Object -Property $($View ? $GroupView.$($View) : $GroupView.Default)
 
@@ -46,8 +47,8 @@ function global:New-LocalGroup+ {
     param (
         [Parameter(Mandatory=$true)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Description,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     $params = @{};
@@ -59,7 +60,8 @@ function global:New-LocalGroup+ {
         New-LocalGroup -Name $using:Name @using:params
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return #Get-LocalGroup+ -Name $Name -ComputerName $ComputerName
 
@@ -72,8 +74,8 @@ function global:Set-LocalGroup+ {
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$SID,
         [Parameter(Mandatory=$true)][string]$Description,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     if (!$Name -and !$SID) {
@@ -93,7 +95,8 @@ function global:Set-LocalGroup+ {
         Set-LocalGroup @using:params -Description $using:Description
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return Get-LocalGroup+ @params -ComputerName $ComputerName -View Min
 
@@ -105,8 +108,8 @@ function global:Remove-LocalGroup+ {
     param (
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$SID,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     if (!$Name -and !$SID) {
@@ -140,7 +143,8 @@ function global:Remove-LocalGroup+ {
         }
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return
 
@@ -153,7 +157,7 @@ function global:Get-LocalUser+ {
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$SID,
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session,
+        # [Parameter(Mandatory=$false)][object[]]$Session,
         [Parameter(Mandatory=$false)][string]$View
 
     )
@@ -175,7 +179,8 @@ function global:Get-LocalUser+ {
         Get-LocalUser @using:params -ErrorAction SilentlyContinue
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return
 
@@ -193,8 +198,8 @@ function global:New-LocalUser+ {
         [Parameter(Mandatory=$false)][string]$Description,
         [Parameter(Mandatory=$false)][boolean]$PasswordNeverExpires=$false,
         [Parameter(Mandatory=$false)][boolean]$UserMayNotChangePassword=$false,   
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     $params = @{};
@@ -212,7 +217,8 @@ function global:New-LocalUser+ {
         New-LocalUser -Name $using:Name @using:params
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return Get-LocalUser+ -Name $Name -ComputerName $ComputerName
 
@@ -231,8 +237,8 @@ function global:Set-LocalUser+ {
         [Parameter(Mandatory=$false)][string]$Description,
         [Parameter(Mandatory=$false)][boolean]$PasswordNeverExpires,
         # [Parameter(Mandatory=$false)][boolean]$UserMayNotChangePassword,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     if (!$Name -and !$SID) {
@@ -259,7 +265,8 @@ function global:Set-LocalUser+ {
         Set-LocalUser @params
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return Get-LocalUser+ @params -ComputerName $ComputerName
 
@@ -271,8 +278,8 @@ function global:Remove-LocalUser+ {
     param (
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$SID,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     if (!$Name -and !$SID) {
@@ -292,6 +299,8 @@ function global:Remove-LocalUser+ {
         Remove-LocalUser -Name $using:params
     }
 
+    Remove-PsSession $psSession
+
     return Get-LocalUser+ @params -ComputerName $ComputerName
 
 }
@@ -303,8 +312,8 @@ function global:Add-LocalGroupMember+ {
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$SID,
         [Parameter(Mandatory=$false)][string]$Member,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     if (!$Name -and !$SID) {
@@ -324,7 +333,8 @@ function global:Add-LocalGroupMember+ {
         Add-LocalGroupMember @using:params -Member $using:Member
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return Get-LocalGroup+ @params -ComputerName $ComputerName -View Min
 
@@ -337,8 +347,8 @@ function global:Remove-LocalGroupMember+ {
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$SID,
         [Parameter(Mandatory=$false)][string]$Member,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-        [Parameter(Mandatory=$false)][object[]]$Session
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+        # [Parameter(Mandatory=$false)][object[]]$Session
     )
 
     if (!$Name -and !$SID) {
@@ -358,7 +368,8 @@ function global:Remove-LocalGroupMember+ {
         Remove-LocalGroupMember @using:params -Member $using:Member -ErrorAction SilentlyContinue
     }
 
-    if (!$Session) {Remove-PSSession $psSession}
+    # if (!$Session) {Remove-PSSession $psSession}
+    Remove-PsSession $psSession
 
     return Get-LocalGroup+ @params -ComputerName $ComputerName -View Min
 

@@ -35,7 +35,7 @@ function global:Install-PythonPackage {
     }
     Write-Host+ -Iff (!$Quiet)
 
-    Remove-PSSession $psSession
+    Remove-PSSession $psSessions
 
     return
 
@@ -69,7 +69,7 @@ function global:Uninstall-PythonPackage {
     }
     Write-Host+ -Iff (!$Quiet)
 
-    Remove-PSSession $psSession
+    Remove-PSSession $psSessions
 
     return
 

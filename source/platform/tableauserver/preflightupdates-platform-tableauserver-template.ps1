@@ -10,6 +10,7 @@ Param()
 
         $psSession = Get-PSSession+ -ComputerName (pt nodes -k)
         $result = Invoke-Command -Session $psSession { [Environment]::SetEnvironmentVariable("LOG4J_FORMAT_MSG_NO_LOOKUPS","true","Machine") } 
+        Remove-PSSession $psSession
 
     #endregion CVE-2021-44228
 

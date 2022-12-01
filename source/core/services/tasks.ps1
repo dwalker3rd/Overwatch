@@ -111,7 +111,8 @@ function global:Get-PlatformTask {
         [Parameter(Mandatory=$false)][string]$ExcludeId,
         [Parameter(Mandatory=$false)][string]$TaskName,
         [Parameter(Mandatory=$false)][string]$ExcludeTaskName,
-        [Parameter(Mandatory=$false)][string]$View
+        [Parameter(Mandatory=$false)][string]$View,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     )
 
     $taskState = @("Unknown","Disabled","Queued","Ready","Running")
@@ -119,10 +120,11 @@ function global:Get-PlatformTask {
 
     if ($Id -and !$TaskName) {$TaskName = $(Get-Product -Id $Id).TaskName}
 
-    $nodes = Get-PlatformTopology nodes -Online -Keys
+    # $nodes = Get-PlatformTopology nodes -Online -Keys
 
-    $psSession = Get-PSSession+ -ComputerName $nodes
+    $psSession = Get-PSSession+ -ComputerName $ComputerName
     $tasks = $TaskName ? $(Invoke-Command -Session $psSession {Get-ScheduledTask -TaskName $using:TaskName -ErrorAction SilentlyContinue}) : $(Invoke-Command -Session $psSession {Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {$_.TaskName -like "*$($using:Overwatch.Name)*"}})
+    Remove-PsSession $psSession
     if (!$tasks) {return}
 
     if ($ExcludeId) {$tasks = $tasks | Where-Object {$_.TaskName -ne $(Get-Product $ExcludeId).Name}}
