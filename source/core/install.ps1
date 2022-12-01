@@ -963,7 +963,7 @@ Clear-Host
 #region REMOTE DIRECTORIES
 
     if ($installOverwatch) {
-        $requiredDirectories = @("data\$platformInstanceId")
+        $requiredDirectories = @("data","config")
 
         $missingDirectories = @()
         foreach ($node in (pt nodes -k)) {
