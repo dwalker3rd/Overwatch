@@ -15,8 +15,51 @@ $global:WarningPreference = "SilentlyContinue"
 
     try {
 
+        # if the PowerShell.7 PSSessionConfiguration is not the current/installed version of PowerShell, unregister it
+        # enable-psremoting (next step) will recreate the PowerShell.7 PSSessionConfiguration with the current/installed PowerShell version
+        $_psRequiredSessionConfigurationFile = "$($global:Location.Config)\$($global:PSSessionConfigurationName).pssc"
+        Copy-Files -Path $_psRequiredSessionConfigurationFile -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Quiet
+        
+        $_psRequiredSessionConfigurationFileExists = $true
+        foreach ($node in (pt nodes -k)) {
+            $_psRequiredSessionConfigurationFileExistsOnNode = [FileObject]::new($_psRequiredSessionConfigurationFile,$node).Exists()
+            if (!$_psRequiredSessionConfigurationFileExistsOnNode) {
+                throw ("Required PSSessionConfigurationFile `"$_psRequiredSessionConfigurationFile`" not found on $node")
+            }
+            $_psRequiredSessionConfigurationFileExists = $_psRequiredSessionConfigurationFileExists -and $_psRequiredSessionConfigurationFileExistsOnNode
+        }
+        if (!$_psRequiredSessionConfigurationFileExists) {
+            throw("Unable to update required PSSessionConfiguration `"$($global:PSSessionConfigurationName)`"")
+        }
+        else {
+            foreach ($node in (pt nodes -k)) {
+
+                try {
+                    $_psSessionConfiguration = invoke-command -computername $node -configurationname "PowerShell.7" -ScriptBlock {Get-PSSessionConfiguration | Where-Object {$_.Name -ne "PowerShell.7"}}
+                    $_psSessionConfigurationName = ($_psSessionConfiguration | Where-Object {$_.PSVersion -eq ($_pssessionConfiguration.PSVersion | Sort-Object -Descending)}).Name
+                }
+                catch {
+                    throw ("Error remoting to $node using the PSSessionConfiguration `"PowerShell.$($PSVersionTable.PSVersion)`"")
+                }
+
+                invoke-command -computername $node -configurationname $_psSessionConfigurationName -WarningAction SilentlyContinue -ErrorAction SilentlyContinue `
+                    -ScriptBlock {
+                        $_psVersion = $PSVersionTable.PSVersion.Patch -eq 0 ? "$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)" : $PSVersionTable.PSVersion
+                        $_psRequiredConfiguration = Get-PSSessionConfiguration -Name $using:PSSessionConfigurationName -ErrorAction SilentlyContinue
+                        # if ($null -ne $_psRequiredConfiguration -and $_psRequiredConfiguration.PSVersion -ne $_psVersion) {
+                            Unregister-PSSessionConfiguration -Name $using:PSSessionConfigurationName | Out-Null
+                            $_psRequiredConfiguration = Get-PSSessionConfiguration -Name $using:PSSessionConfigurationName -ErrorAction SilentlyContinue
+                        # }
+                        if ($null -eq $_psRequiredConfiguration) {
+                            Register-PSSessionConfiguration -Name $using:PSSessionConfigurationName -Path $using:_psRequiredSessionConfigurationFile -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
+                        }
+                    } 
+
+            }
+        }
+
         # configure basic powershell remoting config (for this node)
-        $ignoreOutput = winrm quickconfig
+        $ignoreOutput = winrm quickconfig -Quiet
         $ignoreOutput = enable-psremoting -skipnetworkprofilecheck -force
         $ignoreOutput = set-netfirewallrule -name "WINRM-HTTP-In-TCP-PUBLIC" -RemoteAddress Any
 

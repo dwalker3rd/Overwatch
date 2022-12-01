@@ -23,7 +23,7 @@ $global:Location +=
     Preflight = "$($global:Location.Root)\preflight"
     Postflight = "$($global:Location.Root)\postflight"
     Help = "$($global:Location.Root)\help"
-
+    Config = "$($global:Location.Root)\config"
     Data = "$($global:Location.Root)\data"
     Credentials = "$($global:Location.Root)\data"
     Views = "$($global:Location.Root)\views"
