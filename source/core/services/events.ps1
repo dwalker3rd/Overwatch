@@ -146,7 +146,7 @@ function global:Get-PlatformEventHistory {
         [Parameter(Mandatory=$false)][string]$EventReason,
         [Parameter(Mandatory=$false)][ValidateSet("In Progress","InProgress","Completed","Failed","Reset","Testing")][string]$EventStatus,
         [Parameter(Mandatory=$false)][string]$EventStatusTarget,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][Alias("Since")][object]$After,
         [Parameter(Mandatory=$false)][Alias("Until")][object]$Before,
         [Parameter(Mandatory=$false)][datetime]$At,
