@@ -962,27 +962,25 @@ Clear-Host
 #endregion CREDENTIALS
 #region REMOTE DIRECTORIES
 
-    if ($installOverwatch) {
-        $requiredDirectories = @("data","config")
+    $requiredDirectories = @("data","config")
 
-        $missingDirectories = @()
-        foreach ($node in (pt nodes -k)) {
-            $remotePSScriptRoot = "\\$node\$($PSScriptRoot.Replace(":","$"))"
-            foreach ($requiredDirectory in $requiredDirectories) {
-                if (!(Test-Path "$remotePSScriptRoot\$requiredDirectory")) { $missingDirectories += "$remotePSScriptRoot\$requiredDirectory" }
-            }
+    $missingDirectories = @()
+    foreach ($node in (pt nodes -k)) {
+        $remotePSScriptRoot = "\\$node\$($PSScriptRoot.Replace(":","$"))"
+        foreach ($requiredDirectory in $requiredDirectories) {
+            if (!(Test-Path "$remotePSScriptRoot\$requiredDirectory")) { $missingDirectories += "$remotePSScriptRoot\$requiredDirectory" }
         }
-        if ($missingDirectories) {
+    }
+    if ($missingDirectories) {
 
-            Write-Host+
-            Write-Host+ -NoTrace -NoTimestamp "Remote Directories" -ForegroundColor DarkGray
-            Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "Remote Directories" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
 
-            foreach ($missingDirectory in $missingDirectories) {
-                New-Item -ItemType Directory -Path $missingDirectory -Force
-            }
-
+        foreach ($missingDirectory in $missingDirectories) {
+            New-Item -ItemType Directory -Path $missingDirectory -Force
         }
+
     }
 
 #endregion REMOTE DIRECTORIES
