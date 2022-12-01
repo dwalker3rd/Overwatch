@@ -589,7 +589,7 @@ Clear-Host
         #region PowerShell
 
             $psFiles = @()
-            $psFiles += Copy-File $PSScriptRoot\source\core\powershell\config-ps-*.ps* $PSScriptRoot\config -WhatIf
+            $psFiles += Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config -WhatIf
             $updatedFiles += $psFiles
 
         #endregion PowerShell
