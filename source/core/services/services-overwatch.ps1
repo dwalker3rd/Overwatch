@@ -348,7 +348,7 @@
 
             # this overrides $platformStatus.IsStopped
             # TODO: as above, manage events if $platformStatus doesn't match platform state
-            $platformStatus.IsStopped = $platformStatus.RollupStatus -in $PlatformServiceDownState
+            $platformStatus.IsStopped = $platformStatus.RollupStatus -in $ServiceDownState
             
             $platformStatus.ByCimInstance = $platformCimInstance
 

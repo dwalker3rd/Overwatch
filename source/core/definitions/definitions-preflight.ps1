@@ -1,4 +1,3 @@
-$preflightPath = $global:Location.Preflight
 $global:PreflightChecksCompleted = $true
 
 function global:Invoke-Preflight {
@@ -28,7 +27,7 @@ function global:Invoke-Preflight {
         }
     }
     
-    if (Test-Path -Path $PreflightPath\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1) {
+    if (Test-Path -Path "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1") {
         
         Write-Host+ 
         $message = "<$Name $noun $Action <.>48> PENDING"
@@ -38,7 +37,7 @@ function global:Invoke-Preflight {
         
         $fail = $false
         try{
-            . $PreflightPath\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1    
+            . "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"    
         }
         catch {
             $fail = $true

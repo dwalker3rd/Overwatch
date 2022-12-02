@@ -11,11 +11,11 @@ param (
 
 $global:WriteHostPlusPreference = "Continue"
 
-$emptyString = ""
-
+. $PSScriptRoot\source\powershell\definitions\definitions-ps-powershell.ps1
 . $PSScriptRoot\source\core\definitions\classes.ps1
 . $PSScriptRoot\source\core\definitions\catalog.ps1
 . $PSScriptRoot\source\core\definitions\definitions-regex.ps1
+. $PSScriptRoot\source\core\definitions\definitions-overwatch.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-install.ps1
 
@@ -108,26 +108,17 @@ Clear-Host
             $installedPlatforms += $key
         }
     }
-    # if ($services.Name -contains "tabsvc_0") {$installedPlatforms += "TableauServer"}
-    # if ($services.Name -contains "AlteryxService") {$installedPlatforms += "AlteryxServer"}
     Write-Host+ -NoTrace -NoTimestamp -Parse "<Platform <.>24> $($installedPlatforms -join ", ")" -ForegroundColor Gray,DarkGray,Blue
+
+    Write-Host+ -NoTrace -NoTimestamp -Parse "<Location <.>24> $((Get-Location).Path)" -ForegroundColor Gray,DarkGray,Blue
 
 #endregion DISCOVERY
 #region LOAD SETTINGS
 
     Write-Host+ -MaxBlankLines 1
-    
-    if (Test-Path -Path $defaultSettingsFile) {
-        . $defaultSettingsFile
-    }
-    else {
-        Write-Host+ -NoTrace -NoTimestamp "No default settings in $defaultSettingsFile" -ForegroundColor DarkGray
-        Write-Host+
-    } 
 
-
-    if (Test-Path -Path $installSettingsFile) {
-        . $installSettingsFile
+    if (Test-Path -Path $($global:InstallSettings)) {
+        . $($global:InstallSettings)
     }
     else {
         Write-Host+ -NoTrace -NoTimestamp "No saved settings in $installSettings" -ForegroundColor DarkGray
@@ -140,6 +131,34 @@ Clear-Host
     Write-Host+ -NoTrace -NoTimestamp "Installation Questions" -ForegroundColor DarkGray
     Write-Host+ -NoTrace -NoTimestamp "----------------------" -ForegroundColor DarkGray
 
+#region OVERWATCH INSTALL LOCATION
+
+    do {
+        $overwatchInstallLocationResponse = $null
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Overwatch Install Location ", "$($overwatchInstallLocation ? "[$overwatchInstallLocation]" : $PSScriptRoot)", ": " -ForegroundColor Gray, Blue, Gray
+        if (!$UseDefaultResponses) {
+            $overwatchInstallLocationResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
+        $overwatchInstallLocation = ![string]::IsNullOrEmpty($overwatchInstallLocationResponse) ? $overwatchInstallLocationResponse : $overwatchInstallLocation
+        Write-Host+ -NoTrace -NoTimestamp "Overwatch Install Location: $overwatchInstallLocation" -IfDebug -ForegroundColor Yellow
+        if (!(Test-Path -Path $overwatchInstallLocation)) {
+            Write-Host+ -NoTrace -NoTimestamp "[ERROR] Cannot find path '$overwatchInstallLocation' because it does not exist." -ForegroundColor Red
+            $overwatchInstallLocation = $null
+        }
+        elseif ((Get-Location).Path -ne $overwatchInstallLocation) {
+            Write-Host+ -NoTrace -NoTimestamp "[ERROR] Current location and install location must be the same." -ForegroundColor Red
+            $overwatchInstallLocation = $null
+        }
+        else {
+            Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The path '$overwatchInstallLocation' is valid." -IfVerbose -ForegroundColor DarkGreen
+        }
+    } until ($overwatchInstallLocation)
+    Write-Host+ -NoTrace -NoTimestamp "Overwatch Install Location: $overwatchInstallLocation" -IfDebug -ForegroundColor Yellow
+
+#endregion OVERWATCH INSTALL LOCATION
 #region PLATFORM ID
 
     $platformId = $installedPlatforms[0]
@@ -589,6 +608,7 @@ Clear-Host
         #region PowerShell
 
             $psFiles = @()
+            $psFiles += Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions -WhatIf
             $psFiles += Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config -WhatIf
             $updatedFiles += $psFiles
 
@@ -658,6 +678,30 @@ Clear-Host
             $updatedFiles += $providerFiles
 
         #endregion PROVIDER
+        #region DEFINITIONS-SERVICES
+
+            $definitionsServicesFile = "$PSScriptRoot\definitions\definitions-services.ps1"
+
+            $definitionsServicesUpdated = $false
+            foreach ($productSpecificService in $productSpecificServices.Service) {
+                if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1") {
+                    $contentLine = ". `"`$(`$global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1`""
+                    if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
+                        $definitionsServicesUpdated = $true
+                    }
+                }
+                $contentLine = ". `"`$(`$global:Location.Services)\services-$($productSpecificService.ToLower()).ps1`""
+                if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
+                    $definitionsServicesUpdated = $true
+                }
+            }
+
+            Write-Host+ -Iff $($definitionsServicesUpdated) -NoTrace -NoTimestamp "  [Core:Definitions] $definitionsServicesFile" -ForegroundColor DarkGray
+
+            $updatedFiles += $definitionsServicesFile
+
+        #endregion DEFINITIONS-SERVICES
+
 
         if (!$updatedFiles) {
             $message = "<Updated Files <.>48> NONE    "
@@ -731,6 +775,7 @@ Clear-Host
         #endregion ENVIRON
         #region PowerShell
 
+            Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions
             Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config
 
         #endregion PowerShell
@@ -783,8 +828,6 @@ Clear-Host
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightchecks-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightchecks-platforminstance-$($platformInstanceId).ps1
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platforminstance-$($platformInstanceId).ps1
 
-            $definitionsServices = "$PSScriptRoot\definitions\definitions-services.ps1"
-
             $definitionsServicesUpdated = $false
             foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
                 $platformPrerequisiteServiceFiles = Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services -WhatIf -Quiet
@@ -792,16 +835,16 @@ Clear-Host
                     Copy-File $platformPrerequisiteServiceFile.Source $platformPrerequisiteServiceFile.Destination
                     Get-Item $platformPrerequisiteServiceFile.Destination | 
                         Foreach-Object {
-                            $contentLine = ". `$servicesPath\$($_.Name)"
-                            if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
-                                Add-Content -Path $definitionsServices -Value $contentLine
+                            $contentLine = ". `"`$(`$global:Location.Services)\$($_.Name)`""
+                            if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
+                                Add-Content -Path $definitionsServicesFile -Value $contentLine
                                 $definitionsServicesUpdated = $true
                             }
                         }
                     }
             }
             if ($definitionsServicesUpdated) {
-                Write-Host+ -NoTrace -NoTimestamp "  Updated $definitionsServices with platform prerequisites" -ForegroundColor DarkGreen
+                Write-Host+ -Iff $($definitionsServicesUpdated) -NoTrace -NoTimestamp "  Updated $definitionsServicesFile with platform services." -ForegroundColor DarkGreen
             }
 
         #endregion PLATFORM
@@ -814,29 +857,9 @@ Clear-Host
                 Copy-File $PSScriptRoot\source\product\$($product.ToLower())\$($product.ToLower()).ps1 $PSScriptRoot\$($product.ToLower()).ps1
             }    
 
-            $definitionsServicesUpdated = $false
             foreach ($productSpecificService in $productSpecificServices.Service) {
-                $productFileUpdated = $false
-                $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1 -ConfirmCopy)
-                $productFileUpdated = $productFileUpdated -or (Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\services-$($productSpecificService.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1 -ConfirmCopy)
-                if ($productFileUpdated) {
-                    if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1") {
-                        $contentLine = ". `$definitionsPath\definitions-service-$($productSpecificService.ToLower()).ps1"
-                        if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
-                            Add-Content -Path $definitionsServices -Value $contentLine
-                            $definitionsServicesUpdated = $true
-                        }
-                    }
-                    $contentLine = ". `$servicesPath\services-$($productSpecificService.ToLower()).ps1"
-                    if (!(Select-String -Path $definitionsServices -Pattern $contentLine -SimpleMatch -Quiet)) {
-                        Add-Content -Path $definitionsServices -Value $contentLine
-                        $definitionsServicesUpdated = $true
-                    }
-                }
-            }
-
-            if ($definitionsServicesUpdated) {
-                Write-Host+ -NoTrace -NoTimestamp "  Updated $definitionsServices with product services" -ForegroundColor DarkGreen
+                Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1
+                Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\services-$($productSpecificService.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1
             }
 
         #endregion PRODUCT             
@@ -853,11 +876,34 @@ Clear-Host
 
     }
 
+    # always ensure definitions/definitions-services.ps1 has product-specific service entries
+    $definitionsServicesUpdated = $false
+    foreach ($productSpecificService in $productSpecificServices.Service) {
+        if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1") {
+            $contentLine = ". `"`$(`$global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1`""
+            if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
+                Add-Content -Path $definitionsServicesFile -Value $contentLine
+                $definitionsServicesUpdated = $true
+            }
+        }
+        $contentLine = ". `"`$(`$global:Location.Services)\services-$($productSpecificService.ToLower()).ps1`""
+        if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
+            Add-Content -Path $definitionsServicesFile -Value $contentLine
+            $definitionsServicesUpdated = $true
+        }
+    }
+
+    if ($definitionsServicesUpdated) {
+        Write-Host+ -Iff $($definitionsServicesUpdated) -NoTrace -NoTimestamp "  Updated $definitionsServicesFile with product-specific services." -ForegroundColor DarkGreen
+    }
+
 #endregion FILES
 
+    . $PSScriptRoot\definitions\definitions-ps-powershell.ps1
     . $PSScriptRoot\definitions\classes.ps1
     . $PSScriptRoot\definitions\catalog.ps1
     . $PSScriptRoot\definitions\definitions-regex.ps1
+    . $PSScriptRoot\definitions\definitions-overwatch.ps1
     . $PSScriptRoot\services\services-overwatch-loadearly.ps1
     . $PSScriptRoot\services\services-overwatch-install.ps1
 

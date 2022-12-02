@@ -1,81 +1,60 @@
 ﻿[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls11  
 
-switch ($PSVersionTable.PSVersion.Major) {
-    7 {
-        $global:pwsh = "C:\Program Files\PowerShell\$($PSVersionTable.PSVersion.Major)\pwsh.exe"
-        $global:PSSessionConfigurationName = "PowerShell.$($PSVersionTable.PSVersion.Major)"
-    }
-    default {
-        throw "Overwatch requireds Powershell 7."
-    }
-}
-
-#region CLASSES
-
-    $definitionsPath = "$($PSScriptRoot)\definitions"
-    . $definitionsPath\classes.ps1
-
-#endregion CLASSES
-#region CATALOG
-
-    . $definitionsPath\catalog.ps1
-
-#endregion CATALOG
 #region ENVIRON
 
     . $PSScriptRoot\environ.ps1
 
 #endregion ENVIRON
+#region POWERSHELL
+
+    . "$($global:Location.Definitions)\definitions-ps-powershell.ps1"
+
+#endregion POWERSHELL
+#region CLASSES
+
+    . "$($global:Location.Definitions)\classes.ps1"
+
+#endregion CLASSES
+#region CATALOG
+
+    . "$($global:Location.Definitions)\catalog.ps1"
+
+#endregion CATALOG
 #region HELP
 
-    . $definitionsPath\definitions-help.ps1
+    . "$($global:Location.Definitions)\definitions-help.ps1"
 
 #endregion HELP 
 #region REGEX
 
-. $definitionsPath\definitions-regex.ps1
+    . "$($global:Location.Definitions)\definitions-regex.ps1"
 
 #endregion REGEX  
 #region VIEWS
 
-. $definitionsPath\definitions-views.ps1
+    . "$($global:Location.Definitions)\definitions-views.ps1"
 
 #endregion VIEWS  
 #region DEFINITIONS
 
     $global:epoch = New-Object -Type DateTime -ArgumentList 1970, 1, 1, 0, 0, 0, 0
     
-    if (Test-Path -Path $definitionsPath\definitions-overwatch.ps1) {. $definitionsPath\definitions-overwatch.ps1}
-    if (Test-Path -Path $definitionsPath\definitions-OS-$($global:Environ.OS).ps1) {. $definitionsPath\definitions-OS-$($global:Environ.OS).ps1}
-    if (Test-Path -Path $definitionsPath\definitions-Platform-$($global:Environ.Platform).ps1) {. $definitionsPath\definitions-Platform-$($global:Environ.Platform).ps1}
-    if (Test-Path -Path $definitionsPath\definitions-PlatformInstance-$($global:Environ.Instance).ps1) {. $definitionsPath\definitions-PlatformInstance-$($global:Environ.Instance).ps1}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-overwatch.ps1") {. "$($global:Location.Definitions)\definitions-overwatch.ps1"}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-OS-$($global:Environ.OS).ps1") {. "$($global:Location.Definitions)\definitions-OS-$($global:Environ.OS).ps1"}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-Platform-$($global:Environ.Platform).ps1") {. "$($global:Location.Definitions)\definitions-Platform-$($global:Environ.Platform).ps1"}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-PlatformInstance-$($global:Environ.Instance).ps1") {. "$($global:Location.Definitions)\definitions-PlatformInstance-$($global:Environ.Instance).ps1"}
 
 #endregion DEFINITIONS
 #region LOADEARLY
 
-    . $definitionsPath\definitions-services-loadearly.ps1
+    . "$($global:Location.Definitions)\definitions-services-loadearly.ps1"
 
 #endregion LOADFIRST
 #region SERVICES
 
-    . $definitionsPath\definitions-services.ps1
+    . "$($global:Location.Definitions)\definitions-services.ps1"
 
 #endregion SERVICES
-#region POSTSERVICES
-
-    # $platformInstallProperties = Get-PlatformInstallProperties "$($global:Platform.Name)*"
-    # $global:Platform.DisplayName = $platformInstallProperties.DisplayName
-    # $global:Platform.Publisher = $platformInstallProperties.Publisher
-    # $global:Platform.InstallPath = $platformInstallProperties.InstallPath
-
-    # Get-PlatformInfo
-    # $global:Platform.DisplayName = "$($Platform.Name) $($Platform.Version)"
-
-    # Write-Host+ "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    # Write-Host+ "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    # Write-Host+ "  Version","$($global:Platform.Version) ($($Platform.Build))" -ForegroundColor Gray,DarkBlue -Separator ":    "
-
-#endregion POSTSERVICES
 #region PRODUCTS
 
     if (!$global:Environ.Product) {return}
@@ -87,29 +66,22 @@ switch ($PSVersionTable.PSVersion.Major) {
     # define active/current product (based on $global:Product.Id)
     $global:Product = (Get-Product -Id $global:Product.Id) ?? @{ Id = $global:Product.Id}
 
-    # Write-Host+ "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
-
 #endregion PRODUCTS
 #region PROVIDERS
 
     $providers = Get-Provider -ResetCache
     $providers.Id | ForEach-Object {
-        # if (Test-Path -Path $definitionsPath\definitions-provider-$($_).ps1) {
-        #     $null = . $definitionsPath\definitions-provider-$($_).ps1
-        # }
         if (Test-Path -Path "$($global:Location.Providers)\provider-$($_).ps1") {
             $null = . "$($global:Location.Providers)\provider-$($_).ps1"
         }
     }
-
-    # Write-Host+ "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
 
 #endregion PROVIDERS
 #region INITIALIZE
 
     # INITIALIZE section must be after PROVIDERS section
 
-    . $definitionsPath\definitions-initialize.ps1
+    . "$($global:Location.Definitions)\definitions-initialize.ps1"
     Initialize-Environment
 
     Get-PlatformInfo
@@ -117,7 +89,6 @@ switch ($PSVersionTable.PSVersion.Major) {
 #endregion INITIALIZE
 #region INTRO
 
-    # Clear-Host
     $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
     Write-Host+
@@ -137,13 +108,13 @@ switch ($PSVersionTable.PSVersion.Major) {
 #endregion INTRO
 #region PREFLIGHT
 
-    . $definitionsPath\definitions-preflight.ps1
+    . "$($global:Location.Definitions)\definitions-preflight.ps1"
     Confirm-Preflight
 
 #endregion PREFLIGHT
 #region POSTFLIGHT
 
-. $definitionsPath\definitions-postflight.ps1
+. "$($global:Location.Definitions)\definitions-postflight.ps1"
 
 #endregion POSTFLIGHT
 #region WARNINGS

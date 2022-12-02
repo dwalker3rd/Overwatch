@@ -1,26 +1,35 @@
-﻿#region WINDOWS DEFINITIONS
+﻿#region WINDOWS SERVER DEFINITIONS
 
-$global:OS = $global:Catalog.OS.WindowsServer
-$global:OS.Image = "$($global:Location.Images)/windows_server.png"  
+    $global:OS = $global:Catalog.OS.WindowsServer
+    $global:OS.Image = "$($global:Location.Images)/windows_server.png" 
 
-$global:ServerEvent = @{
-    Startup = "Startup"
-    Shutdown = "Shutdown"
-}
+#endregion WINDOWS SERVER DEFINITIONS
+#region SERVER EVENTS
 
-$global:ServerEventStatus = @{
-    InProgress = 'In Progress'
-    Completed = 'Completed'
-}
+    $global:ServerEvent = @{
+        Startup = "Startup"
+        Shutdown = "Shutdown"
+    }
 
-$global:PerformanceCounters = @(
-    [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_PerfOS_Processor";Instance="_Total";Counter="PercentProcessorTime";Name="Processor Utilization";Suffix="%"},
-    [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_PerfOS_Memory";Counter="AvailableBytes";Name="Available Memory";Suffix=" GB";Factor=1/1gb} #,
-    # [PerformanceMeasurement]@{Class="Win32_LogicalDisk";Instance="C:";Counter="Size";Name="Size (C:)";Suffix=" GB";Factor=1/1gb;SingleSampleOnly="True"},
-    # [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_PerfDisk_LogicalDisk";Instance="C:";Counter="PercentFreeSpace";Name="Free Space (C:)";Suffix="%"}, #;SingleSampleOnly="True"},
-    # [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_Tcpip_NetworkAdapter";Instance="Microsoft Hyper-V Network Adapter";Counter="BytesTotalPerSec";Name="Network Bytes Total/sec";Factor=1/1kb;Suffix=" KB"}
-)
-$global:PerformanceCounterMaxSamples = 5
-$global:PerformanceMeasurementampleInterval = 0 
+    $global:ServerEventStatus = @{
+        InProgress = "In Progress"
+        Completed = "Completed"
+    }
 
-#endregion WINDOWS DEFINITIONS
+#endregion SERVER EVENTS
+#region SERVICE STATES
+
+    $global:ServiceDownState = @("Stopped","StopPending","StartPending")
+    $global:ServiceUpState = @("Running")
+
+#endregion SERVICE STATES
+#region PERFORMANCE COUNTERS
+
+    $global:PerformanceCounters = @(
+        [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_PerfOS_Processor";Instance="_Total";Counter="PercentProcessorTime";Name="Processor Utilization";Suffix="%"},
+        [PerformanceMeasurement]@{Class="Win32_PerfFormattedData_PerfOS_Memory";Counter="AvailableBytes";Name="Available Memory";Suffix=" GB";Factor=1/1gb}
+    )
+    $global:PerformanceCounterMaxSamples = 5
+    $global:PerformanceMeasurementampleInterval = 0 
+
+#endregion PERFORMANCE COUNTERS

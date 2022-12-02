@@ -7,7 +7,7 @@ $global:WarningPreference = "SilentlyContinue"
 
 #region POWERSHELL REMOTING
 
-    $message = "<Configuring Powershell remoting <.>48> PENDING"
+    $message = "<Powershell remoting <.>48> PENDING"
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
     # this node is assumed to be the Overwatch controller for this platforminstance
@@ -90,7 +90,7 @@ $global:WarningPreference = "SilentlyContinue"
             $ignoreOutput = Remove-PSSession $psSession
         }
 
-        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
+        $message = "$($emptyString.PadLeft(8,"`b")) CONFIGURED"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
     }

@@ -1,8 +1,7 @@
 #region PROVIDER DEFINITIONS
 
-$definitionsPath = $global:Location.Definitions
-. $definitionsPath\catalog.ps1
-. $definitionsPath\classes.ps1
+. "$($global:Location.Definitions)\catalog.ps1"
+. "$($global:Location.Definitions)\classes.ps1"
 
 $Provider = $null
 $Provider = $global:Catalog.Provider.TableauServerWC

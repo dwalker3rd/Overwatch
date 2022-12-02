@@ -33,8 +33,8 @@ $global:Product = @{Id="Uninstall"}
 
     #region LOAD INSTALL SETTINGS
     
-        if (Test-Path -Path $installSettingsFile) {
-            . $installSettingsFile
+        if (Test-Path -Path $($global:InstallSettings)) {
+            . $($global:InstallSettings)
         }
         else {
             Write-Host+ -NoTrace -NoTimestamp "No saved settings in $installSettings" -ForegroundColor DarkGray

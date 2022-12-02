@@ -16,8 +16,7 @@ Skip alert on first error to allow platform time to recover
 
 #>
 
-    $definitionsPath = $global:Location.Definitions
-    . $definitionsPath\classes.ps1
+    . "$($global:Location.Definitions)\classes.ps1"
 
     $global:Product = $global:Catalog.Product.Monitor
     $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.Name)"

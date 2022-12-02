@@ -3,35 +3,33 @@
 # Order of service definitions is critical!
 # Services do not currently specify dependencies
 
-$servicesPath = $global:Location.Services
+. "$($global:Location.Services)\vault.ps1"
+. "$($global:Location.Services)\encryption.ps1"
+. "$($global:Location.Services)\credentials.ps1"
 
-. $servicesPath\vault.ps1
-. $servicesPath\encryption.ps1
-. $servicesPath\credentials.ps1
+if (Test-Path -Path "$($global:Location.Services)\services-os-stubs.ps1") {. "$($global:Location.Services)\services-os-stubs.ps1"}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.OS).ps1") {. "$($global:Location.Services)\services-$($global:Environ.OS).ps1"}
 
-if (Test-Path -Path $servicesPath\services-os-stubs.ps1) {. $servicesPath\services-os-stubs.ps1}
-if (Test-Path -Path $servicesPath\services-$($global:Environ.OS).ps1) {. $servicesPath\services-$($global:Environ.OS).ps1}
-
-if (Test-Path -Path $servicesPath\services-platform-stubs.ps1) {. $servicesPath\services-platform-stubs.ps1}
-if (Test-Path -Path $servicesPath\services-$($global:Environ.Platform)*.ps1) {
-    Get-Item $servicesPath\services-$($global:Environ.Platform)*.ps1 | Sort-Object -Property Name | Foreach-Object {. "$servicesPath\$($_.Name)"}
+if (Test-Path -Path "$($global:Location.Services)\services-platform-stubs.ps1") {. "$($global:Location.Services)\services-platform-stubs.ps1"}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.Platform)*.ps1") {
+    Get-Item "$($global:Location.Services)\services-$($global:Environ.Platform)*.ps1" | Sort-Object -Property Name | Foreach-Object {. "$($global:Location.Services)\$($_.Name)"}
 }
 
-if (Test-Path -Path $servicesPath\services-$($global:Overwatch.Name).ps1) {. $servicesPath\services-$($global:Overwatch.Name).ps1}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Overwatch.Name).ps1") {. "$($global:Location.Services)\services-$($global:Overwatch.Name).ps1"}
 
-. $servicesPath\heartbeat.ps1
-. $servicesPath\files.ps1
-. $servicesPath\logging.ps1
-. $servicesPath\cache.ps1
-. $servicesPath\tasks.ps1
-. $servicesPath\events.ps1
-. $servicesPath\topology.ps1
-. $servicesPath\messaging.ps1
-. $servicesPath\contacts.ps1
-. $servicesPath\python.ps1
-. $servicesPath\connectionstrings.ps1
-. $servicesPath\odbc.ps1
+. "$($global:Location.Services)\heartbeat.ps1"
+. "$($global:Location.Services)\files.ps1"
+. "$($global:Location.Services)\logging.ps1"
+. "$($global:Location.Services)\cache.ps1"
+. "$($global:Location.Services)\tasks.ps1"
+. "$($global:Location.Services)\events.ps1"
+. "$($global:Location.Services)\topology.ps1"
+. "$($global:Location.Services)\messaging.ps1"
+. "$($global:Location.Services)\contacts.ps1"
+. "$($global:Location.Services)\python.ps1"
+. "$($global:Location.Services)\connectionstrings.ps1"
+. "$($global:Location.Services)\odbc.ps1"
 
-if (Test-Path -Path $servicesPath\services-$($global:Product.Id).ps1) {. $servicesPath\services-$($global:Product.Id).ps1}
-if (Test-Path -Path $servicesPath\services-$($global:Provider.Id).ps1) {. $servicesPath\services-$($global:Provider.Id).ps1}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Product.Id).ps1") {. "$($global:Location.Services)\services-$($global:Product.Id).ps1"}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Provider.Id).ps1") {. "$($global:Location.Services)\services-$($global:Provider.Id).ps1"}
 

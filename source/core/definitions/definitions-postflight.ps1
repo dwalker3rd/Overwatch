@@ -1,5 +1,3 @@
-$postflightPath = $global:Location.Postflight
-
 function global:Invoke-Postflight {
 
     [CmdletBinding()]
@@ -33,7 +31,7 @@ function global:Invoke-Postflight {
         }
     }
     
-    if (Test-Path -Path $PostflightPath\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1) {
+    if (Test-Path -Path "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1") {
         
         Write-Host+ 
         $message = "<$Name $noun $Action <.>48> PENDING"
@@ -43,7 +41,7 @@ function global:Invoke-Postflight {
         
         $fail = $false
         try{
-            . $PostflightPath\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1    
+            . "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"  
         }
         catch {
             $fail = $true

@@ -177,23 +177,6 @@ function script:Copy-File {
     }
 }
 
-    # install version
-    # function script:Remove-File {
-    #     [CmdletBinding(
-    #         SupportsShouldProcess
-    #     )]
-    #     Param (
-    #         [Parameter(Mandatory=$true,Position=0)][string]$Path,
-    #         [switch]$Quiet
-    #     )
-    #     if (Test-Path -Path $Path) {
-    #         if($PSCmdlet.ShouldProcess($Path)) {
-    #             Remove-Item -Path $Path
-    #             if (!$Quiet) {Write-Host+ -NoTrace -NoTimestamp "Deleted $Path" -ForegroundColor Red}
-    #         }
-    #     }
-    # }
-
 #endregion FILE MANAGEMENT
 #region SETTINGS
 
@@ -204,42 +187,45 @@ function script:Copy-File {
 
         . "$($global:Location.Scripts)\environ.ps1"
 
-        if (Test-Path -Path $installSettingsFile) { Clear-Content -Path $installSettingsFile }
+        if (Test-Path -Path $($global:InstallSettings)) { Clear-Content -Path $($global:InstallSettings) }
                 
-        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $installSettingsFile
-        "Param()" | Add-Content -Path $installSettingsFile
+        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $($global:InstallSettings)
+        "Param()" | Add-Content -Path $($global:InstallSettings)
+        if (![string]::IsNullOrEmpty($overwatchInstallLocation)) {
+            "`$overwatchInstallLocation = ""$overwatchInstallLocation""" | Add-Content -Path $($global:InstallSettings)
+        }
         if (![string]::IsNullOrEmpty($operatingSystemId)) {
-            "`$operatingSystemId = ""$operatingSystemId""" | Add-Content -Path $installSettingsFile
+            "`$operatingSystemId = ""$operatingSystemId""" | Add-Content -Path $($global:InstallSettings)
         }
         if (![string]::IsNullOrEmpty($platformId)) {
-            "`$platformId = ""$platformId""" | Add-Content -Path $installSettingsFile
+            "`$platformId = ""$platformId""" | Add-Content -Path $($global:InstallSettings)
         }
         if (![string]::IsNullOrEmpty($platformInstallLocation)) {
-            "`$platformInstallLocation = ""$platformInstallLocation""" | Add-Content -Path $installSettingsFile
+            "`$platformInstallLocation = ""$platformInstallLocation""" | Add-Content -Path $($global:InstallSettings)
         }
         if (![string]::IsNullOrEmpty($platformInstanceId)) {
-            "`$platformInstanceId = ""$platformInstanceId""" | Add-Content -Path $installSettingsFile
+            "`$platformInstanceId = ""$platformInstanceId""" | Add-Content -Path $($global:InstallSettings)
         }
         if ($global:Environ.Product.Count -gt 0) {
-            "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $installSettingsFile
+            "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $($global:InstallSettings)
         }
         if ($global:Environ.Provider.Count -gt 0) {
-            "`$providerIds = @('$($global:Environ.Provider -join "', '")')" | Add-Content -Path $installSettingsFile
+            "`$providerIds = @('$($global:Environ.Provider -join "', '")')" | Add-Content -Path $($global:InstallSettings)
         }
         if (![string]::IsNullOrEmpty($imagesUri)) {
-            "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $installSettingsFile
+            "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $($global:InstallSettings)
         }
         if (![string]::IsNullOrEmpty($platformInstanceUri)) {
-            "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $installSettingsFile
+            "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $($global:InstallSettings)
         }
         if (![string]::IsNullOrEmpty($platformInstanceDomain)) {
-            "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $installSettingsFile
+            "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $($global:InstallSettings)
         }
         if ($platformInstanceNodes.Count -gt 0) {
-            "`$platformInstanceNodes = @('$($platformInstanceNodes -join "', '")')" | Add-Content -Path $installSettingsFile
+            "`$platformInstanceNodes = @('$($platformInstanceNodes -join "', '")')" | Add-Content -Path $($global:InstallSettings)
         }
         if ($requiredPythonPackages.Count -gt 0) {
-            "`$requiredPythonPackages = @('$($requiredPythonPackages -join "', '")')" | Add-Content -Path $installSettingsFile
+            "`$requiredPythonPackages = @('$($requiredPythonPackages -join "', '")')" | Add-Content -Path $($global:InstallSettings)
         }
 
     }
@@ -321,7 +307,7 @@ function script:Copy-File {
         )
         
         Remove-CoreFiles 
-        Update-Environ -Type Overwatch -Source $global:DestinationEnvironFile
+        Update-Environ -Type Overwatch -Source "$($global:Location.Scripts)\environ.ps1"
 
     }
 
@@ -502,7 +488,7 @@ function script:Copy-File {
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor Red
             
         Remove-ProductFiles $Product
-        Update-Environ -Type Product -Name $Product -Source $global:DestinationEnvironFile
+        Update-Environ -Type Product -Name $Product -Source "$($global:Location.Scripts)\environ.ps1"
         Get-Product -ResetCache | Out-Null
 
         if ($productToUninstall.HasTask) {
@@ -548,7 +534,7 @@ function script:Copy-File {
         foreach ($productSpecificService in $productSpecificServices) {
             if (Test-Path "$($global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1") {
                 Remove-Files "$($global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1"
-                $contentLine = '. \$definitionsPath\\definitions-service-' + $productSpecificService.Service.ToLower() + '.ps1' # string must be in single quotes b/c of $ character
+                $contentLine = '. \$($global:Location.Definitions)\\definitions-service-' + $productSpecificService.Service.ToLower() + '.ps1' # string must be in single quotes b/c of $ character
                 foreach ($line in $definitionsServicesFile) {
                     if ($line -match $contentLine) {
                         $definitionsServicesFile = $definitionsServicesFile | Where-Object {$_ -ne $line}
@@ -556,7 +542,7 @@ function script:Copy-File {
                 }
             }
             Remove-Files "$($global:Location.Scripts)\services\services-$($productSpecificService.ToLower()).ps1"
-            $contentLine = '. \$servicesPath\\services-' + $productSpecificService.ToLower() + '.ps1'  # string must be in single quotes b/c of $ character
+            $contentLine = '. \$($global:Location.Services)\\services-' + $productSpecificService.ToLower() + '.ps1'  # string must be in single quotes b/c of $ character
             foreach ($line in $definitionsServicesFile) {
                 if ($line -match $contentLine) {
                     $definitionsServicesFile = $definitionsServicesFile | Where-Object {$_ -ne $line}
@@ -608,7 +594,7 @@ function script:Copy-File {
         if (Test-Path -Path "$($global:Location.Scripts)\install\uninstall-provider-$($providerToUninstall.Id).ps1") {. "$($global:Location.Scripts)\install\uninstall-provider-$($providerToUninstall.Id).ps1"}
     
         Remove-ProviderFiles $Provider
-        Update-Environ -Type Provider -Name $Provider -Source $global:DestinationEnvironFile
+        Update-Environ -Type Provider -Name $Provider -Source "$($global:Location.Scripts)\environ.ps1"
         Get-Provider -ResetCache | Out-Null
         
         $message = "$($emptyString.PadLeft(7,"`b"))UNINSTALLED"
@@ -684,30 +670,15 @@ function script:Copy-File {
             if (Test-Path -Path $allowListFile) {
                 $allowList += Import-csv -Path $allowListFile
             }
-            $source = (Get-ChildItem -Path f:\overwatch\source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
-            $prod = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source,.*).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
+            $source = (Get-ChildItem -Path $global:Location.Source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
+            $prod = $(foreach ($dir in (Get-ChildItem -Path $global:Location.Root -Directory -Exclude data,logs,temp,source,.*).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
             $obsolete = foreach ($file in $prod) {if ($file -notin $source) {$file}}
-            $obsolete = $(foreach ($dir in (Get-ChildItem -Path f:\overwatch -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in $obsolete}}).FullName
+            $obsolete = $(foreach ($dir in (Get-ChildItem -Path $global:Location.Root -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in $obsolete}}).FullName
             $obsolete = $obsolete | Where-Object {$_ -notin $allowList.Path}
 
             if ($obsolete) {
                 foreach ($file in $obsolete) {
                     Write-Host+ -NoTrace -NoTimestamp "File > Obsolete/Extraneous > Remove/AllowList* $file" -ForegroundColor Gray
-                    # Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Add $file to allow list (Y/N)? " -ForegroundColor Gray
-                    # $response = Read-Host
-                    # if ($response -eq "Y") {
-                    #     $allowList += @{ Path = $file }
-                    #     $allowList | Export-Csv -Path $allowListFile -Append -UseQuotes Always -NoTypeInformation
-                    # }
-                    # else {
-                    #     Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Delete $file (Y/N)? " -ForegroundColor Gray
-                    #     $response = Read-Host 
-                    #     if ($response -eq "Y") {
-                    #         Write-Host+ -SetIndentGlobal -Indent 2
-                    #         Remove-File -Path $file
-                    #         Write-Host+ -SetIndentGlobal -Indent -2
-                    #     }
-                    # }
                 }
                 $postInstallConfig = $true
             }

@@ -11,10 +11,6 @@ $global:PostflightPreference = "SilentlyContinue"
 
 $global:Product = @{Id="AzureProjects"}
 . $PSScriptRoot\definitions.ps1
-# . $PSScriptRoot\definitions-DEBUG.ps1
-
-# $servicesPath = $global:Location.Services
-# . $servicesPath\services-azure.ps1
 
 function Initialize-AiProject {
 

@@ -128,7 +128,7 @@ function global:Send-PlatformStatusMessage {
             $section = @{
                 ActivityTitle = "**$($node)**"
                 ActivitySubTitle = "$($serverInfo.WindowsProductName), $($serverInfo.Model)"
-                ActivityText = "Performance: $($global:NumberWords.($serverInfo.NumberOfLogicalProcessors.ToString())) ($($serverInfo.NumberOfLogicalProcessors)) cores at $($cpuUtil.Text) utilization; $($memAvailable.Text) of $($memTotal) available"
+                ActivityText = "Performance: $($serverInfo.NumberOfLogicalProcessors) cores at $($cpuUtil.Text) utilization; $($memAvailable.Text) of $($memTotal) available"
                 ActivityImage = $global:OS.Image
                 Facts = $facts
             }
