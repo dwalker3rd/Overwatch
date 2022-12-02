@@ -11,7 +11,7 @@ param (
 
 $global:WriteHostPlusPreference = "Continue"
 
-. $PSScriptRoot\source\powershell\definitions\definitions-ps-powershell.ps1
+. $PSScriptRoot\source\powershell\definitions-ps-powershell.ps1
 . $PSScriptRoot\source\core\definitions\classes.ps1
 . $PSScriptRoot\source\core\definitions\catalog.ps1
 . $PSScriptRoot\source\core\definitions\definitions-regex.ps1
