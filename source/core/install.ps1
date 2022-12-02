@@ -555,6 +555,11 @@ Clear-Host
                 }
             }
 
+            $installUpdate = $false
+            if ($coreFiles.Core -contains "Install") {
+                $installUpdate = $true
+            }
+
             $files = (Get-ChildItem $PSScriptRoot\source\core\definitions -File).VersionInfo.FileName
             foreach ($file in $files) { 
                 $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
@@ -696,9 +701,10 @@ Clear-Host
                 }
             }
 
-            Write-Host+ -Iff $($definitionsServicesUpdated) -NoTrace -NoTimestamp "  [Core:Definitions] $definitionsServicesFile" -ForegroundColor DarkGray
-
-            $updatedFiles += $definitionsServicesFile
+            if ($definitionsServicesUpdated) {
+                Write-Host+ -NoTrace -NoTimestamp "  [Core:Definitions] $definitionsServicesFile" -ForegroundColor DarkGray
+                $updatedFiles += $definitionsServicesFile
+            }
 
         #endregion DEFINITIONS-SERVICES
 
@@ -898,6 +904,17 @@ Clear-Host
     }
 
 #endregion FILES
+#region INSTALL UPDATE
+
+    if ($installUpdate) {
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "The installer has been updated and must be restarted." -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace -NoTimestamp "This update will not be complete until the installer is rerun." -ForegroundColor DarkYellow
+        Write-Host+
+        return
+    }
+
+#endregion INSTALL UPDATE
 
     . $PSScriptRoot\definitions\definitions-ps-powershell.ps1
     . $PSScriptRoot\definitions\classes.ps1
