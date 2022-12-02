@@ -45,6 +45,12 @@ Write-Host+
 pspref -Quiet
 Clear-Host
 
+#region CHECK INSTALLUPDATERESTART
+
+    $installUpdateRestart = (read-cache installUpdateRestart) -eq "True"
+    if ($installUpdateRestart) { $UseDefaultResponses = $true }
+
+#endregion CHECK INSTALLUPDATERESTART
 #region DISCOVERY
 
     Write-Host+
@@ -907,6 +913,9 @@ Clear-Host
 #region INSTALL UPDATE
 
     if ($installUpdate) {
+
+        $installUpdate | Write-Cache installUpdateRestart
+
         Write-Host+
         Write-Host+ -NoTrace -NoTimestamp "The installer has been updated and must be restarted." -ForegroundColor DarkYellow
         Write-Host+ -NoTrace -NoTimestamp "This update will not be complete until the installer is rerun." -ForegroundColor DarkYellow
@@ -1172,6 +1181,11 @@ Clear-Host
         #endregion PROVIDERS        
         #region PRODUCTS
 
+            if ($installUpdateRestart) {
+                $disabledProductIds = (Get-PlatformTask | Where-Object {$_.Status -eq "Disabled"}).ProductID | Where-Object {(Get-Product $_).IsInstalled}
+                $productIds += $disabledProductIds | Where-Object {$_ -notin $productIds}
+            }
+
             if ($productIds) {
 
                 Write-Host+ -MaxBlankLines 1
@@ -1241,6 +1255,11 @@ Clear-Host
             Show-PostInstallation
 
         #endregion POST-INSTALLATION CONFIG
+        #region CLEAR INSTALLUPDATERESTART
+
+            clear-cache installUpdateRestart
+
+        #endregion CLEAR INSTALLUPDATERESTART
 
         Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."
