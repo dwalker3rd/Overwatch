@@ -622,13 +622,13 @@ function global:Grant-AiProjectRole {
             Write-Host+ 
 
             $message = "    SignInName : Status   : Source"
-            Write-Host+ -NoTrace $message.Split(":")[0],(Format-Leader -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
+            Write-Host+ -NoTrace $message.Split(":")[0],(Format-Leader -Length 40 -Adjust (($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
             $message = "    ---------- : ------   : ------"
-            Write-Host+ -NoTrace $message.Split(":")[0],(Format-Leader -Length 40 -Adjust (-($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
+            Write-Host+ -NoTrace $message.Split(":")[0],(Format-Leader -Length 40 -Adjust (($message.Split(":")[0]).Length) -Character " "),$message.Split(":")[1],$message.Split(":")[2] -ForegroundColor DarkGray
 
             foreach ($missingUser in $missingUsers) {
                 $message = "    $($missingUser.signInName) | MISSING  | $($missingUser.source)"
-                Write-Host+ -NoTrace  $message.Split("|")[0],(Format-Leader -Length 40 -Adjust (-($message.Split("|")[0]).Length) -Character " "),$message.Split("|")[1],$message.Split("|")[2] -ForegroundColor DarkGray,DarkGray,DarkRed,DarkGray
+                Write-Host+ -NoTrace  $message.Split("|")[0],(Format-Leader -Length 40 -Adjust (($message.Split("|")[0]).Length) -Character " "),$message.Split("|")[1],$message.Split("|")[2] -ForegroundColor DarkGray,DarkGray,DarkRed,DarkGray
             }
 
             Write-Host+
@@ -1000,23 +1000,22 @@ function global:Grant-AiProjectRole {
                     $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : ($global:AzureProject.ResourceType.($resourceType).Scope).split("/")[-1]
                     $resourceScope = Get-AiProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName
 
-                    $message = "<    $($resourceType)/$($resourceName)"
-                    $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " <.>60> "    
+                    $message = "    $($resourceType)/$($resourceName)"
+                    $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "   
 
                     $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn  | Sort-Object -Property Scope
                     if ($currentRoleAssignments) {
-                        # Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
+                        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
                         foreach ($currentRoleAssignment in $currentRoleAssignments) {
+                            $message = $currentRoleAssignment.RoleDefinitionName
                             if ($currentRoleAssignment.Scope -ne $resourceScope -and $resourceScope -like "$($currentRoleAssignment.Scope)*") {
-                                $message += "^"
+                                $message = "^" + $message
                             }
-                            $message += $currentRoleAssignment.RoleDefinitionName
                             if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
                                 $message += ", "
                             }
-                            # Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
                         }
-                        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray 
                     }
                     $rolesWrittenCount = $currentRoleAssignments.Count
 
@@ -1026,14 +1025,14 @@ function global:Grant-AiProjectRole {
                     }
                     if ($requiredRoleAssignments) {
                         if (!$currentRoleAssignments) {
-                            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (-($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
+                            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
                         }
                         foreach ($roleAssignment in $requiredRoleAssignments) {
                             $currentRoleAssignment = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role
                             if (!$currentRoleAssignment -and ($currentRoleAssignment.RoleDefinitionName -ne $roleAssignment.role)) {
                                 New-AzRoleAssignment+ -Scope $resourceScope -RoleDefinitionName $roleAssignment.role -SignInNames $signIn -ErrorAction SilentlyContinue | Out-Null
                                 $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
-                                Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                                Write-Host+ -Iff $(![string]::IsNullOrEmpty($message)) -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
                                 $message = "+$($roleAssignment.role)"
                                 Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGreen 
                                 $rolesWrittenCount++   
@@ -1048,7 +1047,14 @@ function global:Grant-AiProjectRole {
                     if ($currentRoleAssignmentsThisResourceScope) {
                         foreach ($currentRoleAssignment in $currentRoleAssignmentsThisResourceScope) {
                             if ($currentRoleAssignment.RoleDefinitionName -notin $requiredRoleAssignments.role -or ($RemoveUnauthorizedRoleAssignments -and $unauthorizedRoleAssignment)) {
-                                Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -SignInName $signIn | Out-Null
+
+                                $resourceLocksCanNotDelete = Get-AzResourceLock -Scope $resourceScope | Where-Object {$_.Properties.level -eq "CanNotDelete"}
+                                $resourceLocksCanNotDelete | Foreach-Object {Remove-AzResourceLock -Scope $resourceScope -LockName $_.Name -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null}
+
+                                Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -SignInName $signIn -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
+
+                                $resourceLocksCanNotDelete | Foreach-Object {Set-AzResourceLock -Scope $resourceScope -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force} | Out-Null
+
                                 $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
                                 Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
                                 $message = "-$($currentRoleAssignment.RoleDefinitionName)"
