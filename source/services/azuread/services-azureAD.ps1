@@ -682,7 +682,7 @@ function global:Get-AzureADObjects {
     }
     $queryParams += @{
         Users = @{
-            property = $Property ?? $AzureADB2C ? @("id","userPrincipalName","displayName","mail","accountEnabled","identities") : $queryParams.default.Users.property
+            property = $Property ?? $AzureADB2C ? @("id","userPrincipalName","userType","displayName","mail","accountEnabled","identities") : $queryParams.default.Users.property
             select = ""
             # filter = $Filter
         }
