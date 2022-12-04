@@ -63,10 +63,9 @@ function global:Send-MonitorMessage {
 
     # send platform status message
     $messagingStatus = Send-PlatformStatusMessage -PlatformStatus $PlatformStatus -MessageType $MessageType -NoThrottle:$ReportHeartbeat.IsPresent
-    $messagingStatus | Out-Null
 
-    $message = "$($emptyString.PadLeft(8,"`b")) TRANSMITTED$($emptyString.PadLeft(8," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DARKGREEN
+    $message = "$($emptyString.PadLeft(8,"`b")) $($messagingStatus.ToUpper())$($emptyString.PadLeft(8," "))"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($messagingStatus -eq $global:PlatformMessageStatus.Transmitted ? "DarkGreen" : "DarkYellow")
 
     Set-CursorVisible
 
