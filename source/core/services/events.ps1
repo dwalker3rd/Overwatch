@@ -130,14 +130,22 @@ function global:Log-PlatformEventHistory {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
 
-    param(
-        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     )
 
-    foreach ($platformEvent in (Get-PlatformEventHistory -ComputerName $ComputerName)) {
-        # $logName = $platformEvent.EventCreatedBy.ToLower() -eq "command" ? "command" : $Platform.Instance
-        $timeStamp = @((Get-Date($platformEvent.EventCreatedAt) -Millisecond 0),(Get-Date($platformEvent.EventUpdatedAt) -Millisecond 0),(Get-Date($platformEvent.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1
-        Write-Log -Context $platformEvent.EventCreatedBy <# -Name $logName #> -EntryType Event -TimeStamp $timeStamp -Action $platformEvent.Event -Target Platform -Status $platformEvent.EventStatus -Message $platformEvent.EventReason
+    foreach ($node in $ComputerName) {
+
+        $logName = ![string]::IsNullOrEmpty($Name) ? $Name : (Get-EnvironConfig Environ.Instance -ComputerName $node)
+
+        foreach ($platformEvent in (Get-PlatformEventHistory -ComputerName $ComputerName)) {
+            $timeStamp = @((Get-Date($platformEvent.EventCreatedAt) -Millisecond 0),(Get-Date($platformEvent.EventUpdatedAt) -Millisecond 0),(Get-Date($platformEvent.EventCompletedAt) -Millisecond 0)) | Sort-Object | Select-Object -Last 1
+            Write-Log -Name $logName -Context $platformEvent.EventCreatedBy -EntryType Event -TimeStamp $timeStamp -Action $platformEvent.Event -Target Platform -Status $platformEvent.EventStatus -Message $platformEvent.EventReason
+        }
+
+        Repair-Log $logName
+
     }
 
 }
