@@ -45,7 +45,7 @@
                     </TableColumnHeader>
                     <TableColumnHeader>
                         <Label>Target</Label>
-                        <Width>35</Width>
+                        <Width>30</Width>
                         <Alignment>Left</Alignment>
                     </TableColumnHeader>   
                     <TableColumnHeader>
@@ -65,7 +65,7 @@
                     </TableColumnHeader>  
                     <TableColumnHeader>
                         <Label>Message</Label>
-                        <Width>100</Width>
+                        <Width>50</Width>
                         <Alignment>Left</Alignment>
                     </TableColumnHeader>                                                                                                                                                             
                 </TableHeaders>
