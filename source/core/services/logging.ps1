@@ -183,10 +183,9 @@ function global:Read-Log {
                     } 
                 }  
 
-            $rows = $rows | Sort-Object -Property Index
+            $rows = $rows | Sort-Object -Property TimeStamp # Index
 
             if ($($rows.Index | Sort-Object -Unique) -eq -1) {
-                $rows = $rows | Sort-Object -Property TimeStamp
                 for ($i = 0; $i -lt $rows.Count; $i++) {
                     $rows[$i].Index = $i
                 }
@@ -231,8 +230,6 @@ function global:Summarize-Log {
         [Parameter(Mandatory=$false)][int32]$Minutes,
         [Parameter(Mandatory=$false)][Alias("Until")][object]$Before,
         [Parameter(Mandatory=$false)][object]$During,
-        [Parameter(Mandatory=$false)][Alias("Last")][int32]$Newest,
-        [Parameter(Mandatory=$false)][Alias("First")][int32]$Oldest,
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$UseDefaultView,
         [switch]$Today,
@@ -313,11 +310,10 @@ function global:Summarize-Log {
         foreach ($log in $logs) {
 
             $logEntry = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
+            $logEntry = $logEntry | Sort-Object -Property Timestamp
 
             if ($After) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -gt $After}}
             if ($Before) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -lt $Before}}
-            if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
-            if ($Oldest) {$logEntry = $logEntry | Select-Object -First $Oldest}
 
             if ($logEntry.Count -gt 0) {
 
@@ -583,10 +579,18 @@ function global:Repair-Log {
 
             $logEntry = Import-Csv -Path ([LogObject]$log).Path
 
+            # TODO: REMOVE?
+            # this was for an old issue with indexing
+            # don't remember what anymore
             if ($($logEntry.Index | Sort-Object -Unique) -eq -1) {
                 throw {"$($log.Path) cannot be reindexed."}
             }
         
+            # remove duplicates
+            $logEntry = $logEntry | Sort-Object -Property TimeStamp, EntryType, Context, Action, Status, Target, Message, ComputerName -Unique
+
+            # resort by timestamp
+            $logEntry = $logEntry | Sort-Object -Property TimeStamp
             for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i}
 
             $logEntry | Select-Object -Property $logFieldsDefault | 
