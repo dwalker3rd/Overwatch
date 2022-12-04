@@ -384,6 +384,7 @@ function global:Summarize-Log {
                         }
                     }
                     $logEntries += [PSCustomObject]@{
+                        PSTypeName = "Overwatch.Log.Summary.Details"
                         Node = $node
                         LogName = "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
                         Type = "Information"
@@ -403,6 +404,7 @@ function global:Summarize-Log {
                             }
                     }
                     $logEntries += [PSCustomObject]@{
+                        PSTypeName = "Overwatch.Log.Summary.Details"
                         Node = $node
                         LogName = "LogName" -in $_fieldsToHightlight ? "$($warningColor)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
                         Type = "Warning"
@@ -422,6 +424,7 @@ function global:Summarize-Log {
                             }
                     }
                     $logEntries += [PSCustomObject]@{
+                        PSTypeName = "Overwatch.Log.Summary.Details"
                         Node = $node
                         LogName = "LogName" -in $_fieldsToHightlight ? "$($errorColor)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
                         Type = "Error"
@@ -442,6 +445,7 @@ function global:Summarize-Log {
                             }
                     }
                     $logEntries += [PSCustomObject]@{
+                        PSTypeName = "Overwatch.Log.Summary.Details"
                         Node = $node
                         LogName = "LogName" -in $_fieldsToHightlight ? "$($eventColorBright)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
                         Type = "Event"
@@ -525,7 +529,7 @@ function global:Summarize-Log {
                     Sort-Object -Property TimeStamp -Descending | 
                         Select-Object LogName,Event,EventStatus -ExpandProperty logEntry |
                             Select-Object ComputerName,LogName,Index,TimeStamp,EntryType,Context,Action,Target,Status,Event,EventStatus,Message | 
-                                Format-Table * -GroupBy ComputerName # -HideTableHeaders
+                                Format-Table -GroupBy ComputerName -View (Get-FormatData -TypeName Overwatch.Log.Summary.Details)
             }
         }
 
