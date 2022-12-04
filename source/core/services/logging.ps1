@@ -241,16 +241,6 @@ function global:Summarize-Log {
     if ($ShowDetails -eq "Default") { $ShowDetails += @("Event","Error","Warning") }
 
     $defaultColor = $global:consoleSequence.BackgroundForegroundDefault
-    
-    $formatData = [ordered]@{}
-    $logSummaryFormatData = Get-FormatData -TypeName Overwatch.Log.Summary
-    $formatDataDisplayEntries = $logSummaryFormatData.FormatViewDefinition.Control.Rows.Columns.DisplayEntry.Value
-    $formatDataHeaders = $logSummaryFormatData.FormatViewDefinition.Control.Headers
-    for ($i = 0; $i -lt $formatDataDisplayEntries.Count; $i++) {
-        $formatData += @{
-            $formatDataDisplayEntries[$i] = $formatDataHeaders[$i]
-        }
-    }
 
     # $After is a datetime passed as an object
     # This allows using strings to specify today or yesterday
@@ -290,9 +280,18 @@ function global:Summarize-Log {
     Write-Host+ -ResetAll
     Write-Host+
 
+    $formatData = [ordered]@{}
+    $logSummaryFormatData = Get-FormatData -TypeName Overwatch.Log.Summary
+    $formatDataDisplayEntries = $logSummaryFormatData.FormatViewDefinition.Control.Rows.Columns.DisplayEntry.Value
+    $formatDataHeaders = $logSummaryFormatData.FormatViewDefinition.Control.Headers
+    for ($i = 0; $i -lt $formatDataDisplayEntries.Count; $i++) {
+        $formatData += @{
+            $formatDataDisplayEntries[$i] = $formatDataHeaders[$i]
+        }
+    }
+
     $summary = @()
     $summaryFormatted = @()
-    $logEntries = @()
 
     foreach ($node in $ComputerName) {
         $logs = @() 
@@ -318,11 +317,6 @@ function global:Summarize-Log {
             if ($logEntry.Count -gt 0) {
 
                 $logName = $log.FileNameWithoutExtension.ToLower()
-
-                # $totals = [array]($logEntry | Group-Object -Property EntryType -NoElement)
-                # $infoCount = ($totals | Where-Object {$_.Name -eq "Information"}).Count ?? 0
-                # $warningCount = ($totals | Where-Object {$_.Name -eq "Warning"}).Count ?? 0
-                # $errorCount = ($totals | Where-Object {$_.Name -eq "Error"}).Count ?? 0
 
                 $totals = [array]($logEntry | Group-Object -Property EntryType)
                 $infos = $totals | Where-Object {$_.Name -eq "Information"}
@@ -352,8 +346,6 @@ function global:Summarize-Log {
                 $warningColor = $warningCount -gt 0 ? $global:consoleSequence.ForegroundYellow : $global:consoleSequence.ForegroundDarkGrey
                 $errorColor = $errorCount -gt 0 ? $global:consoleSequence.ForegroundRed : $global:consoleSequence.ForegroundDarkGrey
                 $eventColor = $eventCount -gt 0 ? $global:consoleSequence.BrightForegroundCyan : $global:consoleSequence.ForegroundDarkGrey
-                $eventColorBright = $global:consoleSequence.BrightForegroundCyan
-                $eventColorDark = $global:consoleSequence.ForegroundCyan
                 $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $global:consoleSequence.ForegroundDarkGrey)
                 $countColor = $logEntry.Count -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGrey
         
@@ -374,81 +366,6 @@ function global:Summarize-Log {
                     MaxTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
                 }
 
-                $_fieldsToHightlight = @("LogName","TimeStamp","EntryType","Message","Context","Action","Target","Status")
-
-                foreach ($_info in $infos.Group) {
-                    $_timestamp = $_info.Timestamp
-                    foreach ($key in $_info.psobject.properties.name) {
-                        if ($_info.$key -ne "ComputerName") {
-                            $_info.$key = "$($global:consoleSequence.ForegroundDarkGrey)$($_info.$key)$($defaultColor)"
-                        }
-                    }
-                    $logEntries += [PSCustomObject]@{
-                        Node = $node
-                        LogName = "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
-                        Type = "Information"
-                        LogEntry = $_info
-                        TimeStamp = $_timeStamp
-                    }
-                }
-                foreach ($_warning in $warnings.Group) {
-                    $_timeStamp = $_warning.TimeStamp
-                    foreach ($key in $_warning.psobject.properties.name) {
-                        $_warning.$key = 
-                            if ($key -in $_fieldsToHightlight) {
-                                "$($warningColor)$($_warning.$key)$($defaultColor)"
-                            }
-                            else {
-                                "$($global:consoleSequence.ForegroundDarkGrey)$($_warning.$key)$($defaultColor)" 
-                            }
-                    }
-                    $logEntries += [PSCustomObject]@{
-                        Node = $node
-                        LogName = "LogName" -in $_fieldsToHightlight ? "$($warningColor)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
-                        Type = "Warning"
-                        LogEntry = $_warning
-                        TimeStamp = $_timeStamp
-                    }
-                }
-                foreach ($_error in $errors.Group) {
-                    $_timeStamp = $_error.TimeStamp
-                    foreach ($key in $_error.psobject.properties.name) {
-                        $_error.$key = 
-                            if ($key -in $_fieldsToHightlight) {
-                                "$($errorColor)$($_error.$key)$($defaultColor)"
-                            }
-                            else {
-                                "$($global:consoleSequence.ForegroundDarkGrey)$($_error.$key)$($defaultColor)" 
-                            }
-                    }
-                    $logEntries += [PSCustomObject]@{
-                        Node = $node
-                        LogName = "LogName" -in $_fieldsToHightlight ? "$($errorColor)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
-                        Type = "Error"
-                        LogEntry = $_error
-                        TimeStamp = $_timeStamp
-                    }
-                }
-                foreach ($_event in $events.Group) {
-                    $_timeStamp = $_event.TimeStamp
-                    # $_fieldsToHightlight = @("EntryType","Context","Action","Target","Status")
-                    foreach ($key in $_event.psobject.properties.name) {
-                        $_event.$key = 
-                            if ($key -in $_fieldsToHightlight) {
-                                "$($eventColorBright)$($_event.$key)$($defaultColor)"
-                            }
-                            else {
-                                "$($global:consoleSequence.ForegroundDarkGrey)$($_event.$key)$($defaultColor)" 
-                            }
-                    }
-                    $logEntries += [PSCustomObject]@{
-                        Node = $node
-                        LogName = "LogName" -in $_fieldsToHightlight ? "$($eventColorBright)$($logName)$($defaultColor)" : "$($global:consoleSequence.ForegroundDarkGrey)$($logName)$($defaultColor)"
-                        Type = "Event"
-                        LogEntry = $_event
-                        TimeStamp = $_timeStamp
-                    }
-                }
             }
             
         }
@@ -495,7 +412,31 @@ function global:Summarize-Log {
 
     }
 
+    $formatData = [ordered]@{}
+    $logSummaryDetailsFormatData = Get-FormatData -TypeName Overwatch.Log.Summary.Details
+    $formatDataDisplayEntries = $logSummaryDetailsFormatData.FormatViewDefinition.Control.Rows.Columns.DisplayEntry.Value
+    $formatDataHeaders = $logSummaryDetailsFormatData.FormatViewDefinition.Control.Headers
+    for ($i = 0; $i -lt $formatDataDisplayEntries.Count; $i++) {
+        $formatData += @{
+            $formatDataDisplayEntries[$i] = $formatDataHeaders[$i]
+        }
+    }
+
+    $summaryDetails = @()
+    $summaryDetailsFormatted = @()
+
     foreach ($node in $ComputerName) {
+        $logs = @() 
+        if (![string]::IsNullOrEmpty($Name)) {
+            $log = Get-Log -Name $Name -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
+            if ($log) { $logs += $log }
+        }
+        else {
+            foreach ($logFileInfo in (Get-Log -ComputerName $node).FileInfo) {
+                $logName = [Path]::GetFileNameWithoutExtension($logFileInfo.Name)
+                $logs += Get-Log -Name $logName -ComputerName $node
+            }
+        }
 
         $platformEventHistory = Get-PlatformEventHistory -ComputerName $node
         if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {$_.TimeStamp -gt $After}}
@@ -503,30 +444,157 @@ function global:Summarize-Log {
 
         if (![string]::IsNullOrEmpty($ShowDetails) -and $ShowDetails -ne "None") {
 
-            $logEntriesByNode = $logEntries | Where-Object {$_.type -in $ShowDetails -and $_.Node -eq $node}
+            foreach ($log in $logs) {
 
-            #find matching platform events
-            foreach ($logEntry in $logEntriesByNode) {
-                $_event = $platformEventHistory | Where-Object {$_.TimeStamp -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
-                if ($_event) {
-                    $_eventColor = $logEntry.Type -eq "Event" ? $eventColorBright : $eventColorDark
-                    $_timestampDiff = $_.TimeStamp - $logEntry.timeStamp
-                    if (!($_event.Event -eq "Start" -and $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30)) {
-                        $logEntry | Add-Member -NotePropertyName Event -NotePropertyValue "$($_eventColor)$($_event.Event)$($defaultColor)" 
-                        $logEntry | Add-Member -NotePropertyName EventStatus -NotePropertyValue "$($_eventColor)$($_event.EventStatus)$($defaultColor)" 
+                $logEntries = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
+                $logEntries = $logEntries |  Where-Object {$_.EntryType -in $ShowDetails} | Sort-Object -Property Timestamp
+
+                if ($After) {$logEntries = $logEntries | Where-Object {$_.TimeStamp -gt $After}}
+                if ($Before) {$logEntries = $logEntries | Where-Object {$_.TimeStamp -lt $Before}}
+
+                if ($logEntries.Count -gt 0) {
+
+                    $logName = $log.FileNameWithoutExtension.ToLower()
+
+                    foreach ($logEntry in $logEntries) {
+
+                        $summaryDetail = [PSCustomObject]@{
+                            PSTypeName = "Overwatch.Log.Summary.Details"
+                            ComputerName = $logEntry.ComputerName
+                            Log = $logName
+                            Index = $logEntry.Index.ToString()
+                            TimeStamp = $logEntry.TimeStamp.ToString('u')
+                            EntryType = $logEntry.EntryType
+                            Context = $logEntry.Context
+                            Action = $logEntry.Action
+                            Target = $logEntry.Target
+                            Status = $logEntry.Status
+                            Message = $logEntry.Message
+                            Event = $null
+                            EventStatus = $null
+                        }
+
+                        $_event = $platformEventHistory | Where-Object {$_.TimeStamp -le (Get-Date($logEntry.TimeStamp) -Millisecond 0)} | Select-Object -Last 1
+                        if ($_event) {
+                            $_timestampDiff = $_.TimeStamp - $logEntry.timeStamp
+                            if (!($_event.Event -eq "Start" -and $_event.EventHasCompleted -and [math]::Abs($_timestampDiff.TotalSeconds) -gt 30)) {
+                                $summaryDetail.Event = $_event.Event
+                                $summaryDetail.EventStatus = $_event.EventStatus
+                            }
+                        }
+
+                        $summaryDetails += $summaryDetail
+
+                        $_fieldsToHightlight = @("Log","TimeStamp","EntryType","Message","Context","Action","Target","Status")
+
+                        $summaryDetailFormatted = [PSCustomObject]@{
+                            # these fields are NOT displayed
+                            PSTypeName = "Overwatch.Log.Summary.Details"
+                            Node = $node.ToLower()
+                            _Timestamp = $logEntry.TimeStamp
+                            # these fields ARE displayed
+                            ComputerName = $null
+                            Log = $null
+                            Index = $null
+                            TimeStamp = $null
+                            EntryType = $null
+                            Context = $null
+                            Action = $null
+                            Target = $null
+                            Status = $null
+                            Message = $null
+                            Event = $null
+                            EventStatus = $null
+                        }
+
+                        $_color = switch ($summaryDetail.EntryType) {
+                            "Event" { $global:consoleSequence.BrightForegroundCyan }
+                            "Error" { $global:consoleSequence.ForegroundRed }
+                            "Warning" { $global:consoleSequence.ForegroundYellow }
+                            "Information" { $global:consoleSequence.ForegroundDarkGrey }
+                            default { $global:consoleSequence.ForegroundDarkGrey }
+                        }
+
+                        foreach ($key in $summaryDetail.PSObject.Properties.Name) {
+
+                            # $columnWidth = $key -in ("Log","ComputerName","TimeStamp","EntryType") ? $formatData.$key.Width : ($logEntries.$key | Measure-Object -Property Length -Maximum).Maximum
+                            $columnWidth = $formatData.$key.Width
+                            $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
+
+                            $summaryDetailFormatted.$key = switch ($key) {
+                                default { 
+                                    if ($summaryDetail.$key.Length -lt $columnWidth) {
+                                        "$($summaryDetail.$key)$($emptyString.PadLeft($columnWidth-$summaryDetail.$key.Length-1," "))" 
+                                    }
+                                    elseif ($summaryDetail.$key.Length -gt $columnWidth) {
+                                        "$($summaryDetail.$key.Substring(0,$columnWidth-3))..."
+                                    }
+                                    else {
+                                        $summaryDetail.$key
+                                    }
+                                }
+                            }
+                            
+                            $summaryDetailFormatted.$key = 
+                                if ($key -in ("Event","EventStatus")) {
+                                    "$($global:consoleSequence.BrightForegroundCyan)$($summaryDetail.$key)$($global:consoleSequence.ForegroundDarkGrey)"
+                                }
+                                elseif ($key -in $_fieldsToHightlight) {
+                                    "$($_color)$($summaryDetailFormatted.$key)$($global:consoleSequence.ForegroundDarkGrey)"
+                                }
+                                else {
+                                    "$($global:consoleSequence.ForegroundDarkGrey)$($summaryDetailFormatted.$key)$($global:consoleSequence.ForegroundDarkGrey)"
+                                }
+
+                        }
+
+                        $summaryDetailsFormatted += $summaryDetailFormatted
+
                     }
                 }
-            }        
-
-            # Write-Host+ -NoTimestamp -NoTrace "   $($global:consoleSequence.ForegroundDarkGrey)Details: $($ShowDetails -join ", ")$($defaultColor)"
-
-            if ($logEntriesByNode.Count -gt 0) {
-                $logEntriesByNode | 
-                    Sort-Object -Property TimeStamp -Descending | 
-                        Select-Object LogName,Event,EventStatus -ExpandProperty logEntry |
-                            Select-Object ComputerName,LogName,Index,TimeStamp,EntryType,Context,Action,Target,Status,Event,EventStatus,Message | 
-                                Format-Table * -GroupBy ComputerName # -HideTableHeaders
             }
+        }
+    }
+
+    if ($summaryDetailsFormatted) { Write-Host+ }
+
+    foreach ($node in $ComputerName) {
+
+        $summaryDetailsFormattedByNode = $summaryDetailsFormatted | Where-Object {$_.Node -eq $node}
+        if ($summaryDetailsFormattedByNode) {
+
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " 
+            Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Darkgray
+            Write-Host+
+
+            # write column labels
+            foreach ($key in $formatData.Keys) {
+                # $columnWidth = $key -in ("Log","ComputerName","TimeStamp") ? $formatData.$key.Width : ($summaryDetails.$key | Measure-Object -Property Length -Maximum).Maximum
+                $columnWidth = $formatData.$key.Width
+                $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
+                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+                # if ($formatData.$key.Label -in @("EntryType")) {
+                #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
+                # }
+            }
+            Write-Host+
+
+            # underline column labels
+            foreach ($key in $formatData.Keys) {
+                $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
+                # $columnWidth = $key -in ("Log","ComputerName","TimeStamp") ? $formatData.$key.Width : ($summaryDetails.$key | Measure-Object -Property Length -Maximum).Maximum
+                $columnWidth = $formatData.$key.Width
+                $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
+                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
+                # if ($formatData.$key.Label -in @("EntryType")) {
+                #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
+                # }
+            }
+
+            $summaryDetailsFormattedByNode | Where-Object {$_.Node -eq $node} | Format-Table -HideTableHeaders -View (Get-FormatData Overwatch.Log.Summary.Details)
+
         }
 
     }

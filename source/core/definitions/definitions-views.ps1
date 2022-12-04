@@ -11,7 +11,7 @@
                 Update-FormatData
             }
 
-            $formatData = Get-FormatData -TypeName Overwatch.Log.Summary
+            $formatData = Get-FormatData -TypeName $view.BaseName
             $formatDataHeaders = $formatData.FormatViewDefinition.Control.Headers
             $defaultDisplayProperty = "`"$($formatDataHeaders[0].Label)`""
             $defaultDisplayPropertySet = "`"$(($formatDataHeaders.Label | Where-Object {$_.Trim().Length -gt 0}) -join '", "')`""

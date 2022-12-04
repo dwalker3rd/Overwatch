@@ -12,7 +12,7 @@ $global:PostflightPreference = "SilentlyContinue"
 $global:Product = @{Id="AzureProjects"}
 . $PSScriptRoot\definitions.ps1
 
-function Initialize-AiProject {
+function Initialize-AzProject {
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
@@ -160,15 +160,15 @@ function Initialize-AiProject {
     }
     $global:AzureProject = $global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase
 
-    Get-AiProjectResourceScopes -Tenant $tenantKey
-    Get-AiProjectDeployedResources
+    Get-AzProjectResourceScopes -Tenant $tenantKey
+    Get-AzProjectDeployedResources
 
     return
 
 }
-Set-Alias -Name azProjInit -Value Initialize-AiProject -Scope Global
+Set-Alias -Name azProjInit -Value Initialize-AzProject -Scope Global
 
-function Get-AiProjectResourceScopes {
+function Get-AzProjectResourceScopes {
 
     param(
         [Parameter(Mandatory=$true)][string]$Tenant
@@ -198,7 +198,7 @@ function Get-AiProjectResourceScopes {
 
 }
 
-function Get-AiProjectResourceFromScope {
+function Get-AzProjectResourceFromScope {
 
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
@@ -233,7 +233,7 @@ function Get-AiProjectResourceFromScope {
 
 }
 
-function Get-AiProjectResourceScope {
+function Get-AzProjectResourceScope {
 
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$ResourceType,
@@ -247,7 +247,7 @@ function Get-AiProjectResourceScope {
 
 }
 
-function Get-AiProjectDeployedResources {
+function Get-AzProjectDeployedResources {
 
     $resourceGroups = Get-AzResourceGroup
     if ($resourceGroups | Where-Object {$_.ResourceGroupName -eq $global:AzureProject.ResourceType.ResourceGroup.Name}) {
@@ -317,7 +317,7 @@ function global:New-AiResource {
 
 }
 
-function global:New-AiProject {
+function global:New-AzProject {
 
     [CmdletBinding()]
     param(
@@ -393,9 +393,9 @@ function global:New-AiProject {
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
     
 }
-Set-Alias -Name azProjNew -Value New-AiProject -Scope Global
+Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
 
-function global:Convert-AiProjectImportFile {
+function global:Convert-AzProjectImportFile {
 
     [CmdletBinding()]
     param(
@@ -434,7 +434,7 @@ function global:Convert-AiProjectImportFile {
 
 }
 
-function global:Grant-AiProjectRole {
+function global:Grant-AzProjectRole {
 
     [CmdletBinding()]
     param(
@@ -909,7 +909,7 @@ function global:Grant-AiProjectRole {
         }
 
         foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-            $resourceFromScope = Get-AiProjectResourceFromScope -Tenant $tenantKey -Scope $unauthorizedProjectRoleAssignment.Scope
+            $resourceFromScope = Get-AzProjectResourceFromScope -Tenant $tenantKey -Scope $unauthorizedProjectRoleAssignment.Scope
             $roleAssignments += [PsCustomObject]@{
                 resourceID = $resourceFromScope.resourceType + "-" + $resourceFromScope.resourceName
                 resourceType = $resourceFromScope.resourceType
@@ -998,7 +998,7 @@ function global:Grant-AiProjectRole {
                     $unauthorizedRoleAssignment = $false
 
                     $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : ($global:AzureProject.ResourceType.($resourceType).Scope).split("/")[-1]
-                    $resourceScope = Get-AiProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName
+                    $resourceScope = Get-AzProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName
 
                     $message = "    $($resourceType)/$($resourceName)"
                     $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "   
@@ -1098,9 +1098,9 @@ function global:Grant-AiProjectRole {
     return
 
 }
-Set-Alias -Name azProjGrant -Value Grant-AiProjectRole -Scope Global
+Set-Alias -Name azProjGrant -Value Grant-AzProjectRole -Scope Global
 
-function global:Deploy-AiProject {
+function global:Deploy-AzProject {
 
     [CmdletBinding()]
     param(
@@ -1121,26 +1121,26 @@ function global:Deploy-AiProject {
 
     # Connect-AzureAD -Tenant $tenantKey
 
-    # Initialize-AiProject -Tenant $tenantKey -ProjectName $ProjectName # -StorageAccountName $StorageAccountName -StorageContainerName $StorageContainerName
+    # Initialize-AzProject -Tenant $tenantKey -ProjectName $ProjectName # -StorageAccountName $StorageAccountName -StorageContainerName $StorageContainerName
 
     switch ($DeploymentType) {
         "DSnA" {    
             Deploy-DSnA -Tenant $tenantKey -Project $ProjectName -VmSize $VmSize -VmImagePublisher $VmImagePublisher -VmImageOffer $VmImageOffer
         }
         "StorageAccount" {
-            New-AiProject -Tenant $tenantKey -Project $ProjectName -StorageContainerName $StorageContainerName
+            New-AzProject -Tenant $tenantKey -Project $ProjectName -StorageContainerName $StorageContainerName
         }
     }
     
-    Get-AiProjectResourceScopes
-    Get-AiProjectDeployedResources
+    Get-AzProjectResourceScopes
+    Get-AzProjectDeployedResources
 
-    Grant-AiProjectRole -Tenant $tenantKey -Project $ProjectName
+    Grant-AzProjectRole -Tenant $tenantKey -Project $ProjectName
 
     return
 
 }
-Set-Alias -Name azProjDeploy -Value Deploy-AiProject -Scope Global
+Set-Alias -Name azProjDeploy -Value Deploy-AzProject -Scope Global
 
 function global:Deploy-DSnA {
 
@@ -1160,7 +1160,7 @@ function global:Deploy-DSnA {
 
     # Connect-AzureAD -Tenant $tenantKey
 
-    # Initialize-AiProject -ProjectName $ProjectName -Tenant $tenantKey
+    # Initialize-AzProject -ProjectName $ProjectName -Tenant $tenantKey
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
