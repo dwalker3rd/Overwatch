@@ -6,14 +6,6 @@
             <ViewSelectedBy>
                 <TypeName>Overwatch.Log.Summary.Details</TypeName>
             </ViewSelectedBy>
-            <TableControl><?xml version="1.0" encoding="utf-8"?>
-<Configuration>
-    <ViewDefinitions>
-        <View>
-            <Name>OverWatch.Log.Summary.Details</Name>
-            <ViewSelectedBy>
-                <TypeName>Overwatch.Log.Summary.Details</TypeName>
-            </ViewSelectedBy>
             <TableControl>
                 <TableHeaders>
                     <TableColumnHeader>
@@ -74,115 +66,6 @@
                     <TableColumnHeader>
                         <Label>Message</Label>
                         <Width>100</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>                                                                                                                                                             
-                </TableHeaders>
-                <TableRowEntries>
-                    <TableRowEntry>
-                        <Wrap />
-                        <TableColumnItems>
-                            <TableColumnItem>
-                                <PropertyName>ComputerName</PropertyName>
-                            </TableColumnItem>                        
-                            <TableColumnItem>
-                                <PropertyName>Log</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>Index</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>TimeStamp</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>EntryType</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>Context</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>Action</PropertyName>
-                            </TableColumnItem>                               
-                            <TableColumnItem>
-                                <PropertyName>Target</PropertyName>
-                            </TableColumnItem>                                             
-                            <TableColumnItem>
-                                <PropertyName>Status</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>Event</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>EventStatus</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>Message</PropertyName>
-                            </TableColumnItem>                                                                       
-                        </TableColumnItems>
-                    </TableRowEntry>
-                </TableRowEntries>
-            </TableControl>
-        </View>
-    </ViewDefinitions>
-</Configuration>
-                <TableHeaders>
-                    <TableColumnHeader>
-                        <Label>ComputerName</Label>
-                        <Width>20</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>
-                    <TableColumnHeader>
-                        <Label>Log</Label>
-                        <Width>20</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>
-                    <TableColumnHeader>
-                        <Label>Index</Label>
-                        <Width>5</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>                       
-                    <TableColumnHeader>
-                        <Label>TimeStamp</Label>
-                        <Width>20</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>   
-                    <TableColumnHeader>
-                        <Label>EntryType</Label>
-                        <Width>12</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>    
-                    <TableColumnHeader>
-                        <Label>Context</Label>
-                        <Width>20</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>       
-                    <TableColumnHeader>
-                        <Label>Action</Label>
-                        <Width>20</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>
-                    <TableColumnHeader>
-                        <Label>Target</Label>
-                        <Width>20</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>   
-                    <TableColumnHeader>
-                        <Label>Status</Label>
-                        <Width>20</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>  
-                    <TableColumnHeader>
-                        <Label>Event</Label>
-                        <Width>5</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>       
-                    <TableColumnHeader>
-                        <Label>EventStatus</Label>
-                        <Width>12</Width>
-                        <Alignment>Left</Alignment>
-                    </TableColumnHeader>  
-                    <TableColumnHeader>
-                        <Label>Message</Label>
-                        <Width>20</Width>
                         <Alignment>Left</Alignment>
                     </TableColumnHeader>                                                                                                                                                             
                 </TableHeaders>
