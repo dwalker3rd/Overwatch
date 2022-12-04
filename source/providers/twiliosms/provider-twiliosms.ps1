@@ -45,16 +45,16 @@ function global:Send-TwilioSMS {
     foreach ($t in $To) {
         $params = @{ To = $t; From = $From; Body = $Message.Summary }
 
-        $logEntry = read-log $Provider.Id -Context "SMS" -Action $t -Status "Transmitted" -Message $Message.Summary -Newest 1
+        $logEntry = read-log $Provider.Id -Context "SMS" -Action $t -Status $global:PlatformMessageStatus.Transmitted -Message $Message.Summary -Newest 1
         $throttle = $logEntry -and $logEntry.Message -eq $Message.Summary ? ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds -le $Message.Throttle.TotalSeconds : $null
 
         if (!$throttle) {
             $result += Invoke-WebRequest $providerRestEndpoint -Method Post -Credential $providerCredentials -Body $params | ConvertFrom-Json 
         }
         
-        Write-Log -Name $Provider.Id -Context "SMS" -Action $t -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
+        Write-Log -Name $Provider.Id -Context "SMS" -Action $t -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
     
     }
 
-    return $throttle ? "Throttled" : "Transmitted"
+    return $throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted
 }

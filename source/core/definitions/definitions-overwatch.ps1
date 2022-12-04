@@ -25,6 +25,13 @@
         Heartbeat="Heartbeat"
     }
 
+    $global:PlatformMessageStatus = @{ 
+        Disabled = "Disabled"
+        Enabled = "Enabled"
+        Throttled = $global:PlatformMessageStatus.Throttled
+        Transmitted = $global:PlatformMessageStatus.Transmitted
+    }
+
 #endregion MESSAGES    
 #region FILES
 

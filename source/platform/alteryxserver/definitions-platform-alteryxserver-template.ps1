@@ -41,14 +41,14 @@
         [PlatformCim]@{
             Name = "AlteryxService"
             DisplayName = $PlatformDictionary.AlteryxServiceProcess
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $true
             Class = "Process"
         },
         [PlatformCim]@{
             Name = "AlteryxServerHost"
             DisplayName = $PlatformDictionary.AlteryxServerHost
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $true
             Class = "Process"
             ParentName = "AlteryxService"
@@ -57,7 +57,7 @@
         [PlatformCim]@{
             Name = "AlteryxService_MongoController"
             DisplayName = $PlatformDictionary.AlteryxService_MongoController
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $true
             Class = "Process"
             ParentName = "AlteryxService"
@@ -66,7 +66,7 @@
         [PlatformCim]@{
             Name = "AlteryxEngineCmd"
             DisplayName = $PlatformDictionary.AlteryxEngineCmd
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $true
             Transient = $true
             Class = "Process"
@@ -76,7 +76,7 @@
         [PlatformCim]@{
             Name = "AlteryxService_MapRenderWorker"
             DisplayName = $PlatformDictionary.AlteryxService_MapRenderWorker
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $false
             Class = "Process"
             ParentName = "AlteryxService"
@@ -85,7 +85,7 @@
         # [PlatformCim]@{
         #     Name = "AlteryxCEFRenderer"
         #     DisplayName = $PlatformDictionary.AlteryxCEFRenderer
-        #     StatusOK = $"Responding"
+        #     StatusOK = "Responding"
         #     Required = $false
         #     Class = "Process"
         #     ParentName = ???
@@ -93,7 +93,7 @@
         [PlatformCim]@{
             Name = "AlteryxAuthHost"
             DisplayName = $PlatformDictionary.AlteryxAuthHost
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $false
             Class = "Process"
             ParentName = "AlteryxService"
@@ -102,7 +102,7 @@
         [PlatformCim]@{
             Name = "AlteryxService_WebInterface"
             DisplayName = $PlatformDictionary.AlteryxService_WebInterface
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $false
             Class = "Process"
             ParentName = "AlteryxService"
@@ -111,7 +111,7 @@
         [PlatformCim]@{
             Name = "AlteryxMetrics"
             DisplayName = $PlatformDictionary.AlteryxMetrics
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $true
             Class = "Process"
             ParentName = @("AlteryxService","")
@@ -120,7 +120,7 @@
         [PlatformCim]@{
             Name = "mongod"
             DisplayName = $PlatformDictionary.mongod
-            StatusOK = $"Responding"
+            StatusOK = "Responding"
             Required = $true
             Class = "Process"
             ParentName = "AlteryxService_MongoController"

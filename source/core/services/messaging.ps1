@@ -1,16 +1,16 @@
 function global:Disable-Messaging {
     ($global:DisableMessaging = $true) | Write-Cache disableAllMessaging
     $global:DisableMessaging | Out-Null
-    Write-Log -EntryType "Warning" -Action "Disable-Messaging" -Target "Messaging" -Status "Success" -Message "Disabled" -Force
-    Write-Host+ -NoTrace "Messaging ","DISABLED" -ForegroundColor DarkGray,DarkYellow -NoSeparator
+    Write-Log -EntryType "Warning" -Action "Disable" -Target "Messaging" -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
+    Write-Host+ -NoTrace "Messaging ",$global:PlatformMessageStatus.Disabled.ToUpper() -ForegroundColor DarkGray,DarkYellow -NoSeparator
     Write-Host+
     return
 }
 function global:Enable-Messaging {
     ($global:DisableMessaging = $false) | Write-Cache disableAllMessaging
     $global:DisableMessaging | Out-Null
-    Write-Log -EntryType "Information" -Action "Enable-Messaging" -Target "Messaging" -Status "Success" -Message "Enabled" -Force
-    Write-Host+ -NoTrace "Messaging ","ENABLED" -ForegroundColor DarkGray,DarkGreen -NoSeparator
+    Write-Log -EntryType "Information" -Action "Enable" -Target "Messaging" -Status $global:PlatformMessageStatus.Enabled -Message "Messaging $($global:PlatformMessageStatus.Enabled.ToUpper())" -Force
+    Write-Host+ -NoTrace "Messaging ",$global:PlatformMessageStatus.Enabled.ToUpper() -ForegroundColor DarkGray,DarkGreen -NoSeparator
     Write-Host+
     return
 }
@@ -32,12 +32,8 @@ function global:Send-Message {
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
     if (IsMessagingDisabled) {
-        # Write-Host+
-        # Write-Host+ "Messaging DISABLED" -ForegroundColor DarkYellow -NoSeparator
-        # Write-Host+ "Message from $($Message.Source) not sent" -ForegroundColor Gray -NoSeparator
-        # Write-Host+
-        Write-Log -Context "Messaging" -EntryType "Information" -Action "Send-Message" -Target $Message.Source -Status "Disabled" -Message "Messaging disabled" -Force
-        return "Disabled"
+        Write-Log -Context "Messaging" -EntryType "Information" -Action "Send-Message" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $global:PlatformMessageStatus.Disabled.ToUpper()" -Force
+        return $global:PlatformMessageStatus.Disabled
     }
 
     $status = @()
