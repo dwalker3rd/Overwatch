@@ -64,7 +64,7 @@ function global:Send-SMTP {
     $SMTPMessage.Subject = $Subject
     $SMTPMessage.Body = $builder.ToMessageBody()
 
-    $logEntry = read-log $provider.Id -Context "SMTP" -Action $To -Status "Transmitted" -Message $Message.Summary -Newest 1
+    $logEntry = read-log $provider.Id -Context "SMTP" -Action $To -Status $global:PlatformMessageStatus.Transmitted -Message $Message.Summary -Newest 1
     $throttle = $logEntry -and $logEntry.Message -eq $Message.Summary ? ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds -le $Message.Throttle.TotalSeconds : $null
 
     if (!$throttle) {
@@ -75,8 +75,8 @@ function global:Send-SMTP {
         $SMTP.Dispose()
     }
     
-    Write-Log -Name $provider.Id -Context "SMTP" -Action $To -Message $Message.Summary -Status $($throttle ? "Throttled" : "Transmitted") -Force
+    Write-Log -Name $provider.Id -Context "SMTP" -Action $To -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
 
-    return $throttle ? "Throttled" : "Transmitted"
+    return $throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted
 
 }

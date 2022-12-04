@@ -686,8 +686,6 @@ if ($notConfigured) {
 $message = " $($emptyString.PadLeft(8,"`b"))$($configured ? "PASS" : "FAIL")    "
 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($configured ? "Green" : "Red")
 
-Write-Host+
-
 }
 
 function global:Request-PlatformService {
