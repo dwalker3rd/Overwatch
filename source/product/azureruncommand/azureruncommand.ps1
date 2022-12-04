@@ -25,6 +25,15 @@ function Test-Runbook {
     Write-Host+ "[Test-Runbook] FINISHED"
 }
 
+$global:DebugPreference = "SilentlyContinue"
+$global:InformationPreference = "SilentlyContinue"
+$global:VerbosePreference = "SilentlyContinue"
+$global:WarningPreference = "Continue"
+$global:ProgressPreference = "SilentlyContinue"
+$global:PreflightPreference = "SilentlyContinue"
+$global:PostflightPreference = "SilentlyContinue"
+$global:WriteHostPlusPreference = "Continue"
+
 $global:UseCredssp = $false
 if ($Credssp) {
     $global:UseCredssp = $true
@@ -33,7 +42,7 @@ if ($Credssp) {
 $result = $null
 if ($Command) {
 
-    if (!$NoDoubleHop -and $Context -like "Azure*") { # -and $Platform.Id -in ("AlteryxServer","TableauRMT")) {
+    if (!$NoDoubleHop -and $Context -like "Azure*") {
         $DoubleHop = $true
         $global:UseCredssp = $true
     }
@@ -42,20 +51,9 @@ if ($Command) {
 
         $SkipPreflight = $true
 
-        $global:DebugPreference = "SilentlyContinue"
-        $global:InformationPreference = "SilentlyContinue"
-        $global:VerbosePreference = "SilentlyContinue"
-        $global:WarningPreference = "Continue"
-        $global:ProgressPreference = "SilentlyContinue"
-        $global:PreflightPreference = $SkipPreflight ? "SilentlyContinue" : "Continue"
-        $global:PostflightPreference = $SkipPreflight ? "SilentlyContinue" : "Continue"
-        $global:WriteHostPlusPreference = "Continue"
-
         # product id must be set before include files
-        $global:Product = @{Id="Command"}
+        $global:Product = @{Id="AzureRunCommand"}
         . $PSScriptRoot\definitions.ps1
-
-        # $global:WriteHostPlusPreference = "Continue"
 
         Write-Host+ -NoTrace "Remoting to $OverwatchController using CredSSP `"double hop`"." 
 
@@ -65,7 +63,7 @@ if ($Command) {
         $result = Invoke-Command -ComputerName $OverwatchController `
             -ScriptBlock {
                     Set-Location $using:workingDirectory; 
-                    pwsh command.ps1 -Command $using:Command -Context $using:Context -Reason $using:Reason -NoDoubleHop -Credssp -SkipPreflight
+                    pwsh azureruncommand.ps1 -Command $using:Command -Context $using:Context -Reason $using:Reason -NoDoubleHop -Credssp -SkipPreflight
                 } `
             -Authentication Credssp `
             -Credential $creds 
@@ -75,20 +73,13 @@ if ($Command) {
     }
     else {
 
-        $global:DebugPreference = "SilentlyContinue"
-        $global:InformationPreference = "SilentlyContinue"
-        $global:VerbosePreference = "SilentlyContinue"
-        $global:WarningPreference = "Continue"
-        $global:ProgressPreference = "SilentlyContinue"
-        $global:PreflightPreference = $SkipPreflight ? "SilentlyContinue" : "Continue"
-        $global:PostflightPreference = $SkipPreflight ? "SilentlyContinue" : "Continue"
-        $global:WriteHostPlusPreference = "Continue"
+        $global:WriteHostPlusPreference = "SilentlyContinue"
 
         # product id must be set before include files
-        $global:Product = @{Id="Command"}
+        $global:Product = @{Id="AzureRunCommand"}
         . $PSScriptRoot\definitions.ps1
 
-        # $global:WriteHostPlusPreference = "Continue"
+        $global:WriteHostPlusPreference = "Continue"
 
         $commandExpression = $Command
         $commandParametersKeys = (Get-Command $Command.Split(" ")[0]).parameters.keys
