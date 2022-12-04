@@ -580,7 +580,7 @@ function global:Stop-PlatformJob {
                 }
 
         $psSession = Get-PSSession+ -ComputerName $ComputerName
-        Invoke-Command -Session $psSession {Stop-Process -Id $using:ProcessId -Force | Wait-Process -Timeout 15} 
+        Invoke-Command -Session $psSession {Stop-Process -Id $using:ProcessId -Force | Wait-Process -Timeout 30} 
         Remove-PSSession $psSession
     }
                 
@@ -680,10 +680,10 @@ function global:Request-PlatformComponent {
             }
             # TODO: add support for managing a passive controller
         }
-        $_platformTopology.Components.Worker.Name {
-            # initial attempt before STOP command: all jobs may not stop
-            Stop-PlatformJob $ComputerName
-        }
+        # $_platformTopology.Components.Worker.Name {
+        #     # initial attempt before STOP command: all jobs may not stop
+        #     Stop-PlatformJob $ComputerName
+        # }
     }
 
     $serviceStatus = Get-AlteryxServerStatus -ComputerName $ComputerName
@@ -699,7 +699,6 @@ function global:Request-PlatformComponent {
         Invoke-AlteryxService $Command.ToLower() -ComputerName $ComputerName -Log     
         
         if ($Command -eq "Stop" -and $Component -eq $_platformTopology.Components.Worker.Name) {
-            # second attempt in case any jobs did not stop during initial attempt, or ...
             # stop any new jobs that may have started between initial attempt and completion of STOP command
             Stop-PlatformJob $ComputerName
         }
@@ -718,7 +717,9 @@ function global:Request-PlatformComponent {
             Write-Host+ -NoTrace  "$($componentType)$($Component) on $($node) is","$($serviceNodes[$node])" -ForegroundColor Gray,($serviceNodes[$node] -eq $PlatformDictionary.Start ? "Green" : "Red")
         }
         
-        if ($serviceStatus.Status -ne $targetState) {throw "Failed to $($Command) $($componentType)$($Component)"}
+        if ($serviceStatus.Status -ne $targetState) {
+            Write-Host+ -NoTrace "Failed to $($Command) $($componentType)$($Component)" -ForegroundColor Red
+        }
     }
 
     # set AlteryxService to Manual if STOP command
