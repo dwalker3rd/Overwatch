@@ -335,8 +335,8 @@ function global:Summarize-Log {
                 $warningCount = $warnings.Count ?? 0
                 $errors = $totals | Where-Object {$_.Name -eq "Error"}
                 $errorCount = $errors.Count ?? 0
-                $events = $totals | Where-Object {$_.Name -eq "event"}
-                # $eventCount = $events.Count ?? 0
+                $events = $totals | Where-Object {$_.Name -eq "Event"}
+                $eventCount = $events.Count ?? 0
 
                 # this is only used to determine max column width in the table headers below
                 $summary += [PSCustomObject]@{
@@ -346,6 +346,7 @@ function global:Summarize-Log {
                     Information = "$($infoCount)"
                     Warning = "$($warningCount)"
                     Error = "$($errorCount)"
+                    Event = "$($eventCount)"
                     MinTimeStamp = ($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u')
                     MaxTimeStamp = ($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u')
                     ComputerName = $node.ToLower()
@@ -354,6 +355,7 @@ function global:Summarize-Log {
                 $infoColor = $infoCount -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGrey
                 $warningColor = $warningCount -gt 0 ? $global:consoleSequence.ForegroundYellow : $global:consoleSequence.ForegroundDarkGrey
                 $errorColor = $errorCount -gt 0 ? $global:consoleSequence.ForegroundRed : $global:consoleSequence.ForegroundDarkGrey
+                $eventColor = $eventCount -gt 0 ? $global:consoleSequence.BrightForegroundCyan : $global:consoleSequence.ForegroundDarkGrey
                 $eventColorBright = $global:consoleSequence.BrightForegroundCyan
                 $eventColorDark = $global:consoleSequence.ForegroundCyan
                 $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $global:consoleSequence.ForegroundDarkGrey)
@@ -371,6 +373,7 @@ function global:Summarize-Log {
                     Information = "$($infoColor)$($infoCount)$($defaultColor)"
                     Warning = "$($warningColor)$($warningCount)$($defaultColor)"
                     Error = "$($errorColor)$($errorCount)$($defaultColor)"
+                    Event = "$($eventColor)$($eventCount)$($defaultColor)"
                     MinTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u'))$($defaultColor)"
                     MaxTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
                 }

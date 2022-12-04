@@ -37,7 +37,12 @@
                         <Label>Info</Label>
                         <Width>5</Width>
                         <Alignment>Right</Alignment>
-                    </TableColumnHeader>   
+                    </TableColumnHeader>
+                    <TableColumnHeader>
+                        <Label>Event</Label>
+                        <Width>5</Width>
+                        <Alignment>Right</Alignment>
+                    </TableColumnHeader> 
                     <TableColumnHeader>
                         <Label> </Label>
                         <Width>1</Width>
@@ -75,7 +80,10 @@
                             </TableColumnItem>
                             <TableColumnItem>
                                 <PropertyName>Information</PropertyName>
-                            </TableColumnItem>  
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>Event</PropertyName>
+                            </TableColumnItem>                               
                             <TableColumnItem>
                                 <PropertyName> </PropertyName>
                             </TableColumnItem>                                             
