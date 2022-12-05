@@ -611,7 +611,7 @@ Clear-Host
             $updatedfiles += $coreFiles
 
             $installUpdate = $false
-            if ((Split-Path $coreFiles.Destination -Leaf) -like "*install.ps1") {
+            if ($coreFiles.Count -gt 0 -and (Split-Path $coreFiles.Destination -Leaf) -like "*install.ps1") {
                 $installUpdate = $true
             }
 
