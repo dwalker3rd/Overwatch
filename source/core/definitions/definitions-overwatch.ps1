@@ -14,6 +14,20 @@
     $global:PlatformEventStatus=@{ InProgress="In Progress"; Completed="Completed"; Failed="Failed"; Reset="Reset"; Testing="Testing"; }
 
 #endregion EVENTS
+#region TASKS
+
+    $global:PlatformTaskState = @{
+        Ready = "Ready"
+        Running = "Running"
+        Queued = "Queued"
+        Enabled = @("Ready","Running","Queued")
+        Disabled = "Disabled"
+        Started = @("Running","Queued")
+        Stopped = @("Ready","Disabled")
+        Unknown = "Unknown" 
+    }
+
+#endregion TASKS
 #region MESSAGES
 
     $global:PlatformMessageType = @{ 

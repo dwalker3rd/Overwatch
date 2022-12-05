@@ -99,7 +99,20 @@ function global:Register-PlatformTask {
     }
 
 }
-Set-Alias -Name taskRegister -Value Register-PlatformTask -Scope Global
+
+function global:Unregister-PlatformTask {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName
+    ) 
+    
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+
+    return
+
+}
 
 function global:Get-PlatformTask { 
 
@@ -155,7 +168,6 @@ function global:Get-PlatformTask {
     return $platformTasks | Select-Object -Property $($View ? $CimView.$($View) : $dynamicView)
 
 }
-Set-Alias -Name taskGet -Value Get-PlatformTask -Scope Global
 
 function global:Get-PlatformTaskInterval {
 
@@ -184,63 +196,101 @@ function global:Get-PlatformTaskInterval {
     return New-TimeSpan -Seconds $repetitionIntervalInSeconds
 
 }
-Set-Alias -Name taskInterval -Value Get-PlatformTask -Scope Global
 
 function global:Wait-PlatformTask {
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName,
-        [Parameter(Mandatory=$false)][ValidateSet("Unknown","Disabled","Queued","Ready","Running")][string[]]$State = "Ready",
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByObject")][object]$PlatformTask,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
+        [Parameter(Mandatory=$false)][ValidateSet("Unknown","Disabled","Queued","Ready","Running")][string[]]$State = $global:PlatformTaskState.Enabled,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState",
         [switch]$Not
     ) 
 
-    $Id = $global:Catalog.Product.$Id.Id
-    $State = $State | ForEach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}
-    $task = Get-PlatformTask -Id $Id
+    if ($PlatformTask) {
+        $Id = $PlatformTask.ProductID
+        $TaskName = $PlatformTask.Name
+    }
+    else {
+        $Id = $global:Catalog.Product.$Id.Id
+        $TaskName = [string]::IsNullOrEmpty($TaskName) ? (Get-Product -Id $Id).TaskName : $TaskName
+        $PlatformTask = Get-PlatformTask -Id $Id 
+    }
+
+    $_state = @()
+    $_state = $State | ForEach-Object {$global:PlatformTaskState.$_}
 
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $timerInterval = [Diagnostics.Stopwatch]::StartNew()
 
-    while (((!$Not -and $task.Status -notin $State) -or ($Not -and $task.Status -in $State)) -and 
-        ([math]::Round($timer.Elapsed.TotalSeconds,0) -lt $Timeout.TotalSeconds)) {
-            Start-Sleep -seconds 1
-            $task = Get-PlatformTask -TaskName $TaskName
-            if ([math]::Round($timerInterval.Elapsed.TotalSeconds,0) -ge 10) {
-                $timerInterval.Reset()
-                $timerInterval.Start()
-            }
+    $isTargetState = (!$Not -and $PlatformTask.Status -in $_state) -or ($Not -and $PlatformTask.Status -notin $_state)
+    while (!$isTargetState -and ([math]::Round($timer.Elapsed.TotalSeconds,0) -lt $Timeout.TotalSeconds)) {
+        Start-Sleep -seconds 1
+        $PlatformTask = Get-PlatformTask -TaskName $TaskName
+        $isTargetState = (!$Not -and $PlatformTask.Status -in $_state) -or ($Not -and $PlatformTask.Status -notin $_state)
+        if ([math]::Round($timerInterval.Elapsed.TotalSeconds,0) -ge 10) {
+            $timerInterval.Reset()
+            $timerInterval.Start()
         }
+    }
 
     $timerInterval.Stop()
     $timer.Stop()
 
-    return ((!$Not -and $task.Status -in $State) -or ($Not -and $task.Status -notin $State))
+    return Invoke-Expression "`$$OutputType"
 
 }
-Set-Alias -Name taskWait -Value Wait-PlatformTask -Scope Global
 
-function global:Stop-PlatformTasks {
 
-    [CmdletBinding()]
+function global:Disable-PlatformTask {
+
+    # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")
+
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
     param (
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByObject")][object]$PlatformTask,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState",
         [switch]$Quiet
-    ) 
+    )
 
-    Write-Host+ -Iff (!$Quiet)
-
-    $productsWithTask = Get-Product | Where-Object {$_.HasTask}
-    foreach ($productWithTask in $productsWithTask) {
-        $task = Get-PlatformTask -Id $productWithTask.Id
-        $message = "<$($productWithTask.Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
-        Write-Log -EntryType "Warning" -Action "Stop-PlatformTasks" -Target $productWithTask.Id -Status $task.Status -Force
+    if ($PlatformTask) {
+        $Id = $PlatformTask.ProductID
+        $TaskName = $PlatformTask.Name
+    }
+    else {
+        $Id = $global:Catalog.Product.$Id.Id
+        $TaskName = [string]::IsNullOrEmpty($TaskName) ? (Get-Product -Id $Id).TaskName : $TaskName
+        $PlatformTask = Get-PlatformTask -Id $Id 
     }
 
-    Write-Host+ -Iff (!$Quiet)
+    # check if PlatformTask is already disabled
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Disabled
+    if ($isTargetState) {
+        $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+        return Invoke-Expression "`$$OutputType"
+    }
+
+    # disable PlatformTask
+    $PlatformTask.Instance = Disable-ScheduledTask -TaskName $TaskName
+    $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
+
+    # wait for PlatformTask to be disabled
+    $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Disabled -OutputType PlatformTask -Timeout $Timeout
+
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Disabled
+    $isTargetState | Out-Null
+
+    $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
+    Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($PlatformTask.Status -in $global:PlatformTaskState.Disabled ? "Red" : "DarkGreen")
+
+    return Invoke-Expression "`$$OutputType"
 
 }
 
@@ -254,72 +304,65 @@ function global:Disable-PlatformTasks {
 
     Write-Host+ -Iff (!$Quiet)
 
-    $productsWithTask = Get-Product | Where-Object {$_.HasTask}
-    foreach ($productWithTask in $productsWithTask) {
-        $isDisabled = Disable-PlatformTask -Id $productWithTask.Id -Timeout $Timeout -Quiet
-        $isDisabled | Out-Null
-        $task = Get-PlatformTask -Id $productWithTask.Id
-        $message = "<$($productWithTask.Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
-        Write-Log -EntryType "Warning" -Action "Disable-PlatformTasks" -Target $productWithTask.Id -Status $task.Status -Force
+    Get-PlatformTask | Where-Object {$_.Status -notin $global:PlatformTaskState.Disabled} | ForEach-Object {
+        $platformTask = Disable-PlatformTask -PlatformTask $_ -OutputType "PlatformTask" -Timeout $Timeout -Quiet
+        $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Disabled ? "Red" : "DarkGreen")
+        Write-Log -EntryType Information -Action "Disable-PlatformTasks" -Target $platformTask.ProductID -Status $platformTask.Status -Force
     }
 
     Write-Host+ -Iff (!$Quiet)
 
 }
 
-function global:Disable-PlatformTask {
+function global:Enable-PlatformTask {
 
-    # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")        
+    # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByObject")][object]$PlatformTask,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [switch]$Quiet,
-        [switch]$Force
-    ) 
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState",
+        [switch]$Quiet
+    )
 
-    $Id = $global:Catalog.Product.$Id.Id
-    $task = Get-PlatformTask -Id $Id 
-
-    # check if task is disabled
-    if ($task.Status -in "Disabled") {
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
-        return $true
+    if ($PlatformTask) {
+        $Id = $PlatformTask.ProductID
+        $TaskName = $PlatformTask.Name
+    }
+    else {
+        $Id = $global:Catalog.Product.$Id.Id
+        $TaskName = [string]::IsNullOrEmpty($TaskName) ? (Get-Product -Id $Id).TaskName : $TaskName
+        $PlatformTask = Get-PlatformTask -Id $Id 
     }
 
-    # check if task is running
-    if ($task.Status -in "Running","Queued") {
-        if ($Force) {
-            $isStopped = Stop-PlatformTask -Id $Id -Quiet
-            $isStopped | Out-Null
-            $task = Get-PlatformTask -Id $Id 
-        }
-        else {
-            $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-            Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-            return $false
-        }
+    # check if PlatformTask is already enabled
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Enabled
+    if ($isTargetState) {
+        $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+        return Invoke-Expression "`$$OutputType"
     }
 
-    $task = Disable-ScheduledTask -TaskName $TaskName 
+    # enable PlatformTask
+    $PlatformTask.Instance = Enable-ScheduledTask -TaskName $TaskName
+    $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
 
-    # wait for task to be disabled
-    $isTargetState = Wait-PlatformTask -Id $Id -TaskName $TaskName -State "Disabled" -Timeout $Timeout
+    # wait for PlatformTask to be enabled
+    $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Enabled -OutputType PlatformTask -Timeout $Timeout
 
-    if (!$Quiet) {
-        $task = Get-PlatformTask -Id $Id
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
-    }
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Enabled
+    $isTargetState | Out-Null
 
-    return $isTargetState
+    $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
+    Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($PlatformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
+
+    return Invoke-Expression "`$$OutputType"
 
 }
-Set-Alias -Name taskDisable -Value Disable-PlatformTask -Scope Global
 
 function global:Enable-PlatformTasks {
 
@@ -331,248 +374,150 @@ function global:Enable-PlatformTasks {
 
     Write-Host+ -Iff (!$Quiet)
 
-    $productsWithTask = Get-Product | Where-Object {$_.HasTask}
-    foreach ($productWithTask in $productsWithTask) {
-        $isEnabled = Enable-PlatformTask -Id $productWithTask.Id -Timeout $Timeout -Quiet
-        $isEnabled | Out-Null
-        $task = Get-PlatformTask -Id $productWithTask.Id
-        $message = "<$($productWithTask.Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
-        Write-Log -EntryType "Information" -Action "Enable-PlatformTasks" -Target $productWithTask.Id -Status $task.Status -Force
+    Get-PlatformTask | Where-Object {$_.Status -notin $global:PlatformTaskState.Enabled} | ForEach-Object {
+        $platformTask = Enable-PlatformTask -PlatformTask $_ -OutputType "PlatformTask" -Timeout $Timeout -Quiet
+        $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
+        Write-Log -EntryType Information -Action "Enable-PlatformTasks" -Target $platformTask.ProductID -Status $platformTask.Status -Force
     }
 
     Write-Host+ -Iff (!$Quiet)
 
 }
-Set-Alias -Name Start-PlatformTasks -Value Enable-PlatformTasks -Scope Global
 
-function global:Enable-PlatformTask {
+function global:Start-PlatformTask {
 
     # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByObject")][object]$PlatformTask,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState",
         [switch]$Quiet
     )
 
-    $Id = $global:Catalog.Product.$Id.Id
-    $task = Get-PlatformTask -Id $Id 
+    if ($PlatformTask) {
+        $Id = $PlatformTask.ProductID
+        $TaskName = $PlatformTask.Name
+    }
+    else {
+        $Id = $global:Catalog.Product.$Id.Id
+        $TaskName = [string]::IsNullOrEmpty($TaskName) ? (Get-Product -Id $Id).TaskName : $TaskName
+        $PlatformTask = Get-PlatformTask -Id $Id 
+    }
 
-    # check if task is disabled
-    if ($task.Status -notin "Disabled") {
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
+    # check if PlatformTask is already started
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Started
+    if ($isTargetState) {
+        $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-        return $true
+        return Invoke-Expression "`$$OutputType"
     }
 
-    # enable task
-    $task = Enable-ScheduledTask -TaskName $TaskName
-
-    # wait for task to be enabled
-    $isTargetState = Wait-PlatformTask -Id $Id -TaskName $TaskName -State "Ready" -Timeout $Timeout
-
-    if (!$Quiet) {
-        $task = Get-PlatformTask -Id $Id
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
-    }
-
-    return $isTargetState
-
-}
-Set-Alias -Name taskEnable -Value Enable-PlatformTask -Scope Global
-
-function global:Start-PlatformTask {
-    
-    # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName,
-        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [switch]$Quiet,
-        [switch]$Force
-    ) 
-
-    $Id = $global:Catalog.Product.$Id.Id
-    $task = Get-PlatformTask -Id $Id 
-    Write-Verbose "$($Id) $($task.Status)"
-
-    # check if task is disabled
-    if ($task.Status -in "Disabled") {
-        if ($Force) {
-            $isEnabled = Enable-PlatformTask -Id $Id -Quiet
-            $isEnabled | Out-Null
-            $task = Get-PlatformTask -Id $Id 
+    # check if PlatformTask is disabled
+    if ($PlatformTask.Status -in $global:PlatformTaskState.Disabled) {
+        
+        Write-Host+ -Iff $(!($Force.IsPresent) -and !$Quiet) -NoTrace "WARN: The platform task is disabled and cannot be started." -ForegroundColor DarkYellow
+        Write-Host+ -Iff $(!($Force.IsPresent) -and !$Quiet) -NoTrace "INFO: To force the platform task to start, add the -Force switch." -ForegroundColor DarkYellow
+        Write-Host+ -Iff $($Force.IsPresent -and !$Quiet) -NoTrace "INFO: Starting with FORCE." -ForegroundColor DarkYellow
+        
+        if (!$Force) { 
+            return Invoke-Expression "`$$OutputType"
         }
-        else {
-            $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-            Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
-            return $false
-        }
-    }
+        $Force = $false
+        
+        Write-Host+
 
-    # check if task is already running
-    if ($task.Status -in "Running","Queued") {
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-        return $true
+        # enable PlatformTask
+        $PlatformTask.Instance = Enable-ScheduledTask -TaskName $TaskName
+        $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
+
     }
 
     # start task
-    Start-ScheduledTask -TaskName $TaskName
+    $PlatformTask.Instance = Start-ScheduledTask -TaskName $TaskName
+    $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
 
-    # wait for task to start running
-    $isTargetState = Wait-PlatformTask -Id $Id -TaskName $TaskName -State "Running" -Timeout $Timeout
+    # wait for PlatformTask to be enabled
+    $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Started -OutputType PlatformTask -Timeout $Timeout
 
-    if (!$Quiet) {
-        $task = Get-PlatformTask -Id $Id
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
-    }
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Started
+    $isTargetState | Out-Null
 
-    return $isTargetState
+    $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
+    Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($PlatformTask.Started -in $global:PlatformTaskState.Running ? "DarkGreen" : "Red")
+
+    return Invoke-Expression "`$$OutputType"
 
 }
-Set-Alias -Name taskStart -Value Start-PlatformTask -Scope Global
 
 function global:Stop-PlatformTask {
 
     # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")
-    
-    [CmdletBinding()]
+
+    [CmdletBinding(DefaultParameterSetName = 'ById')]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByObject")][object]$PlatformTask,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
+        [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState",
         [switch]$Quiet
-    ) 
+    )
 
-    $Id = $global:Catalog.Product.$Id.Id
-    $task = Get-PlatformTask -Id $Id 
+    if ($PlatformTask) {
+        $Id = $PlatformTask.ProductID
+        $TaskName = $PlatformTask.Name
+    }
+    else {
+        $Id = $global:Catalog.Product.$Id.Id
+        $TaskName = [string]::IsNullOrEmpty($TaskName) ? (Get-Product -Id $Id).TaskName : $TaskName
+        $PlatformTask = Get-PlatformTask -Id $Id 
+    }
 
-    # check if task is already stopped
-    if ($task.Status -notin "Ready","Running","Queued") {
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
+    # check if PlatformTask is already stopped
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Stopped
+    if ($isTargetState) {
+        $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-        return $true
+        return Invoke-Expression "`$$OutputType"
     }
 
     # stop task
-    Stop-ScheduledTask -TaskName $TaskName
+    $PlatformTask.Instance = Stop-ScheduledTask -TaskName $TaskName
+    $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
 
-    # wait for task to stop running
-    $isTargetState = Wait-PlatformTask -Id $Id -TaskName $TaskName -State "Running" -Not -Timeout $Timeout
+    # wait for PlatformTask to be enabled
+    $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Stopped -OutputType PlatformTask -Timeout $Timeout
 
-    if (!$Quiet) {
-        $task = Get-PlatformTask -Id $Id
-        $message = "<$($Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -notin "Ready","Running","Queued" ? "Red" : "DarkGreen")
-    }
+    $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Stopped
+    $isTargetState | Out-Null
 
-    return $isTargetState
+    $message = "<$($Id) <.>32> $($PlatformTask.Status.ToUpper())"
+    Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($PlatformTask.Status -in $global:PlatformTaskState.Stopped ? "Red" : "DarkGreen")
 
-}
-Set-Alias -Name taskStop -Value Stop-PlatformTask -Scope Global
-
-function global:Suspend-PlatformTask {
-
-    # Suspend = Stop and Disable
-    # Valid task states are ("Unknown","Disabled","Queued","Ready","Running")
-    
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [switch]$Quiet
-    ) 
-
-    $task = Get-PlatformTask -Id $Id
-    
-    # stop task if running
-    $isStopped = !($task.Status -in "Queued","Running")
-    if (!$isStopped) {$isStopped = Stop-PlatformTask -Id $Id -Quiet:$Quiet.IsPresent}
-
-    $isDisabled = $false
-    if ($isStopped) {
-        $isDisabled = Disable-PlatformTask -Id $Id
-        $task = Get-PlatformTask -Id $Id
-        if (!$isDisabled) {
-            Write-Host+ -NoTrace "$($Id) $($task.Status)" -ForegroundColor DarkYellow
-            Write-Log -Context $Id -Action "Disable" -EntryType "Warning" -Status $task.Status
-        } else {
-            Write-Log -Context $Id -Action "Disable" -EntryType "Information" -Status $task.Status
-            Send-TaskMessage -Id $Id -Status "Disabled"
-        }
-    } else {
-        Write-Host+ -NoTrace "$($Id) $($task.Status)"
-        Write-Log -Context $Id -Action "Stop" -EntryType "Warning" -Status "Failure" -Message "$($Id) $($task.Status)"
-    }
-
-    return $isStopped -and $isDisabled
-    
-}
-Set-Alias -Name taskSuspend -Value Suspend-PlatformTask -Scope Global
-
-function global:Resume-PlatformTask {
-
-    # Resume = Disabled
-    
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [switch]$Quiet
-    ) 
-
-    $task = Get-PlatformTask -Id $Id
-
-    $isEnabled = Enable-PlatformTask -Id $Id -Quiet:$Quiet.IsPresent
-    if (!$isEnabled) {
-        Write-Host+ -NoTrace "$($Id) $($task.Status)"
-        Write-Log -Context $Id -Action "Enable" -EntryType "Warning" -Status $task.Status
-        Send-TaskMessage -Id $Id -Status "Disabled" -MessageType $PlatformMessageType.Alert
-    } else {
-        Write-Log -Context $Id -Action "Enable" -EntryType "Information" -Status $task.Status
-        Send-TaskMessage -Id $Id -Status "Enabled"
-    }
-
-    return $isEnabled
-    
-}
-Set-Alias -Name taskResume -Value Resume-PlatformTask -Scope Global
-
-function global:Unregister-PlatformTask {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
-        [Parameter(Mandatory=$false)][string]$TaskName = (Get-Product -Id $Id).TaskName
-    ) 
-    
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-
-    return
+    return Invoke-Expression "`$$OutputType"
 
 }
-Set-Alias -Name taskUnRegister -Value Unregister-PlatformTask -Scope Global
 
 function global:Show-PlatformTasks {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60)
+        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [switch]$Disabled
     ) 
 
     Write-Host+
 
-    $productsWithTask = Get-Product | Where-Object {$_.HasTask}
-    foreach ($productWithTask in $productsWithTask) {
-        $task = Get-PlatformTask -Id $productWithTask.Id
-        $message = "<$($productWithTask.Id) <.>32> $($task.Status.ToUpper())"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($task.Status -in ("Ready","Running") ? "DarkGreen" : "Red")
+    $platformTasks = Get-PlatformTask
+    if ($Disabled) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled}}
+    foreach ($platformTask in $platformTasks) {
+        $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
     }
 
     Write-Host+

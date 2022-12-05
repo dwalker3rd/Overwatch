@@ -391,9 +391,10 @@ function script:Copy-File {
         $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING"
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
-        $productIsStopped = Stop-PlatformTask -Id $productToEnable.Id -Quiet
-        $productIsDisabled = Disable-PlatformTask -Id $productToEnable.Id -Quiet
-        $productStatus = (Get-PlatformTask -Id $productToEnable.Id).Status
+        $platformTask = Disable-PlatformTask -Id $productToEnable.Id -OutputType PlatformTask -Quiet
+        $productIsStopped = $platformTask.Status -in $global:PlatformTaskState.Stopped
+        $productIsDisabled = $platformTask.Status -in $global:PlatformTaskState.Disabled
+        $productStatus = $platformTask.Status
 
         $message = "$($emptyString.PadLeft(27,"`b"))$($productIsStopped ? "STOPPED" : "$($productStatus.ToUpper())")$($emptyString.PadLeft($($productIsStopped ? 13 : 20-$productStatus.Length)," "))PENDING"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor ($productIsStopped ? "Red" : "DarkGreen"),DarkGray
@@ -418,8 +419,9 @@ function script:Copy-File {
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGreen
         }
 
-        $productIsEnabled = Enable-PlatformTask -Id $productToEnable.Id -Quiet
-        $productStatus = (Get-PlatformTask -Id $productToEnable.Id).Status
+        $platformTask = Enable-PlatformTask -Id $productToEnable.Id -OutputType PlatformTask -Quiet
+        $productIsEnabled = $platformTask.Status -in $global:PlatformTaskState.Enabled
+        $productStatus = $platformTask.Status
 
         $message = "$($emptyString.PadLeft(28,"`b"))INSTALLED$($emptyString.PadLeft(11," "))PENDING"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red"),DarkGray
@@ -465,15 +467,16 @@ function script:Copy-File {
 
         if (Test-Path -Path "$($global:Location.Scripts)\install\uninstall-product-$($productToUninstall.Id).ps1") {. "$($global:Location.Scripts)\install\uninstall-product-$($productToUninstall.Id).ps1"}
 
-        if ($productToUninstall.HasTask -and $(Get-PlatformTask -Id $Product)) {
+        if ($productToUninstall.HasTask) {
             
+            $platformTask = Get-PlatformTask -Id $Product
+
             $message = "$($emptyString.PadLeft(40,"`b"))STOPPING$($emptyString.PadLeft(12," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor DarkYellow
 
-            $isStopped = Stop-PlatformTask -Id $Product -Quiet
-            $isStopped | Out-Null
+            $platformTask = Stop-PlatformTask -PlatformTask $platformTask -OutputType PlatformTask -Quiet
 
-            $message = "$($emptyString.PadLeft(20,"`b"))STOPPED$($emptyString.PadLeft(13," "))"
+            $message = "$($emptyString.PadLeft(20,"`b"))$($platformTask.Status.ToUpper())$($emptyString.PadLeft(13," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor Red
 
             Unregister-PlatformTask -Id $Product
