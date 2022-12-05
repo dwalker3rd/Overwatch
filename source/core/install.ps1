@@ -18,6 +18,7 @@ $global:WriteHostPlusPreference = "Continue"
 . $PSScriptRoot\source\core\definitions\definitions-overwatch.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-install.ps1
+. $PSScriptRoot\source\core\services\cache.ps1
 
 Write-Host+ -ResetAll
 Write-Host+
@@ -932,6 +933,7 @@ Clear-Host
     . $PSScriptRoot\definitions\definitions-overwatch.ps1
     . $PSScriptRoot\services\services-overwatch-loadearly.ps1
     . $PSScriptRoot\services\services-overwatch-install.ps1
+    . $PSScriptRoot\services\cache.ps1
 
 #region MODULES-PACKAGES
 
