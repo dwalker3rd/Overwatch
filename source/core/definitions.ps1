@@ -119,24 +119,33 @@
 #endregion POSTFLIGHT
 #region WARNINGS
 
+    $_platformTasksDisabled = $false
+    $_platformTasks = Get-PlatformTask
+    foreach ($_platformTask in $_platformTasks) {
+        if ($_platformTask.Status -in $global:PlatformTaskState.Disabled) {
+            $_platformTasksDisabled = $true
+            continue
+        }
+    }
+
+    $_warnings = IsMessagingDisabled -and $_platformTasksDisabled
+
+    Write-Host+ -Iff ($_warnings)
+
     if (IsMessagingDisabled) {
-        Write-Host+
         Write-Host+ -NoTrace "Messaging DISABLED" -ForegroundColor DarkYellow
     }
 
-    $platformTasks = Get-PlatformTask
-    if ($platformTasks.Status -contains "Disabled") {
-        Write-Host+
-        Write-Host+ -NoTrace -NoTimeStamp "Disabled tasks"
-        Write-Host+ -NoTrace -NoTimeStamp "--------------"
-        Show-PlatformTasks -PlatformTask $platformTasks -Disabled
-        Write-Host+
+    if ($_platformTasksDisabled) {
+        Write-Host+ -NoTrace "Some platform tasks are DISABLED" -ForegroundColor DarkYellow
     }
+
+    Write-Host+ -Iff ($_warnings)
 
 #endregion WARNINGS
 #region CLOSE
 
-    Write-Host+ ""
+    Write-Host+ -MaxBlankLines 1
     $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
     Write-Host+
