@@ -234,7 +234,7 @@ function global:Get-ServerStatus {
                     }
                 }
 
-                Write-Log -EntryType $PlatformMessageType.Warning -Action $shutdown.event -Status $shutdown.status -Data ($shutdownEventWithReason | Select-Object -property MachineName,ProviderName,LogName,Id,TimeCreated,Message | ConvertTo-Json -Compress) -Target $node
+                Write-Log -EntryType $PlatformMessageType.Event -Context Server -Action $shutdown.event -Target $node -Status $shutdown.status -Message $shutdown.reason
                 Write-Host+ -NoTrace -NoTimestamp -ForegroundColor ($shutdown.level -eq $PlatformMessageType.Alert ? "DarkRed" : "DarkYellow") "[$($shutdown.timeCreated.ToString('u'))] $($shutdown.event.ToUpper()) of $($node.ToUpper()) $($be) $($shutdown.status.ToUpper())" 
 
                 Send-ServerStatusMessage -ComputerName $shutdown.node -Event $shutdown.event -Status $shutdown.status -Reason $shutdown.reason -Comment $shutdown.comment -User $shutdown.user -Level $shutdown.level -TimeCreated $shutdown.timeCreated
