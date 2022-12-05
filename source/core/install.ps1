@@ -561,11 +561,6 @@ Clear-Host
                 }
             }
 
-            $installUpdate = $false
-            if ($coreFiles.Core -contains "Install") {
-                $installUpdate = $true
-            }
-
             $files = (Get-ChildItem $PSScriptRoot\source\core\definitions -File).VersionInfo.FileName
             foreach ($file in $files) { 
                 $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
@@ -614,6 +609,11 @@ Clear-Host
             # Remove-Files -Path $tempEnvironFile
 
             $updatedfiles += $coreFiles
+
+            $installUpdate = $false
+            if ((Split-Path $coreFiles.Destination -Leaf) -like "*install.ps1") {
+                $installUpdate = $true
+            }
 
         #endregion CORE
         #region PowerShell

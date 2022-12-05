@@ -378,6 +378,7 @@ function script:Copy-File {
 #region PRODUCT
 
     function script:Disable-Product {
+
         [CmdletBinding()]
         Param (
             [Parameter(Mandatory=$true,Position=0)][string]$Context,
@@ -401,9 +402,11 @@ function script:Copy-File {
 
         $message = "$($emptyString.PadLeft(7,"`b"))$($productStatus.ToUpper())"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor ($productIsDisabled ? "Red" : "DarkGreen")
+
     }
 
     function script:Enable-Product {
+
         [CmdletBinding()]
         Param (
             [Parameter(Mandatory=$true,Position=0)][string]$Context,
@@ -428,9 +431,11 @@ function script:Copy-File {
 
         $message = "$($emptyString.PadLeft(7,"`b"))$($productStatus.ToUpper())$($emptyString.PadLeft(20-$productStatus.Length)," ")"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red")
+
     }
 
     function script:Install-Product {
+
         [CmdletBinding()]
         Param (
             [Parameter(Mandatory=$true,Position=0)][string]$Context,
@@ -446,6 +451,7 @@ function script:Copy-File {
         }
 
         if (Test-Path -Path "$($global:Location.Scripts)\install\install-product-$($productToInstall).ps1") {. "$($global:Location.Scripts)\install\install-product-$($productToInstall).ps1" -UseDefaultResponses:$UseDefaultResponses.IsPresent -NoNewLine:$NoNewLine.IsPresent}
+        
     }
 
     function script:Uninstall-Product {
