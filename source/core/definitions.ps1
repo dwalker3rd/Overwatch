@@ -124,6 +124,15 @@
         Write-Host+ -NoTrace "Messaging DISABLED" -ForegroundColor DarkYellow
     }
 
+    $platformTasks = Get-PlatformTask
+    if ($platformTasks.Status -contains "Disabled") {
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimeStamp "Disabled tasks"
+        Write-Host+ -NoTrace -NoTimeStamp "--------------"
+        Show-PlatformTasks -PlatformTask $platformTasks -Disabled
+        Write-Host+
+    }
+
 #endregion WARNINGS
 #region CLOSE
 

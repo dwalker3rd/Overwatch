@@ -507,20 +507,23 @@ function global:Show-PlatformTasks {
 
     [CmdletBinding()]
     param (
+        [Parameter(Mandatory=$false)][object[]]$PlatformTask = (Get-PlatformTask),
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
         [switch]$Disabled
     ) 
 
-    Write-Host+
-
-    $platformTasks = Get-PlatformTask
+    $platformTasks = @()
+    $platformTasks += $PlatformTask
     if ($Disabled) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled}}
+
+    # Write-Host+ -Iff $($platformTasks.Count -ge 1)
+
     foreach ($platformTask in $platformTasks) {
         $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
     }
 
-    Write-Host+
+    # Write-Host+ -Iff $($platformTasks.Count -ge 1)
 
 }
 
