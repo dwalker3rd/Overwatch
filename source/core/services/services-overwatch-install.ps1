@@ -392,7 +392,7 @@ function script:Copy-File {
         $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING"
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
-        $platformTask = Disable-PlatformTask -Id $productToEnable.Id -OutputType PlatformTask -Quiet
+        $platformTask = Disable-PlatformTask -Id $productToEnable.Id -OutputType PlatformTask 
         $productIsStopped = $platformTask.Status -in $global:PlatformTaskState.Stopped
         $productIsDisabled = $platformTask.Status -in $global:PlatformTaskState.Disabled
         $productStatus = $platformTask.Status
@@ -422,7 +422,7 @@ function script:Copy-File {
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGreen
         }
 
-        $platformTask = Enable-PlatformTask -Id $productToEnable.Id -OutputType PlatformTask -Quiet
+        $platformTask = Enable-PlatformTask -Id $productToEnable.Id -OutputType PlatformTask
         $productIsEnabled = $platformTask.Status -in $global:PlatformTaskState.Enabled
         $productStatus = $platformTask.Status
 
@@ -480,7 +480,7 @@ function script:Copy-File {
             $message = "$($emptyString.PadLeft(40,"`b"))STOPPING$($emptyString.PadLeft(12," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor DarkYellow
 
-            $platformTask = Stop-PlatformTask -PlatformTask $platformTask -OutputType PlatformTask -Quiet
+            $platformTask = Stop-PlatformTask -PlatformTask $platformTask -OutputType PlatformTask
 
             $message = "$($emptyString.PadLeft(20,"`b"))$($platformTask.Status.ToUpper())$($emptyString.PadLeft(13," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor Red
