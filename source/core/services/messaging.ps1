@@ -32,7 +32,7 @@ function global:Send-Message {
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
     if (IsMessagingDisabled) {
-        Write-Log -Context "Messaging" -EntryType "Information" -Action "Send-Message" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $global:PlatformMessageStatus.Disabled.ToUpper()" -Force
+        Write-Log -Context "Messaging" -EntryType "Information" -Action "Send" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
         return $global:PlatformMessageStatus.Disabled
     }
 
@@ -61,8 +61,6 @@ function global:Send-PlatformStatusMessage {
         [switch]$ShowAll,
         [switch]$NoThrottle
     )
-
-    Write-Log -EntryType "Debug" -Action "Send-PlatformStatusMessage" -Target "Platform" -Message ($MessageType | ConvertTo-Json)
 
     $sections = @(
         @{

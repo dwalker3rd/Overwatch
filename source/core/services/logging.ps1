@@ -508,12 +508,7 @@ function global:Summarize-Log {
                         }
 
                         $_color = switch ($summaryDetail.EntryType) {
-                            "Event" { 
-                                switch ($summaryDetail.Context) {
-                                    "Server" { $global:consoleSequence.ForegroundBlue } 
-                                    default { $global:consoleSequence.ForegroundCyan }
-                                }
-                            }
+                            "Event" { $global:consoleSequence.ForegroundCyan }
                             "Error" { $global:consoleSequence.ForegroundRed }
                             "Warning" { $global:consoleSequence.ForegroundYellow }
                             "Information" { $global:consoleSequence.ForegroundDarkGrey }
@@ -598,7 +593,7 @@ function global:Summarize-Log {
                 # }
             }
 
-            $summaryDetailsFormattedByNode | Sort-Object -Property _Timestamp -Descending | Format-Table -HideTableHeaders -View (Get-FormatData Overwatch.Log.Summary.Details)
+            $summaryDetailsFormattedByNode | Sort-Object -Property _Timestamp -Descending | Format-Table -HideTableHeaders #-View (Get-FormatData Overwatch.Log.Summary.Details)
 
         }
 
