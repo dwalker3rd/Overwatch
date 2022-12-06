@@ -395,42 +395,48 @@ function global:New-AzProject {
 }
 Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
 
-function global:Convert-AzProjectImportFile {
+function global:Import-AzProjectFile {
+
+    # alternative to Import-CSV which allows for comments in the project files
+    # file format is standard CSV, first row is header row, powershell comments allowed
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
+        [Parameter(Mandatory=$true)][string]$Path
     )
 
-    $message = "<  Import File Conversion <.>60> PENDING"
-    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-    $originalImport = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments.csv"
-    if (!(Test-Path $originalImport)) {
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator "$($emptyString.PadLeft(8,"`b")) FAILURE$($emptyString.PadLeft(8," "))" -ForegroundColor Red
-        Write-Host+ -NoTrace -NoSeparator "    ERROR: File `"$originalImport`" not found." -ForegroundColor Red
-        Write-Host+
+    if (!(Test-Path $Path)) {
+        Write-Host+ -NoTrace -Prefix "ERROR" "$Path not found." -ForegroundColor DarkRed
         return
     }
 
-    $UserImport = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
-    # $GroupImport = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
-    $ResourceImport = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-    $RoleAssignmentImport = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
+    # get content
+    $content = Get-Content -Path $Path -Raw
 
-    $originalData = Import-Csv "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments.csv"
-    $originalData | Select-Object -Property signInName,fullName | Sort-Object -Property signInName -Unique | Export-Csv $UserImport -UseQuotes Always -NoTypeInformation
-    $originalData | Select-Object -Property resourceType,resourceName,@{name="resourceID";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}} | Sort-Object -Property resourceType, resourceName -Unique | Export-Csv $ResourceImport -UseQuotes Always  -NoTypeInformation
-    $originalData | Select-Object -Property @{name="resourceID";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}}, role, @{name="assigneeType";expression={"user"}}, @{name="assignee";expression={$_.signInName}} | Export-Csv $RoleAssignmentImport -UseQuotes Always  -NoTypeInformation
+    # parse/tokenize comments
+    $comments = [System.Management.Automation.PSParser]::Tokenize($content,[ref]$null) | 
+        Where-Object Type -eq 'Comment' | 
+            Select-Object -Expand Content
 
-    $originalImportArchive = "$($global:AzureProject.Location.Data)\archive"
-    if (!(Test-Path $originalImportArchive)) {
-        New-Item -Path $global:AzureProject.Location.Data -Name "archive" -ItemType "Directory" | Out-Null
-    }
-    Move-Item -Path $originalImport -Destination $originalImportArchive
+    # generate regex to remove comments
+    $regex = ( $comments | ForEach-Object { [regex]::Escape($_) } ) -join '|'
 
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))" -ForegroundColor DarkGreen
-    Write-Host+
+    # remove comments from content
+    # this does not remove whitespace before/after the comment!
+    $content = $content -replace $regex -split '\r?\n' -notmatch '^\s*$'
+
+    # trim leading/trailing whitespace
+    $content = $content -replace $global:RegexPattern.Whitespace.Trim 
+
+    # get property names from header row
+    $propertyNames = $content[0] -split ","
+
+    # convert content to an object
+    $_object = $content[1..$content.Length] | 
+        ConvertFrom-String -Delimiter "," -PropertyNames $propertyNames |
+            Select-Object -Property $propertyNames
+
+    return $_object
 
 }
 
@@ -566,7 +572,7 @@ function global:Grant-AzProjectRole {
 
         Write-Host+ -NoTrace -NoSeparator "    $UserImport" -ForegroundColor DarkGray
         $users = @()
-        $users += Import-Csv $UserImport
+        $users += Import-AzProjectFile $UserImport
         if ($User) {
             # if $User has been specified, filter $users to the specified $User only
             $users = $users | Where-Object {$_.signInName -eq $User}
@@ -587,7 +593,7 @@ function global:Grant-AzProjectRole {
         Write-Host+ -NoTrace -NoSeparator "    $GroupImport" -ForegroundColor DarkGray
         $groups = @()
         if (Test-Path $GroupImport) {
-            $groups += Import-Csv $GroupImport
+            $groups += Import-AzProjectFile $GroupImport
             if ($User) {
                 # if $User has been specified, filter $groups to only those containing $User
                 $groups = $groups | Where-Object {$_.user -eq $User}
@@ -596,10 +602,10 @@ function global:Grant-AzProjectRole {
 
         Write-Host+ -NoTrace -NoSeparator "    $ResourceImport" -ForegroundColor DarkGray
         $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceID = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope}
-        $resources += Import-Csv -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceID, @{Name="resourceScope"; Expression={$null}} | Sort-Object -Property resourceType, resourceName -Unique   
+        $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceID, @{Name="resourceScope"; Expression={$null}} | Sort-Object -Property resourceType, resourceName -Unique   
 
         Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImport" -ForegroundColor DarkGray
-        $roleAssignmentsFromFile = Import-Csv -Path $RoleAssignmentImport
+        $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImport
         if ($User) {
             # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
             $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
@@ -930,7 +936,7 @@ function global:Grant-AzProjectRole {
         # export $roleAssignments
         # if $User has been specified, skip this step
         if (!$User) {
-            $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExport -UseQuotes Always -NoTypeInformation 
+            $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExport -UseQuotes Never -NoTypeInformation  
         }
 
         Write-Host+
@@ -1113,15 +1119,9 @@ function global:Deploy-AzProject {
         [Parameter(Mandatory=$false)][ValidateSet("dsvm-win-2019","linux-data-science-vm-ubuntu","ubuntuserver")][string]$VmImageOffer
     )
 
-    # Initialize-AzureAD
-
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
-
-    # Connect-AzureAD -Tenant $tenantKey
-
-    # Initialize-AzProject -Tenant $tenantKey -ProjectName $ProjectName # -StorageAccountName $StorageAccountName -StorageContainerName $StorageContainerName
 
     switch ($DeploymentType) {
         "DSnA" {    
