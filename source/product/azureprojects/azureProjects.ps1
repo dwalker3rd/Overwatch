@@ -410,28 +410,41 @@ function global:Import-AzProjectFile {
         return
     }
 
-    # get content
-    $content = Get-Content -Path $Path -Raw
+    # tokenize content using the PowerShell Language Parser
+    $tokens = $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$parseErrors)
+    $ast | Out-Null
 
-    # parse/tokenize comments
-    $comments = [System.Management.Automation.PSParser]::Tokenize($content,[ref]$null) | 
-        Where-Object Type -eq 'Comment' | 
-            Select-Object -Expand Content
+    # remove comment tokens
+    $tokens = $tokens | Where-Object {$_.Kind -ne "Comment"}
 
-    # generate regex to remove comments
-    $regex = ( $comments | ForEach-Object { [regex]::Escape($_) } ) -join '|'
+    # recreate the content
+    $tokenText = @()
+    foreach ($token in $tokens) {
+        if ($token.Kind -eq "StringExpandable") {
+            $diff = $token.Text -replace $token.Value
+            if (![string]::IsNullOrEmpty($diff)) {
+                if ($diff -in ('""',"''")) {
+                    $tokenText += [string]::IsNullOrEmpty($token.Value) ? "" : $token.Value
+                }
+                else {
+                    $tokenText += $token.Text
+                }
+            }
+        }
+        else {
+            $tokenText += $token.Text
+        }
+    }
+    $content = -join $tokenText
 
-    # remove comments from content
-    # this does not remove whitespace before/after the comment!
-    $content = $content -replace $regex -split '\r?\n' -notmatch '^\s*$'
+    # content is a string; convert to an array
+    $content = $content -split '\r?\n'
 
-    # trim leading/trailing whitespace
-    $content = $content -replace $global:RegexPattern.Whitespace.Trim 
+    # property names are in the first row
+    $propertyNames = ($content -split '\r?\n')[0] -split ","
 
-    # get property names from header row
-    $propertyNames = $content[0] -split ","
-
-    # convert content to an object
+    # convert remaining rows to an object
     $_object = $content[1..$content.Length] | 
         ConvertFrom-String -Delimiter "," -PropertyNames $propertyNames |
             Select-Object -Property $propertyNames
@@ -936,7 +949,7 @@ function global:Grant-AzProjectRole {
         # export $roleAssignments
         # if $User has been specified, skip this step
         if (!$User) {
-            $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExport -UseQuotes Never -NoTypeInformation  
+            $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExport -UseQuotes Always -NoTypeInformation  
         }
 
         Write-Host+
@@ -1009,7 +1022,9 @@ function global:Grant-AzProjectRole {
                     $message = "    $($resourceType)/$($resourceName)"
                     $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "   
 
-                    $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn  | Sort-Object -Property Scope
+                    $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Sort-Object -Property Scope
+                    # exclude currentRoleAssignments for resources that are children of $resourceScope
+                    $currentRoleAssignments = $currentRoleAssignments | Where-Object {($resourceScope -eq $_.Scope -or $resourceScope.StartsWith($_.Scope)) -and $_.Scope.Length -le $resourceScope.Length}
                     if ($currentRoleAssignments) {
                         Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
                         foreach ($currentRoleAssignment in $currentRoleAssignments) {
