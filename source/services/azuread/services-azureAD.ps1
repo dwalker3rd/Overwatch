@@ -576,7 +576,7 @@ function global:Update-AzureADUserEmail {
         $status = "Failure"
         $entryType = "Error"
         if ($response.error.details.code -contains "ObjectConflict") {
-            $status = "Conflict"
+            $status = "ProxyAddressConflict"
             $message = ($response.error.details | Where-Object {$_.code -eq "ObjectConflict"}).message
             $entryType = "Warning"
         }

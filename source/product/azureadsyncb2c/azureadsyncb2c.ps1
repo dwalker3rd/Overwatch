@@ -215,8 +215,9 @@ try {
     #endregion TARGET USERS TO ENABLE    
     #endregion FIND EMAIL UPDATES
 
-        $targetUsersUpdateEmailConflicts = [array](read-cache "$targetTenantKey-objectconflict-proxyaddress")
-        if (!$targetUsersUpdateEmailConflicts) { $targetUsersUpdateEmailConflicts = @() }
+        $proxyAddressConflictCache = "$targetTenantKey-objectconflict-proxyaddress"
+        $proxyAddressConflicts = [array](read-cache $proxyAddressConflictCache)
+        if (!$proxyAddressConflicts) { $proxyAddressConflicts = @() }
 
         # Azure AD B2C users with a null mail property where the emailaddress 
         # identity's issuerAssignedId ends with the Azure AD tenant's source AD domain
@@ -224,7 +225,7 @@ try {
             Where-Object {$_.accountEnabled -and [string]::IsNullOrEmpty($_.mail) -and 
                 ![string]::IsNullOrEmpty(($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId) -and 
                 ($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId.endswith($global:AzureAD.$sourceTenantKey.Sync.Source)} | 
-                    Where-Object {$_.id -notin $targetUsersUpdateEmailConflicts.id}
+                    Where-Object {$_.id -notin $proxyAddressConflicts.id}
 
         $message = "<$target\Email\Update <.>60> $($targetUsersUpdateEmail.Count)"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($targetUsersUpdateEmail.Count -gt 0 ? "DarkGreen" : "DarkGray")
@@ -352,9 +353,10 @@ try {
                 $response = Update-AzureADUserEmail -Tenant $targetTenantKey -User $targetUserUpdateEmail -mail $targetSignInName
                 if ($response.error) {
                     $status = "FAILURE"
-                    if ($response.error.details.code -contains "ObjectConflict") {
-                        $targetUsersUpdateEmailConflicts += $targetUserUpdateEmail
-                        $status = "CONFLICT"
+                    if ($response.error.details.code -contains "ProxyAddressConflict") {
+                        $status = "ProxyAddressConflict"; $entryType = "Warning"
+                        $proxyAddressConflicts += $targetUserUpdateEmail
+                        Write-Log -Context "ProxyAddressConflict" -Action "Resolve" -Target "$tenantKey\Users\$($User.id)" -Message "$targetSignInName added as exclusion to ProxyAddressConflict list." -Status "Mitigated" -EntryType $entryType -Force
                     }
                 }
 
@@ -369,7 +371,7 @@ try {
                 
             }
 
-            $targetUsersUpdateEmailConflicts | Write-Cache "$targetTenantKey-objectconflict-proxyaddress"
+            $proxyAddressConflicts | Write-Cache $proxyAddressConflictCache
 
             Write-Host+
 
