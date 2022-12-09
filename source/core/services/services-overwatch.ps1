@@ -778,61 +778,78 @@
 
     }
 
+    function global:IsLocalHost {
+
+        [CmdletBinding()]
+        [OutputType('bool')]
+        param(
+            [Parameter(Mandatory=$true)][string]$ComputerName
+        )
+        return $ComputerName.ToLower() -eq $env:COMPUTERNAME.ToLower()
+    }    
+
     function global:Get-PSSession+ {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=$env:COMPUTERNAME,
-            [switch]$All
+            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
+            [Parameter(Mandatory=$false)][string]$ConfigurationName = $global:PSSessionConfigurationName,
+            [switch]$All,
+            [switch]$New
         )
 
-        if ($All) {return Get-PSSession}
+        $psSessions = @()
+        
+        $ComputerName | ForEach-Object {
 
-        $allSessions = @()
-        foreach ($node in $ComputerName) {
-            $psSession = $null
-            $nodeIsLocalhost = $node.ToLower() -eq "localhost" -or $node.ToLower() -eq $env:COMPUTERNAME.ToLower()
-            # $psSessions = $nodeIsLocalhost ? (Get-PSSession | Where-Object {$_.ComputerName.ToLower() -eq "localhost"}) : (Get-PSSession -ComputerName $node)
-            $psSessions = @()
-            if ($nodeIsLocalhost) {
-                $psSessions = Get-PSSession | Where-Object {$_.ComputerName.ToLower() -eq "localhost"}
-            }
-            elseif ($global:UseCredssp) {
-                $creds = Get-Credentials "localadmin-$($Platform.Instance)" -Credssp
-                $psSessions += Get-PSSession -ComputerName $node -Credential $creds -Authentication Credssp
-            }
-            else {
-                $psSessions += Get-PSSession -ComputerName $node
-            }
-            $psSessions = $psSessions | Sort-Object -Property @{Expression = "State"; Descending = $true}, @{Expression = "Availability"; Descending = $false}
-            foreach ($nodePSSession in $psSessions) {
-                if ($null -ne $nodePSSession -and 
-                    ($nodePSSession.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::Available)) {
-                        $psSession = $nodePSSession
-                        # we have a psSession, so break out of the loop
-                        break
+            $node = $_.ToLower()
+            $nodeNames = @(); $nodeNames += $node
+            if (IsLocalHost($node)) { $nodeNames += "localhost" }
+
+            $params = @()
+            if ($global:UseCredssp) { 
+                $params += @{ 
+                    Credential = Get-Credentials "localadmin-$($Platform.Instance)" -Credssp
+                    Authentication = Credssp
                 }
             }
-            # dealing with a single psSession, not an array
-            if ($null -eq $psSession) {
-                if ($global:UseCredssp) {
-                    $creds = Get-Credentials "localadmin-$($Platform.Instance)" -Credssp
-                    $psSession = New-PSSession -ComputerName $node -Credential $creds -Authentication Credssp
+
+            $psSessions += Get-PSSession @params | Where-Object {$_.ComputerName -in $nodeNames}
+
+            if (!$All) {
+
+                # Only reuse PSSessions using $global:PSSessionConfigurationName as set by Overwatch 
+                # $global:PSSessinConfigurationName is set by Overwatch to "PowerShell.$($PSVersionTable.PSVersion.Major)"
+                if (![string]::IsNullOrEmpty($ConfigurationName)) {
+                    $psSessions = $psSessions |
+                        Where-Object { $_.ConfigurationName -eq $ConfigurationName}
                 }
-                else {
-                    $psSession = New-PSSession -ComputerName $node -ErrorAction SilentlyContinue
-                    if ($null -eq $psSession -and $nodeIsLocalhost) {
-                        $psSession = New-PSSession -EnableNetworkAccess
+
+                # Ensure that, at a minimum, the WinPSCompatSession is NEVER reused
+                $psSessions = $psSessions | 
+                    Where-Object { $_.Name -ne "WinPSCompatSession" } 
+                    
+                # Only resuse PSSession with RunspaceAvailability = "Available"
+                $psSessions = $psSessions | 
+                    Where-Object { $_.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::Available } 
+                
+                # Sort by State and Availability so that the best PSSessions are at the top of the list
+                $psSessions = $psSessions |
+                    Sort-Object -Property @{Expression = "State"; Descending = $true}, @{Expression = "Availability"; Descending = $false}                
+            
+                $psSession = !$New ? ($null -ne $psSessions ? $psSessions[0] : $null) : $null
+                if ($null -eq $psSession) {
+                    $psSession = New-PSSession @params -ErrorAction SilentlyContinue 
+                    if ($null -eq $psSession -and (IsLocalHost($node))) {
+                        $psSession = New-PSSession -EnableNetworkAccess -ErrorAction SilentlyContinue 
                     }
                 }
+
             }
-            # if ($psSession.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Disconnected) {
-            #     Connect-PSSession -Session $psSession | Out-Null
-            # }
-            $allSessions += $psSession
+
         }
 
-        return $allSessions
+        return $All ? $psSessions : $psSession
 
     }
 
