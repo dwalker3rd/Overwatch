@@ -9,58 +9,64 @@ $Provider = $global:Catalog.Provider.Views
 
 $global:ViewSettings = @{
     MaxArrayElements = 1
-    MaxStringLength = 50
+    MaxStringLength = 100
 }
 
 $global:FileObjectView = @{
-    Default = $([FileObject]@{}).psobject.properties.name
+    Default = $([FileObject]@{}).PSObject.Properties.Name
     Min = @("Path","ComputerName",@{Name="Exists";Expression={$_.exists()}})
 } 
 
 $global:LogObjectView = @{
-    Default = $([LogObject]@{}).psobject.properties.name
+    Default = $([LogObject]@{}).PSObject.Properties.Name
     Min = @("Path","ComputerName")
 } 
 
 $global:CacheObjectView = @{
-    Default = $([CacheObject]@{}).psobject.properties.name
+    Default = $([CacheObject]@{}).PSObject.Properties.Name
     Min = @("Path","ComputerName","MaxAge")
 } 
 
 $global:LogEntryView = @{
-    Default = $([LogEntry]@{}).psobject.properties.name | Where-Object {$_ -ne "Data"}
-    Min = @(
+    Header = 'Index,TimeStamp,EntryType,Context,Action,"Target","Status","Message","Data"'
+    Raw = @(
+        "Index","TimeStamp","EntryType","Context","Action","Target","Status","Message","Data"
+    )
+    Write = @(
         "Index",
         @{
             Name="TimeStamp"
             Expression = {
-                $_.Timestamp.ToString('u')
+                (Get-Date($_.Timestamp)).ToString('u')
+            }
+        },
+        "EntryType","Context","Action","Target","Status","Message","Data"
+    )
+    Default = @(
+        "Index",
+        @{
+            Name="TimeStamp"
+            Expression = {
+                (Get-Date($_.Timestamp)).ToString('u')
             }
         },
         "EntryType","Context","Action",
         @{
             Name="Target"
             Expression = {
-                ($_.Target.Substring(0,1) -eq "[") -and ($_.Target | ConvertFrom-Json).GetType().BaseType.Name -eq "Array" ? 
-                    (($_.Target | ConvertFrom-Json).Count -gt $global:ViewSettings.MaxArrayElements ? "$((($_.Target | ConvertFrom-Json)[0..($global:ViewSettings.MaxArrayElements-1)]) -join ","),..." : "$(($_.Target | ConvertFrom-Json) -join ",")") : 
-                    ($_.Target.Length -gt $global:ViewSettings.MaxStringLength ? "$($_.Target.Substring(0,($global:ViewSettings.MaxStringLength-1)))...}" : $_.Target)
+                ($_.Target.Substring(0,1) -eq "[") -and ($_.Target | ConvertFrom-Json).GetType().BaseType.Name -eq "Array" ? "$(($_.Target | ConvertFrom-Json) -join ",")" : $_.Target
+                # ($_.Target.Substring(0,1) -eq "[") -and ($_.Target | ConvertFrom-Json).GetType().BaseType.Name -eq "Array" ? 
+                #     (($_.Target | ConvertFrom-Json).Count -gt $global:ViewSettings.MaxArrayElements ? "$((($_.Target | ConvertFrom-Json)[0..($global:ViewSettings.MaxArrayElements-1)]) -join ","),..." : "$(($_.Target | ConvertFrom-Json) -join ",")") : 
+                #     ($_.Target.Length -gt $global:ViewSettings.MaxStringLength ? "$($_.Target.Substring(0,($global:ViewSettings.MaxStringLength-1)))...}" : $_.Target)
             }
         },
-        "Status",
-        @{
-            Name="Message"
-            Expression = {
-                ($_.Message.Length -gt $global:ViewSettings.MaxStringLength ? 
-                    ((Test-Json $_.Message) ? "$($_.Message.Substring(0,($global:ViewSettings.MaxStringLength-2)))...}" : "$($_.Message.Substring(0,($global:ViewSettings.MaxStringLength-1)))...") : 
-                    $_.Message)
-            }
-        },
+        "Status","Message",
         # @{
-        #     Name="Data"
+        #     Name="Message"
         #     Expression = {
-        #         ($_.Data.Length -gt $global:ViewSettings.MaxStringLength ? 
-        #             ((Test-Json $_.Data) ? "$($_.Data.Substring(0,($global:ViewSettings.MaxStringLength-2)))...}" : "$($_.Data.Substring(0,($global:ViewSettings.MaxStringLength-1)))...") : 
-        #             $_.Data)
+        #         ($_.Message.Length -gt $global:ViewSettings.MaxStringLength ? 
+        #             ((Test-Json $_.Message) ? "$($_.Message.Substring(0,($global:ViewSettings.MaxStringLength-2)))...}" : "$($_.Message.Substring(0,($global:ViewSettings.MaxStringLength-1)))...") : 
+        #             $_.Message)
         #     }
         # },
         "ComputerName"
@@ -68,7 +74,7 @@ $global:LogEntryView = @{
 } 
 
 $global:CimView = @{
-    Default = $([PlatformCim]@{}).psobject.properties.name
+    Default = $([PlatformCim]@{}).PSObject.Properties.Name
     Min = @("Id","Name","Status","Node","Required","Transient","IsOK","Class","ParentName","ParentId")
 }
 
@@ -195,7 +201,7 @@ $global:TopologyView = @{
         @{Name="Storage"; Expression = {"$($_.TotalDiskSpace) GB"}}
     )
     Nodes = @("NodeId","Node")
-    Raw = $($_.psobject.properties.name)
+    Raw = $($_.PSObject.Properties.Name)
 }
 
 $global:StatusView = @{
@@ -244,7 +250,7 @@ $global:UserMapView = @{
 }
 
 $global:PlatformEventView = @{
-    Default = $([PlatformEvent]@{}).psobject.properties.name
+    Default = $([PlatformEvent]@{}).PSObject.Properties.Name
     Min = @("Event","EventStatus","EventReason","EventStatusTarget","EventCreatedBy","EventCreatedAt","EventUpdatedAt","EventCompletedAt","EventHasCompleted","ComputerName")
 }
 

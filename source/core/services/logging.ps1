@@ -1,9 +1,6 @@
 $global:logOptimalRecordCount = 5000
 $global:logMaxRecordCount = 10000
 $global:logMinRecordCount = 1000
-$global:logFieldsExtended = @("ComputerName")
-$global:logFieldsDefault = $([LogEntry]@{} | ConvertTo-Csv -UseQuotes Never)[0] -split "," | Where-Object {$_ -notin $logFieldsExtended}
-$global:logFileHeader = $logFieldsDefault -join ","
 $global:logFieldsQuoted = @("Target","Status","Message","Data")
 $global:CommonParameters = $([System.Management.Automation.Internal.CommonParameters]).DeclaredProperties.Name
 $global:LogLevels = @{
@@ -87,7 +84,7 @@ function global:New-Log {
     $newLog = foreach ($node in $ComputerName){
         if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
         $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
-        [LogObject]::new($Path, $node).New($logFileHeader)
+        [LogObject]::new($Path, $node).New($global:LogViewEntry.Raw)
     }
 
     return $newLog
@@ -108,13 +105,13 @@ function global:Watch-Log {
 
     $logEntry = Read-Log -Name $Name -ComputerName $ComputerName -Tail 10
     $lastIndex = $logEntry[$logEntry.Count-1].Index
-    $logEntry | Select-Object -Property $($View ? $LogEntryView.$($View) : $($LogEntryView.$($Name) -and !$UseDefaultView ? $LogEntryView.$($Name) : $LogEntryView.Default)) | Format-Table
+    $logEntry | Select-Object -Property $($View ? $global:LogEntryView.$($View) : $($global:LogEntryView.$($Name) -and !$UseDefaultView ? $global:LogEntryView.$($Name) : $global:LogEntryView.Default)) | Format-Table
 
     while ($true) {
         $logEntry = Read-Log -Name $Name -ComputerName $ComputerName -FromIndex $lastIndex
         if ($logEntry) {
             $lastIndex = $logEntry[$logEntry.Count-1].Index
-            $logEntry | Select-Object -Property $($View ? $LogEntryView.$($View) : $($LogEntryView.$($Name) -and !$UseDefaultView ? $LogEntryView.$($Name) : $LogEntryView.Default)) | Format-Table
+            $logEntry | Select-Object -Property $($View ? $global:LogEntryView.$($View) : $($global:LogEntryView.$($Name) -and !$UseDefaultView ? $global:LogEntryView.$($Name) : $global:LogEntryView.Default)) | Format-Table
         }
         Start-Sleep -Seconds $Seconds
     }
@@ -212,7 +209,7 @@ function global:Read-Log {
     if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
     if ($Oldest) {$logEntry = $logEntry | Select-Object -First $Oldest}
 
-    return $logEntry | Select-Object -Property $($View ? $LogEntryView.$($View) : $($LogEntryView.$($Name) -and !$UseDefaultView ? $LogEntryView.$($Name) : $LogEntryView.Default))
+    return $logEntry | Select-Object -Property $($View ? $global:LogEntryView.$($View) : $($global:LogEntryView.$($Name) -and !$UseDefaultView ? $global:LogEntryView.$($Name) : $global:LogEntryView.Default))
 
 }
 
@@ -638,31 +635,33 @@ function global:Repair-Log {
 
     foreach ($node in $ComputerName) {
 
-        if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+        # if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+        if ([string]::IsNullOrEmpty($Name)) { $Name = "*" }
         $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log") 
         $logs = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
 
         $logEntry = @()
-        foreach ($log in $logs) {
+        foreach ($log in $logs.FileInfo) {            
 
-            $logEntry = Import-Csv -Path ([LogObject]$log).Path
+            $logEntry = Import-Csv -Path $log
 
-            # TODO: REMOVE?
-            # this was for an old issue with indexing
-            # don't remember what anymore
-            if ($($logEntry.Index | Sort-Object -Unique) -eq -1) {
-                throw {"$($log.Path) cannot be reindexed."}
+            if ($logEntry.Count -eq 0) {
+                Set-Content $log $global:LogEntryView.Header
             }
+            else {
         
-            # remove duplicates
-            $logEntry = $logEntry | Sort-Object -Property TimeStamp, EntryType, Context, Action, Status, Target, Message, ComputerName -Unique
+                # remove duplicates
+                $logEntry = $logEntry | Sort-Object -Property TimeStamp, EntryType, Context, Action, Status, Target, Message, ComputerName -Unique
 
-            # resort by timestamp
-            $logEntry = $logEntry | Sort-Object -Property TimeStamp
-            for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i}
+                # resort by timestamp
+                $logEntry = $logEntry | Sort-Object -Property TimeStamp
+                for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i + 1}
 
-            $logEntry | Select-Object -Property $logFieldsDefault | 
-                Export-Csv -Path ([LogObject]$log).Path -QuoteFields $logFieldsQuoted -NoTypeInformation
+                $logEntry | 
+                    Select-Object -Property $global:LogEntryView.Write | 
+                        Export-Csv -Path $log -QuoteFields $logFieldsQuoted -NoTypeInformation
+
+            }
 
         }
 
@@ -710,15 +709,12 @@ function global:Merge-Log {
         }
 
         $logEntry = $logEntry | Sort-Object -Property TimeStamp
-
-        if ($($logEntry.Index | Sort-Object -Unique) -eq -1) {
-            throw {"$($log.Path) cannot be reindexed."}
-        }
     
-        for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i}
+        for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i + 1}
     
-        $logEntry | Select-Object -Property $logFieldsDefault | 
-            Export-Csv -Path $pathTo -QuoteFields $logFieldsQuoted -NoTypeInformation
+        $logEntry | 
+            Select-Object -Property $global:LogEntryView.Write | 
+                Export-Csv -Path $pathTo -QuoteFields $logFieldsQuoted -NoTypeInformation
     }
 
     return
@@ -822,7 +818,9 @@ function global:Write-Log {
             }
             $logEntry.Index++
 
-            $logEntry | Export-Csv -Path ([LogObject]$log).Path -Append -QuoteFields $logFieldsQuoted -NoTypeInformation
+            $logEntry | 
+                Select-Object -Property $global:LogEntryView.Write | 
+                    Export-Csv -Path ([LogObject]$log).Path -Append -QuoteFields $logFieldsQuoted -NoTypeInformation
         }
     }
 

@@ -352,3 +352,15 @@ $global:Catalog.Provider += @{ TableauServerWC =
         }
     }
 }
+
+$global:Catalog.Provider += @{ Okta = 
+    [Provider]@{
+        Id = "Okta"
+        Name = "Okta"
+        DisplayName = "Okta"
+        Category = "Identity"
+        Description = "Okta Identity Provider"
+        Publisher = "Overwatch"
+        Log = "Okta"
+    }
+}

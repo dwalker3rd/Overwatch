@@ -615,7 +615,7 @@ Clear-Host
                 $coreFiles += $environFile
                 Write-Host+ -NoTrace -NoTimestamp "  [$($environFile.Component)`:$($environFile.$($environFile.Component))] $($environFile.Destination)" -ForegroundColor DarkGray
             }
-            # Remove-Files -Path $tempEnvironFile
+            Remove-Files -Path $tempEnvironFile
 
             $updatedfiles += $coreFiles
 
