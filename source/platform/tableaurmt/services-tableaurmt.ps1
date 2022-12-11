@@ -455,11 +455,11 @@ function global:Request-RMTService {
 
         Set-PlatformService -ComputerName $ComputerName -Name $Name -StartupType $StartupType
 
-        $psSession = Get-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
+        $psSession = Use-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
         $response = Invoke-Command -Session $psSession {
             Get-Service -Name $using:Name -ErrorAction SilentlyContinue           
         }
-        Remove-PSSession $psSession
+        # Remove-PSSession $psSession
 
         $result = $response.StartType -eq $StartupType ? "Success" : "Failure"
 
@@ -510,11 +510,11 @@ function global:Request-Platform {
         $message = "<$verbing RMT $Target on $node <.>48> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         
-        $psSession = Get-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
+        $psSession = Use-PSSession+ -ComputerName $node -ErrorAction SilentlyContinue
         $response = Invoke-Command -Session $psSession {
             . $using:rmtAdmin $using:Command
         }
-        Remove-PSSession $psSession
+        # Remove-PSSession $psSession
 
         $result = ($response | Select-String -Pattern $successPattern -Quiet) ? "Success" : "Failure"
 

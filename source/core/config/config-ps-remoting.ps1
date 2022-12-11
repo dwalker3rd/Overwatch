@@ -84,7 +84,7 @@ $global:WarningPreference = "SilentlyContinue"
         }
 
         # enable WSMan Credssp for Server (for remote nodes)
-        $psSession = Get-PsSession+ -ComputerName (pt nodes -k | Where-Object {$_ -ne $thisNode})
+        $psSession = New-PsSession+ -ComputerName (pt nodes -k | Where-Object {$_ -ne $thisNode})
         if ($null -ne $psSession) {
             $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
             $ignoreOutput = Remove-PSSession $psSession

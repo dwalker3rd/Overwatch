@@ -379,7 +379,7 @@ function global:Confirm-LogOnAsAService {
     )
 
     $results = @()
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
     $results = Invoke-Command -Session $psSession {
         secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
         $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
@@ -393,7 +393,7 @@ function global:Confirm-LogOnAsAService {
         }
         Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
     }
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
 return $results | Select-Object -Property ComputerName, Policy, Setting, Name, IsOK | Sort-Object ComputerName
 }
@@ -406,7 +406,7 @@ function global:Grant-LogOnAsAService {
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
     )
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
     Invoke-Command -Session $psSession {
         secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
         Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
@@ -422,7 +422,7 @@ function global:Grant-LogOnAsAService {
         }
         # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
     }
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
 }
 
@@ -434,7 +434,7 @@ function global:Revoke-LogOnAsAService {
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
     )
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
     Invoke-Command -Session $psSession {
         secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
         Copy-Item "$($using:Location.Data)\secpol.cfg" -Destination "$($using:Location.Data)\secpol.cfg.$($env:COMPUTERNAME).$(Get-Date -Format 'yyyyMMddHHmm')"
@@ -450,7 +450,7 @@ function global:Revoke-LogOnAsAService {
         }
         # Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
     }
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
 }
 
@@ -622,7 +622,7 @@ else
 #             Write-Host+ -NoTrace "    $($node): Copying group policy file ... " -ForegroundColor DarkGray -IfVerbose
 #             Copy-Files $sourcePath -Destination $targetPathLocal -ComputerName $node 
             
-#             $psSession = Get-PSSession+ -ComputerName $node
+#             $psSession = Use-PSSession+ -ComputerName $node
             
 #             Write-Host+ -NoTrace "    $($node): Updating group policy ... " -ForegroundColor Gray -IfVerbose
             
@@ -698,7 +698,7 @@ function global:Request-PlatformService {
         [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME
     )
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+    $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
     Invoke-Command -Session $psSession {
         if ($using:Command -eq "Stop") {
@@ -709,7 +709,7 @@ function global:Request-PlatformService {
         }
     }
 
-    Remove-PSSession $psSession
+    # Remove-PSSession $psSession
 
     return 
 
@@ -753,7 +753,7 @@ function global:Set-PlatformService {
         [Parameter(Mandatory=$true)][ValidateSet("Manual","Automatic","AutomaticDelayedStart","Disabled")][Microsoft.PowerShell.Commands.ServiceStartupType]$StartupType
     )
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+    $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
     Invoke-Command -Session $psSession {
         Get-Service -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {
@@ -763,7 +763,7 @@ function global:Set-PlatformService {
         }
     }
 
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return
 

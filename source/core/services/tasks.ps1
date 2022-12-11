@@ -133,9 +133,9 @@ function global:Get-PlatformTask {
 
     # $nodes = Get-PlatformTopology nodes -Online -Keys
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
     $tasks = $TaskName ? $(Invoke-Command -Session $psSession {Get-ScheduledTask -TaskName $using:TaskName -ErrorAction SilentlyContinue}) : $(Invoke-Command -Session $psSession {Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {$_.TaskName -like "*$($using:Overwatch.Name)*"}})
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
     if (!$tasks) {return}
 
     if ($ExcludeId) {$tasks = $tasks | Where-Object {$_.TaskName -ne $(Get-Product $ExcludeId).Name}}

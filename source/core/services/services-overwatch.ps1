@@ -517,7 +517,7 @@
             Write-Host+ -NoTrace -NoNewLine "    Remote to","$($node)",$leader -ForegroundColor Gray,DarkBlue,DarkGray
 
             try {
-                $psSession = Get-PSSession+ -ComputerName $node 
+                $psSession = New-PSSession+ -ComputerName $node
                 Remove-PSSession -Session $psSession
                 Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen 
             }
@@ -787,71 +787,6 @@
         )
         return $ComputerName.ToLower() -eq $env:COMPUTERNAME.ToLower()
     }    
-
-    function global:Get-PSSession+ {
-
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower(),
-            [Parameter(Mandatory=$false)][string]$ConfigurationName = $global:PSSessionConfigurationName,
-            [switch]$All,
-            [switch]$New
-        )
-
-        $psSessions = @()
-        
-        $ComputerName | ForEach-Object {
-
-            $node = $_.ToLower()
-            $nodeNames = @(); $nodeNames += $node
-            if (IsLocalHost($node)) { $nodeNames += "localhost" }
-
-            $params = @()
-            if ($global:UseCredssp) { 
-                $params += @{ 
-                    Credential = Get-Credentials "localadmin-$($Platform.Instance)" -Credssp
-                    Authentication = Credssp
-                }
-            }
-
-            $psSessions += Get-PSSession @params | Where-Object {$_.ComputerName -in $nodeNames}
-
-            if (!$All) {
-
-                # Only reuse PSSessions using $global:PSSessionConfigurationName as set by Overwatch 
-                # $global:PSSessinConfigurationName is set by Overwatch to "PowerShell.$($PSVersionTable.PSVersion.Major)"
-                if (![string]::IsNullOrEmpty($ConfigurationName)) {
-                    $psSessions = $psSessions |
-                        Where-Object { $_.ConfigurationName -eq $ConfigurationName}
-                }
-
-                # Ensure that, at a minimum, the WinPSCompatSession is NEVER reused
-                $psSessions = $psSessions | 
-                    Where-Object { $_.Name -ne "WinPSCompatSession" } 
-                    
-                # Only resuse PSSession with RunspaceAvailability = "Available"
-                $psSessions = $psSessions | 
-                    Where-Object { $_.Availability -eq [System.Management.Automation.Runspaces.RunspaceAvailability]::Available } 
-                
-                # Sort by State and Availability so that the best PSSessions are at the top of the list
-                $psSessions = $psSessions |
-                    Sort-Object -Property @{Expression = "State"; Descending = $true}, @{Expression = "Availability"; Descending = $false}                
-            
-                $psSession = !$New ? ($null -ne $psSessions ? $psSessions[0] : $null) : $null
-                if ($null -eq $psSession) {
-                    $psSession = New-PSSession @params -ErrorAction SilentlyContinue 
-                    if ($null -eq $psSession -and (IsLocalHost($node))) {
-                        $psSession = New-PSSession -EnableNetworkAccess -ErrorAction SilentlyContinue 
-                    }
-                }
-
-            }
-
-        }
-
-        return $All ? $psSessions : $psSession
-
-    }
 
     function global:ConvertTo-Hashtable {
 

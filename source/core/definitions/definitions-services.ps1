@@ -3,6 +3,7 @@
 # Order of service definitions is critical!
 # Services do not currently specify dependencies
 
+. "$($global:Location.Services)\powershell.ps1"
 . "$($global:Location.Services)\vault.ps1"
 . "$($global:Location.Services)\encryption.ps1"
 . "$($global:Location.Services)\credentials.ps1"

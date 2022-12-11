@@ -8,9 +8,9 @@ Param()
     # https://msrc-blog.microsoft.com/2021/12/11/microsofts-response-to-cve-2021-44228-apache-log4j2/
     # https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-44228
 
-        $psSession = Get-PSSession+ -ComputerName (pt nodes -k)
-        $result = Invoke-Command -Session $psSession { [Environment]::SetEnvironmentVariable("LOG4J_FORMAT_MSG_NO_LOOKUPS","true","Machine") } 
-        Remove-PSSession $psSession
+        # $psSession = Use-PSSession+ -ComputerName (pt nodes -k)
+        # $result = Invoke-Command -Session $psSession { [Environment]::SetEnvironmentVariable("LOG4J_FORMAT_MSG_NO_LOOKUPS","true","Machine") } 
+        # Remove-PSSession $psSession
 
     #endregion CVE-2021-44228
 

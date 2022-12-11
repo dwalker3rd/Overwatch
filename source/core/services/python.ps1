@@ -12,7 +12,7 @@ function global:Install-PythonPackage {
 
     if (!$Pip.toLower().EndsWith('\pip')) {$Pip += '\pip'}
 
-    $psSessions = Get-PSSession+ -ComputerName $ComputerName
+    $psSessions = Use-PSSession+ -ComputerName $ComputerName
 
     foreach ($psSession in $psSessions) {
 
@@ -53,7 +53,7 @@ function global:Uninstall-PythonPackage {
 
     if (!$Pip.toLower().EndsWith('\pip')) {$Pip += '\pip'}
 
-    $psSessions = Get-PSSession+ -ComputerName $ComputerName
+    $psSessions = Use-PSSession+ -ComputerName $ComputerName
 
     foreach ($psSession in $psSessions) {
         Write-Host+ -Iff (!$Quiet) -MaxBlankLines 1
@@ -86,7 +86,7 @@ function global:Get-PythonPackage {
 
     if (!$Pip.toLower().EndsWith('\pip')) {$Pip += '\pip'}
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     $results = @()
     $results += Invoke-Command -Session $psSession {

@@ -11,7 +11,7 @@ param (
 
 $global:WriteHostPlusPreference = "Continue"
 
-. $PSScriptRoot\source\powershell\definitions-ps-powershell.ps1
+. $PSScriptRoot\source\core\definitions\definitions-powershell.ps1
 . $PSScriptRoot\source\core\definitions\classes.ps1
 . $PSScriptRoot\source\core\definitions\catalog.ps1
 . $PSScriptRoot\source\core\definitions\definitions-regex.ps1
@@ -562,6 +562,14 @@ Clear-Host
                 }
             }
 
+            $files = (Get-ChildItem $PSScriptRoot\source\core\config -File).VersionInfo.FileName
+            foreach ($file in $files) { 
+                $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
+                if ($coreFile) {
+                    $coreFiles += $coreFile
+                }
+            }
+
             $files = (Get-ChildItem $PSScriptRoot\source\core\definitions -File).VersionInfo.FileName
             foreach ($file in $files) { 
                 $coreFile = Copy-File $file $file.replace("\source\core","") -WhatIf
@@ -619,10 +627,10 @@ Clear-Host
         #endregion CORE
         #region PowerShell
 
-            $psFiles = @()
-            $psFiles += Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions -WhatIf
-            $psFiles += Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config -WhatIf
-            $updatedFiles += $psFiles
+            # $psFiles = @()
+            # $psFiles += Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions -WhatIf
+            # $psFiles += Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config -WhatIf
+            # $updatedFiles += $psFiles
 
         #endregion PowerShell
         #region OS
@@ -788,8 +796,8 @@ Clear-Host
         #endregion ENVIRON
         #region PowerShell
 
-            Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions
-            Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config
+            # Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions
+            # Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config
 
         #endregion PowerShell
         #region OS
@@ -926,7 +934,7 @@ Clear-Host
 
 #endregion INSTALL UPDATE
 
-    . $PSScriptRoot\definitions\definitions-ps-powershell.ps1
+    . $PSScriptRoot\definitions\definitions-powershell.ps1
     . $PSScriptRoot\definitions\classes.ps1
     . $PSScriptRoot\definitions\catalog.ps1
     . $PSScriptRoot\definitions\definitions-regex.ps1
@@ -1262,6 +1270,11 @@ Clear-Host
             clear-cache installUpdateRestart
 
         #endregion CLEAR INSTALLUPDATERESTART
+        #region REMOVE PSSESSIONS
+
+            Remove-PSSession+
+
+        #endregion REMOVE PSSESSIONS
 
         Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."

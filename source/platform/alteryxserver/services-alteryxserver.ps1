@@ -141,7 +141,7 @@ function global:Get-PlatformService {
     $platformTopology = Get-PlatformTopology -Online
 
     Write-Verbose "Get services from node[s]: RUNNING ..."
-    # $psSession = Get-PSSession+ -ComputerName $ComputerName
+    # $psSession = Use-PSSession+ -ComputerName $ComputerName
     # $services = Invoke-Command -Session $psSession {&{
     #     Get-Service -Name "AlteryxService" -InformationAction SilentlyContinue
     # }}
@@ -458,7 +458,7 @@ function global:Invoke-AlteryxService {
 
     try {
         # note:  $p0$p1$p2 is correct!  no spaces
-        $psSession = Get-PSSession+ -ComputerName $ComputerName
+        $psSession = Use-PSSession+ -ComputerName $ComputerName
         if ($hasResult) {
             $result = Invoke-Command -Session $psSession {& alteryxservice $using:p0$using:p1$using:p2}
             $result = switch ($p0) {
@@ -477,9 +477,9 @@ function global:Invoke-AlteryxService {
         $status = "Failure"
         $Log = $true
     }
-    finally {
-        Remove-PSSession $psSession
-    }
+    # finally {
+    #     Remove-PSSession $psSession
+    # }
 
     if ($hasResult) {Write-Verbose "Result = $($result)"}
 
@@ -579,9 +579,9 @@ function global:Stop-PlatformJob {
                     Stop-ProcessTree -Computername $ComputerName -ProcessId $_.ProcessId
                 }
 
-        $psSession = Get-PSSession+ -ComputerName $ComputerName
+        $psSession = Use-PSSession+ -ComputerName $ComputerName
         Invoke-Command -Session $psSession {Stop-Process -Id $using:ProcessId -Force | Wait-Process -Timeout 30} 
-        Remove-PSSession $psSession
+        # Remove-PSSession $psSession
     }
                 
     $jobs = Get-PlatformJob -ComputerName $ComputerName 
@@ -593,7 +593,7 @@ function global:Stop-PlatformJob {
 
         Stop-ProcessTree -ComputerName $job.Node -ProcessId $job.Instance.Id
 
-        # $psSession = Get-PSSession+ -ComputerName $job.Node
+        # $psSession = Use-PSSession+ -ComputerName $job.Node
         # Invoke-Command -Session $psSession {Stop-Process -Name $using:job.Name -Force | Wait-Process -Timeout 15} 
     }
 
@@ -612,7 +612,7 @@ function global:Stop-PlatformJob {
 
             Stop-ProcessTree -ComputerName $job.Node -ProcessId $job.Instance.Id
             
-            # $psSession = Get-PSSession+ -ComputerName $job.Node
+            # $psSession = Use-PSSession+ -ComputerName $job.Node
             # Invoke-Command -Session $psSession {Stop-Process -Name $using:job.Name -Force | Wait-Process -Timeout 15}
         }                
 

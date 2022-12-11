@@ -22,7 +22,7 @@ function global:Get-LocalGroup+ {
 
     $groups = @()
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     $groups = Invoke-Command -Session $psSession {
         $group = Get-LocalGroup @using:params -ErrorAction SilentlyContinue 
@@ -35,7 +35,7 @@ function global:Get-LocalGroup+ {
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return $groups | Select-Object -Property $($View ? $GroupView.$($View) : $GroupView.Default)
 
@@ -54,14 +54,14 @@ function global:New-LocalGroup+ {
     $params = @{};
     if ($Description) {$params += @{Description = $Description}}
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         New-LocalGroup -Name $using:Name @using:params
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return #Get-LocalGroup+ -Name $Name -ComputerName $ComputerName
 
@@ -89,14 +89,14 @@ function global:Set-LocalGroup+ {
     if ($Name) { $params += @{ Name = $Name }}
     if ($SID) { $params += @{ SID = $SID }}
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Set-LocalGroup @using:params -Description $using:Description
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return Get-LocalGroup+ @params -ComputerName $ComputerName -View Min
 
@@ -123,7 +123,7 @@ function global:Remove-LocalGroup+ {
     if ($Name) { $params += @{ Name = $Name }}
     if ($SID) { $params += @{ SID = $SID }}
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     $groups = Get-LocalGroup+ @params -ComputerName $ComputerName -Session $psSession
 
@@ -144,7 +144,7 @@ function global:Remove-LocalGroup+ {
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return
 
@@ -173,14 +173,14 @@ function global:Get-LocalUser+ {
     if ($Name) { $params += @{ Name = $Name } }
     if ($SID) { $params += @{ SID = $SID } }
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Get-LocalUser @using:params -ErrorAction SilentlyContinue
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return
 
@@ -211,14 +211,14 @@ function global:New-LocalUser+ {
         $params += @{UserMayNotChangePassword = $UserMayNotChangePassword}
     }
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         New-LocalUser -Name $using:Name @using:params
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return Get-LocalUser+ -Name $Name -ComputerName $ComputerName
 
@@ -259,14 +259,14 @@ function global:Set-LocalUser+ {
         # $params += @{UserMayNotChangePassword = $UserMayNotChangePassword}
     }
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Set-LocalUser @params
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return Get-LocalUser+ @params -ComputerName $ComputerName
 
@@ -293,13 +293,13 @@ function global:Remove-LocalUser+ {
     if ($Name) { $params += @{ Name = $Name }}
     if ($SID) { $params += @{ SID = $SID }}
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Remove-LocalUser -Name $using:params
     }
 
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return Get-LocalUser+ @params -ComputerName $ComputerName
 
@@ -327,14 +327,14 @@ function global:Add-LocalGroupMember+ {
     if ($Name) { $params += @{ Name = $Name }}
     if ($SID) { $params += @{ SID = $SID }}
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Add-LocalGroupMember @using:params -Member $using:Member
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return Get-LocalGroup+ @params -ComputerName $ComputerName -View Min
 
@@ -362,14 +362,14 @@ function global:Remove-LocalGroupMember+ {
     if ($Name) { $params += @{ Name = $Name }}
     if ($SID) { $params += @{ SID = $SID }}
 
-    $psSession = Get-PSSession+ -ComputerName $ComputerName
+    $psSession = Use-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Remove-LocalGroupMember @using:params -Member $using:Member -ErrorAction SilentlyContinue
     }
 
     # if (!$Session) {Remove-PSSession $psSession}
-    Remove-PsSession $psSession
+    # Remove-PsSession $psSession
 
     return Get-LocalGroup+ @params -ComputerName $ComputerName -View Min
 

@@ -7,7 +7,7 @@
 #endregion ENVIRON
 #region POWERSHELL
 
-    . "$($global:Location.Definitions)\definitions-ps-powershell.ps1"
+    . "$($global:Location.Definitions)\definitions-powershell.ps1"
 
 #endregion POWERSHELL
 #region CLASSES
