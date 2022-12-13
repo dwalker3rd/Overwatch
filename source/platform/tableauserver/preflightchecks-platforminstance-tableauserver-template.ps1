@@ -10,7 +10,7 @@
 
         $heartbeat = Get-Heartbeat
         if ($heartbeat.IsOK) {        
-            Test-RepositoryAccess $trustedHosts
+            Test-RepositoryAccess $trustedHosts -SSL
         }
         else {
             $global:PreflightChecksCompleted = $false

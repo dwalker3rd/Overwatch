@@ -1344,7 +1344,8 @@ function global:Test-RepositoryAccess {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)][string[]]$ComputerName
+        [Parameter(Mandatory=$true)][string[]]$ComputerName,
+        [switch]$SSL
     )
 
     $leader = Format-Leader -Length 47 -Adjust ((("  Postgres Access").Length))
@@ -1374,9 +1375,11 @@ function global:Test-RepositoryAccess {
                 $templateContent.RemoveRange($regionBegin,$regionEnd-$regionBegin+2)
             }
 
+            $hostMode = $SSL ? "hostssl" : "host"
+
             $newRows = $false
             foreach ($node in $ComputerName) {
-                $newRow = "host all readonly $(Get-IpAddress $node)/32 md5"
+                $newRow = "$hostMode all readonly $(Get-IpAddress $node)/32 md5"
                 if ($savedRows -notcontains $newRow) {
                     $savedRows += $newRow
                     $newRows = $true
