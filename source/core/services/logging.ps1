@@ -237,6 +237,8 @@ function global:Summarize-Log {
     if ($ShowDetails -eq "All") { $ShowDetails += @("Event","Error","Warning","Information") }
     if ($ShowDetails -eq "Default") { $ShowDetails += @("Event","Error","Warning") }
 
+    $ComputerName = $ComputerName | Foreach-Object {$_.ToLower()}
+
     $defaultColor = $global:consoleSequence.BackgroundForegroundDefault
 
     # $After is a datetime passed as an object
@@ -305,7 +307,7 @@ function global:Summarize-Log {
 
         foreach ($log in $logs) {
 
-            $logEntry = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
+            $logEntry = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -View Raw
             $logEntry = $logEntry | Sort-Object -Property Timestamp
 
             if ($After) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -gt $After}}
@@ -443,7 +445,7 @@ function global:Summarize-Log {
 
             foreach ($log in $logs) {
 
-                $logEntries = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
+                $logEntries = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -View Raw
                 $logEntries = $logEntries |  Where-Object {$_.EntryType -in $ShowDetails} | Sort-Object -Property Timestamp
 
                 if ($After) {$logEntries = $logEntries | Where-Object {$_.TimeStamp -gt $After}}
@@ -457,7 +459,7 @@ function global:Summarize-Log {
 
                         $summaryDetail = [PSCustomObject]@{
                             PSTypeName = "Overwatch.Log.Summary.Details"
-                            ComputerName = $logEntry.ComputerName
+                            ComputerName = $node # $logEntry.ComputerName
                             Log = $logName
                             Index = $logEntry.Index.ToString()
                             TimeStamp = $logEntry.TimeStamp.ToString('u')
