@@ -8,7 +8,8 @@ $global:WarningPreference = "SilentlyContinue"
 #region POWERSHELL REMOTING
 
     $message = "<Powershell remoting <.>48> PENDING"
-    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+    Write-Host+
 
     # this node is assumed to be the Overwatch controller for this platforminstance
     $thisNode = $env:COMPUTERNAME.ToLower()
@@ -35,28 +36,34 @@ $global:WarningPreference = "SilentlyContinue"
         }
 
         foreach ($node in (pt nodes -k)) {
-
-            # when powershell is installed, the PSSession configuration names are not updated, so the PSSession configuration name $global:PSSessionConfigurationName 
-            # may not exist.  Query the registry remotely to find the latest version installed.  The PSSession configuration name 'PowerShell.Major.Minor.Patch' that
-            # matches the lastest installed version will exist.  Use that PSSession configuration name for the first connection below.
-
-            # $hive = [Microsoft.Win32.RegistryHive]::LocalMachine
-            # $keyPath = 'SOFTWARE\Microsoft\PowerShellCore\InstalledVersions'
-            
-            # $registry = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey($hive, $node)
-            # $key = $registry.OpenSubKey($keyPath)
-
-            # $psVersions = @()
-            # foreach ($subKeyName in $key.GetSubKeyNames()) {
-            #     $subkey = $registry.OpenSubKey("$($keyPath)\$($subKeyName)")
-            #     $psVersions += $subkey.GetValue("SemanticVersion")
-            # }
-            
-            # $psVersionLatest = ($psVersions | Measure-Object -Maximum).Maximum
-
             # Enable-PSRemoting to create the PSSession configurations, if not present such as after an upgrade of PowerShell
             # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
-            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" -accepteula -nobanner 2>&1
+            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
+        }
+
+        foreach ($node in (pt nodes -k)) {
+
+            #region REMOTE REGISTRY
+            
+                # when powershell is installed, the PSSession configuration names are not updated, so the PSSession configuration name $global:PSSessionConfigurationName 
+                # may not exist.  Query the registry remotely to find the latest version installed.  The PSSession configuration name 'PowerShell.Major.Minor.Patch' that
+                # matches the lastest installed version will exist.  Use that PSSession configuration name for the first connection below.
+
+                # $hive = [Microsoft.Win32.RegistryHive]::LocalMachine
+                # $keyPath = 'SOFTWARE\Microsoft\PowerShellCore\InstalledVersions'
+                
+                # $registry = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey($hive, $node)
+                # $key = $registry.OpenSubKey($keyPath)
+
+                # $psVersions = @()
+                # foreach ($subKeyName in $key.GetSubKeyNames()) {
+                #     $subkey = $registry.OpenSubKey("$($keyPath)\$($subKeyName)")
+                #     $psVersions += $subkey.GetValue("SemanticVersion")
+                # }
+                
+                # $psVersionLatest = ($psVersions | Measure-Object -Maximum).Maximum
+
+            #endregion REMOTE REGISTRY
 
             # use the $global:PSSessionConfigurationName PSSessionConfiguration to connect and get all other PSSessionConfigurations;
             # find the PSSessionConfiguration with the highest version of PowerShell (exclude the $global:PSSessionConfigurationName PSSessionConfiguration)
@@ -80,7 +87,7 @@ $global:WarningPreference = "SilentlyContinue"
 
             # Enable-PSRemoting to recreate the PSSession configurations since we just unregistered PowerShell.7
             # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
-            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" -accepteula -nobanner 2>&1
+            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
 
         }
 
@@ -112,7 +119,7 @@ $global:WarningPreference = "SilentlyContinue"
         # enable WSMan Credssp for Server (for remote nodes)
         $nodes = @()
         $nodes += pt nodes -k | Where-Object {$_ -ne $thisNode}
-        if ($ComputerName) {
+        if ($nodes) {
             $psSession = New-PsSession+ -ComputerName $nodes
             if ($null -ne $psSession) {
                 $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
@@ -120,13 +127,17 @@ $global:WarningPreference = "SilentlyContinue"
             }
         }
 
-        $message = "$($emptyString.PadLeft(8,"`b")) CONFIGURED"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        Write-Host+
+        $message = "<Powershell remoting <.>48> CONFIGURED"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
 
     }
     catch {
-        $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
+
+        Write-Host+
+        $message = "<Powershell remoting <.>48> PENDING"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,Red
+
     }
 
 #endregion POWERSHELL REMOTING
