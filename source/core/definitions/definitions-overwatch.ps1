@@ -42,8 +42,8 @@
     $global:PlatformMessageStatus = @{ 
         Disabled = "Disabled"
         Enabled = "Enabled"
-        Throttled = $global:PlatformMessageStatus.Throttled
-        Transmitted = $global:PlatformMessageStatus.Transmitted
+        Throttled = "Throttled"
+        Transmitted = "Transmitted"
     }
 
 #endregion MESSAGES    
