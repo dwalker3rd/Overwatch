@@ -13,4 +13,6 @@ $global:PostflightPreference = "SilentlyContinue"
 $global:Product = @{Id="Command"}
 . $PSScriptRoot\definitions.ps1
 
+Remove-PSSession+
+
 Write-Host+ -ResetAll

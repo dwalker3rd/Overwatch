@@ -12,6 +12,15 @@
     }
 
 #endregion PSVERSION
+#region PSEXEC
+
+    # The following line indicates a post-installation configuration to the installer
+    # Download > Microsoft Sysinternals Suite > https://learn.microsoft.com/en-us/sysinternals/downloads/sysinternals-suite
+    # Manual Configuration > Microsoft Sysinternals Suite > Location
+
+    $global:Location.SysinternalsSuite = ""
+
+#endregion PSEXEC
 #region CONSOLE SEQUENCES
 
     $global:consoleSequence = @{
