@@ -133,7 +133,7 @@ $global:WarningPreference = "SilentlyContinue"
             $psSession = New-PsSession+ -ComputerName $nodes
             if ($null -ne $psSession) {
                 $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
-                $ignoreOutput = Remove-PSSession $psSession
+                $ignoreOutput = Remove-PSSession+ $psSession
             }
         }
 

@@ -9,6 +9,12 @@ param (
     [switch][Alias("PostInstall")]$PostInstallation
 )
 
+#region REMOVE PSSESSIONS
+
+    Remove-PSSession+
+
+#endregion REMOVE PSSESSIONS
+
 $global:WriteHostPlusPreference = "Continue"
 
 . $PSScriptRoot\source\core\definitions\definitions-powershell.ps1
