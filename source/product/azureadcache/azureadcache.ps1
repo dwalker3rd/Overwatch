@@ -132,5 +132,9 @@ foreach ($tenantKey in $tenantKeys) {
         Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
     }
-    finally {}
+    finally {
+
+        Remove-PSSession+
+
+    }
 }

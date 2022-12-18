@@ -439,5 +439,6 @@ catch {
 finally {
 
     Write-Host+ -MaxBlankLines 1
+    Remove-PSSession+
 
 }

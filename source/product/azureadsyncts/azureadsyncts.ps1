@@ -146,4 +146,8 @@ catch {
     Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
 }
-finally {}
+finally {
+
+    Remove-PSSession+
+
+}

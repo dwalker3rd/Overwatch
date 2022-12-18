@@ -7,6 +7,8 @@ param(
     [switch]$Force
 )
 
+Remove-PSSession+
+
 $global:DebugPreference = "SilentlyContinue"
 $global:InformationPreference = "SilentlyContinue"
 $global:VerbosePreference = "SilentlyContinue"
@@ -219,6 +221,11 @@ $global:Product = @{Id="Uninstall"}
         Update-InstallSettings 
 
     #endregion UPDATE INSTALL SETTINGS
+    #region REMOVE PSSESSION
+    
+        Remove-PSSession+
+
+    #endregion REMOVE PSSESSION
 
     [console]::CursorVisible = $true
 

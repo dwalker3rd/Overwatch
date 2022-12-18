@@ -91,3 +91,5 @@ Write-Host+ -Iff (!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGr
 Write-Host+
 
 Write-Log -Context StartRMTAgents -Status Success -Message "All agents/environments are connected" -Force
+
+Remove-PSSession+

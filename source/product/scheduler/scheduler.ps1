@@ -60,6 +60,8 @@
 
 # Write-Host+
 
+# Remove-PSSession+
+
 function global:Get-Schedule {
 
     [CmdletBinding()]

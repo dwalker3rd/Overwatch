@@ -14,3 +14,5 @@ $global:Product = @{Id="Command"}
 . $PSScriptRoot\definitions.ps1
 
 Write-Host+ -ResetAll
+
+Remove-PSSession+

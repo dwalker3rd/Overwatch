@@ -335,4 +335,6 @@ Open-Monitor
 
     Close-Monitor
 
-#endregion MAI
+    Remove-PSSession+
+
+#endregion MAIN

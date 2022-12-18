@@ -43,3 +43,5 @@ $platformStatus = Get-PlatformStatus
 # endregion PLATFORM
 
 Backup-Platform
+
+Remove-PSSession+

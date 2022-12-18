@@ -78,3 +78,5 @@ foreach ($node in (Get-PlatformTopology nodes -Online -Keys)) {
         Send-Message -Message $msg
     }
 }
+
+Remove-PSSession+

@@ -43,3 +43,5 @@ $global:Product = @{Id="Cleanup"}
 # endregion PLATFORM
 
 Cleanup-Platform
+
+Remove-PSSession+
