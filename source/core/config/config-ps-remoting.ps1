@@ -67,6 +67,14 @@ $global:WarningPreference = "SilentlyContinue"
             # use the $global:PSSessionConfigurationName PSSessionConfiguration to connect and get all other PSSessionConfigurations;
             # find the PSSessionConfiguration with the highest version of PowerShell (exclude the $global:PSSessionConfigurationName PSSessionConfiguration)
             $_psSessionConfiguration = invoke-command -computername $node -configurationname $global:PSSessionConfigurationName -ScriptBlock {Get-PSSessionConfiguration | Where-Object {$_.Name -ne $using:PSSessionConfigurationName}}
+
+            if (!$_psSessionConfiguration) {
+                # Enable-PSRemoting to recreate the PSSession configurations since we just unregistered PowerShell.7
+                # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
+                $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
+                $_psSessionConfiguration = invoke-command -computername $node -configurationname $global:PSSessionConfigurationName -ScriptBlock {Get-PSSessionConfiguration | Where-Object {$_.Name -ne $using:PSSessionConfigurationName}}
+            }
+
             $_psSessionConfigurationName = ($_psSessionConfiguration | Sort-Object -Descending)[0].Name
 
             # connecting with that PSSessionConfiguration is necessary b/c the $global:PSSessionConfigurationName PSSessionConfiguration will be unregistered/registered
