@@ -36,9 +36,27 @@ $global:WarningPreference = "SilentlyContinue"
 
         foreach ($node in (pt nodes -k)) {
 
+            # when powershell is installed, the PSSession configuration names are not updated, so the PSSession configuration name $global:PSSessionConfigurationName 
+            # may not exist.  Query the registry remotely to find the latest version installed.  The PSSession configuration name 'PowerShell.Major.Minor.Patch' that
+            # matches the lastest installed version will exist.  Use that PSSession configuration name for the first connection below.
+
+            $hive = [Microsoft.Win32.RegistryHive]::LocalMachine
+            $keyPath = 'SOFTWARE\Microsoft\PowerShellCore\InstalledVersions'
+            
+            $registry = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey($hive, $node)
+            $key = $registry.OpenSubKey($keyPath)
+
+            $psVersions = @()
+            foreach ($subKeyName in $key.GetSubKeyNames()) {
+                $subkey = $registry.OpenSubKey("$($keyPath)\$($subKeyName)")
+                $psVersions += $subkey.GetValue("SemanticVersion")
+            }
+            
+            $psVersionLatest = ($psVersions | Measure-Object -Maximum).Maximum
+
             # use the $global:PSSessionConfigurationName PSSessionConfiguration to connect and get all other PSSessionConfigurations;
             # find the PSSessionConfiguration with the highest version of PowerShell (exclude the $global:PSSessionConfigurationName PSSessionConfiguration)
-            $_psSessionConfiguration = invoke-command -computername $node -configurationname $global:PSSessionConfigurationName -ScriptBlock {Get-PSSessionConfiguration | Where-Object {$_.Name -ne $global:PSSessionConfigurationName}}
+            $_psSessionConfiguration = invoke-command -computername $node -configurationname "PowerShell.$($psVersionLatest)" -ScriptBlock {Get-PSSessionConfiguration | Where-Object {$_.Name -ne $global:PSSessionConfigurationName}}
             $_psSessionConfigurationName = ($_psSessionConfiguration | Where-Object {$_.PSVersion -eq ($_pssessionConfiguration.PSVersion | Sort-Object -Descending)}).Name
 
             # connecting with that PSSessionConfiguration is necessary b/c the $global:PSSessionConfigurationName PSSessionConfiguration will be unregistered/registered
