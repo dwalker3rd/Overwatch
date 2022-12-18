@@ -7,8 +7,8 @@ function global:Get-PSSession+ {
         [switch]$All
     )
 
-    $_psSessions = Get-PSSession
-    if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
+    $_psSessions = Get-PSSession -ComputerName $ComputerName
+    # if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
 
     if ($All) {
        return $_psSessions
@@ -63,8 +63,8 @@ function global:Use-PSSession+ {
         [Parameter(Mandatory=$false)][string]$ConfigurationName = $global:PSSessionConfigurationName
     )
 
-    $_psSession = Get-PSSession+
-    if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
+    $_psSession = Get-PSSession+ -ComputerName $ComputerName
+    # if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
 
     # Only reuse PsSession using $global:PSSessionConfigurationName as set by Overwatch 
     # $global:PSSessinConfigurationName is set by Overwatch to "PowerShell.$($PSVersionTable.PSVersion.Major)"
@@ -117,7 +117,7 @@ function global:Remove-PSSession+ {
 
     $_psSession = $Session
     if (!$_psSession) {
-        $_psSession = Use-PSSession+
+        $_psSession = Get-PSSession+ -All
         if ($Id) { $_psSession = $_psSession | Where-Object {$_.Id -in $Id} }
         if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
     }
