@@ -144,6 +144,5 @@ function global:Remove-PSSession+ {
         Where-Object { $_.Name -ne "WinPSCompatSession" } 
     
     Remove-PSSession $_psSession
-    return ($_psSession | Where-Object {$_.State -notin ("Closed")})
-
+    return 
 }
