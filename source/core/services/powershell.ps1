@@ -122,6 +122,8 @@ function global:Remove-PSSession+ {
         if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
     }
 
+    if (!$_psSession) { return }
+
     if (Compare-Object ($_psSession.ConfigurationName | Sort-Object -Unique) $ConfigurationName) {
         Write-Host+ -NoTrace -NoTimestamp "Remove-PSSession+ can only remove sessions using the $($global:PSSessionConfigurationName) session configuration." -ForegroundColor DarkYellow
         Write-Host+ -NoTrace -NoTimestamp "Use the ConfigurationName parameter to remove other PSSession configurations." ForegroundColor DarkYellow
@@ -134,6 +136,8 @@ function global:Remove-PSSession+ {
             Where-Object { $_.ConfigurationName -eq $ConfigurationName}
     }
 
+    if (!$_psSession) { return }
+
     if ($_psSession.Name -contains "WinPSCompatSession") {
         Write-Host+ -NoTrace -NoTimestamp "Remove-PSSession+ can only remove sessions using the $($global:PSSessionConfigurationName) session configuration." -ForegroundColor DarkYellow
         Write-Host+ -NoTrace -NoTimestamp "Use the ConfigurationName parameter to remove other PSSession configurations." ForegroundColor DarkYellow
@@ -142,6 +146,8 @@ function global:Remove-PSSession+ {
     # Ensure that the WinPSCompatSession is NEVER removed
     $_psSession = $_psSession | 
         Where-Object { $_.Name -ne "WinPSCompatSession" } 
+
+    if (!$_psSession) { return }
     
     Remove-PSSession $_psSession
     return 
