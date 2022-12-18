@@ -82,8 +82,6 @@ $global:WarningPreference = "SilentlyContinue"
             # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
             $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" -accepteula -nobanner 2>&1
 
-            Restart-Service WinRM -Confirm:$False -Force
-
         }
 
         # configure basic powershell remoting config (for this node)
@@ -112,10 +110,14 @@ $global:WarningPreference = "SilentlyContinue"
         }
 
         # enable WSMan Credssp for Server (for remote nodes)
-        $psSession = New-PsSession+ -ComputerName (pt nodes -k | Where-Object {$_ -ne $thisNode})
-        if ($null -ne $psSession) {
-            $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
-            $ignoreOutput = Remove-PSSession $psSession
+        $nodes = @()
+        $nodes += pt nodes -k | Where-Object {$_ -ne $thisNode}
+        if ($ComputerName) {
+            $psSession = New-PsSession+ -ComputerName $nodes
+            if ($null -ne $psSession) {
+                $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
+                $ignoreOutput = Remove-PSSession $psSession
+            }
         }
 
         $message = "$($emptyString.PadLeft(8,"`b")) CONFIGURED"
