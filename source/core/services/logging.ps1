@@ -307,7 +307,7 @@ function global:Summarize-Log {
 
         foreach ($log in $logs) {
 
-            $logEntry = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -View Raw
+            $logEntry = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
             $logEntry = $logEntry | Sort-Object -Property Timestamp
 
             if ($After) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -gt $After}}
@@ -445,7 +445,7 @@ function global:Summarize-Log {
 
             foreach ($log in $logs) {
 
-                $logEntries = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower() -View Raw
+                $logEntries = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
                 $logEntries = $logEntries |  Where-Object {$_.EntryType -in $ShowDetails} | Sort-Object -Property Timestamp
 
                 if ($After) {$logEntries = $logEntries | Where-Object {$_.TimeStamp -gt $After}}

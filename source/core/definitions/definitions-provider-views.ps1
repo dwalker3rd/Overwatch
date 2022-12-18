@@ -32,6 +32,9 @@ $global:LogEntryView = @{
     Raw = @(
         "Index","TimeStamp","EntryType","Context","Action","Target","Status","Message","Data"
     )
+    Default = @(
+        "Index","TimeStamp","EntryType","Context","Action","Target","Status","Message"
+    )
     Write = @(
         "Index",
         @{
@@ -42,7 +45,7 @@ $global:LogEntryView = @{
         },
         "EntryType","Context","Action","Target","Status","Message","Data"
     )
-    Default = @(
+    Formatted = @(
         "Index",
         @{
             Name="TimeStamp"
