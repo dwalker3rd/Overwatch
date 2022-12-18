@@ -143,7 +143,7 @@ $global:WarningPreference = "SilentlyContinue"
     }
     catch {
 
-        $message = "<Powershell remoting <.>48> PENDING"
+        $message = "<Powershell remoting <.>48> FAILED"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,Red
 
     }
