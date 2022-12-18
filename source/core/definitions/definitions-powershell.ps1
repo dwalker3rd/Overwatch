@@ -19,6 +19,10 @@
     # Manual Configuration > Microsoft Sysinternals Suite > Location
 
     $global:Location.SysinternalsSuite = ""
+    if (![string]::IsNullOrEmpty($global:Location.SysinternalsSuite)) {
+        $psExecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" -accepteula -nobanner 2>&1
+        $psExecResults | Out-Null
+    }
 
 #endregion PSEXEC
 #region CONSOLE SEQUENCES

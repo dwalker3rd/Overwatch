@@ -56,7 +56,7 @@ $global:WarningPreference = "SilentlyContinue"
 
             # Enable-PSRemoting to create the PSSession configurations, if not present such as after an upgrade of PowerShell
             # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
-            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" 2>&1
+            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" -accepteula -nobanner 2>&1
 
             # use the $global:PSSessionConfigurationName PSSessionConfiguration to connect and get all other PSSessionConfigurations;
             # find the PSSessionConfiguration with the highest version of PowerShell (exclude the $global:PSSessionConfigurationName PSSessionConfiguration)
@@ -80,7 +80,7 @@ $global:WarningPreference = "SilentlyContinue"
 
             # Enable-PSRemoting to recreate the PSSession configurations since we just unregistered PowerShell.7
             # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
-            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" 2>&1
+            $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" -accepteula -nobanner 2>&1
 
             Restart-Service WinRM -Confirm:$False -Force
 
