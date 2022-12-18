@@ -7,8 +7,8 @@ function global:Get-PSSession+ {
         [switch]$All
     )
 
-    $_psSessions = Get-PSSession -ComputerName $ComputerName
-    # if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
+    $_psSessions = Get-PSSession
+    if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
 
     if ($All) {
        return $_psSessions
