@@ -132,7 +132,7 @@ function global:Send-PlatformStatusMessage {
     
     $msg = @{
         Sections = $sections
-        Title = $global:Product.TaskName
+        Title = $global:Product.DisplayName
         Text = $global:Product.Description
         Type = $MessageType
         Summary = "Overwatch $MessageType`: $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) is $($PlatformStatus.RollupStatus.ToUpper())"
@@ -311,7 +311,7 @@ function global:Send-PlatformEventMessage {
                 Facts = $facts
             }
         )
-        Title = $global:Product.TaskName
+        Title = $global:Product.DisplayName
         Text = $global:Product.Description
         Type = $MessageType
         Summary = "Overwatch $MessageType`: $($global:Platform.DisplayName) (Instance: $($global:Platform.Instance)) $($PlatformStatus.Event.ToUpper()) $($be) $($PlatformStatus.EventStatus.ToUpper())"
