@@ -119,25 +119,22 @@
 #endregion POSTFLIGHT
 #region WARNINGS
 
-    $_platformTasksDisabled = $false
-    $_platformTasks = Get-PlatformTask
-    foreach ($_platformTask in $_platformTasks) {
-        if ($_platformTask.Status -in $global:PlatformTaskState.Disabled) {
-            $_platformTasksDisabled = $true
-            continue
-        }
-    }
+    $_platformTasksDisabled = Get-PlatformTask -Disabled
 
-    $_warnings = IsMessagingDisabled -and $_platformTasksDisabled
+    $_warnings = (IsMessagingDisabled) -or $_platformTasksDisabled.Count -gt 0
 
     Write-Host+ -Iff ($_warnings)
 
     if (IsMessagingDisabled) {
-        Write-Host+ -NoTrace "Messaging DISABLED" -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace "  Messaging DISABLED" -ForegroundColor DarkYellow
     }
 
     if ($_platformTasksDisabled) {
-        Write-Host+ -NoTrace "Some platform tasks are DISABLED" -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
+        Write-Host+
+        Write-Host+ -SetIndentGlobal 2 -SetTimestampGlobal Include -SetTraceGlobal Exclude
+        Show-PlatformTaskStatus -Disabled
+        Write-Host+ -ResetAll
     }
 
     Write-Host+ -Iff ($_warnings)

@@ -123,7 +123,8 @@ function global:Get-PlatformTask {
         [Parameter(Mandatory=$false)][string]$TaskName,
         [Parameter(Mandatory=$false)][string]$ExcludeTaskName,
         [Parameter(Mandatory=$false)][string]$View,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+        [switch]$Disabled
     )
 
     $taskState = @("Unknown","Disabled","Queued","Ready","Running")
@@ -162,9 +163,12 @@ function global:Get-PlatformTask {
         $platformTasks += $platformTask
     }
 
+    if ($Disabled) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled}}
+
     $dynamicView = @()
     $dynamicView += $([PlatformCim]@{}).psobject.properties.name
     $dynamicView += "ScheduledTaskInfo"
+
     return $platformTasks | Select-Object -Property $($View ? $CimView.$($View) : $dynamicView)
 
 }
@@ -488,27 +492,20 @@ function global:Stop-PlatformTask {
 
 }
 
-function global:Show-PlatformTasks {
+function global:Show-PlatformTaskStatus {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][object[]]$PlatformTask = (Get-PlatformTask),
-        [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
+        [Parameter(Mandatory=$false)][object[]]$PlatformTask,
         [switch]$Disabled
     ) 
 
-    $platformTasks = @()
-    $platformTasks += $PlatformTask
-    if ($Disabled) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled}}
-
-    Write-Host+ -Iff $($platformTasks.Count -ge 1)
+    $platformTasks = Get-PlatformTask -Disabled:$Disabled.IsPresent
 
     foreach ($platformTask in $platformTasks) {
         $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
     }
-
-    # Write-Host+ -Iff $($platformTasks.Count -ge 1)
 
 }
 
