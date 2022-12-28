@@ -131,7 +131,6 @@
 
     if ($_platformTasksDisabled) {
         Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
-        Write-Host+
         Write-Host+ -SetIndentGlobal 2 -SetTimestampGlobal Include -SetTraceGlobal Exclude
         Show-PlatformTaskStatus -Disabled
         Write-Host+ -ResetAll

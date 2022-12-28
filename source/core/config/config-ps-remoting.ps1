@@ -8,7 +8,7 @@ $global:WarningPreference = "SilentlyContinue"
 #region POWERSHELL REMOTING
 
     $message = "<Powershell remoting <.>48> PENDING"
-    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
     # this node is assumed to be the Overwatch controller for this platforminstance
     $thisNode = $env:COMPUTERNAME.ToLower()
@@ -137,14 +137,14 @@ $global:WarningPreference = "SilentlyContinue"
             }
         }
 
-        $message = "<Powershell remoting <.>48> CONFIGURED"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+        $message = "$($emptyString.PadLeft(8,"`b"))CONFIGURED"
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Blue,DarkGray,DarkGreen
 
     }
     catch {
 
-        $message = "<Powershell remoting <.>48> FAILED"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,Red
+        $message = "$($emptyString.PadLeft(8,"`b"))FAILED"
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Blue,DarkGray,Red
 
     }
 

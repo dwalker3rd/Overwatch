@@ -6,10 +6,14 @@ function global:Set-PSPreferenceVariables {
         [switch]$v,$xv,
         [switch]$d,$xd,
         [switch]$w,$xw,
-        [switch]$prog,$xprog,
-        [switch]$prefl,$xprefl,
-        [switch]$postfl,$xpostfl,
-        [switch]$whp,$xwhp,
+        [switch]$prog,
+        [switch]$xprog,
+        [switch]$prefl,
+        [switch]$xprefl,
+        [switch]$postfl,
+        [switch]$xpostfl,
+        [switch]$whp,
+        [switch]$xwhp,
         [Parameter(Mandatory=$false)][Alias("q")][switch]$Quiet
     )
 

@@ -8,7 +8,7 @@ $Name = $product.Name
 $Publisher = $product.Publisher
 
 if (!$NoNewLine) {
-    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING"
+    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 }
 
@@ -21,5 +21,5 @@ Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\defi
 # Azure Deployment Code/Data
 Expand-Archive "$($global:Location.Root)\source\product\$($product.id.tolower())\deployment.zip" "$($global:Location.Root)\data\azure" -Force
 
-$message = "$($emptyString.PadLeft(27,"`b"))INSTALLED$($emptyString.PadLeft(11," "))READY   "
+$message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))READY$($emptyString.PadLeft(15," "))"
 Write-Host+ -NoTrace -NoTimeStamp -NoSeparator -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, DarkGreen
