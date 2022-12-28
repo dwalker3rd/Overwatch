@@ -941,6 +941,9 @@ Write-Host+
         Write-Host+ -NoTrace -NoTimestamp "The installer has been updated and must be restarted." -ForegroundColor DarkYellow
         Write-Host+ -NoTrace -NoTimestamp "This update will not be complete until the installer is rerun." -ForegroundColor DarkYellow
         Write-Host+
+
+        Remove-PSSession+
+        
         return
     }
 
