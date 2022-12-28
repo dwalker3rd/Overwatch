@@ -113,8 +113,10 @@ function IsTableauCloud {
 }
 
 function IsPlatformServer {
-    param()
-    return $Server -eq "localhost" -or $Server -eq $global:Platform.Uri.Host
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$Server
+    )
+    return $Server -eq "localhost" -or $Server -eq $env:COMPUTERNAME -or $Server -eq $global:Platform.Uri.Host
 }
 
 function global:Initialize-TSRestApiConfiguration {
@@ -123,7 +125,7 @@ function global:Initialize-TSRestApiConfiguration {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string]$Server = "localhost",
+        [Parameter(Mandatory=$false)][string]$Server = $global:Platform.Uri.Host,
         [Parameter(Mandatory=$false)][Alias("Site")][string]$ContentUrl = "",
         [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($Platform.Instance)",
         [switch]$Reset
@@ -134,12 +136,12 @@ function global:Initialize-TSRestApiConfiguration {
     }
 
     $global:tsRestApiConfig = @{
-        Server = $Server ? $Server : ($tsmApiConfig.Server ? $tsmApiConfig.Server : "localhost")
+        Server = $Server ? $Server : $global:Platform.Uri.Host
         Credentials = $Credentials
         Token = $null
         SiteId = $null
         ContentUrl = $ContentUrl
-        ContentType = "application/xml;charset=utf-8"
+        # ContentType = "application/xml;charset=utf-8"
         UserId = $null
         SpecialAccounts = @("guest","tableausvc","TabSrvAdmin","alteryxsvc")
         SpecialGroups = @("All Users")
@@ -147,26 +149,28 @@ function global:Initialize-TSRestApiConfiguration {
     }
 
     $global:tsRestApiConfig.RestApiVersioning = @{
+        ApiUri = ""
         ApiVersion = "3.15"
+        ContentType = "application/xml; charset=utf-8"
         Headers = @{
             "Accept" = "*/*"
-            "Content-Type" = "application/xml;charset=utf-8"
             "X-Tableau-Auth" = $global:tsRestApiConfig.Token
         }
-        ApiUri = ""
     }
     $global:tsRestApiConfig.RestApiVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)"
+    $global:tsRestApiConfig.RestApiVersioning.Headers."Content-Type" = $global:tsRestApiConfig.RestApiVersioning.ContentType
+
     $global:tsRestApiConfig.PerResourceVersioning = @{
+        ApiUri = ""
         ApiVersion = "-"
+        ContentType = "application/vnd.<ResourceString>+json; charset=utf-8"
         Headers = @{
             "Accept" = "*/*"
-            "Content-Type" = "application/vnd.<ResourceString>+json"
             "X-Tableau-Auth" = $global:tsRestApiConfig.Token
         }
-        ApiUri = ""
     }
     $global:tsRestApiConfig.PerResourceVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.PerResourceVersioning.ApiVersion)"
-
+    $global:tsRestApiConfig.PerResourceVersioning.Headers."Content-Type" = $global:tsRestApiConfig.PerResourceVersioning.ContentType
     
     $global:tsRestApiConfig.Method = @{
         Login = @{
@@ -199,30 +203,12 @@ function global:Initialize-TSRestApiConfiguration {
     $global:tsRestApiConfig.ContentUrl = $response.site.contentUrl
     $global:tsRestApiConfig.UserId = $response.user.id 
 
-    $serverInfo = Get-TsServerInfo
-    
-    $global:tsRestApiConfig.RestApiVersioning = @{
-        ApiVersion = $serverInfo.restApiVersion
-        Headers = @{
-            "Accept" = "*/*"
-            "Content-Type" = "application/xml;charset=utf-8"
-            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
-        }
-        ApiUri = ""
-    }
-    $global:tsRestApiConfig.RestApiVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)"
-    $global:tsRestApiConfig.PerResourceVersioning = @{
-        ApiVersion = "-"
-        Headers = @{
-            "Accept" = "*/*"
-            "Content-Type" = "application/vnd.<ResourceString>+json"
-            "X-Tableau-Auth" = $global:tsRestApiConfig.Token
-        }
-        ApiUri = ""
-    }
-    $global:tsRestApiConfig.PerResourceVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.PerResourceVersioning.ApiVersion)"
+    $global:tsRestApiConfig.RestApiVersioning.Headers."X-Tableau-Auth" = $global:tsRestApiConfig.Token
+    $global:tsRestApiConfig.PerResourceVersioning.Headers."X-Tableau-Auth" = $global:tsRestApiConfig.Token
 
-    if (IsPlatformServer) {
+    $serverInfo = Get-TsServerInfo
+
+    if (IsPlatformServer $global:tsRestApiConfig.Server) {
         $global:tsRestApiConfig.Platform = $global:Platform
     }
     else {
@@ -372,7 +358,7 @@ function global:Update-TSRestApiMethods {
             UpdateUser = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "PUT"
-                Body = "<tsRequest><user fullName='<1>' email='<2>' siteRole='<3>' /></tsRequest>"
+                Body = "<tsRequest><user fullName=`"<1>`" email=`"<2>`" siteRole=`"<3>`" /></tsRequest>"
                 Response = @{Keys = "user"}
             }
             UpdateUserPassword = @{
@@ -441,6 +427,12 @@ function global:Update-TSRestApiMethods {
                 HttpMethod = "GET"
                 Response = @{Keys = "workbook"}
             }
+            UpdateWorkbook = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>"
+                HttpMethod = "PUT"
+                Body = "<tsRequest><workbook name='<1>' ><project id='<2>' /><owner id='<3>' /></workbook></tsRequest>"
+                Response = @{Keys = "workbook"}
+            }
             GetWorkbookRevisions = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/revisions"
                 HttpMethod = "GET"
@@ -507,6 +499,12 @@ function global:Update-TSRestApiMethods {
                 HttpMethod = "GET"
                 Response = @{Keys = "datasources.datasource"}
             }
+            UpdateDataSource = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>"
+                HttpMethod = "PUT"
+                Body = "<tsRequest><datasource name='<1>' ><project id='<2>' /><owner id='<3>' /></datasource></tsRequest>"
+                Response = @{Keys = "datasource"}
+            }
             GetDatasourcePermissions = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
                 HttpMethod = "GET"
@@ -548,6 +546,12 @@ function global:Update-TSRestApiMethods {
                 HttpMethod = "GET"
                 Response = @{Keys = "flow"}
             }
+            UpdateFlow = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>"
+                HttpMethod = "PUT"
+                Body = "<tsRequest><flow name='<1>' ><project id='<2>' /><owner id='<3>' /></flow></tsRequest>"
+                Response = @{Keys = "flow"}
+            }
             GetFlowPermissions = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/permissions"
                 HttpMethod = "GET"
@@ -572,6 +576,12 @@ function global:Update-TSRestApiMethods {
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/metrics/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "metrics.metric"}
+            }
+            UpdateMetric = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/metrics/<0>"
+                HttpMethod = "PUT"
+                Body = "<tsRequest><metric name='<1>' ><project id='<2>' /><owner id='<3>' /></metric></tsRequest>"
+                Response = @{Keys = "metric"}
             }
 
         #endregion METRIC METHODS
@@ -753,7 +763,7 @@ function global:Invoke-TSRestApiMethod {
         [Parameter(Mandatory=$false,Position=1)][string[]]$Params,
         [Parameter(Mandatory=$false)][ValidateRange(1,1000)][int]$PageNumber = 1,
         [Parameter(Mandatory=$false)][ValidateRange(1,1000)][int]$PageSize = 100,
-        [Parameter(Mandatory=$false)][string]$FilterExpression,
+        [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 0
     )
 
@@ -781,13 +791,13 @@ function global:Invoke-TSRestApiMethod {
     $responseRoot = (IsRestApiVersioning -Method $Method) ? "tsResponse" : $null
     
     $pageFilter = "pageNumber=$($PageNumber)&pageSize=$($PageSize)"
-    $filter = $FilterExpression ? "filter=$($FilterExpression)&$($pageFilter)" : "$($pageFilter)"
+    $_filter = $Filter ? "filter=$($Filter)&$($pageFilter)" : "$($pageFilter)"
 
     $httpMethod = $global:tsRestApiConfig.Method.$Method.HttpMethod
 
     $uri = "$($global:tsRestApiConfig.Method.$Method.Uri)"
     $questionMarkOrAmpersand = $uri.Contains("?") ? "&" : "?"
-    $uri += (IsRestApiVersioning -Method $Method) -and $httpMethod -eq "GET" ? "$($questionMarkOrAmpersand)$($filter)" : $null
+    $uri += (IsRestApiVersioning -Method $Method) -and $httpMethod -eq "GET" ? "$($questionMarkOrAmpersand)$($_filter)" : $null
 
     $body = $global:tsRestApiConfig.Method.$Method.Body
 
@@ -810,7 +820,7 @@ function global:Invoke-TSRestApiMethod {
     if ($headers.ContentLength) { $headers.ContentLength = $body.Length }
     
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method $httpMethod -Headers $headers -Body $body -TimeoutSec $TimeoutSec -SkipCertificateCheck -SkipHttpErrorCheck -Verbose:$false -ResponseHeadersVariable responseHeaders
+        $response = Invoke-RestMethod -Uri $uri -Method $httpMethod -Headers $headers -Body $body -ContentType $global:tsRestApiConfig.(Get-VersioningType -Method $Method).ContentType -TimeoutSec $TimeoutSec -ResponseHeadersVariable responseHeaders
         if (IsRestApiVersioning -Method $Method) {
             $responseError = $response.$responseRoot.error 
         }
@@ -1173,7 +1183,7 @@ function global:Connect-TableauServer {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Server = "localhost",
+        [Parameter(Mandatory=$false,Position=0)][string]$Server = $global:Platform.Uri.Host,
         [Parameter(Mandatory=$false,Position=1)][Alias("Site")][string]$ContentUrl
     )
 
@@ -1198,7 +1208,7 @@ function global:Disconnect-TableauServer {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Server = "localhost"
+        [Parameter(Mandatory=$false,Position=0)][string]$Server = $global:Platform.Uri.Host
     )
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Logout
@@ -1219,33 +1229,9 @@ function global:Disconnect-TableauServer {
 function global:Get-TSServerInfo {
 
     [CmdletBinding()]
-    param(
-        # [switch][Alias("ResetCache")]$Update
-    )
-
-    # if (!$Update) {
-    #     if ($(get-cache platforminfo ).Exists()) {
-    #         $platformInfo = Read-Cache platforminfo 
-    #         if ($platformInfo) {
-    #             $global:Platform.Version = $platformInfo.Version
-    #             $global:Platform.Build = $platformInfo.Build
-    #             $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
-    #             return
-    #         }
-    #     }
-    # }
+    param()
 
     return Get-TSObjects -Method ServerInfo -TimeoutSec 60
-    # Write-Host+ -NoTrace -NoTimestamp -Iff (!$response) "Unable to connect to Tableau Server REST API." -ForegroundColor Red
-
-    # if ($response -and $Update) {
-    #     $global:Platform.Api.TsRestApiVersion = $response.restApiVersion
-    #     $global:Platform.Version = $response.productVersion.InnerText
-    #     $global:Platform.Build = $response.productVersion.build
-    #     Write-Cache platforminfo -InputObject @{Version=$global:Platform.Version;Build=$global:Platform.Build;TsRestApiVersion=$global:Platform.Api.TsRestApiVersion}
-    # }
-
-    # return $response
 
 }
 
@@ -1259,27 +1245,12 @@ function global:Get-TSObjects {
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Method,
         [Parameter(Mandatory=$false,Position=1)][string[]]$Params,
-        # [Parameter(Mandatory=$false)][Alias("Workbook","Datasource","Flow")][object]$InputObject,
         [Parameter(Mandatory=$false)][ValidateRange(1,1000)][int]$PageNumber = 1,
         [Parameter(Mandatory=$false)][ValidateRange(1,1000)][int]$PageSize = 100,
-        [Parameter(Mandatory=$false)][string]$FilterExpression,
+        [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 0,
         [switch]$Download
     )
-
-    # $inputObjectAliasUsed = Get-CmdletParameterAliasUsed -Parameter "InputObject"
-    # if ($InputObject -and ($Method -notlike "*Revision*" -or !$Download)) {
-    #     Write-Host+ -NoTrace "The `'$inputObjectAliasUsed`' parameter is only valid when downloading revisions" -ForegroundColor Red
-    #     $errorMessage =  "The `'$inputObjectAliasUsed`' parameter was specified, but "
-    #     if ($InputObject -and $Method -notlike "*Revision*") {
-    #         $errorMessage += "`'$Method`' is not a revisions-related method"
-    #     }
-    #     if ($InputObject -and !$Download) {
-    #         $errorMessage += "the `'`Download`' switch is missing"
-    #     }
-    #     Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
-    #     return
-    # }
 
     $objects = @()
 
@@ -1287,7 +1258,7 @@ function global:Get-TSObjects {
     $pageSize = 100
 
     do {
-        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method $Method -Params $Params -FilterExpression $FilterExpression -PageNumber $pageNumber -PageSize $pageSize -TimeoutSec $TimeoutSec
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method $Method -Params $Params -Filter $Filter -PageNumber $pageNumber -PageSize $pageSize -TimeoutSec $TimeoutSec
         if ($responseError) {
             $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
             Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
@@ -1449,7 +1420,7 @@ function global:Switch-TSSite {
         ApiVersion = $serverInfo.restApiVersion
         Headers = @{
             "Accept" = "*/*"
-            "Content-Type" = "application/xml;charset=utf-8"
+            "Content-Type" = "application/xml"
             "X-Tableau-Auth" = $global:tsRestApiConfig.Token
         }
         ApiUri = ""
@@ -1879,12 +1850,12 @@ function global:Get-TSProjects+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects,
-        [Parameter(Mandatory=$false)][string]$FilterExpression
+        [Parameter(Mandatory=$false)][string]$Filter
     )
 
     if (!$Projects) {
         $params = @{}
-        if ($FilterExpression) { $params += @{ FilterExpression = $FilterExpression } }
+        if ($Filter) { $params += @{ Filte = $Filter } }
         $Projects = Get-TSProjects @params
     }
 
@@ -1910,10 +1881,10 @@ function global:Get-TSProjects {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][string]$FilterExpression
+        [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    return Get-TSObjects -Method GetProjects -FilterExpression $FilterExpression
+    return Get-TSObjects -Method GetProjects -Filter $Filter
 
 }
 
@@ -2138,7 +2109,6 @@ function global:Get-TSProjectDefaultPermissions {
         [Parameter(Mandatory=$true)][ValidateSet("Workbooks","Datasources","Metrics","Flows")][string]$Type
     )
 
-
     $projectDefaultPermissions = @{}
     foreach ($project in $Projects) {
         $projectDefaultPermissions += @{$project.id = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($Project.Id,$Type)}
@@ -2290,19 +2260,17 @@ function global:Get-TSWorkbooks+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks -Download:$Download.IsPresent),
+        [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    if (!$Workbooks) {
-        # Write-Host+ "No workbooks found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
-        return
-    }
+    $workbooks = (Get-TSWorkbooks -Filter $Filter -Download:$Download.IsPresent)
+    if (!$workbooks) { return }
 
-    $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $Workbooks
+    $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $workbooks
 
     $workbooksPlus = @()
-    $Workbooks | ForEach-Object {
+    $workbooks | ForEach-Object {
         $workbook = @{}
         $workbookMembers = $_ | Get-Member -MemberType Property
         foreach ($member in  $workbookMembers) {
@@ -2324,10 +2292,11 @@ function global:Get-TSWorkbooks {
 
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Download
     )
 
-    return Get-TSObjects -Method GetWorkbooks -Download:$Download.IsPresent
+    return Get-TSObjects -Method GetWorkbooks -Filter $Filter -Download:$Download.IsPresent
 
 }
 
@@ -2339,10 +2308,11 @@ function global:Get-TSWorkbook+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    $workbook = Get-TSWorkbook -Id $Id -Download:$Download.IsPresent
+    $workbook = Get-TSWorkbook -Id $Id -Filter $Filter -Download:$Download.IsPresent
     $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $workbook
 
     $workbookPlus = @{}
@@ -2369,6 +2339,21 @@ function global:Get-TSWorkbook {
     )
 
     return Get-TSObjects -Method GetWorkbook -Params @($Id) -Download:$Download.IsPresent
+
+}
+
+function global:Update-TSWorkbook {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Workbook,
+        [Parameter(Mandatory=$false)][object]$Project = $Workbook.Project,
+        [Parameter(Mandatory=$false)][object]$Owner = $Workbook.Owner
+    )
+
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateWorkbook -Params @($Workbook.Id, $Workbook.Name, $Project.Id, $Owner.Id) 
+
+    return $response, $responseError
 
 }
 
@@ -2705,19 +2690,17 @@ function global:Get-TSDatasources+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$false)][object]$Datasources = (Get-TSDatasources -Download:$Download.IsPresent),
+        [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    if (!$Datasources) {
-        # Write-Host+ "No datasources found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
-        return
-    }
+    $datasources = Get-TSDatasources -Filter $Filter -Download:$Download.IsPresent
+    if (!$datasources) { return }
     
-    $datasourcePermissions = Get-TSDatasourcePermissions+ -Users $Users -Groups $Groups -Datasource $Datasources
+    $datasourcePermissions = Get-TSDatasourcePermissions+ -Users $Users -Groups $Groups -Datasource $datasources
 
     $datasourcesPlus = @()
-    $Datasources | ForEach-Object {
+    $datasources | ForEach-Object {
         $datasource = @{}
         $datasourceMembers = $_ | Get-Member -MemberType Property
         foreach ($member in  $datasourceMembers) {
@@ -2738,10 +2721,11 @@ function global:Get-TSDataSources {
 
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Download
     )
 
-    return Get-TSObjects -Method GetDatasources -Download:$Download.IsPresent
+    return Get-TSObjects -Method GetDatasources -Filter $Filter -Download:$Download.IsPresent
 
 }
 
@@ -2754,6 +2738,21 @@ function global:Get-TSDataSource {
     )
 
     return Get-TSObjects -Method GetDataSource -Params @($Id) -Download:$Download.IsPresent
+}
+
+function global:Update-TSDataSource {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$DataSource,
+        [Parameter(Mandatory=$false)][object]$Project = $DataSource.Project,
+        [Parameter(Mandatory=$false)][object]$Owner = $DataSource.Owner
+    )
+
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateDataSource -Params @($DataSource.Id, $DataSource.Name, $Project.Id, $Owner.Id) 
+
+    return $response, $responseError
+
 }
 
 function global:Get-TSDatasourceRevisions {
@@ -2928,10 +2927,11 @@ function global:Get-TSFlows+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    $flows = Get-TSFlows -Download:$Download.IsPresent
+    $flows = Get-TSFlows -Filter $Filter -Download:$Download.IsPresent
     if (!$flows) { return }
 
     $flowPermissions = Get-TSFlowPermissions+ -Users $Users -Groups $Groups -Flow $Flows
@@ -2956,11 +2956,12 @@ function global:Get-TSFlows {
 
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Download
     )
 
     $flows = @()
-    foreach ($flow in Get-TSObjects -Method GetFlows) {
+    foreach ($flow in Get-TSObjects -Method GetFlows -Filter $Filter) {
         $flows += Get-TSFlow -Id $flow.Id -Download:$Download.IsPresent
     }
 
@@ -3000,6 +3001,21 @@ function global:Get-TSFlow {
     }
 
     return $flow
+
+}
+
+function global:Update-TSFlow {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Flow,
+        [Parameter(Mandatory=$false)][object]$Project = $Flow.Project,
+        [Parameter(Mandatory=$false)][object]$Owner = $Flow.Owner
+    )
+
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateFlow -Params @($Flow.Id, $Flow.Name, $Project.Id, $Owner.Id) 
+
+    return $response, $responseError
 
 }
 
@@ -3110,9 +3126,11 @@ function global:Add-TSFlowPermissions {
 function global:Get-TSMetrics {
 
     [CmdletBinding()]
-    param()
+    param(
+        [Parameter(Mandatory=$false)][string]$Filter
+    )
 
-    return Get-TSObjects -Method GetMetrics
+    return Get-TSObjects -Method GetMetrics -Filter $Filter
 }
 
 function global:Get-TSMetric {
@@ -3123,6 +3141,21 @@ function global:Get-TSMetric {
     )
 
     return Get-TSObjects -Method GetMetric -Params @($MetricLuid)
+}
+
+function global:Update-TSMetric {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Metric,
+        [Parameter(Mandatory=$false)][object]$Project = $Metric.Project,
+        [Parameter(Mandatory=$false)][object]$Owner = $Metric.Owner
+    )
+
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateMetric -Params @($Metric.Id, $Metric.Name, $Project.Id, $Owner.Id) 
+
+    return $response, $responseError
+
 }
 
 #endregion METRICS
@@ -3543,8 +3576,11 @@ function global:Sync-TSGroups {
         $tsSite = Get-TSSite
         Write-Host+ -NoTrace "  Site: $($tsSite.name)"
 
-        $tsGroups = Get-TSGroups | Where-Object {$_.name -in $azureADGroups.displayName -and $_.name -notin $global:tsRestApiConfig.SpecialGroups} | Select-Object -Property *, @{Name="site";Expression={$null}} | Sort-Object -Property name
-        $tsUsers = Get-TSUsers | Sort-Object -Property name
+        $tsGroups = @()
+        $tsGroups += Get-TSGroups | Where-Object {$_.name -in $azureADGroups.displayName -and $_.name -notin $global:tsRestApiConfig.SpecialGroups} | Select-Object -Property *, @{Name="site";Expression={$null}} | Sort-Object -Property name
+
+        $tsGroups += @()
+        $tsUsers += Get-TSUsers | Sort-Object -Property name
 
         foreach ($tsGroup in $tsGroups) {
 
@@ -3554,16 +3590,17 @@ function global:Sync-TSGroups {
             $tsGroupMembership = Get-TSGroupMembership -Group $tsGroup
             $azureADGroupMembership = $azureADUsers | Where-Object {$_.id -in $azureADGroupToSync.members -and $_.accountEnabled} | Where-Object {![string]::IsNullOrEmpty($_.mail)}
 
-            $tsUsersToAddToGroup = ($tsUsers | Where-Object {$_.name -in $azureADGroupMembership.userPrincipalName -and $_.id -notin $tsGroupMembership.id}) ?? @()
+            $tsUsersToAddToGroup = @()
+            $tsUsersToAddToGroup += ($tsUsers | Where-Object {$_.name -in $azureADGroupMembership.userPrincipalName -and $_.id -notin $tsGroupMembership.id}) ?? @()
 
             # remove Tableau Server group members if they do not match any of the Azure AD group members UPN or any of the SMTP proxy addresses
-            $tsUsersToRemoveFromGroup = $tsGroupMembership | Where-Object {$_.name -notin $azureADGroupMembership.userPrincipalName -and "smtp:$($_.name)" -notin $azureADGroupMembership.proxyAddresses.ToLower()}
+            $tsUsersToRemoveFromGroup = $tsGroupMembership | Where-Object {$_.name -notin $azureADGroupMembership.userPrincipalName} #  -and "smtp:$($_.name)" -notin $azureADGroupMembership.proxyAddresses.ToLower()}
 
             $newUsers = @()
 
             # add the Azure AD group member if neither the UPN nor any of the SMTP proxy addresses are a username on Tableau Server
             $azureADUsersToAddToSite = $azureADGroupMembership | 
-                Where-Object {(Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN) -notin $tsUsers.name} | 
+                # Where-Object {(Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN) -notin $tsUsers.name} | 
                     Where-Object {$_.userPrincipalName -notin $tsUsers.name} | 
                         Sort-Object -Property userPrincipalName
                         
@@ -3639,9 +3676,6 @@ function global:Sync-TSUsers {
         [switch]$Delta
     )
 
-    $emptyString = ""
-    $startTime = Get-Date -AsUTC
-
     $lastStartTime = (Read-Cache "AzureADSyncUsers").LastStartTime ?? [datetime]::MinValue
 
     $message = "Getting Azure AD users"
@@ -3671,13 +3705,10 @@ function global:Sync-TSUsers {
         return
     }
 
-    $azureADUsersSmtpProxyAddresses = (Get-AzureADUserProxyAddresses -User $azureADUsers -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN)
-
     Write-Host+
     $message = "<Syncing Tableau Server users <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    $tsUsersToBeDisabled = @()
     foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
 
         Switch-TSSite $contentUrl
@@ -3685,114 +3716,182 @@ function global:Sync-TSUsers {
 
         [console]::CursorVisible = $false
 
-        $emptyString = ""
-
         $message = "<    $($tssite.name) <.>48> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
+        $tsUsers = Get-TSUsers | Where-Object {$_.name.EndsWith($global:AzureAD.$Tenant.Sync.Source) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
+
         # check for Tableau Server user names in the Azure AD users' UPN and SMTP proxy addresses
-        $tsUsers = Get-TSUsers | Where-Object {($_.name -in $azureADUsers.userPrincipalName -or $_.name -in $azureADUsersSmtpProxyAddresses) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
+        # $tsUsers = Get-TSUsers | Where-Object {$_.name -in $azureADUsers.userPrincipalName -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
+
+        # tsUsers whose email has changed:  their tsUser name is not the Azure AD UPN, but it is contained in the Azure AD account's SMTP proxy addresses
+        # $tsUsers += Get-TSUsers | Where-Object {$_.name -notin $azureADUsers.userPrincipalName -and $_.name -in $azureADUsersSmtpProxyAddresses -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
+
+        # orphaned tsUsers (those without an Azure AD account) excluded by the filter above 
+        # $tsUsers = Get-TSUsers | Where-Object {($_.name -notin $azureADUsers.userPrincipalName -and $_.name -notin $azureADUsersSmtpProxyAddresses) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
 
         Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) $($tsUsers.Count)$($emptyString.PadRight(7-$tsUsers.Count.ToString().Length)," ")" -ForegroundColor DarkGreen
-
-        # $lastOp = $null
-
+        
         $tsUsers | Foreach-Object {
 
             $tsUser = Get-TSUser -Id $_.id
 
-            # search for Azure AD user where the Tableau Server user name equals the Azure AD UPN or is one of the SMTP proxy addresses
-            $azureADUser = $azureADUsers | Where-Object {$_.userPrincipalName -eq $tsUser.name -or $tsUser.name -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN)}
-            $azureADUserAccountState = "AzureAD:$($azureADUser.accountEnabled ? "Enabled" : $(!$azureADUser ? "None" : "Disabled"))"
-            Write-Host+ -NoTrace "      PROFILE: $($tsSite.contentUrl)\$($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | $($azureADUserAccountState)" -ForegroundColor DarkGray
+            $azureADUserAccountAction = "PROFILE"
+            $azureADUserAccountActionResult = ""
+            $azureADUserAccountState = $tsUser.siteRole -eq "Unlicensed" ? "Disabled" : "Enabled"
+            $azureADUserAccountStateColor = "DarkGray";
+            $siteRole = $tsUser.siteRole
 
-            # if ($lastOp -eq "NOOP") {
-            #     Write-Host+ -NoTrace -NoNewLine -NoTimeStamp -Prefix "`r"
-            # }
+            # find the Azure AD account (or not), determine the account state, the appropriate account action and set any tsUser properties
+            # Azure AD account match: where the Tableau Server user name equals the UPN or is a SMTP address in the proxyAddresses collection
+            $azureADUser = $azureADUsers | Where-Object {$_.userPrincipalName -eq $tsUser.name}
 
+            # typical azureADUser and tsUser account scenarios
+            # the tsUser's account state should match the azureADUser's account state
+            if ($azureADUser) {
+                
+                # the azureADUser account is enabled; the tsUser account is disabled
+                if ($azureADUser.accountEnabled -and $tsUser.siteRole -eq "Unlicensed") {
+                    $azureADUserAccountAction = "ENABLE"; $azureADUserAccountState = "Enabled"; $azureADUserAccountActionResult = "Enabled"; $azureADUserAccountStateColor = "DarkGreen"; $siteRole = $tsUser.siteRole
+                }
+
+                # the azureADUser account is disabled; the tsUser account is NOT disabled (enabled)
+                elseif (!$azureADUser.accountEnabled -and $tsUser.siteRole -ne "Unlicensed") {
+                    $azureADUserAccountAction = "DISABLE"; $azureADUserAccountState = "Disabled"; $azureADUserAccountActionResult = "Disabled"; $azureADUserAccountStateColor = "Red"; $siteRole = "Unlicensed"
+                }
+
+                # the azureADUser account's state is equivalent to the tsUser account's state 
+                else {
+                    $azureADUserAccountAction = "PROFILE"; $azureADUserAccountState = $azureADUser.accountEnabled ? "Enabled" : "Disabled"; $azureADUserAccountActionResult = "";  $azureADUserAccountStateColor = "DarkGray"; $siteRole = $tsUser.siteRole
+                }
+
+            }
+
+            # special azureADUser and tsUser account scenarios
+            # email changes requiring a replacement tsUser account and orphaned tsUser accounts
+            elseif ($tsUser.siteRole -ne "Unlicensed") {
+
+                # changes to the email address for an azureADUser account
+                # the tsUser account uses the azureADUser account email for the tsUser name
+                # the tsUser name is a key field and is immutable
+                # thus, the tsUser account where the name is equivalent to the original email
+                # must be replaced with a new tsUser account using the new email address
+                
+                # determining that an azureADUser account's email has changed:
+                # no azureADUser account exists with a UPN that matches the tsUser name, and 
+                # the tsUser name exists in an azureADUser account's smtp proxy addresses
+                
+                $azureADUser = $azureADUsers | Where-Object {$tsUser.name -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN)}
+                if ($azureADUser) {
+
+                    # found the new azureADUser, but don't replace the user until the tsNewUser is created 
+                    # Sync-TSUsers will create the new user and leave the old one in place until this point
+                    $tsNewUser = Find-TSUser -Name $azureADUser.userPrincipalName
+
+                    # if tsNewUser has been created, proceed with replacing user; otherwise continue to wait
+                    $azureADUserAccountAction = "PENDING"; $azureADUserAccountState = "Replaced"; $azureADUserAccountActionResult = "Pending"; $azureADUserAccountStateColor = "DarkBlue"; 
+                    if ($tsNewUser) { $azureADUserAccountAction = "REPLACE"; $azureADUserAccountActionResult = "Replaced"}
+        
+                    $siteRole = $tsUser.siteRole
+
+                }
+
+                # orphaned tsUser accounts (no associated azureADUser account)
+                else {
+
+                    # if only relying on azureADUsers pulled from AzureADCache then an AzureADCache failure would 
+                    # cause Sync-TSUsers to incorrectly categorize tsUsers without Azure AD accounts as false
+                    # orphans.  true orphans should [probably] have their tsUser account disabled.  However, 
+                    # disabling a tsUser's account (i.e., setting their siteRole to "Unlicensed") requires first 
+                    # that the tsUser be removed from all groups.  As there is no persistence of the tsUser's state,
+                    # if AzureADCache does fail, then recovery is minimal as disabled false orphans could not be fully
+                    # restored without having some record of their previous state (e.g., group membership).
+
+                    # to avoid this, use Get-AzureADUser to query MSGraph directly and confirm whether the tsUser
+                    # account has really been orphaned.  NOTE: if AzureADCache does fail, there will be a HUGE list 
+                    # of false orphans which would need to be confirmed. calling Get-AzureADUser for every false orphan
+                    # would be VERY slow.  there should probably be a governor for this (only X confirmations per pass).
+
+                    $message = ""
+                    $azureADUserAccountAction = "ORPHAN?"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Pending"; $azureADUserAccountStateColor = "DarkGray"; 
+                    if ($tsUser.siteRole -ne "Unlicensed") {
+
+                        # query MSGraph directly to confirm orphan
+                        $azureADUser = Get-AzureADUser -Tenant $Tenant -User $tsUser.name
+
+                        # found no azureADUser; orphan confirmed
+                        # after notification/logging, ORPHAN will be converted into DISABLE
+                        if (!$azureADUser) {
+                            $azureADUserAccountAction = "ORPHAN+"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Confirmed"; $azureADUserAccountStateColor = "DarkYellow"; $siteRole = "Unlicensed"
+                            $message = "$azureADUserAccountActionResult orphan"
+                        }
+
+                        # azureADUser found! no specific action; let the AzureADSync suite should sort it out
+                        # however, highlight it and log it as a false orphan in case there's a larger AzureADSync suite issue
+                        else {
+                            $azureADUserAccountAction = "ORPHAN-"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Refuted"; $azureADUserAccountStateColor = "DarkYellow"; $siteRole = $tsUser.siteRole
+                            $message = "See the following Azure AD account: $Tenant\$($azureADUser.userPrincipalName)."
+                        }
+
+                        Write-Log -Action "IsOrphan" -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Message $message -Force 
+                    }
+
+                }
+
+            }
+
+            Write-Host+ -NoTrace "      $($azureADUserAccountAction): $($tsSite.contentUrl)\$($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | AzureAD:$($azureADUserAccountState)" -ForegroundColor $azureADUserAccountStateColor
+
+            # after notification/logging, convert ORPHAN+ to DISABLED
+            if ($azureADUserAccountAction -eq "ORPHAN+") {
+                $azureADUserAccountAction = "DISABLE"; $azureADUserAccountState = "Disabled"; $azureADUserAccountActionResult = "Disabled"; $azureADUserAccountStateColor = "Red"; $siteRole = "Unlicensed"
+            }
+
+            if ($azureADUserAccountAction -eq "REPLACE") {
+
+                # update group membership of new tsUser
+                Get-TSUserMembership -User $tsUser | Foreach-Object { Add-TSUserToGroup -Group $_ -User $tsNewUser }
+            
+                # change content ownership
+                Get-TSWorkbooks -Filter "ownerEmail:eq:$($tsUser.email)" | Foreach-Object {Update-TSWorkbook -Workbook $_ -Owner $tsNewUser | Out-Null }
+                Get-TSDatasources -Filter "ownerEmail:eq:$($tsUser.email)" | Foreach-Object {Update-TSDatasource -Datasource $_ -Owner $tsNewUser | Out-Null }
+                Get-TSFlows -Filter "ownerName:eq:$($tsUser.fullName)" | Foreach-Object {Update-TSFlow -Flow $_ -Owner $tsNewUser | Out-Null }
+                Get-TSMetrics -Filter "ownerEmail:eq:$($tsUser.email)" | Foreach-Object {Update-TSMetric -Metric $_ -Owner $tsNewUser | Out-Null }
+
+                Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force
+                Write-Host+ -NoTrace "      $($azureADUserAccountAction): $($tsSite.contentUrl)\$($tsNewUser.name) << $($tsSite.contentUrl)\$($tsUser.name)" -ForegroundColor DarkBlue
+
+                # set action/state for tsUser to be disabled below
+                $azureADUserAccountAction = "DISABLE"; $azureADUserAccountState = "Disabled"; $azureADUserAccountActionResult = "Disabled"; $azureADUserAccountStateColor = "Red"; $siteRole = "Unlicensed"
+
+            }
+
+            # set fullName and email
             $fullName = $azureADUser.displayName ?? $tsUser.fullName
             $email = $azureADUser.mail ?? $tsUser.email
-
-            if ($tsUser.siteRole -eq "Unlicensed" -and $azureADUser.accountEnabled) {
-                $siteRole = $global:AzureADSyncTS.$($contentUrl).SiteRoleMinimum
-            }
-            else {
-                $siteRole = $tsUser.siteRole
-            }
-
-            # if the users' Azure AD account has been disabled, add them to tsUsersToBeDisabled
-            # disabledUsers are handled after all other sync ops
-            if (!$azureADUser.accountEnabled -and $tsUser.siteRole -ne "Unlicensed") {
-                $tsUsersToBeDisabled += $tsUser
-                Write-Host+ -NoTrace "      Disable: $($tsSite.contentUrl)\$($tsUser.name): $($tsUser.siteRole) >> Unlicensed (PENDING)" -ForegroundColor Red
-            }
             
-            # Update-tsUser replaces both apostrophe characters ("'" and "’") in fullName and email with "&apos;" (which translates to "'")
+            # if changes to fullName, email or siteRole, update tsUser
+            # Update-TSUser replaces both apostrophe characters ("'" and "’") in fullName and email with "&apos;" (which translates to "'")
             # Replace "’" with "'" in order to correctly compare fullName and email from $tsUser and $azureADUser 
-            
-            elseif ($fullName.replace("’","'") -ne $tsUser.fullName -or $email.replace("’","'") -ne $tsUser.email -or $siteRole -ne $tsUser.siteRole) {
-                $response, $responseError = Update-tsUser -User $tsUser -FullName $fullName -Email $email -SiteRole $siteRole | Out-Null
+            if ($fullName.replace("’","'") -ne $tsUser.fullName -or $email.replace("’","'") -ne $tsUser.email -or $siteRole -ne $tsUser.siteRole) {
+
+                # when setting a user's siterole to Unlicensed, you must first remove them from all groups
+                if ($azureADUserAccountAction -ne "DISABLE") {
+                    $azureADUserAccountAction = " UPDATE"; $azureADUserAccountActionResult = "Updated"; $azureADUserAccountStateColor = "DarkGreen"
+                }
+
+                # update the user
+                $response, $responseError = Update-TSUser -User $tsUser -FullName $fullName -Email $email -SiteRole $siteRole | Out-Null
                 if ($responseError) {
-                    Write-Log -Context "AzureADSyncTS" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
+                    Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
                     Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                 }
                 else {
-                    # Write-Log -Context "AzureADSyncTS" -Action "UpdateUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$fullName | $email | $siteRole" -EntryType "Information" -Force
-                    # Write-Host+ -NoTrace "      Update: $($tsUser.id) $($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole)" -ForegroundColor DarkYellow
-                    Write-Host+ -NoTrace "      Update: $($tsSite.contentUrl)\$($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor DarkGreen
+                    Write-Host+ -NoTrace "      $($azureADUserAccountAction): $($tsSite.contentUrl)\$($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor $azureADUserAccountStateColor
+                    # Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force 
                 }
-                
-                # $lastOp = "Update"
             }
-            else {
-                # # no update
-                # Write-Host+ -NoTrace "    NOOP: $($tsUser.id) $($tsUser.name)" -ForegroundColor DarkGray
-                # $lastOp = "NOOP"
-            }
-        
-        }
 
-    }
-
-    # if a user's AzureAD account is disabled, 
-    # disable their Tableau Server user accounts for each site of which they are a member
-    
-    $tsSites = Get-TSSites
-    foreach ($tsSite in $tsSites) {
-
-        Switch-TSSite $tsSite.contentUrl
-
-        $tsSiteUsers = Get-TSUsers
-
-        foreach ($tsUserToBeDisabled in $tsUsersToBeDisabled) {
-        
-            $tsUser = Find-TSUser -Name $tsUserToBeDisabled.Name -Users $tsSiteUsers
-            if ($tsUser -and $tsUser.siteRole -ne "Unlicensed") {
-
-                Write-Host+ -NoTrace "      PROFILE: $($tsSite.contentUrl)\$($tsUser.name) == $($tsUser.fullName ?? "null") | $($tsUser.email ?? "null") | $($tsUser.siteRole) | AzureAD:Disabled" -ForegroundColor DarkGray
-            
-                # # remove user from their groups before disabling
-                # # if the user is a member of groups with a minimum site role, then updating the user's siterole to Unlicensed will fail
-                # # so this must be done BEFORE updateing the user's siterole to Unlicensed$
-                $tsUserGroupMembership = Get-TSUserMembership -User $tsUser | where-object {$_.name -notin $global:tsRestApiConfig.SpecialGroups}
-                foreach ($tsUserGroup in $tsUserGroupMembership) {
-                    Remove-TSUserFromGroup -Group $tsUserGroup -User $tsUser
-                }
-
-                $response, $responseError = Update-TSUser -User $tsUser -SiteRole "Unlicensed" | Out-Null
-                if ($responseError) {
-                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
-                    Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
-                }
-                else {
-                    Write-Log -Context "AzureADSyncTS" -Action "DisableUser" -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "Unlicensed" -EntryType "Information" -Status "Success" -Force
-                    Write-Host+ -NoTrace "      Disable: $($tsSite.contentUrl)\$($tsUser.name): $($tsUser.siteRole) >> Unlicensed" -ForegroundColor Red
-                }
-
-                $response = Update-TSUserPassword -User $tsUser -Password (New-RandomPassword -ExcludeSpecialCharacters)
-    
-            }
-    
         }
     
     }
@@ -3807,51 +3906,3 @@ function global:Sync-TSUsers {
 }
 
 #endregion SYNC
-#region MISC
-function global:Get-TSUsersDistributionLists {
-
-[CmdletBinding()]
-param(
-    [switch]$ExcludePATHUsers,
-    [switch]$ActiveOnly
-)
-
-$users = @()
-$sites = Get-TSSites
-foreach ($site in $sites) {
-    Switch-TSSite -Site $site.contentUrl
-    $siteUsers = Get-TSUsers | Where-Object {$_.siteRole -ne "Unlicensed"} 
-    if ($ExcludePATHUsers) {
-        $siteUsers = $siteUsers | Where-Object {$_.name -notlike "*@path.org"}
-    }
-    foreach ($siteUser in $siteUsers) {
-        $user = Get-TSUser -Id $siteUser.Id
-        if ($ActiveOnly) {
-            if ($user.lastLogin -and ((Get-Date -AsUTC)-[datetime]($user.lastLogin)).TotalDays -le 90) {
-                $users += $user
-            }
-        }
-        else {
-            $users += $user
-        }
-        
-    }
-}
-
-$emailAddresses = @()
-foreach ($user in $users) {
-    $emailAddresses += $user.email ?? $user.name
-}
-$emailAddresses = $emailAddresses | Sort-Object -Unique
-
-$distributionLists = @()
-$distributionLists += $emailAddresses[0..249] -join "; "
-$distributionLists += $emailAddresses[250..499] -join "; "
-$distributionLists += $emailAddresses[500..749] -join "; "
-$distributionLists += $emailAddresses[750..999] -join "; "
-
-return $users, $emailAddresses, $distributionLists
-
-}
-
-#endregion MISC
