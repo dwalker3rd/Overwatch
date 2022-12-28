@@ -3676,6 +3676,7 @@ function global:Sync-TSUsers {
         [switch]$Delta
     )
 
+    $startTime = Get-Date -AsUTC
     $lastStartTime = (Read-Cache "AzureADSyncUsers").LastStartTime ?? [datetime]::MinValue
 
     $message = "Getting Azure AD users"
@@ -3704,6 +3705,12 @@ function global:Sync-TSUsers {
         Write-Host+
         return
     }
+
+    if ($Delta) {
+        Write-Host+
+        Write-Host+ -NoTrace "Orphan detection is unavailable with the Delta switch." -ForegroundColor DarkYellow
+        Write-Host+
+    }    
 
     Write-Host+
     $message = "<Syncing Tableau Server users <.>48> PENDING"
@@ -3799,41 +3806,49 @@ function global:Sync-TSUsers {
                 # orphaned tsUser accounts (no associated azureADUser account)
                 else {
 
-                    # if only relying on azureADUsers pulled from AzureADCache then an AzureADCache failure would 
-                    # cause Sync-TSUsers to incorrectly categorize tsUsers without Azure AD accounts as false
-                    # orphans.  true orphans should [probably] have their tsUser account disabled.  However, 
-                    # disabling a tsUser's account (i.e., setting their siteRole to "Unlicensed") requires first 
-                    # that the tsUser be removed from all groups.  As there is no persistence of the tsUser's state,
-                    # if AzureADCache does fail, then recovery is minimal as disabled false orphans could not be fully
-                    # restored without having some record of their previous state (e.g., group membership).
+                    # Orphan detection is unavailable when the Delta switch is specified
+                    # why? b/c -delta only pulls the latest user updates from the cache and orphan
+                    # detection requires the full user cache
 
-                    # to avoid this, use Get-AzureADUser to query MSGraph directly and confirm whether the tsUser
-                    # account has really been orphaned.  NOTE: if AzureADCache does fail, there will be a HUGE list 
-                    # of false orphans which would need to be confirmed. calling Get-AzureADUser for every false orphan
-                    # would be VERY slow.  there should probably be a governor for this (only X confirmations per pass).
+                    if (!$Delta) {
 
-                    $message = ""
-                    $azureADUserAccountAction = "ORPHAN?"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Pending"; $azureADUserAccountStateColor = "DarkGray"; 
-                    if ($tsUser.siteRole -ne "Unlicensed") {
+                        # if only relying on azureADUsers pulled from AzureADCache then an AzureADCache failure would 
+                        # cause Sync-TSUsers to incorrectly categorize tsUsers without Azure AD accounts as false
+                        # orphans.  true orphans should [probably] have their tsUser account disabled.  However, 
+                        # disabling a tsUser's account (i.e., setting their siteRole to "Unlicensed") requires first 
+                        # that the tsUser be removed from all groups.  As there is no persistence of the tsUser's state,
+                        # if AzureADCache does fail, then recovery is minimal as disabled false orphans could not be fully
+                        # restored without having some record of their previous state (e.g., group membership).
 
-                        # query MSGraph directly to confirm orphan
-                        $azureADUser = Get-AzureADUser -Tenant $Tenant -User $tsUser.name
+                        # to avoid this, use Get-AzureADUser to query MSGraph directly and confirm whether the tsUser
+                        # account has really been orphaned.  NOTE: if AzureADCache does fail, there will be a HUGE list 
+                        # of false orphans which would need to be confirmed. calling Get-AzureADUser for every false orphan
+                        # would be VERY slow.  there should probably be a governor for this (only X confirmations per pass).
 
-                        # found no azureADUser; orphan confirmed
-                        # after notification/logging, ORPHAN will be converted into DISABLE
-                        if (!$azureADUser) {
-                            $azureADUserAccountAction = "ORPHAN+"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Confirmed"; $azureADUserAccountStateColor = "DarkYellow"; $siteRole = "Unlicensed"
-                            $message = "$azureADUserAccountActionResult orphan"
+                        $message = ""
+                        $azureADUserAccountAction = "ORPHAN?"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Pending"; $azureADUserAccountStateColor = "DarkGray"; 
+                        if ($tsUser.siteRole -ne "Unlicensed") {
+
+                            # query MSGraph directly to confirm orphan
+                            $azureADUser = Get-AzureADUser -Tenant $Tenant -User $tsUser.name
+
+                            # found no azureADUser; orphan confirmed
+                            # after notification/logging, ORPHAN will be converted into DISABLE
+                            if (!$azureADUser) {
+                                $azureADUserAccountAction = "ORPHAN+"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Confirmed"; $azureADUserAccountStateColor = "DarkYellow"; $siteRole = "Unlicensed"
+                                $message = "$azureADUserAccountActionResult orphan"
+                            }
+
+                            # azureADUser found! no specific action; let the AzureADSync suite should sort it out
+                            # however, highlight it and log it as a false orphan in case there's a larger AzureADSync suite issue
+                            else {
+                                $azureADUserAccountAction = "ORPHAN-"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Refuted"; $azureADUserAccountStateColor = "DarkYellow"; $siteRole = $tsUser.siteRole
+                                $message = "See the following Azure AD account: $Tenant\$($azureADUser.userPrincipalName)."
+                            }
+
+                            Write-Log -Action "IsOrphan" -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Message $message -Force 
                         }
 
-                        # azureADUser found! no specific action; let the AzureADSync suite should sort it out
-                        # however, highlight it and log it as a false orphan in case there's a larger AzureADSync suite issue
-                        else {
-                            $azureADUserAccountAction = "ORPHAN-"; $azureADUserAccountState = "Orphaned"; $azureADUserAccountActionResult = "Refuted"; $azureADUserAccountStateColor = "DarkYellow"; $siteRole = $tsUser.siteRole
-                            $message = "See the following Azure AD account: $Tenant\$($azureADUser.userPrincipalName)."
-                        }
-
-                        Write-Log -Action "IsOrphan" -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Message $message -Force 
                     }
 
                 }
@@ -3868,14 +3883,14 @@ function global:Sync-TSUsers {
 
             # set fullName and email
             $fullName = $azureADUser.displayName ?? $tsUser.fullName
-            $email = $azureADUser.mail ?? $tsUser.email
+            $email = $azureADUser.mail ?? $($tsUser.email ?? $tsUser.name)
             
             # if changes to fullName, email or siteRole, update tsUser
             # Update-TSUser replaces both apostrophe characters ("'" and "’") in fullName and email with "&apos;" (which translates to "'")
             # Replace "’" with "'" in order to correctly compare fullName and email from $tsUser and $azureADUser 
+            
             if ($fullName.replace("’","'") -ne $tsUser.fullName -or $email.replace("’","'") -ne $tsUser.email -or $siteRole -ne $tsUser.siteRole) {
 
-                # when setting a user's siterole to Unlicensed, you must first remove them from all groups
                 if ($azureADUserAccountAction -ne "DISABLE") {
                     $azureADUserAccountAction = " UPDATE"; $azureADUserAccountActionResult = "Updated"; $azureADUserAccountStateColor = "DarkGreen"
                 }

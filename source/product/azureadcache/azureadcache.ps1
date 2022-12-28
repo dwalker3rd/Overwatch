@@ -78,7 +78,7 @@ foreach ($tenantKey in $tenantKeys) {
         Connect-AzureAD -Tenant $tenantKey
 
         if ($global:AzureAD.$tenantKey.Tenant.Type -eq "Azure AD B2C") {
-            Write-Host+ -NoTrace "Note: Get-AzureADObjects will ignore the Delta switch for Azure AD B2C tenants." -ForegroundColor DarkGray
+            Write-Host+ -NoTrace "Note: Delta switch ignored for Azure AD B2C tenants." -ForegroundColor DarkGray
             Write-Host+
         }
 
