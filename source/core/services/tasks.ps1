@@ -502,6 +502,8 @@ function global:Show-PlatformTaskStatus {
 
     $platformTasks = Get-PlatformTask -Disabled:$Disabled.IsPresent
 
+    Write-Host+ -Iff $($platformTasks.Count -ge 1)
+
     foreach ($platformTask in $platformTasks) {
         $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")

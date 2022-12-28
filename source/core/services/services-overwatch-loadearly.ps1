@@ -94,7 +94,8 @@ function global:Write-Host+ {
         [switch]$IfVerbose,
         [switch]$IfDebug,
         [switch]$IfInformation,
-        [switch]$SetIndentGlobal,$ResetIndentGlobal,
+        [Parameter(Mandatory=$false)][int]$SetIndentGlobal,
+        [switch]$ResetIndentGlobal,
         [switch]$NoIndent,
         [switch]$ResetMaxBlankLines,
         [switch]$ResetAll,
@@ -120,7 +121,7 @@ function global:Write-Host+ {
     if ($IfDebug -and !$DebugPreference) { $returnAfterSettings = $true }
     if ($IfInformation -and !$InformationPreference) { $returnAfterSettings = $true }
     if ($ResetIndentGlobal) { $global:WriteHostPlusIndentGlobal = 0; $returnAfterSettings = $true }
-    if ($SetIndentGlobal) { $global:WriteHostPlusIndentGlobal += $Indent; $returnAfterSettings = $true }
+    if ($SetIndentGlobal) { $global:WriteHostPlusIndentGlobal += $SetIndentGlobal; $returnAfterSettings = $true }
     if ($ResetTimestampGlobal) { $global:WriteHostPlusTimestampGlobal = "Ignore"; $returnAfterSettings = $true }
     if ($SetTimestampGlobal) { $global:WriteHostPlusTimestampGlobal = $SetTimestampGlobal; $returnAfterSettings = $true }
     if ($ResetTraceGlobal) { $global:WriteHostPlusTraceGlobal = "Ignore"; $returnAfterSettings = $true }
