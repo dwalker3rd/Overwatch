@@ -138,13 +138,13 @@ $global:WarningPreference = "SilentlyContinue"
         }
 
         $message = "$($emptyString.PadLeft(8,"`b"))CONFIGURED"
-        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Blue,DarkGray,DarkGreen
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
 
     }
     catch {
 
         $message = "$($emptyString.PadLeft(8,"`b"))FAILED"
-        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Blue,DarkGray,Red
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Red
 
     }
 
