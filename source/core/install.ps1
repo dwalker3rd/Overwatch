@@ -5,6 +5,7 @@
 
 param (
     [switch]$SkipProductStart,
+    [switch]$SkipPowerShell,
     [switch]$UseDefaultResponses,
     [switch][Alias("PostInstall")]$PostInstallation
 )
@@ -49,8 +50,8 @@ Write-Host+
 
 #endregion POST INSTALL SHORTCUT
 
-pspref -Quiet
-Clear-Host
+# pspref -Quiet
+# Clear-Host
 
 #region CHECK INSTALLUPDATERESTART
 
@@ -751,9 +752,12 @@ Clear-Host
         $providerIds += $global:Environ.Provider | Where-Object {$_ -notin $providerIds}
     }
 
+    $disabledProductIDS = @()
     $impactedProductIds = $productIds | Where-Object {$_ -in $global:Environ.Product}
 
     if ($impactedProductIds) {
+
+        $disabledProductIds += (Get-PlatformTask -Disabled).ProductID
 
         Write-Host+ -MaxBlankLines 1
         $message = "<Impacted Products <.>48> DISABLING"
@@ -949,37 +953,41 @@ Clear-Host
     . $PSScriptRoot\services\services-overwatch-install.ps1
     . $PSScriptRoot\services\cache.ps1
 
-#region MODULES-PACKAGES
+#region POWERSHELL MODULES-PACKAGES
 
-    Write-Host+ -MaxBlankLines 1
-    $message = "<Powershell modules/packages <.>48> INSTALLING"
-    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+    if (!$SkipPowerShell) {
 
-    if (!(Get-PackageSource -ProviderName PowerShellGet)) {
-        Register-PackageSource -Name PSGallery -Location "https://www.powershellgallery.com/api/v2" -ProviderName PowerShellGet -ErrorAction SilentlyContinue | Out-Null
-    }
-    $requiredModules = @("PsIni")
-    foreach ($module in $requiredModules) {
-        if (!(Get-Module -Name $module -ErrorAction SilentlyContinue | Out-Null)) {
-            Install-Module -Name $module -Force -ErrorAction SilentlyContinue | Out-Null
-            Import-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
+        Write-Host+ -MaxBlankLines 1
+        $message = "<Powershell modules/packages <.>48> INSTALLING"
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+
+        if (!(Get-PackageSource -ProviderName PowerShellGet)) {
+            Register-PackageSource -Name PSGallery -Location "https://www.powershellgallery.com/api/v2" -ProviderName PowerShellGet -ErrorAction SilentlyContinue | Out-Null
         }
-    }
-
-    if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
-        Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -ErrorAction SilentlyContinue | Out-Null
-    }
-    $requiredPackages = @("Portable.BouncyCastle","MimeKit","MailKit")
-    foreach ($package in $requiredPackages) {
-        if (!(Get-Package -Name $package -ErrorAction SilentlyContinue)) {
-            Install-Package -Name $package -SkipDependencies -Force | Out-Null
+        $requiredModules = @("PsIni")
+        foreach ($module in $requiredModules) {
+            if (!(Get-Module -Name $module -ErrorAction SilentlyContinue | Out-Null)) {
+                Install-Module -Name $module -Force -ErrorAction SilentlyContinue | Out-Null
+                Import-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
+            }
         }
+
+        if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
+            Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -ErrorAction SilentlyContinue | Out-Null
+        }
+        $requiredPackages = @("Portable.BouncyCastle","MimeKit","MailKit")
+        foreach ($package in $requiredPackages) {
+            if (!(Get-Package -Name $package -ErrorAction SilentlyContinue)) {
+                Install-Package -Name $package -SkipDependencies -Force | Out-Null
+            }
+        }
+
+        $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
     }
 
-    $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-
-#endregion MODULES-PACKAGES
+#endregion POWERSHELL MODULES-PACKAGES
 #region PYTHON-PACKAGES
 
     switch ($platformId) {
@@ -1167,7 +1175,9 @@ Clear-Host
 
         #region CONFIG
 
-            if (Test-Path "$PSScriptRoot\config\config-ps-remoting.ps1") {. "$PSScriptRoot\config\config-ps-remoting.ps1" }
+            if (!$SkipPowerShell) {    
+                if (Test-Path "$PSScriptRoot\config\config-ps-remoting.ps1") {. "$PSScriptRoot\config\config-ps-remoting.ps1" }
+            }
 
             if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1" }
             if (Test-Path "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1") {. "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1" }
@@ -1219,7 +1229,12 @@ Clear-Host
                     if ((Get-Product -Id $productId).HasTask) {
                         Install-Product $productId -NoNewLine
                         if (!$SkipProductStart -and !$installOverwatch) {
-                            Enable-Product $productId -NoNewLine
+                            if ($productId -notin $disabledProductIDs) {
+                                Enable-Product $productId -NoNewLine
+                            }
+                            else {
+                                Disable-Product $productId -NoNewLine
+                            }
                         }
                         else {
                             Write-Host+

@@ -389,19 +389,32 @@ function script:Copy-File {
         $Name = $productToEnable.Name 
         $Publisher = $productToEnable.Publisher
 
-        $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
+        if (!$NoNewLine) {
+            $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
+        }
+
+        # if (!$NoNewLine) {
+        #     $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","INSTALLED$($emptyString.PadLeft(11," "))PENDING"
+        #     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGreen
+        # }
 
         $platformTask = Disable-PlatformTask -Id $productToEnable.Id -OutputType PlatformTask 
         $productIsStopped = $platformTask.Status -in $global:PlatformTaskState.Stopped
         $productIsDisabled = $platformTask.Status -in $global:PlatformTaskState.Disabled
         $productStatus = $platformTask.Status
 
-        $message = "$($emptyString.PadLeft(27,"`b"))$($productIsStopped ? "STOPPED" : "$($productStatus.ToUpper())")$($emptyString.PadLeft($($productIsStopped ? 13 : 20-$productStatus.Length)," "))PENDING"
+        $message = "$($emptyString.PadLeft(40,"`b"))$($productIsStopped ? "STOPPED" : "$($productStatus.ToUpper())")$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor ($productIsStopped ? "Red" : "DarkGreen"),DarkGray
 
-        $message = "$($emptyString.PadLeft(7,"`b"))$($productStatus.ToUpper())"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor ($productIsDisabled ? "Red" : "DarkGreen")
+        # $message = "$($emptyString.PadLeft(28,"`b"))INSTALLED$($emptyString.PadLeft(11," "))PENDING"
+        # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red"),DarkGray
+
+        $message = "$($emptyString.PadLeft(20,"`b"))$($productStatus.ToUpper())$($emptyString.PadLeft(20-$productStatus.Length)," ")"
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($productIsDisabled ? "Red" : "DarkGreen")
+
+        # $message = "$($emptyString.PadLeft(7,"`b"))$($productStatus.ToUpper())$($emptyString.PadLeft(20-$productStatus.Length)," ")"
+        # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red")
 
     }
 
@@ -418,7 +431,7 @@ function script:Copy-File {
         $Publisher = $productToEnable.Publisher
 
         if (!$NoNewLine) {
-            $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","INSTALLED$($emptyString.PadLeft(11," "))PENDING"
+            $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","INSTALLED$($emptyString.PadLeft(11," "))PENDING$($emptyString.PadLeft(13," "))"
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGreen
         }
 
@@ -426,10 +439,10 @@ function script:Copy-File {
         $productIsEnabled = $platformTask.Status -in $global:PlatformTaskState.Enabled
         $productStatus = $platformTask.Status
 
-        $message = "$($emptyString.PadLeft(28,"`b"))INSTALLED$($emptyString.PadLeft(11," "))PENDING"
+        $message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))PENDING$($emptyString.PadLeft(13," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red"),DarkGray
 
-        $message = "$($emptyString.PadLeft(7,"`b"))$($productStatus.ToUpper())$($emptyString.PadLeft(20-$productStatus.Length)," ")"
+        $message = "$($emptyString.PadLeft(20,"`b"))$($productStatus.ToUpper())$($emptyString.PadLeft(20-$productStatus.Length)," ")"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($productIsEnabled ? "DarkGreen" : "Red")
 
     }
@@ -646,8 +659,13 @@ function script:Copy-File {
         Write-Host+ -NoTrace -NoTimestamp "-----------------" -ForegroundColor DarkGray
 
         $postInstallConfig = $false
-        if ((Get-PlatformTask).status -contains "Disabled") {
+        $disabledPlatformTasks = Get-PlatformTask -Disabled
+        if ($disabledPlatformTasks.Count -gt 0) {
             Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Enable disabled tasks"
+            Write-Host+ -SetIndentGlobal 2 
+            Show-PlatformTaskStatus -Disabled
+            Write-Host+ -SetIndentGlobal -2
+
             $postInstallConfig = $true
         }
 
