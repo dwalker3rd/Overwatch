@@ -509,6 +509,8 @@ function global:Show-PlatformTaskStatus {
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
     }
 
+    Write-Host+ -Iff $($platformTasks.Count -ge 1)
+
 }
 
 #endregion TASKS
