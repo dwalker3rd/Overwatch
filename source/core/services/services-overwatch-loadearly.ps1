@@ -2,44 +2,48 @@ function global:Set-PSPreferenceVariables {
 
     [CmdletBinding()]
     param (
-        [switch]$xi,
-        [switch]$v,
-        [switch]$d,
-        [switch]$xw,
-        [switch]$p,
-        [switch]$xpref,
-        [switch]$xpostf,
-        [switch]$xwhp,
+        [switch]$i,$xi,
+        [switch]$v,$xv,
+        [switch]$d,$xd,
+        [switch]$w,$xw,
+        [switch]$prog,$xprog,
+        [switch]$prefl,$xprefl,
+        [switch]$postfl,$xpostfl,
+        [switch]$whp,$xwhp,
         [Parameter(Mandatory=$false)][Alias("q")][switch]$Quiet
     )
 
-    
+    $global:InformationPreference = $i ? "Continue" : "Continue"
     $global:InformationPreference = $xi ? "SilentlyContinue" : "Continue"
     $global:VerbosePreference = $v ? "Continue" : "SilentlyContinue"
     $global:DebugPreference = $d ? "Continue" : "SilentlyContinue"
+    $global:WarningPreference = $w ? "Continue" : "Continue"
     $global:WarningPreference = $xw ? "SilentlyContinue" : "Continue"
-    $global:ProgressPreference = $p ? "Continue" : "SilentlyContinue"
-    $global:PreflightPreference =  $xpref ? "SilentlyContinue" : "Continue"
-    $global:PostflightPreference =  $xpostf ? "SilentlyContinue" : "Continue"
-    $global:WriteHostPlusPreference =  $xwhp ? "SilentlyContinue" : "Continue"
+    $global:ProgressPreference = $prog ? "Continue" : "SilentlyContinue"
+    $global:PreflightPreference = $prefl ? "Continue" : "Continue"
+    $global:PreflightPreference = $xprefl ? "SilentlyContinue" : "Continue"
+    $global:PostflightPreference = $postfl ? "Continue" : "Continue"
+    $global:PostflightPreference = $xpostfl ? "SilentlyContinue" : "Continue"
+    $global:WriteHostPlusPreference = $whp ? "Continue" : "Continue"
+    $global:WriteHostPlusPreference = $xwhp ? "SilentlyContinue" : "Continue"
 
     Write-Host+ -Iff $(!$Quiet)
     $message = "InformationPreference = |$global:InformationPreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:InformationPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:InformationPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     $message = "VerbosePreference = |$global:VerbosePreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:VerbosePreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:VerbosePreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     $message = "DebugPreference = |$global:DebugPreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:DebugPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,$($global:DebugPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     $message = "WarningPreference = |$global:WarningPreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:WarningPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:WarningPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     $message = "ProgressPreference = |$global:ProgressPreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:ProgressPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:ProgressPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     $message = "PreflightPreference = |$global:PreflightPreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PreflightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PreflightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     $message = "PostflightPreference = |$global:PostflightPreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PreflightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PostflightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     $message = "WriteHostPlusPreference = |$global:WriteHostPlusPreference"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:PreflightPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor Gray,($global:WriteHostPlusPreference -eq "SilentlyContinue" ? "DarkGray" : "DarkYellow") -Prefix "PSPREF: "
     Write-Host+ -Iff $(!$Quiet)
 
 }
@@ -90,35 +94,59 @@ function global:Write-Host+ {
         [switch]$IfVerbose,
         [switch]$IfDebug,
         [switch]$IfInformation,
-        [switch]$SetIndentGlobal,
-        [switch]$ResetIndentGlobal,
+        [switch]$SetIndentGlobal,$ResetIndentGlobal,
         [switch]$NoIndent,
         [switch]$ResetMaxBlankLines,
         [switch]$ResetAll,
-        [switch]$Parse
-
+        [switch]$Parse,
+        [Parameter(Mandatory=$false)][ValidateSet("Ignore","Include","Exclude")][string]$SetTimestampGlobal,
+        [switch]$ResetTimestampGlobal,
+        [Parameter(Mandatory=$false)][ValidateSet("Ignore","Include","Exclude")][string]$SetTraceGlobal,
+        [switch]$ResetTraceGlobal
     )
 
     if ($ResetAll) {
         $global:WriteHostPlusBlankLineCount = 0
         $global:WriteHostPlusIndentGlobal = 0
+        $global:WriteHostPlusTimestampGlobal = "Ignore"
+        $global:WriteHostPlusTraceGlobal = "Ignore"
         return
     }
 
-    if ($ResetMaxBlankLines) { $global:WriteHostPlusBlankLineCount = 0; return }
-    if ($global:WriteHostPlusPreference -and $global:WriteHostPlusPreference -ne "Continue") {return}
+    $returnAfterSettings = $false
+    if ($ResetMaxBlankLines) { $global:WriteHostPlusBlankLineCount = 0; $returnAfterSettings = $true }
+    if ($global:WriteHostPlusPreference -and $global:WriteHostPlusPreference -ne "Continue") { $returnAfterSettings = $true }
+    if ($IfVerbose -and !$VerbosePreference) { $returnAfterSettings = $true }
+    if ($IfDebug -and !$DebugPreference) { $returnAfterSettings = $true }
+    if ($IfInformation -and !$InformationPreference) { $returnAfterSettings = $true }
+    if ($ResetIndentGlobal) { $global:WriteHostPlusIndentGlobal = 0; $returnAfterSettings = $true }
+    if ($SetIndentGlobal) { $global:WriteHostPlusIndentGlobal += $Indent; $returnAfterSettings = $true }
+    if ($ResetTimestampGlobal) { $global:WriteHostPlusTimestampGlobal = "Ignore"; $returnAfterSettings = $true }
+    if ($SetTimestampGlobal) { $global:WriteHostPlusTimestampGlobal = $SetTimestampGlobal; $returnAfterSettings = $true }
+    if ($ResetTraceGlobal) { $global:WriteHostPlusTraceGlobal = "Ignore"; $returnAfterSettings = $true }
+    if ($SetTraceGlobal) { $global:WriteHostPlusTraceGlobal = $SetTraceGlobal; $returnAfterSettings = $true }
+    if ($returnAfterSettings) { return }
+
     if (!$Iff) {return}
-    if ($IfVerbose -and !$VerbosePreference) {return}
-    if ($IfDebug -and !$DebugPreference) {return}
-    if ($IfInformation -and !$InformationPreference) {return}
     if ($Clear) { Clear-Host; return }
-    if ($ResetIndentGlobal) { $global:WriteHostPlusIndentGlobal = 0; return }
-    if ($SetIndentGlobal) { $global:WriteHostPlusIndentGlobal += $Indent; return }
+
+    if ($global:WriteHostPlusTimestampGlobal) { 
+        switch ($global:WriteHostPlusTimestampGlobal) {
+            "Include" { $NoTimestamp = $false }
+            "Exclude" { $NoTimestamp = $true }
+        }
+    }
+
+    if ($global:WriteHostPlusTraceGlobal) { 
+        switch ($global:WriteHostPlusTraceGlobal) {
+            "Include" { $NoTrace = $false }
+            "Exclude" { $NoTrace = $true }
+        }
+    }
 
     if ($Parse -and $NoSeparator) {
         throw "The `"NoSeparator`" switch cannot be used with the `"Parse`" switch"
     }
-
 
     if ($NoIndent -or !$global:WriteHostPlusEndOfLine) {$Indent = 0}
 

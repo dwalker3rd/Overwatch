@@ -183,7 +183,7 @@ function global:Export-TSServer {
         Write-Host+
         Write-Host+ -NoTrace "Server: $($global:tsRestApiConfig.Platform.Uri.Host) ($($global:tsRestApiConfig.Platform.Name))"
 
-        Write-Host+ -SetIndentGlobal -Indent 2
+        Write-Host+ -SetIndentGlobal 2
 
         Write-Start serverInfo
         $serverInfo = Get-TSServerInfo
@@ -195,7 +195,7 @@ function global:Export-TSServer {
         $sites | Export-TSObject Server sites
         Write-End sites
 
-        Write-Host+ -SetIndentGlobal -Indent -2
+        Write-Host+ -SetIndentGlobal -2
 
         foreach ($site in $sites) { Export-TSSite $site.contentUrl }
 
@@ -258,7 +258,7 @@ function global:Export-TSSite {
         
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace "Site: $(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")"
-        Write-Host+ -SetIndentGlobal -Indent 2
+        Write-Host+ -SetIndentGlobal 2
 
         Switch-TSSite -ContentUrl $ContentUrl
 
@@ -327,7 +327,7 @@ function global:Export-TSSite {
         $dataAlerts | Export-TSObject Site dataAlerts
         Write-End dataAlerts
         
-        Write-Host+ -SetIndentGlobal -Indent -2
+        Write-Host+ -SetIndentGlobal -2
         Write-Host+
     }
     catch {}
