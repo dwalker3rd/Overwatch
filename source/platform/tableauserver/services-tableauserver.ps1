@@ -1348,6 +1348,8 @@ function global:Test-RepositoryAccess {
         [switch]$SSL
     )
 
+    $hostMode = $SSL ? "hostssl" : "host"
+
     $leader = Format-Leader -Length 47 -Adjust ((("  Postgres Access").Length))
     Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
 
@@ -1370,12 +1372,10 @@ function global:Test-RepositoryAccess {
 
             if ($regionBegin -ne -1 -and $regionEnd -ne 1) {
                 for ($i = $regionBegin+2; $i -le $regionEnd-2; $i++) {
-                    $savedRows += $templateContent[$i].Trim()
+                    $savedRows += $templateContent[$i].Trim() -replace "host.*\s", "$hostMode "
                 }
                 $templateContent.RemoveRange($regionBegin,$regionEnd-$regionBegin+2)
             }
-
-            $hostMode = $SSL ? "hostssl" : "host"
 
             $newRows = $false
             foreach ($node in $ComputerName) {
