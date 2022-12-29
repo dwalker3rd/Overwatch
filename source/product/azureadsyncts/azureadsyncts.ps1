@@ -110,8 +110,14 @@ try {
         return
     }
 
+    # Delta: default for all runs
+    # Full: schedule per config
+    $now = Get-Date -AsUTC
+    $fullSchedule = $global:Product.Config.Schedule.Full
+    $Delta = !($now.DayOfWeek -eq $fullSchedule.DayOfWeek -and $now.Hour -eq $fullSchedule.Hour -and $now.Minute -in $fullSchedule.Minute)
+
     $action = "Sync"; $target = "AzureAD\$tenantKey\Users"
-    $syncError = Sync-TSUsers -Tenant $tenantKey -Delta
+    $syncError = Sync-TSUsers -Tenant $tenantKey -Delta:$Delta
     if ($syncError) {
         Assert-SyncError -Target $target -Status "Aborted" -ErrorDetail $syncError
         return

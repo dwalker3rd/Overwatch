@@ -3679,7 +3679,7 @@ function global:Sync-TSUsers {
     $startTime = Get-Date -AsUTC
     $lastStartTime = (Read-Cache "AzureADSyncUsers").LastStartTime ?? [datetime]::MinValue
 
-    $message = "Getting Azure AD users"
+    $message = "Getting Azure AD users ($($Delta ? "Delta" : "Full"))"
     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Gray
 
     $message = "<  User updates <.>48> PENDING"
@@ -3687,7 +3687,7 @@ function global:Sync-TSUsers {
 
     $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray -After ($Delta ? $lastStartTime : [datetime]::MinValue)
     if ($cacheError) {
-        Write-Log -Context "AzureADSyncTS" -Action ($Delta ? "Update" : "Get") -Target "Users" -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        Write-Log -Context "AzureADSyncTS" -Action "Get-AzureADUsers" -Target ($Delta ? "Delta" : "Full") -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         $message = "  $($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Red
         $message = "<    Error $($cacheError.code) <.>48> $($($cacheError.summary))"
@@ -3806,7 +3806,7 @@ function global:Sync-TSUsers {
                 # orphaned tsUser accounts (no associated azureADUser account)
                 else {
 
-                    # Orphan detection is unavailable when the Delta switch is specified
+                    # Orphan detection is unavailable when the Delta switch is used.
                     # why? b/c -delta only pulls the latest user updates from the cache and orphan
                     # detection requires the full user cache
 

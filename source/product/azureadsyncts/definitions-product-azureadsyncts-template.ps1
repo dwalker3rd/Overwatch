@@ -8,7 +8,17 @@ $global:Product.TaskName = $global:Product.DisplayName
 $global:Product.Description = "Syncs Active Directory users to Tableau Server."
 $global:Product.HasTask = $true
 
-$global:Product.Config = @{}
+$platformTaskInterval = Get-PlatformTaskInterval AzureADSyncTS
+
+$global:Product.Config = @{
+    Schedule = @{
+        Full = @{
+            DayOfWeek = "Sunday"
+            Hour = 1
+            Minute = @(0..($platformTaskInterval.Seconds -eq 0 ? $platformTaskInterval.Minutes - 1 : $platformTaskInterval.Minutes))
+        }
+    }
+}
 
 $global:imgAzureADSync = "$($global:Location.Images)/AzureADSync.png"
 
