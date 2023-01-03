@@ -6,7 +6,9 @@ $global:InformationPreference = "Continue"
 $global:VerbosePreference = "SilentlyContinue"
 $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
-$global:PreflightPreference = "Continue"
+$global:PreflightPreference = "SilentlyContinue"
+$global:PostflightPreference = "SilentlyContinue"
+$global:WriteHostPlusPreference = "Continue"
 
 $global:Product = @{Id="Cleanup"}
 . $PSScriptRoot\definitions.ps1

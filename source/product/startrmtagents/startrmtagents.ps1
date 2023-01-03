@@ -6,8 +6,9 @@ $global:InformationPreference = "Continue"
 $global:VerbosePreference = "SilentlyContinue"
 $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
-$global:PreflightPreference = "Continue"
-$global:PostflightPreference = "Continue"
+$global:PreflightPreference = "SilentlyContinue"
+$global:PostflightPreference = "SilentlyContinue"
+$global:WriteHostPlusPreference = "Continue"
 
 # product id must be set before definitions
 $global:Product = @{Id="StartRMTAgents"}

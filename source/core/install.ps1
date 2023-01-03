@@ -50,8 +50,16 @@ Write-Host+
 
 #endregion POST INSTALL SHORTCUT
 
-# pspref -Quiet
-# Clear-Host
+$global:DebugPreference = "SilentlyContinue"
+$global:InformationPreference = "Continue"
+$global:VerbosePreference = "SilentlyContinue"
+$global:WarningPreference = "Continue"
+$global:ProgressPreference = "SilentlyContinue"
+$global:PreflightPreference = "SilentlyContinue"
+$global:PostflightPreference = "SilentlyContinue"
+$global:WriteHostPlusPreference = "Continue"
+
+Clear-Host
 
 #region CHECK INSTALLUPDATERESTART
 
@@ -76,13 +84,13 @@ Write-Host+
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         try{
-            psPref -xpref -xpostf -xwhp -Quiet
+            $global:WriteHostPlusPreference = "SilentlyContinue"
             $global:Product = @{Id="Command"}
             . $PSScriptRoot\definitions.ps1
         }
         catch {}
         finally {
-            psPref -Quiet
+            $global:WriteHostPlusPreference = "Continue"
         }
 
         $installedProducts = Get-Product -ResetCache
@@ -1033,13 +1041,13 @@ Write-Host+
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
     try{
-        psPref -xpref -xpostf -xwhp -Quiet
+        $global:WriteHostPlusPreference = "SilentlyContinue"
         $global:Product = @{Id="Command"}
         . $PSScriptRoot\definitions.ps1
     }
     catch {}
     finally {
-        psPref -Quiet
+        $global:WriteHostPlusPreference = "Continue"
     }
 
     $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
@@ -1269,13 +1277,13 @@ Write-Host+
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
             
                 try{
-                    psPref -xpref -xpostf -xwhp -Quiet
+                    $global:WriteHostPlusPreference = "SilentlyContinue"
                     $global:Product = @{Id="Command"}
                     . $PSScriptRoot\definitions.ps1
                 }
                 catch {}
                 finally {
-                    psPref -Quiet
+                    $global:WriteHostPlusPreference = "Continue"
                 }
             
                 $message = "$($emptyString.PadLeft(9,"`b"))VERIFIED "

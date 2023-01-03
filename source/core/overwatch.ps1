@@ -8,6 +8,7 @@ $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
 $global:PreflightPreference = "SilentlyContinue"
 $global:PostflightPreference = "SilentlyContinue"
+$global:WriteHostPlusPreference = "Continue"
 
 # product id must be set before include files
 $global:Product = @{Id="Command"}

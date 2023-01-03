@@ -8,6 +8,7 @@ $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
 $global:PreflightPreference = "SilentlyContinue"
 $global:PostflightPreference = "SilentlyContinue"
+$global:WriteHostPlusPreference = "Continue"
 
 $global:Product = @{Id="AzureADCache"}
 . $PSScriptRoot\definitions.ps1
