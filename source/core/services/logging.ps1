@@ -341,12 +341,12 @@ function global:Summarize-Log {
                     ComputerName = $node.ToLower()
                 }
 
-                $infoColor = $infoCount -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGrey
-                $warningColor = $warningCount -gt 0 ? $global:consoleSequence.ForegroundYellow : $global:consoleSequence.ForegroundDarkGrey
-                $errorColor = $errorCount -gt 0 ? $global:consoleSequence.ForegroundRed : $global:consoleSequence.ForegroundDarkGrey
-                $eventColor = $eventCount -gt 0 ? $global:consoleSequence.BrightForegroundCyan : $global:consoleSequence.ForegroundDarkGrey
-                $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $global:consoleSequence.ForegroundDarkGrey)
-                $countColor = $logEntry.Count -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGrey
+                $infoColor = $infoCount -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGray
+                $warningColor = $warningCount -gt 0 ? $global:consoleSequence.ForegroundYellow : $global:consoleSequence.ForegroundDarkGray
+                $errorColor = $errorCount -gt 0 ? $global:consoleSequence.ForegroundRed : $global:consoleSequence.ForegroundDarkGray
+                $eventColor = $eventCount -gt 0 ? $global:consoleSequence.BrightForegroundCyan : $global:consoleSequence.ForegroundDarkGray
+                $logColor = $errorCount -gt 0 ? $errorColor : ($warningCount -gt 0 ? $warningColor : $global:consoleSequence.ForegroundDarkGray)
+                $countColor = $logEntry.Count -gt 0 ? $defaultColor : $global:consoleSequence.ForegroundDarkGray
         
                 # format summary rows with console sequences to control color
                 $summaryFormatted += [PSCustomObject]@{
@@ -361,8 +361,8 @@ function global:Summarize-Log {
                     Warning = "$($warningColor)$($warningCount)$($defaultColor)"
                     Error = "$($errorColor)$($errorCount)$($defaultColor)"
                     Event = "$($eventColor)$($eventCount)$($defaultColor)"
-                    MinTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u'))$($defaultColor)"
-                    MaxTimeStamp = "$($global:consoleSequence.ForegroundDarkGrey)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
+                    MinTimeStamp = "$($global:consoleSequence.ForegroundDarkGray)$(($After ?? ((($logEntry | Select-Object -First 1).TimeStamp).AddSeconds(-1))).ToString('u'))$($defaultColor)"
+                    MaxTimeStamp = "$($global:consoleSequence.ForegroundDarkGray)$(($Before ?? ((($logEntry | Select-Object -Last 1).TimeStamp).AddSeconds(1))).ToString('u'))$($defaultColor)"
                 }
 
             }
@@ -385,7 +385,7 @@ function global:Summarize-Log {
             foreach ($key in $formatData.Keys) {
                 $columnWidth = $key -in ("Log","ComputerName") ? $formatData.$key.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
                 $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
-                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
+                $header = "$($global:consoleSequence.ForegroundDarkGray)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
                 if ($formatData.$key.Label -in @("Log","Error","Warn")) {
                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
@@ -398,7 +398,7 @@ function global:Summarize-Log {
                 $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
                 $columnWidth = $key -in ("Log","ComputerName") ? $formatData.$key.Width : ($summary.$key | Measure-Object -Property Length -Maximum).Maximum
                 $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
-                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
+                $header = "$($global:consoleSequence.ForegroundDarkGray)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
                 if ($formatData.$key.Label -in @("Log","Error","Warn")) {
                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
@@ -510,8 +510,8 @@ function global:Summarize-Log {
                             "Event" { $global:consoleSequence.ForegroundCyan }
                             "Error" { $global:consoleSequence.ForegroundRed }
                             "Warning" { $global:consoleSequence.ForegroundYellow }
-                            "Information" { $global:consoleSequence.ForegroundDarkGrey }
-                            default { $global:consoleSequence.ForegroundDarkGrey }
+                            "Information" { $global:consoleSequence.ForegroundDarkGray }
+                            default { $global:consoleSequence.ForegroundDarkGray }
                         }
 
                         foreach ($key in $summaryDetail.PSObject.Properties.Name) {
@@ -536,13 +536,13 @@ function global:Summarize-Log {
                             
                             $summaryDetailFormatted.$key = 
                                 if ($key -in ("Event","EventStatus")) {
-                                    "$($global:consoleSequence.BrightForegroundCyan)$($summaryDetail.$key)$($global:consoleSequence.ForegroundDarkGrey)"
+                                    "$($global:consoleSequence.BrightForegroundCyan)$($summaryDetail.$key)$($global:consoleSequence.ForegroundDarkGray)"
                                 }
                                 elseif ($key -in $_fieldsToHightlight) {
-                                    "$($_color)$($summaryDetailFormatted.$key)$($global:consoleSequence.ForegroundDarkGrey)"
+                                    "$($_color)$($summaryDetailFormatted.$key)$($global:consoleSequence.ForegroundDarkGray)"
                                 }
                                 else {
-                                    "$($global:consoleSequence.ForegroundDarkGrey)$($summaryDetailFormatted.$key)$($global:consoleSequence.ForegroundDarkGrey)"
+                                    "$($global:consoleSequence.ForegroundDarkGray)$($summaryDetailFormatted.$key)$($global:consoleSequence.ForegroundDarkGray)"
                                 }
 
                         }
@@ -571,7 +571,7 @@ function global:Summarize-Log {
                 # $columnWidth = $key -in ("Log","ComputerName","TimeStamp") ? $formatData.$key.Width : ($summaryDetails.$key | Measure-Object -Property Length -Maximum).Maximum
                 $columnWidth = $formatData.$key.Width
                 $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
-                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
+                $header = "$($global:consoleSequence.ForegroundDarkGray)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($defaultColor) "
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
                 # if ($formatData.$key.Label -in @("EntryType")) {
                 #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
@@ -585,7 +585,7 @@ function global:Summarize-Log {
                 # $columnWidth = $key -in ("Log","ComputerName","TimeStamp") ? $formatData.$key.Width : ($summaryDetails.$key | Measure-Object -Property Length -Maximum).Maximum
                 $columnWidth = $formatData.$key.Width
                 $columnWidth = $columnWidth -lt $formatData.$key.Label.Length ? $formatData.$key.Label.Length : $columnWidth
-                $header = "$($global:consoleSequence.ForegroundDarkGrey)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
+                $header = "$($global:consoleSequence.ForegroundDarkGray)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($defaultColor) "
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine $header
                 # if ($formatData.$key.Label -in @("EntryType")) {
                 #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "

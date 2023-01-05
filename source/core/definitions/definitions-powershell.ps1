@@ -16,7 +16,7 @@
 
     # The following line indicates a post-installation configuration to the installer
     # Download > Microsoft Sysinternals Suite > https://learn.microsoft.com/en-us/sysinternals/downloads/sysinternals-suite
-    # Manual Configuration > Microsoft Sysinternals Suite > Location
+    # Manual Configuration > Utilities > Microsoft Sysinternals Suite > Location
 
     $global:Location.SysinternalsSuite = ""
     if (![string]::IsNullOrEmpty($global:Location.SysinternalsSuite)) {
@@ -71,7 +71,9 @@
         BrightBackgroundMagenta = "`e[105m"
         BrightBackgroundCyan = "`e[106m"
         BrightBackgroundWhite = "`e[107m"
-        ForegroundDarkGrey = "`e[38;2;128;128;128m"
+
+        ForegroundGray = "`e[37m"
+        ForegroundDarkGray = "`e[38;2;128;128;128m"
     }
     $global:consoleSequence += @{
         BackgroundForegroundDefault = $global:consoleSequence.BackgroundDefault + $global:consoleSequence.ForegroundDefault
