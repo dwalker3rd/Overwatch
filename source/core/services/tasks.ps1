@@ -259,7 +259,7 @@ function global:Disable-PlatformTask {
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState"
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "PlatformTask"
     )
 
     if ($PlatformTask) {
@@ -300,7 +300,7 @@ function global:Disable-PlatformTasks {
         [switch]$Enabled
     ) 
 
-    Write-Host+ -Iff (!$Quiet)
+    # Write-Host+ -Iff (!$Quiet)
 
     $platformTasks = Get-PlatformTask
     if ($Enabled) {
@@ -309,12 +309,14 @@ function global:Disable-PlatformTasks {
 
     $platformTasks | ForEach-Object {
         $platformTask = Disable-PlatformTask -PlatformTask $_ -OutputType "PlatformTask" -Timeout $Timeout
-        $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.platformTasks ? "Red" : "DarkGreen")
+        # $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
+        # Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.platformTasks ? "Red" : "DarkGreen")
         Write-Log -EntryType Information -Action "Disable-PlatformTasks" -Target $platformTask.ProductID -Status $platformTask.Status -Force
     }
 
-    Write-Host+ -Iff (!$Quiet)
+    # Write-Host+ -Iff (!$Quiet)
+
+    return $platformTasks
 
 }
 
@@ -326,7 +328,7 @@ function global:Enable-PlatformTask {
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState"
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "PlatformTask"
     )
 
     if ($PlatformTask) {
@@ -367,7 +369,7 @@ function global:Enable-PlatformTasks {
         [switch]$Disabled
     ) 
 
-    Write-Host+ -Iff (!$Quiet)
+    # Write-Host+ -Iff (!$Quiet)
 
     $platformTasks = Get-PlatformTask
     if ($Disabled) {
@@ -376,12 +378,14 @@ function global:Enable-PlatformTasks {
 
     $platformTasks | ForEach-Object {
         $platformTask = Enable-PlatformTask -PlatformTask $_ -OutputType "PlatformTask" -Timeout $Timeout
-        $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
+        # $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
+        # Write-Host+ -Iff (!$Quiet) -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
         Write-Log -EntryType Information -Action "Enable-PlatformTasks" -Target $platformTask.ProductID -Status $platformTask.Status -Force
     }
 
-    Write-Host+ -Iff (!$Quiet)
+    # Write-Host+ -Iff (!$Quiet)
+
+    return $platformTasks
 
 }
 
@@ -492,24 +496,99 @@ function global:Stop-PlatformTask {
 
 }
 
-function global:Show-PlatformTaskStatus {
+function global:Show-PlatformTask {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][object[]]$PlatformTask,
+        [Parameter(ValueFromPipeline,Position=0)][Object]$InputObject,
         [switch]$Disabled
     ) 
 
-    $platformTasks = Get-PlatformTask -Disabled:$Disabled.IsPresent
-
-    Write-Host+ -Iff $($platformTasks.Count -ge 1)
-
-    foreach ($platformTask in $platformTasks) {
-        $message = "<$($platformTask.ProductID) <.>32> $($platformTask.Status.ToUpper())"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($platformTask.Status -in $global:PlatformTaskState.Enabled ? "DarkGreen" : "Red")
+    begin {
+        $platformTasks = @()
     }
+    process {
+        $platformTasks += $InputObject
+    }
+    end {
 
-    Write-Host+ -Iff $($platformTasks.Count -ge 1)
+        $platformTasks = !$platformTasks ? (Get-PlatformTask) : ($platformTasks[0].GetType().Name -eq "String" ? (Get-PlatformTask $platformTasks[0]) : $platformTasks)
+        if ($Disabled) { $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled} }
+
+        if ($platformTasks.Count -ge 1) {
+
+            $_defaultColor = $global:consoleSequence.BackgroundForegroundDefault
+
+            $formatData = [ordered]@{}
+            $platformTaskSummaryFormatData = Get-FormatData -TypeName Overwatch.PlatformTask.Summary
+            $formatDataDisplayEntries = $platformTaskSummaryFormatData.FormatViewDefinition.Control.Rows.Columns.DisplayEntry.Value
+            $formatDataHeaders = $platformTaskSummaryFormatData.FormatViewDefinition.Control.Headers
+            for ($i = 0; $i -lt $formatDataDisplayEntries.Count; $i++) {
+                $formatData += @{
+                    $formatDataDisplayEntries[$i] = $formatDataHeaders[$i]
+                }
+            }
+
+            Write-Host+
+
+            # write column labels
+            foreach ($key in $formatData.Keys) {
+                $columnWidth = $formatData.$key.Width+1
+                $header = "$($global:consoleSequence.ForegroundDarkGray)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($_defaultColor)"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $header
+            }
+            Write-Host+
+
+            # underline column labels
+            foreach ($key in $formatData.Keys) {
+                $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
+                $columnWidth = $formatData.$key.Width+1
+                $header = "$($global:consoleSequence.ForegroundDarkGray)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($_defaultColor)"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $header
+            }
+
+            $platformTasksFormatted = @()
+            foreach ($platformTask in $platformTasks) {
+
+                $_node = $platformTask.Node.ToLower()
+                $_product = "$($platformTask.ProductID)$($emptyString.PadLeft(22-$platformTask.ProductID.Length," "))"
+                $_status = "$($platformTask.Status)$($emptyString.PadLeft(12-$platformTask.Status.Length," "))"
+                $_nextRunTime = "$(($platformTask.ScheduledTaskInfo.NextRunTime).ToString('u'))$($emptyString.PadLeft(22-$platformTask.ScheduledTaskInfo.NextRunTime.ToString('u').Length," "))"
+                $_lastRunTime = "$(($platformTask.ScheduledTaskInfo.LastRunTime).ToString('u'))$($emptyString.PadLeft(22-$platformTask.ScheduledTaskInfo.LastRunTime.ToString('u').Length," "))"
+                $_lastTaskResult = (New-Object System.ComponentModel.Win32Exception([int]$platformTask.ScheduledTaskInfo.LastTaskResult)).Message
+
+                $_statusColor = $global:consoleSequence.ForegroundDarkGray
+                if ($platformTask.Status -in $global:PlatformTaskState.Running) { $_statusColor = $global:consoleSequence.ForegroundGreen }
+                elseif ($platformTask.Status -in $global:PlatformTaskState.Enabled) { $_statusColor = $global:consoleSequence.ForegroundDarkGray }
+                elseif ($platformTask.Status -in $global:PlatformTaskState.Disabled) { $_statusColor = $global:consoleSequence.BrightForegroundRed }
+                elseif ($platformTask.Status -in $global:PlatformTaskState.Unknown) { $_statusColor = $global:consoleSequence.ForegroundYellow }
+                else { $_statusColor = $global:consoleSequence.ForegroundDarkGray }
+
+                $_platformTaskColor = $_statusColor -eq $global:consoleSequence.ForegroundDarkGray ? $global:consoleSequence.ForegroundWhite : $_statusColor
+                $_nextRunTimeColor = $global:consoleSequence.ForegroundDarkGray
+                $_lastRunTimeColor = $platformTask.Status -in $platformTaskState.Disabled ? $_statusColor : $global:consoleSequence.ForegroundDarkGray
+                $_lastTaskResultColor = $platformTask.ScheduledTaskInfo.LastTaskResult -ne 0 ? $_statusColor : $global:consoleSequence.ForegroundDarkGray
+
+                # format summary rows with console sequences to control color
+                $platformTasksFormatted += [PSCustomObject]@{
+                    # these fields are NOT displayed
+                    PSTypeName = "Overwatch.PlatformTask.Summary"
+                    Node = $_node
+                    # these fields ARE displayed
+                    PlatformTask = "$($_platformTaskColor)$($_product)$($_defaultColor)"
+                    Status = "$($_statusColor)$($_status)$($_defaultColor)"
+                    NextRunTime = "$($_nextRunTimeColor)$($_nextRunTime)$($_defaultColor)"
+                    LastRunTime = "$($_lastRunTimeColor)$($_lastRunTime)$($_defaultColor)"
+                    LastTaskResult = "$($_lastTaskResultColor)$($_lastTaskResult)$($_defaultColor)"
+                }
+            }
+
+            $platformTasksFormatted | Format-Table -HideTableHeaders
+
+            Write-Host+
+        }
+
+    }
 
 }
 
