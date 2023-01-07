@@ -11,9 +11,6 @@
     else {
         . $PSScriptRoot\classes.ps1
     }
-    else {
-        . $PSScriptRoot\classes.ps1
-    }
 
     $global:Product = $global:Catalog.Product.AzureADCache
     $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.Name)"
