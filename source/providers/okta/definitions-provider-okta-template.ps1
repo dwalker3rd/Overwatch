@@ -1,10 +1,20 @@
 #region PROVIDER DEFINITIONS
 
-. "$($global:Location.Definitions)\classes.ps1"
+    param(
+        [switch]$MinimumDefinitions
+    )
 
-$Provider = $null
-$Provider = $global:Catalog.Provider.Okta
+    if ($MinimumDefinitions) {
+        $root = $PSScriptRoot -replace "\\definitions",""
+        Invoke-Command  -ScriptBlock { . $root\definitions.ps1 -MinimumDefinitions }
+    }
+    else {
+        . $PSScriptRoot\classes.ps1
+    }
 
-return $Provider
+    $Provider = $null
+    $Provider = $global:Catalog.Provider.Okta
+
+    return $Provider
 
 #endregion PROVIDER DEFINITIONS

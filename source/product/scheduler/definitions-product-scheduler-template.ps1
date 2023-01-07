@@ -1,6 +1,16 @@
 #region PRODUCT DEFINITIONS
 
-. "$($global:Location.Definitions)\classes.ps1"
+    param(
+        [switch]$MinimumDefinitions
+    )
+
+    if ($MinimumDefinitions) {
+        $root = $PSScriptRoot -replace "\\definitions",""
+        Invoke-Command  -ScriptBlock { . $root\definitions.ps1 -MinimumDefinitions }
+    }
+    else {
+        . $PSScriptRoot\classes.ps1
+    }
 
 $global:Product = $global:Catalog.Product.Scheduler
 $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name) for $($global:Platform.Name)"

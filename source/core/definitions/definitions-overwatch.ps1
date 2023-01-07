@@ -6,6 +6,7 @@
 #region CONSTANTS
 
     $global:emptyString = [string]::Empty
+    $global:epoch = New-Object -Type DateTime -ArgumentList 1970, 1, 1, 0, 0, 0, 0
 
 #endregion CONSTANTS
 #region EVENTS

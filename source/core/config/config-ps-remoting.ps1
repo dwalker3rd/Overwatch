@@ -1,6 +1,9 @@
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
-param()
+param(
+    [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(Get-PlatformTopology nodes -Keys),
+    [Parameter(Mandatory=$false)][string[]]$TrustedHosts=$ComputerName
+)
 
 $currentWarningPreference = $global:WarningPreference
 $global:WarningPreference = "SilentlyContinue"
@@ -19,11 +22,11 @@ $global:WarningPreference = "SilentlyContinue"
         # most recently installed on the Overwatch controller, then unregister the $global:PSSessionConfigurationName 
         # PSSessionConfiguration and create a new version using the config-ps-powershell.pssc PSSessionConfigurationFile 
         $_psRequiredSessionConfigurationFile = "$($global:Location.Config)\config-ps-powershell.pssc"
-        Copy-Files -Path $_psRequiredSessionConfigurationFile -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Quiet
+        Copy-Files -Path $_psRequiredSessionConfigurationFile -ComputerName $ComputerName -ExcludeComputerName $env:COMPUTERNAME -Quiet
         
         # verify that the config-ps-powershell.pssc PSSessionConfigurationFile has been copied to all nodes
         $_psRequiredSessionConfigurationFileExists = $true
-        foreach ($node in (pt nodes -k)) {
+        foreach ($node in $ComputerName) {
             $_psRequiredSessionConfigurationFileExistsOnNode = [FileObject]::new($_psRequiredSessionConfigurationFile,$node).Exists()
             if (!$_psRequiredSessionConfigurationFileExistsOnNode) {
                 throw ("Required PSSessionConfigurationFile `"$_psRequiredSessionConfigurationFile`" not found on $node")
@@ -34,35 +37,7 @@ $global:WarningPreference = "SilentlyContinue"
             throw("Unable to update required PSSessionConfiguration `"$($global:PSSessionConfigurationName)`"")
         }
 
-        # foreach ($node in (pt nodes -k)) {
-        #     # Enable-PSRemoting to create the PSSession configurations, if not present such as after an upgrade of PowerShell
-        #     # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
-        #     $psexecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
-        # }
-
-        foreach ($node in (pt nodes -k)) {
-
-            #region REMOTE REGISTRY
-            
-                # when powershell is installed, the PSSession configuration names are not updated, so the PSSession configuration name $global:PSSessionConfigurationName 
-                # may not exist.  Query the registry remotely to find the latest version installed.  The PSSession configuration name 'PowerShell.Major.Minor.Patch' that
-                # matches the lastest installed version will exist.  Use that PSSession configuration name for the first connection below.
-
-                # $hive = [Microsoft.Win32.RegistryHive]::LocalMachine
-                # $keyPath = 'SOFTWARE\Microsoft\PowerShellCore\InstalledVersions'
-                
-                # $registry = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey($hive, $node)
-                # $key = $registry.OpenSubKey($keyPath)
-
-                # $psVersions = @()
-                # foreach ($subKeyName in $key.GetSubKeyNames()) {
-                #     $subkey = $registry.OpenSubKey("$($keyPath)\$($subKeyName)")
-                #     $psVersions += $subkey.GetValue("SemanticVersion")
-                # }
-                
-                # $psVersionLatest = ($psVersions | Measure-Object -Maximum).Maximum
-
-            #endregion REMOTE REGISTRY
+        foreach ($node in $ComputerName) {
 
             # use the $global:PSSessionConfigurationName PSSessionConfiguration to connect and get all other PSSessionConfigurations;
             # find the PSSessionConfiguration with the highest version of PowerShell (exclude the $global:PSSessionConfigurationName PSSessionConfiguration)
@@ -94,9 +69,6 @@ $global:WarningPreference = "SilentlyContinue"
                         # $_psRequiredConfiguration = Get-PSSessionConfiguration -Name $using:PSSessionConfigurationName -ErrorAction SilentlyContinue
 
                     }
-                    # if ($null -eq $_psRequiredConfiguration) {
-                    #     Register-PSSessionConfiguration -Name $using:PSSessionConfigurationName -Path $using:_psRequiredSessionConfigurationFile -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
-                    # }
                 } 
 
         }
@@ -117,14 +89,8 @@ $global:WarningPreference = "SilentlyContinue"
         $ignoreOutput = New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly -Name 1 -Value * -PropertyType String
 
         # configure trusted hosts (for this node)
-        $trustedHosts = Get-Item WSMan:\localhost\Client\TrustedHosts
-        if ($trustedHosts.Value -notcontains "*") {
-            foreach ($node in (pt nodes -k)) {
-                if ($node -notin $trustedHosts.Value) {
-                    $ignoreOutput = Set-Item WSMan:\localhost\Client\TrustedHosts -Value $node -Concatenate -Force
-                }
-            }
-        }
+        $trustedHosts = Add-WSManTrustedHosts -ComputerName $TrustedHosts
+        $trustedHosts | Out-Null
 
         # enable WSMan Credssp for Server (for remote nodes)
         $nodes = @()

@@ -1,14 +1,23 @@
 #region PROVIDER DEFINITIONS
 
-. "$($global:Location.Definitions)\catalog.ps1"
-. "$($global:Location.Definitions)\classes.ps1"
+    param(
+        [switch]$MinimumDefinitions
+    )
 
-$Provider = $null
-$Provider = $global:Catalog.Provider.TableauServerWC
-$Provider.Config = @{
-    MessageType = $PlatformMessageType.UserNotification
-}
+    if ($MinimumDefinitions) {
+        $root = $PSScriptRoot -replace "\\definitions",""
+        Invoke-Command  -ScriptBlock { . $root\definitions.ps1 -MinimumDefinitions }
+    }
+    else {
+        . $PSScriptRoot\classes.ps1
+    }
 
-return $Provider
+    $Provider = $null
+    $Provider = $global:Catalog.Provider.TableauServerWC
+    $Provider.Config = @{
+        MessageType = $PlatformMessageType.UserNotification
+    }
+
+    return $Provider
 
 #endregion PROVIDER DEFINITIONS

@@ -1,4 +1,8 @@
-﻿[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls11  
+﻿param(
+    [switch]$MinimumDefinitions
+)
+
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls11  
 
 #region ENVIRON
 
@@ -35,21 +39,32 @@
     . "$($global:Location.Definitions)\definitions-views.ps1"
 
 #endregion VIEWS  
-#region DEFINITIONS
-
-    $global:epoch = New-Object -Type DateTime -ArgumentList 1970, 1, 1, 0, 0, 0, 0
+#region OVERWATCH DEFINITIONS
     
     if (Test-Path -Path "$($global:Location.Definitions)\definitions-overwatch.ps1") {. "$($global:Location.Definitions)\definitions-overwatch.ps1"}
+
+#endregion OVERWATCH DEFINITIONS
+#region OS DEFINITIONS
+
     if (Test-Path -Path "$($global:Location.Definitions)\definitions-OS-$($global:Environ.OS).ps1") {. "$($global:Location.Definitions)\definitions-OS-$($global:Environ.OS).ps1"}
+
+#endregion OS DEFINITIONS
+#region PLATFORM DEFINITIONS
+    
     if (Test-Path -Path "$($global:Location.Definitions)\definitions-Platform-$($global:Environ.Platform).ps1") {. "$($global:Location.Definitions)\definitions-Platform-$($global:Environ.Platform).ps1"}
     if (Test-Path -Path "$($global:Location.Definitions)\definitions-PlatformInstance-$($global:Environ.Instance).ps1") {. "$($global:Location.Definitions)\definitions-PlatformInstance-$($global:Environ.Instance).ps1"}
 
-#endregion DEFINITIONS
+#endregion PLATFORM DEFINITIONS
+#region MINIMUM DEFINITIONS RETURN
+
+    if ($MinimumDefinitions) { return }
+
+#endregion MINIMUM DEFINITIONS RETURN
 #region LOADEARLY
 
     . "$($global:Location.Definitions)\definitions-services-loadearly.ps1"
 
-#endregion LOADFIRST
+#endregion LOADEARLY
 #region SERVICES
 
     . "$($global:Location.Definitions)\definitions-services.ps1"
@@ -129,14 +144,14 @@
         Write-Host+ -NoTrace "  Messaging DISABLED" -ForegroundColor DarkYellow
     }
 
-    if ($_platformTasksDisabled) {
+    if ($_platformTasksDisabled.Count -gt 0) {
         Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
-        Write-Host+ -SetIndentGlobal 2 -SetTimestampGlobal Include -SetTraceGlobal Exclude
-        Show-PlatformTaskStatus -Disabled
-        Write-Host+ -ResetAll
+        Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
+        $_platformTasksDisabled | Show-PlatformTask
+        Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Include -SetTraceGlobal Include
     }
 
-    Write-Host+ -Iff ($_warnings)
+    Write-Host+ -Iff ($_warnings) -MaxBlankLines 1
 
 #endregion WARNINGS
 #region CLOSE

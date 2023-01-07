@@ -662,10 +662,9 @@ function script:Copy-File {
         $disabledPlatformTasks = Get-PlatformTask -Disabled
         if ($disabledPlatformTasks.Count -gt 0) {
             Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Enable disabled tasks"
-            Write-Host+ -SetIndentGlobal 2 
-            Show-PlatformTaskStatus -Disabled
-            Write-Host+ -SetIndentGlobal -2
-
+            Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
+            $disabledPlatformTasks | Show-PlatformTask
+            Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Include -SetTraceGlobal Include
             $postInstallConfig = $true
         }
 

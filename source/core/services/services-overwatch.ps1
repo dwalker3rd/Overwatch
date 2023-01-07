@@ -25,13 +25,22 @@
         param (
             [Parameter(Mandatory=$false,Position=0)][string]$Id,
             [Parameter(Mandatory=$false)][string]$Name,
-            [switch]$ResetCache
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+            [switch]$ResetCache,
+            [switch]$ReadOnly
         )
+
+        # if this is a remote query, then ...
+        # 1) disallow cache reset
+        # 2) use -MinimumDefinitions switch with definitions file
+
+        $remoteQuery = $ComputerName -ne $env:COMPUTERNAME
+        $ResetCache = $remoteQuery ? $false : $ResetCache
 
         $products = @()
         if (!$ResetCache) {
-            if ($(get-cache products).Exists()) {
-                $products = Read-Cache products #-MaxAge $(New-Timespan -Minutes 2)
+            if ($(get-cache products -ComputerName $ComputerName).Exists()) {
+                $products = Read-Cache products -ComputerName $ComputerName #-MaxAge $(New-Timespan -Minutes 2)
             }
         }
 
@@ -40,21 +49,27 @@
 
         # this method overwrites $global:Product so clone $global:Product
         if (!$products) {
+
             $products = @()
-            $global:Environ.Product | ForEach-Object {
-                $productDefinitionsFile = "$($global:Location.Definitions)\definitions-product-$($_).ps1"
-                if (Test-Path -Path $productDefinitionsFile) {
-                    $_product = . $productDefinitionsFile
+            (Get-EnvironConfig -Key Environ.Product -ComputerName $ComputerName) | ForEach-Object {
+                Write-Host+ -IfDebug -NoTrace $_
+                $productDefinitionFile = "$(Get-EnvironConfig -Key Location.Definitions -ComputerName $ComputerName)\definitions-product-$($_).ps1"
+                if (Test-Path -Path $productDefinitionFile) {
+                    $params = @{}
+                    $params.ScriptBlock = { . $productDefinitionFile }
+                    if ($remoteQuery) {
+                        $params.Session = Use-PSSession+ -ComputerName $ComputerName
+                        $params.ScriptBlock = { . $using:productDefinitionFile -MinimumDefinitions }
+                    }
+                    $_product = Invoke-Command @params
                     $_product.IsInstalled = $true
                     $products += $_product
                 }
             }
 
-            # for ($i = 0; $i -lt $products.Count; $i++) {
-            #     $products[$i].IsInstalled = $global:Environ.Product -contains $products[$i].Id
-            # }
-
-            Write-Cache products -InputObject $products
+            if (!$remoteQuery) {
+                $products | Write-Cache products -ComputerName $ComputerName
+            }
         }
 
         if ($Name) {$products = $products | Where-Object {$_.Name -eq $Name}}
@@ -74,32 +89,48 @@
         param (
             [Parameter(Mandatory=$false,Position=0)][string]$Id,
             [Parameter(Mandatory=$false)][string]$Name,
-            [switch]$ResetCache
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+            [switch]$ResetCache,
+            [switch]$ReadOnly
         )
+
+        # if this is a remote query, then ...
+        # 1) disallow cache reset
+        # 2) use -MinimumDefinitions switch with definitions file
+
+        $remoteQuery = $ComputerName -ne $env:COMPUTERNAME
+        $ResetCache = $remoteQuery ? $false : $ResetCache
 
         $providers = @()
         if (!$ResetCache) {
             if ($(get-cache providers).Exists()) {
-                $providers = Read-Cache providers -MaxAge $(New-Timespan -Minutes 2)
+                $providers = Read-Cache providers # -MaxAge $(New-Timespan -Minutes 2)
             }
         }
         
         if (!$providers) {
+
             $providers = @()
-            $global:Environ.Provider | ForEach-Object {
-                $providerDefinitionFile = "$($global:Location.Root)\definitions\definitions-provider-$($_).ps1"
+            (Get-EnvironConfig -Key Environ.Provider -ComputerName $ComputerName) | ForEach-Object {
+                Write-Host+ -IfDebug -NoTrace $_
+                $providerDefinitionFile = "$(Get-EnvironConfig -Key Location.Definitions -ComputerName $ComputerName)\definitions-provider-$($_).ps1"
                 if (Test-Path -Path $providerDefinitionFile) {
-                    $_provider = . $providerDefinitionFile
+                    $params = @{}
+                    $params.ScriptBlock = { . $providerDefinitionFile }
+                    if ($remoteQuery) {
+                        $params.Session = Use-PSSession+ -ComputerName $ComputerName
+                        $params.ScriptBlock = { . $using:providerDefinitionFile -MinimumDefinitions }
+                    }
+                    $_provider = Invoke-Command @params
                     $_provider.IsInstalled = $true
                     $providers += $_provider
                 }
             }
 
-            # for ($i = 0; $i -lt $providers.Count; $i++) {
-            #     $providers[$i].IsInstalled = $global:Environ.Provider -contains $providers[$i].Id
-            # }
+            if (!$remoteQuery) {
+                $providers | Write-Cache providers -ComputerName $ComputerName
+            }
 
-            Write-Cache providers -InputObject $providers
         }
 
         if ($Name) {$providers = $providers | Where-Object {$_.Name -eq $Name}}

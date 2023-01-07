@@ -253,7 +253,7 @@ function global:Get-RMTStatus {
     $message = "<Getting RMT Status <.>48> PENDING"
     Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal 2
+    Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +2
 
     #region Controller
 
@@ -307,13 +307,13 @@ function global:Get-RMTStatus {
 
             $environments = Get-RMTEnvironments -Controller $controller -Quiet:$Quiet.IsPresent
 
-            Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal 2
+            Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +2
 
             foreach ($environment in $environments) {
 
                 $message = "<$($environment.Identifier) <.>48> PENDING"
                 Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-                Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal 2
+                Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +2
 
                 $environmentStatus = [PSCustomObject]@{
                     Name = $environment.Identifier
@@ -543,7 +543,7 @@ function global:Request-RMTController {
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     Write-Host+
 
-    Write-Host+ -SetIndentGlobal 2
+    Write-Host+ -SetIndentGlobal +2
 
     $message = "Controller"
     Write-Host+ -NoTrace -NoSeparator $message -ForeGroundColor Gray
@@ -650,7 +650,7 @@ function global:Request-RMTAgent {
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     Write-Host+
 
-    Write-Host+ -SetIndentGlobal 2
+    Write-Host+ -SetIndentGlobal +2
 
     $agentsCompleted = @()
     $environsCompleted = @()
@@ -1016,17 +1016,17 @@ function global:Show-PlatformStatus {
     # Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
     # Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
     # Write-Host+
-    # Write-Host+ -SetIndentGlobal 2
+    # Write-Host+ -SetIndentGlobal +2
 
     $message = "<Controller\$($controller.Name) <.>56> $($controller.RollupStatus.ToUpper())"
     Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
-    Write-Host+ -SetIndentGlobal 2
+    Write-Host+ -SetIndentGlobal +2
     if ($BuildVersion) {
         $message = "<BuildVersion <.>56> $($controller.Controller.BuildVersion)"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
     }
     # Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
-    # Write-Host+ -SetIndentGlobal 2
+    # Write-Host+ -SetIndentGlobal +2
     foreach ($service in $controller.Controller.Services) {
         $message = "<service\$($service.Name) <.>56> $($service.Status.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
@@ -1041,10 +1041,10 @@ function global:Show-PlatformStatus {
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
         Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
         Write-Host+
-        Write-Host+ -SetIndentGlobal 2
+        Write-Host+ -SetIndentGlobal +2
 
         # Write-Host+ -NoTrace -NoTimestamp "Tableau Server"
-        # Write-Host+ -SetIndentGlobal 2
+        # Write-Host+ -SetIndentGlobal +2
         $tableauServer = $environment.TableauServer
         $message = "<TableauServer\$($tableauServer.Name) <.>56> $($tableauServer.RollupStatus.ToUpper())"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($tableauServer.IsOK ? "DarkGreen" : "Red")
@@ -1055,7 +1055,7 @@ function global:Show-PlatformStatus {
         foreach ($agent in $environment.AgentStatus.Agent) {
 
             # Write-Host+ -NoTrace -NoTimestamp "Agent"
-            # Write-Host+ -SetIndentGlobal 2
+            # Write-Host+ -SetIndentGlobal +2
             
             $agentStatus = $agent.IsConnected -eq "True" ? ($agent.Services.Status -eq "Running" ? "Connected" : "Connecting") : "Degraded"
             $message = "<Agent\$($agent.Name) <.>56> $($agentStatus.ToUpper())"
@@ -1065,13 +1065,13 @@ function global:Show-PlatformStatus {
                 "Degraded" { "Red" }
             }
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,$agentStatusColor
-            Write-Host+ -SetIndentGlobal 2
+            Write-Host+ -SetIndentGlobal +2
             if ($BuildVersion) {
                 $message = "<BuildVersion <.>56> $($agent.BuildVersion)"
                 Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
             }
             # Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
-            # Write-Host+ -SetIndentGlobal 2
+            # Write-Host+ -SetIndentGlobal +2
             foreach ($service in $agent.Services) {
                 $message = "<Service\$($service.Name) <.>56> $($service.Status.ToUpper())"
                 Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")

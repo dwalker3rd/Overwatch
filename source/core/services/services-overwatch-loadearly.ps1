@@ -98,7 +98,7 @@ function global:Write-Host+ {
         [switch]$IfVerbose,
         [switch]$IfDebug,
         [switch]$IfInformation,
-        [Parameter(Mandatory=$false)][int]$SetIndentGlobal,
+        [Parameter(Mandatory=$false)][string]$SetIndentGlobal,
         [switch]$ResetIndentGlobal,
         [switch]$NoIndent,
         [switch]$ResetMaxBlankLines,
@@ -125,7 +125,17 @@ function global:Write-Host+ {
     if ($IfDebug -and !$DebugPreference) { $returnAfterSettings = $true }
     if ($IfInformation -and !$InformationPreference) { $returnAfterSettings = $true }
     if ($ResetIndentGlobal) { $global:WriteHostPlusIndentGlobal = 0; $returnAfterSettings = $true }
-    if ($SetIndentGlobal) { $global:WriteHostPlusIndentGlobal += $SetIndentGlobal; $returnAfterSettings = $true }
+    if ($SetIndentGlobal) { 
+        if ($SetIndentGlobal -match $global:RegexPattern.SignedInteger) {
+            if ($null -eq $matches.sign) {
+                $global:WriteHostPlusIndentGlobal = [int]$SetIndentGlobal
+            }
+            else {
+                $global:WriteHostPlusIndentGlobal += [int]$SetIndentGlobal
+            }
+            $returnAfterSettings = $true
+        }
+    }
     if ($ResetTimestampGlobal) { $global:WriteHostPlusTimestampGlobal = "Ignore"; $returnAfterSettings = $true }
     if ($SetTimestampGlobal) { $global:WriteHostPlusTimestampGlobal = $SetTimestampGlobal; $returnAfterSettings = $true }
     if ($ResetTraceGlobal) { $global:WriteHostPlusTraceGlobal = "Ignore"; $returnAfterSettings = $true }
@@ -137,15 +147,15 @@ function global:Write-Host+ {
 
     if ($global:WriteHostPlusTimestampGlobal) { 
         switch ($global:WriteHostPlusTimestampGlobal) {
-            "Include" { $NoTimestamp = $false }
-            "Exclude" { $NoTimestamp = $true }
+            "Include" { $NoTimestamp = $NoTimeStamp ?? $false }
+            "Exclude" { $NoTimestamp = $NoTimeStamp ?? $true }
         }
     }
 
     if ($global:WriteHostPlusTraceGlobal) { 
         switch ($global:WriteHostPlusTraceGlobal) {
-            "Include" { $NoTrace = $false }
-            "Exclude" { $NoTrace = $true }
+            "Include" { $NoTrace = $NoTrace ?? $false }
+            "Exclude" { $NoTrace = $NoTrace ?? $true }
         }
     }
 

@@ -1,20 +1,30 @@
 #region PROVIDER DEFINITIONS
 
-. "$($global:Location.Definitions)\classes.ps1"
+    param(
+        [switch]$MinimumDefinitions
+    )
 
-$Provider = $null
-$Provider = $global:Catalog.Provider.TwilioSMS
+    if ($MinimumDefinitions) {
+        $root = $PSScriptRoot -replace "\\definitions",""
+        Invoke-Command  -ScriptBlock { . $root\definitions.ps1 -MinimumDefinitions }
+    }
+    else {
+        . $PSScriptRoot\classes.ps1
+    }
 
-$SMSConfig = @{
-    From = "+12075582078"
-    To = @()
-    Throttle = New-TimeSpan -Minutes 15
-    MessageType = @($PlatformMessageType.Alert,$PlatformMessageType.AllClear)
-}
-$SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
+    $Provider = $null
+    $Provider = $global:Catalog.Provider.TwilioSMS
 
-$Provider.Config = $SMSConfig
+    $SMSConfig = @{
+        From = "+12075582078"
+        To = @()
+        Throttle = New-TimeSpan -Minutes 15
+        MessageType = @($PlatformMessageType.Alert,$PlatformMessageType.AllClear)
+    }
+    $SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
 
-return $Provider
+    $Provider.Config = $SMSConfig
+
+    return $Provider
 
 #endregion PROVIDER DEFINITIONS

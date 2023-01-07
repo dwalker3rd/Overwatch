@@ -183,7 +183,7 @@ function global:Export-TSServer {
         Write-Host+
         Write-Host+ -NoTrace "Server: $($global:tsRestApiConfig.Platform.Uri.Host) ($($global:tsRestApiConfig.Platform.Name))"
 
-        Write-Host+ -SetIndentGlobal 2
+        Write-Host+ -SetIndentGlobal +2
 
         Write-Start serverInfo
         $serverInfo = Get-TSServerInfo
@@ -258,7 +258,7 @@ function global:Export-TSSite {
         
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace "Site: $(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")"
-        Write-Host+ -SetIndentGlobal 2
+        Write-Host+ -SetIndentGlobal +2
 
         Switch-TSSite -ContentUrl $ContentUrl
 

@@ -14,10 +14,6 @@
 #endregion PSVERSION
 #region PSEXEC
 
-    # The following line indicates a post-installation configuration to the installer
-    # Download > Microsoft Sysinternals Suite > https://learn.microsoft.com/en-us/sysinternals/downloads/sysinternals-suite
-    # Manual Configuration > Utilities > Microsoft Sysinternals Suite > Location
-
     $global:Location.SysinternalsSuite = ""
     if (![string]::IsNullOrEmpty($global:Location.SysinternalsSuite)) {
         $psExecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" -accepteula -nobanner 2>&1
@@ -74,6 +70,9 @@
 
         ForegroundGray = "`e[37m"
         ForegroundDarkGray = "`e[38;2;128;128;128m"
+        ForegroundDarkRed = "`e[38;2;139;0;0m"
+        BackgroundDarkGray = "`e[48;2;128;128;128m"
+        BackgroundDarkRed = "`e[48;2;139;0;0m"
     }
     $global:consoleSequence += @{
         BackgroundForegroundDefault = $global:consoleSequence.BackgroundDefault + $global:consoleSequence.ForegroundDefault

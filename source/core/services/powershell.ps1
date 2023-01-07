@@ -8,7 +8,7 @@ function global:Get-PSSession+ {
     )
 
     $_psSessions = Get-PSSession
-    if ($ComputerName) { $_psSession = $_psSession | Where-Object {$_.ComputerName -in $ComputerName} }
+    if ($ComputerName) { $_psSessions = $_psSessions | Where-Object {$_.ComputerName -in $ComputerName} }
 
     if ($All) {
        return $_psSessions
@@ -86,7 +86,7 @@ function global:Use-PSSession+ {
 
     $_psSessionAvailable = @()
     $_psSessionAvailable += $_psSession | Sort-Object -Property ComputerName -Unique
-    $_psSessionNodesMissing = $_psSessionAvailable ? (Compare-Object -PassThru $_psSessionAvailable.ComputerName (pt nodes -k)) : (pt nodes -k)
+    $_psSessionNodesMissing = $_psSessionAvailable ? (Compare-Object -PassThru $_psSessionAvailable.ComputerName $ComputerName) : $ComputerName
 
     $_psSession = @()
     $_psSession += $_psSessionAvailable
@@ -150,4 +150,52 @@ function global:Remove-PSSession+ {
     
     Remove-PSSession $_psSession
     return 
+}
+
+function global:Get-WSManTrustedHosts {
+
+    [CmdletBinding()]
+    param ()
+
+    return Get-Item WSMan:\localhost\Client\TrustedHosts
+
+}
+
+function global:Add-WSManTrustedHosts {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+    )
+
+    $trustedHosts = Get-WSManTrustedHosts
+    if ($trustedHosts.Value -notcontains "*") {
+        foreach ($node in $ComputerName) {
+            if ($node -notin $trustedHosts.Value) {
+                $ignoreOutput = Set-Item WSMan:\localhost\Client\TrustedHosts -Value $node -Concatenate -Force
+                $ignoreOutput | Out-Null
+            }
+        }
+    }
+
+    return Get-WSManTrustedHosts
+
+}
+
+function global:Remove-WSManTrustedHosts {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
+    )
+
+    $trustedHosts = Get-WSManTrustedHosts
+    if ($trustedHosts.Value -notcontains "*") {
+        $newTrustedHosts = $trustedHosts.Value -split "," | Where-Object {$_ -notin $ComputerName}
+        $ignoreOutput = Set-Item WSMan:\localhost\Client\TrustedHosts -Value ($newTrustedHosts -join ",") -Force
+        $ignoreOutput | Out-Null
+    }
+
+    return Get-WSManTrustedHosts
+
 }

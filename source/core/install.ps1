@@ -12,11 +12,14 @@ param (
 
 #region REMOVE PSSESSIONS
 
-    Remove-PSSession+
+    # Remove-PSSession+
 
 #endregion REMOVE PSSESSIONS
 
 $global:WriteHostPlusPreference = "Continue"
+
+$global:Environ = @{}
+$global:Location = @{}
 
 . $PSScriptRoot\source\core\definitions\definitions-powershell.ps1
 . $PSScriptRoot\source\core\definitions\classes.ps1
@@ -83,25 +86,27 @@ Clear-Host
         $message = "<Control <.>24> SEARCHING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-        try{
+        # try{
             $global:WriteHostPlusPreference = "SilentlyContinue"
             $global:Product = @{Id="Command"}
             . $PSScriptRoot\definitions.ps1
-        }
-        catch {}
-        finally {
-            $global:WriteHostPlusPreference = "Continue"
-        }
+        # }
+        # catch {}
+        # finally {
+            # $global:WriteHostPlusPreference = "Continue"
+        # }
 
-        $installedProducts = Get-Product -ResetCache
-        $installedProviders = Get-Provider -ResetCache
+        $installedProducts = Get-Product #-ResetCache
+        $installedProviders = Get-Provider #-ResetCache
         $installOverwatch = $false
 
+        $global:WriteHostPlusPreference = "Continue"
         $message = "$($emptyString.PadLeft(9,"`b"))$($Overwatch.DisplayName) "
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Blue
 
     }
     catch {
+        $global:WriteHostPlusPreference = "Continue"
         $message = "$($emptyString.PadLeft(9,"`b"))None      "
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
     }
