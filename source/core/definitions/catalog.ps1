@@ -269,6 +269,22 @@ $global:Catalog.Product += @{ AzureRunCommand =
     }
 }
 
+$global:Catalog.Product += @{ BgInfo = 
+    [Product]@{
+        Id = "BgInfo"
+        Name = "BgInfo"
+        DisplayName = "BgInfo"
+        Description = "Automation wrapper for BgInfo from Microsoft SysInternalsSuite"
+        Publisher = "Overwatch"
+        HasTask = $true
+        Installation = @{
+            Prerequisite = @{
+                Utility = @("Sysinternals")
+            }
+        }
+    }
+}
+
 $global:Catalog.Provider += @{ SMTP = 
     [Provider]@{
         Id = "SMTP"

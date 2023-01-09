@@ -127,7 +127,7 @@ function global:Read-Log {
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-        [Parameter(Mandatory=$false)][Alias("Instance")][string]$Context,
+        [Parameter(Mandatory=$false)][Alias("Instance")][string[]]$Context,
         [Parameter(Mandatory=$false)][int32]$Tail,
         [Parameter(Mandatory=$false)][int32]$Head,
         [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After,
@@ -141,7 +141,6 @@ function global:Read-Log {
         [Parameter(Mandatory=$false)][int32]$Newest,
         [Parameter(Mandatory=$false)][int32]$Oldest,
         [Parameter(Mandatory=$false)][string]$View,
-        [Parameter(Mandatory=$false)][string]$Sort,
         [Parameter(Mandatory=$false)][string]$Status,
         [switch]$UseDefaultView
     )
@@ -203,7 +202,7 @@ function global:Read-Log {
     if ($After) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -gt $After}}
     if ($Before) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -lt $Before}}
     if ($Action) {$logEntry = $logEntry | Where-Object {$_.Action -eq $Action}}
-    if ($Context) {$logEntry = $logEntry | Where-Object {$_.Context -eq $Context}}
+    if ($Context) {$logEntry = $logEntry | Where-Object {$_.Context -in $Context}}
     if ($Status) {$logEntry = $logEntry | Where-Object {$_.Status -eq $Status}}
 
     if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
@@ -827,5 +826,47 @@ function global:Write-Log {
     }
 
     return
+
+}
+
+function global:Export-Log {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(ValueFromPipeline)][Object]$InputObject,
+        [Parameter(Mandatory=$true,Position=0)][string]$Path,
+        [Parameter(Mandatory=$false)][ValidateSet("CSV")][string]$Type = "CSV",
+        [Parameter(Mandatory=$false)][string[]]$QuoteFields,
+        [Parameter(Mandatory=$false)][ValidateSet("Always","Never","AsNeeded")][string]$UseQuotes = "Always",
+        [switch]$Append,
+        [switch]$NoTypeInformation,
+        [switch]$Force,
+        [switch]$NoClobber
+    ) 
+
+    begin {
+        $logEntries = @()
+        $targetDirectory = [string]::IsNullOrEmpty((Split-Path $Path -Parent)) ? (Get-Location).Path : (Split-Path $Path -Parent)
+        if (!$(Test-Path $targetDirectory) -or ($Append -and !$(Test-Path $Path))) {throw "Could not find a part of the path '$($Path)'."}
+    }
+    process {
+        $logEntries += $InputObject
+    }
+    end {
+        if ($logEntries) {
+
+            $params = @{
+                Path = $Path
+                UseQuotes = $UseQuotes
+            }
+            if ($QuoteFields) { $params += @{ QuoteFields = $QuoteFields } }
+            if ($Append) { $params += @{ Append = $Append.IsPresent } }
+            if ($NoTypeInformation) { $params += @{ NoTypeInformation = $NoTypeInformation.IsPresent } }
+            if ($Force) { $params += @{ Force = $Force.IsPresent } }
+            if ($NoClobber) { $params += @{ NoClobber = $NoClobber.IsPresent } }
+            
+            $logEntries | Export-Csv @params
+        }
+    }
 
 }

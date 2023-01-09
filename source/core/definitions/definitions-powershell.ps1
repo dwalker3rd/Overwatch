@@ -14,9 +14,10 @@
 #endregion PSVERSION
 #region PSEXEC
 
-    $global:Location.SysinternalsSuite = ""
-    if (![string]::IsNullOrEmpty($global:Location.SysinternalsSuite)) {
-        $psExecResults = . "$($global:Location.SysinternalsSuite)\psexec.exe" -accepteula -nobanner 2>&1
+    $global:Location.Sysinternals = @{}
+    $global:Location.Sysinternals.PsExec = ""
+    if (![string]::IsNullOrEmpty($global:Location.Sysinternals.PsExec)) {
+        $psExecResults = . "$($global:Location.Sysinternals.PsExec)\psexec.exe" -accepteula -nobanner 2>&1
         $psExecResults | Out-Null
     }
 

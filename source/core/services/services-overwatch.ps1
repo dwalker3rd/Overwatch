@@ -10,13 +10,40 @@
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
         )
 
+        # find the environ.ps1 file on the remote node
         $environFile = [FileObject]::new("environ.ps1",$ComputerName)
+
+        # if node is not an overwatch controller, use the settings from the overwatch controller
+        # note: for now, the overwatch controller is assumed to be the local machine
+        if (!$environFile.Exists()) { 
+            $ComputerName = $env:COMPUTERNAME
+            $environFile = [FileObject]::new("environ.ps1",$ComputerName)
+        }
+
+        # get the content from the environ.ps1 file, mod the content to not be global, execute the content
         $environFileContent = Get-Content $environFile.Path
         $environFileContent = $environFileContent.Replace("global:","")
         $environLocationRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')
         $environFileContent = $environFileContent.Replace($environLocationRoot, ([FileObject]::new($environLocationRoot,$ComputerName)).Path)
         Invoke-Expression ($environFileContent | Out-String)
+
+        # see if the key is defined in environ.ps1
+        $result = Invoke-Expression "`$$Key"
+
+        # if key not defined in environ.ps1, search definition files (/definitions/definition-*.ps1)
+        if (!$result) {
+            # search must result in a SINGLE file
+            $definitionFile = (Select-String -Pattern $Key -SimpleMatch -Path "$($Location.Definitions)\definitions-*.ps1" -List)[0]
+            if ($definitionFile) {
+                $definitionFileContent = Get-Content $definitionFile.Path
+                $definitionFileContent = $definitionFileContent.Replace("global:","")
+                Invoke-Expression ($definitionFileContent | Out-String)
+            }
+
+        }
+
         return Invoke-Expression "`$$Key"
+
     }
 
     function global:Get-Product {

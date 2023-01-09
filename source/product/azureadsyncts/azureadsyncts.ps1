@@ -34,7 +34,7 @@ function Assert-SyncError {
     }
 
     Write-Host+
-    $message = "AzureADSyncTS $($Status.ToLower()) because $($ErrorDetail.summary)"
+    $message = "$($global:Product.Id)$($Status.ToLower()) because $($ErrorDetail.summary)"
     Write-Host+ -NoTrace $message -ForegroundColor DarkRed
     $message = "AzureADCache should correct this issue on its next run."
     Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
@@ -130,9 +130,9 @@ try {
     $message = "<Exporting sync transactions <.>48> PENDING"
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    $azureADSyncLog = read-log -context AzureADSyncTS
+    $azureADSyncLog = read-log -context $global:Product.Id
     if ($azureADSyncLog.Count -gt 0) {
-        $azureADSyncLog | export-csv "$($azureAD.Data)\AzureADSyncLog.csv"
+        $azureADSyncLog | Export-Log "$($azureAD.Data)\AzureADSyncLog.csv"
     }
 
     $azureADSyncTransactionCount = $azureADSyncLog.Count -gt 0 ? ($azureADSyncLog.Count).ToString() : "None"
