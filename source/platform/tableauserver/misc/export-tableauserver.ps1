@@ -54,7 +54,7 @@
             [switch]$NewLine
         )
 
-        $message = "<Export $Name <.>48> PENDING"
+        $message = "<$Name <.>48> PENDING"
         Write-Host+ -NoTrace -NoNewLine:$(!($NewLine.IsPresent)) -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     }
@@ -68,7 +68,7 @@
         )
 
         if ($NewLine) {
-            $message = "<Export $Name <.>48> SUCCESS"
+            $message = "<$Name <.>48> SUCCESS"
             Write-Host+ -NoTrace -Parse $message-ForegroundColor Gray,DarkGray,DarkGreen
         }
         else {

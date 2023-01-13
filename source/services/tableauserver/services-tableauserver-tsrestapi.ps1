@@ -585,6 +585,15 @@ function global:Update-TSRestApiMethods {
             }
 
         #endregion METRIC METHODS
+        #region COLLECTION METHODS
+
+            GetCollections = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/collections/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "collections.collection"}
+            }
+
+        #endregion METRIC METHODS
         #region FAVORITE METHODS
 
             GetFavorites = @{
@@ -834,18 +843,11 @@ function global:Invoke-TSRestApiMethod {
         }
     }
     catch {
-        $responseError = $_.Exception.Message
+        $responseError = $_.ErrorDetails.Message ?? $_.Exception.Message
     }
 
     if ($responseError) {
-        # $errorMessage = $responseError
-        # if ($responseError.code) {
-        #     $errorMessage = "Error $($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
-        # }
-        # Write-Host+ $errorMessage -ForegroundColor Red
-        # Write-Log -Action $Method -Status "Error" -EntryType "Error" -Message $errorMessage
         return $response, $null, $responseError
-        # throw $errorMessage
     }
 
     $pagination = [ordered]@{
@@ -870,11 +872,6 @@ function global:Invoke-TSRestApiMethod {
 
     $pagination.CountThisPage = $response.Count
     $pagination.TotalReturned = ((($PageNumber - 1) * $PageSize) + $pagination.CountThisPage)
-
-    # if ([string]::IsNullOrEmpty($response)) {
-    #     $errorMessage = "$tsObjectName object is null"
-    #     Write-Host+ $errorMessage -ForegroundColor DarkGray
-    # }
 
     return $response, $pagination, $responseError
 
@@ -902,7 +899,6 @@ function global:Download-TSObject {
             detail = "Invalid authentication credentials were provided"
         }
         $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ $errorMessage -ForegroundColor Red
         Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
         return $null, $null, $responseError
     }
@@ -1260,8 +1256,8 @@ function global:Get-TSObjects {
     do {
         $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method $Method -Params $Params -Filter $Filter -PageNumber $pageNumber -PageSize $pageSize -TimeoutSec $TimeoutSec
         if ($responseError) {
-            $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-            Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
+            $errorMessage = !$responseError.code ? $responseError : "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
+            Write-Host+ $errorMessage -ForegroundColor Red
             Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
             return
         }
@@ -1275,7 +1271,6 @@ function global:Get-TSObjects {
             $response = Download-TSObject -Method ($Method -replace "s$","") -InputObject $object
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                # Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
                 Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $object.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
@@ -1301,7 +1296,7 @@ function global:Invoke-TSMethod {
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method $Method -Params $Params -TimeoutSec $TimeoutSec
     if ($responseError) {
         $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
+        Write-Host+ $errorMessage -ForegroundColor Red
         Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
         return
     }
@@ -1402,9 +1397,6 @@ function global:Switch-TSSite {
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "SwitchSite" -Params @($ContentUrl)
     if ($responseError) {
-        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
-        # Write-Log -Message $errorMessage -EntryType "Error" -Action "SwitchSite" -Status "Error"
         return
     }
 
@@ -1585,13 +1577,11 @@ function global:Add-TSUser {
     if ([string]::IsNullOrEmpty($FullName)) {
         $errorMessage = "$($Site.contentUrl)\$Username : FullName is missing or invalid."
         Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
-        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor Red
         return
     }
     if ([string]::IsNullOrEmpty($Email)) {
         $errorMessage = "$($Site.contentUrl)\$Username : Email is missing or invalid."
         Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
-        # Write-Host+ -NoTrace "      $errorMessage" -ForegroundColor Red
         return
     }
 
@@ -1599,10 +1589,8 @@ function global:Add-TSUser {
 
     # $response is a user object or an error object
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddUser" -Params @($Username,$SiteRole)
-    if ($responseError) { #}.code -eq "401002") {
-        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ $errorMessage -ForegroundColor Red
-        # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddUser" -Status "Error"
+    if ($responseError) {
+
         return
     }
     else {
@@ -1612,7 +1600,6 @@ function global:Add-TSUser {
         # $response is an update object (NOT a user object) or an error object
         $response = Update-TSSiteUser -User $tsSiteUser -FullName $FullName -Email $Email -SiteRole $SiteRole
         if (!$response.error.code) {
-            # $response is an update object (NOT a user object) or an error object
             $response = Update-TSUserPassword -User $tsSiteUser -Password (New-RandomPassword -ExcludeSpecialCharacters)
         }
     }
@@ -1653,10 +1640,7 @@ function global:Update-TSUser {
     
     # $response is an update object (NOT a user object) or an error object
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "UpdateUser" -Params @($User.Id,$FullName,$Email,$SiteRole)
-    if ($responseError) { #}.code -eq "401002") {
-        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ $errorMessage -ForegroundColor Red
-        # Write-Log -Message $errorMessage -EntryType "Error" -Action $action -Status "Error"
+    if ($responseError) { 
         return
     }
     else {
@@ -1681,10 +1665,7 @@ function global:Update-TSUserPassword {
 
     # $response is an update object (NOT a user object) or an error object
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "UpdateUserPassword" -Params @($User.id,$Password)
-    if ($responseError) { #}.code -eq "401002") {
-        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ $errorMessage -ForegroundColor Red
-        # Write-Log -Message $errorMessage -EntryType "Error" -Action "UpdateUserPassword" -Status "Error"
+    if ($responseError) { 
         return
     }
     else {
@@ -1704,14 +1685,9 @@ function global:Remove-TSUser {
         [Parameter(Mandatory=$true)][object]$User
     )
 
-    # Switch-TSSite $tsSite.contentUrl
-
     $response, $pagination, $responseError = Invoke-TsRestApiMethod -Method "RemoveUser" -Params @($User.Id)
-    if ($responseError) { #}.code -eq "401002") {
-        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ $errorMessage -ForegroundColor Red
-        # Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveUser" -Status "Error"
-        # return
+    if ($responseError) {
+        # do nothing
     }
     else {
         Write-Log -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
@@ -1792,18 +1768,12 @@ function global:Add-TSUserToGroup {
         [Parameter(Mandatory=$true)][object[]]$User
     )
 
-    # $usersAddedToGroup = 0
     $User | ForEach-Object {
         $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddUserToGroup" -Params @($Group.Id,$_.Id)
-        if ($responseError) { #}.code -eq "401002") {
-            # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-            # Write-Host+  $errorMessage -ForegroundColor Red
-            # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddUserToGroup" -Status "Error"
+        if ($responseError) {
             return
         }
         else {
-            # $usersAddedToGroup += 1
-            # Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "+$($usersAddedToGroup)" -Force
             Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
 
@@ -1821,18 +1791,12 @@ function global:Remove-TSUserFromGroup {
         [Parameter(Mandatory=$true)][object[]]$User
     )
 
-    # $usersRemovedFromGroup = 0
     $User | ForEach-Object {
         $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveUserFromGroup" -Params @($Group.Id,$_.Id)
-        if ($responseError) { #}.code -eq "401002") {
-            # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-            # Write-Host+ $errorMessage -ForegroundColor Red
-            # Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveUserFromGroup" -Status "Error"
+        if ($responseError) {
             return
         }
         else {
-            # $usersRemovedFromGroup += 1
-            # Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "-$($usersRemovedFromGroup)" -Force
             Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
     }
@@ -1898,7 +1862,6 @@ function global:Find-TSProject {
     )
 
     if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name)) {
-        Write-Host+ "ERROR: The search parameters `$Id and `$Name are null." -ForegroundColor Red
         return
     }
     if (!$Projects) { $Projects = Get-TSProjects+ }
@@ -2269,8 +2232,22 @@ function global:Get-TSWorkbooks+ {
 
     $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $workbooks
 
+    # $col1 = @{ label = "Project"; value = $null; width = 50 }
+    # $col2 = @{ label = "Workbook"; value = $null; width = 50 }
+    # Write-Host+ -NoTimestamp -NoSeparator $col1.label,$emptyString.PadLeft($col1.width-$col1.label.Length," "),$col2.label,$emptyString.PadLeft($col2.width-$col2.label.Length," ")
+    # Write-Host+ -NoTrace -NoTimestamp -NoSeparator $emptyString.PadLeft($col1.label.Length,"-"),$emptyString.PadLeft($col1.width-$col1.label.Length," "),$emptyString.PadLeft($col2.label.Length,"-"),$emptyString.PadLeft($col2.width-$col2.label.Length," ")
+
     $workbooksPlus = @()
     $workbooks | ForEach-Object {
+
+        # $col1.value = $_.project ? $_.project.Name : "Personal Space ($((Find-TSUser -Users $Users -Id $_.owner.id).fullName))"
+        # $col1.value = $col1.value.substring(0,($col1.value.length -gt $col1.width ? $col1.width-1 : $col1.value.length))
+        # $col1.value = $col1.value.PadRight($col1.width," ")
+        # $col2.value = $_.name
+        # $col2.value = $col2.value.substring(0,($col2.value.length -gt $col2.width ? $col2.width-1 : $col2.value.length))
+        # $col2.value = $col2.value.PadRight($col2.width," ")
+        # Write-Host+ -NoTrace -NoTimestamp $col1.value,$col2.value
+
         $workbook = @{}
         $workbookMembers = $_ | Get-Member -MemberType Property
         foreach ($member in  $workbookMembers) {
@@ -2283,6 +2260,7 @@ function global:Get-TSWorkbooks+ {
         $workbook.revisions = Get-TSWorkbookRevisions -Workbook $_
         $workbook.connections = Get-TSWorkbookConnections -Id $_.id
         $workbooksPlus += $workbook
+
     }
 
     return $workbooksPlus
@@ -2428,8 +2406,13 @@ function global:Get-TSWorkbookPermissions {
         [Parameter(Mandatory=$true,Position=0)][object]$Workbook
     )
 
-    if ($Workbook.location.type -eq "PersonalSpace") { return }
-    return Get-TSObjects -Method GetWorkbookPermissions -Params @($Workbook.Id)
+    if ($Workbook.location.type -eq "PersonalSpace") {
+        $responseError = "Method 'GetWorkbookPermissions' is not authorized for workbooks in a personal space."
+        Write-Log -EntryType "Error" -Action "GetWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
+        return
+    }
+    
+    return Get-TSObjects -Method "GetWorkbookPermissions" -Params @($Workbook.Id)
 
 }
 
@@ -2442,6 +2425,12 @@ function global:Add-TSWorkbookPermissions {
         [Parameter(Mandatory=$false)][object]$User,
         [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
+
+    if ($Workbook.location.type -eq "PersonalSpace") {
+        $responseError = "Method 'AddWorkbookPermissions' is not authorized for workbooks in a personal space."
+        Write-Log -EntryType "Error" -Action "AddWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
+        return
+    }
 
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
@@ -2492,7 +2481,6 @@ function global:Get-TSWorkbookRevisions {
             $response = Download-TSObject -Method GetWorkbookRevision -InputObject $Workbook -Params @($Workbook.Id, $workbookRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                # Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
                 Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $workbookRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
@@ -2534,7 +2522,6 @@ function global:Get-TSViews+ {
     )
 
     if (!$Views) {
-        # Write-Host+ "No views found in site $($tsRestApiConfig.ContentUrl)" -ForegroundColor DarkGray
         return
     }
 
@@ -2635,7 +2622,13 @@ function global:Get-TSViewPermissions {
         [Parameter(Mandatory=$true,Position=0)][object]$View
     )
 
-    return Get-TSObjects -Method GetViewPermissions -Params @($View.Id)
+    if ($View.location.type -eq "PersonalSpace") {
+        $responseError = "Method 'GetViewPermissions' is not authorized for views in a personal space."
+        Write-Log -EntryType "Error" -Action "GetViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
+        return
+    }
+
+    return Get-TSObjects -Method "GetViewPermissions" -Params @($View.Id)
 }
 
 function global:Add-TSViewPermissions {
@@ -2647,6 +2640,12 @@ function global:Add-TSViewPermissions {
         [Parameter(Mandatory=$false)][object]$User,
         [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
+
+    if ($View.location.type -eq "PersonalSpace") {
+        $responseError = "Method 'AddViewPermissions' is not authorized for views in a personal space."
+        Write-Log -EntryType "Error" -Action "AddViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
+        return
+    }
 
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
@@ -2772,7 +2771,6 @@ function global:Get-TSDatasourceRevisions {
             $response = Download-TSObject -Method GetDatasourceRevision -InputObject $Datasource -Params @($Datasource.Id, $datasourceRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                # Write-Host+ -NoTrace $errorMessage -ForegroundColor Red
                 Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $datasourceRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
@@ -2869,7 +2867,6 @@ function global:Get-TSDatasourcePermissions {
     param(
         [Parameter(Mandatory=$true,Position=0)][object]$Datasource
     )
-
 
     return Get-TSObjects -Method GetDatasourcePermissions -Params @($Datasource.Id)
 }
@@ -3123,42 +3120,62 @@ function global:Add-TSFlowPermissions {
 #endregion FLOWS
 #region METRICS
 
-function global:Get-TSMetrics {
+    function global:Get-TSMetrics {
 
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)][string]$Filter
-    )
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false)][string]$Filter
+        )
 
-    return Get-TSObjects -Method GetMetrics -Filter $Filter
-}
+        return Get-TSObjects -Method GetMetrics -Filter $Filter
+    }
 
-function global:Get-TSMetric {
+    function global:Get-TSMetric {
 
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][string]$MetricLuid
-    )
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true)][string]$MetricLuid
+        )
 
-    return Get-TSObjects -Method GetMetric -Params @($MetricLuid)
-}
+        return Get-TSObjects -Method GetMetric -Params @($MetricLuid)
+    }
 
-function global:Update-TSMetric {
+    function global:Update-TSMetric {
 
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][object]$Metric,
-        [Parameter(Mandatory=$false)][object]$Project = $Metric.Project,
-        [Parameter(Mandatory=$false)][object]$Owner = $Metric.Owner
-    )
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true)][object]$Metric,
+            [Parameter(Mandatory=$false)][object]$Project = $Metric.Project,
+            [Parameter(Mandatory=$false)][object]$Owner = $Metric.Owner
+        )
 
-    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateMetric -Params @($Metric.Id, $Metric.Name, $Project.Id, $Owner.Id) 
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateMetric -Params @($Metric.Id, $Metric.Name, $Project.Id, $Owner.Id) 
 
-    return $response, $responseError
+        return $response, $responseError
 
-}
+    }
 
 #endregion METRICS
+#region COLLECTIONS
+
+    function global:Get-TSCollections {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false)][object]$User=(Get-TSCurrentUser)
+        )
+
+        $responseError = "Collections are not yet supported by the Tableau Server REST API."
+        Write-Host+ $responseError -ForegroundColor DarkYellow
+        Write-Log -EntryType "Warning" -Action "GetCollections" -Target "Collections" -Status "NotSupported" -Message $responseError 
+        return
+
+        $collection = Get-TSObjects -Method GetCollections -Params @($User.id)
+
+        return $collection
+    }
+
+#endregion COLLECTIONS
 #region FAVORITES
 
 function global:Get-TSFavorites+ {
@@ -3170,7 +3187,10 @@ function global:Get-TSFavorites+ {
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
         [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks+),
         [Parameter(Mandatory=$false)][object]$Views = (Get-TSViews+),
-        [Parameter(Mandatory=$false)][object]$Datasources = (Get-TSDatsources+)
+        [Parameter(Mandatory=$false)][object]$Datasources = (Get-TSDatasources+),
+        [Parameter(Mandatory=$false)][object]$Flows = (Get-TSFlows+),
+        [Parameter(Mandatory=$false)][object]$Metrics = (Get-TSMetrics),
+        [Parameter(Mandatory=$false)][object]$Collections = (Get-TSCollections)
     )
 
     $favoritesPlus = @()
@@ -3180,19 +3200,9 @@ function global:Get-TSFavorites+ {
 
             $favoriteType = $null
 
-            if ($favorite.project) {$favoriteType = 'project'}
-            if ($favorite.datasource) {$favoriteType = 'datasource'}
-            if ($favorite.workbook) {$favoriteType = 'workbook'}
-            if ($favorite.view) {$favoriteType = 'view'}
-
-            if (!$favoriteType) {$favoriteType = "unknown"}
-
             $favoritePlus = [PSCustomObject]@{
-                favoriteType = $favoriteType
-                user = Find-TSUser -Users $Users -Id $user.id
-                userId = $user.id 
-                userName = $user.name
-                ($favoriteType) = $null
+                favoriteType = $null
+                owner = Find-TSUser -Users $Users -Id $user.id
                 label = $favorite.label
                 position = [int]$favorite.position
                 addedat = [datetime]$favorite.addedat
@@ -3201,7 +3211,8 @@ function global:Get-TSFavorites+ {
             $favoritePlusMembers = $favoritePlus | Get-Member -MemberType NoteProperty
             $favoriteMembers = $favorite | Get-Member -MemberType Property  | Where-Object {$_.name -notin $favoritePlusMembers.name}
             foreach ($member in  $favoriteMembers) {
-                $favoritePlus.($member.Name) = $favorite.($member.Name)
+                $favoritePlus | Add-Member -NotePropertyName $member.Name -NotePropertyValue $favorite.($member.Name)
+                $favoritePlus.favoriteType = $member.Name
             }
             
             switch ($favoriteType) {
@@ -3217,10 +3228,11 @@ function global:Get-TSFavorites+ {
                 "datasource" {
                     $favoritePlus.datasource = Find-TSDataSource -Datasources $Datasources -Id $favorite.datasource.id
                 }
-                "unknown" {
-                    $favoritePlus.PSObject.Properties.Remove("unknown")
-                    $favoritePlus.favoriteType = $null
+                "flow" {
+                    $favoritePlus.flow = Find-TSFlow -Flows $Flows -Id $favorite.flow.id
                 }
+                "metric" {}
+                "collection" {}
                 default {}
             }
 
@@ -3237,7 +3249,6 @@ function global:Get-TSFavorites {
     param(
         [Parameter(Mandatory=$false)][object]$User=(Get-TSCurrentUser)
     )
-
 
     $favorite = Get-TSObjects -Method GetFavorites -Params @($User.id)
 
@@ -3270,11 +3281,8 @@ function global:Add-TSFavorites {
     )
 
     foreach ($favorite in $favorites) {
-        $response,$responseError = Add-TSFavorite -User $favorite.user -Label $favorite.label -Type $favorite.favoriteType -InputObject $favorite.($favorite.favoriteType)
+        $response,$responseError = Add-TSFavorite -User $favorite.owner -Label $favorite.label -Type $favorite.favoriteType -InputObject $favorite.($favorite.favoriteType)
         if ($responseError.code) {
-            # $errorMessage = "Error adding favorite:  $($favorite.user.name)  $($favorite.label)  $($favorite.favoriteType)  $($favorite.($favorite.favoriteType).name)"
-            # Write-Host+ $errorMessage -ForegroundColor Red
-            # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddFavorites" -Status "Error"
             return
         }
     }
@@ -3289,14 +3297,11 @@ function global:Add-TSFavorite {
         [Parameter(Mandatory=$true)][object]$User,
         [Parameter(Mandatory=$true)][string]$Label,
         [Parameter(Mandatory=$true)][string]$Type,
-        [Parameter(Mandatory=$true)][Alias("Workbook","View","DataSource","Project")][object]$InputObject
+        [Parameter(Mandatory=$true)][Alias("Workbook","View","DataSource","Project","Flow","Metric","Collection")][object]$InputObject
     )
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddFavorites" -Params @($User.id,($Label.replace("&","&amp;")),$Type,$InputObject.id)
     if ($responseError.code) {
-        # $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        # Write-Host+ $errorMessage -ForegroundColor Red
-        # Write-Log -Message $errorMessage -EntryType "Error" -Action "AddFavorites" -Status "Error"
         return
     }
     
