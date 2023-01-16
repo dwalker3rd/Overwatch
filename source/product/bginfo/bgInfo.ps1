@@ -13,7 +13,7 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="BgInfo"}
 . $PSScriptRoot\definitions.ps1
 
-function global:Build-BgInfoFile {
+function global:Update-BgInfoCustomContent {
 
     param(
         [Parameter(Mandatory=$false)][string]$Path = $global:Product.Config.Content,
@@ -79,4 +79,12 @@ function global:Build-BgInfoFile {
 
 }
 
-Build-BgInfoFile -Path $Product.Config.Content -ComputerName (pt nodes -k)
+# required! reload product using -nocache
+$Product = Get-Product $Product.Id -NoCache
+
+# update bginfofile
+Update-BgInfoCustomContent -Path $Product.Config.Content -ComputerName (pt nodes -k)
+
+# run bginfo to update background
+$commandLineExpression = ". `"$($Product.Config.Executable)`" `"$($Product.Config.Config)`" $($Product.Config.Options -join ' ')"
+Invoke-Expression $commandLineExpression
