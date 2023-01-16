@@ -104,14 +104,10 @@ function global:Add-PostgresData {
     $query = "INSERT INTO $Schema.$Table"
     if ($Columns) { $query += " ($($Columns -join ", "))"}
     $query += " VALUES ('$($Values -join "', '")')"
-    $status = Insert-OdbcData -Connection $connection -Query $Query
+    $result = Insert-OdbcData -Connection $connection -Query $Query
     Disconnect-OdbcData -Connection $connection
 
-    if ($status -ne 1 -and $ErrorActionPreference -eq "Continue") {
-        throw "Failed to update `"$Schema.$Table.$Column`" in database `"$Database`""
-    }
-
-    return
+    return $result
 
 }
 Set-Alias -Name pgInsert -Value Add-PostgresData -Scope Global
@@ -269,14 +265,10 @@ function global:Update-PostgresData {
     $connection = Connect-OdbcData "$Database-admin-$($Platform.Instance)"
     $query = "UPDATE $Schema.$Table SET $Column = '$Value'"
     if ($Filter) { $query += " WHERE $Filter" }
-    $status = Update-OdbcData -Connection $connection -Query $Query
+    $result = Update-OdbcData -Connection $connection -Query $Query
     Disconnect-OdbcData -Connection $connection
 
-    if ($status -ne 1 -and $ErrorActionPreference -eq "Continue") {
-        throw "Failed to update `"$Schema.$Table.$Column`" in database `"$Database`""
-    }
-
-    return
+    return $result
 
 }
 Set-Alias -Name pgUpdate -Value Update-PostgresData -Scope Global
@@ -293,16 +285,12 @@ function global:Remove-PostgresData {
     )
 
     $connection = Connect-OdbcData "$Database-admin-$($Platform.Instance)"
-    $query = "REMOVE $Schema.$Table"
+    $query = "DELETE FROM $Schema.$Table"
     if ($Filter) { $query += " WHERE $Filter" }
-    $status = Delete-OdbcData -Connection $connection -Query $Query
+    $result = Delete-OdbcData -Connection $connection -Query $Query
     Disconnect-OdbcData -Connection $connection
 
-    if ($status -ne 1 -and $ErrorActionPreference -eq "Continue") {
-        throw "Failed to delete rows from `"$Schema.$Table`" in database `"$Database`""
-    }
-
-    return
+    return $result
 
 }
 Set-Alias -Name pgDelete -Value Remove-PostgresData -Scope Global
