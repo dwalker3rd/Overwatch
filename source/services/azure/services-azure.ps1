@@ -1500,3 +1500,78 @@ function global:Deploy-DSnA {
     return
 
 }
+
+function global:Get-AzVmContext {
+
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$VmName=$env:COMPUTERNAME
+    )
+
+    $azVmContext = @{}
+    $vm = Get-AzVM -Name $VmName
+    if (!$vm) { return $azVmContext }
+    $vm | Get-Member -MemberType Property | Foreach-Object {
+        switch ($_.Name) {
+            "Extensions" {}
+            default {
+                $azVmContext += @{ $_ = $vm.($_) }
+            }
+        }
+    }
+    $azVmContext += @{
+        Extensions = Get-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name
+    }
+
+    $azVmContext += @{ ResourceGroup = @{} }
+    $resourceGroup = Get-AzResourceGroup -Name $vm.ResourceGroupName
+    if (!$resourceGroup) { return $azVmContext }
+    $azVmContext.ResourceGroup = @{
+        ResourceID = $resourcegroup.ResourceId
+        ResourceGroupName = $resourceGroup.ResourceGroupName
+        Location = $resourceGroup.Location
+    }
+
+    $azVmContext += @{ Subscription = @{} }
+    $subscription = Get-AzSubscription -SubscriptionId ($vm.Id -split "/")[2]
+    if (!$subscription) { return $azVmContext }
+    $azVmContext.Subscription = @{
+        Id = $subscription.SubscriptionId
+        TenantId = $subscription.TenantId
+        Name = $subscription.Name
+        Environment = $subscription.ExtendedProperties.Environment
+    }
+
+    $azVmContext += @{ Tenant = @{} }
+    $tenant = Get-AzTenant -TenantId $subscription.TenantId
+    if (!$subscription) { return $azVmContext }
+    $azVmContext.Tenant = @{
+        Id = $tenant.Id
+        Name = $tenant.Name
+        Type = $tenant.TenantType
+        Domain = $tenant.DefaultDomain
+    }
+
+    return $azVmContext
+
+}
+
+function global:Install-AzVmExtension {
+
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$ResourceGroupName,
+        [Parameter(Mandatory=$false)][string[]]$VmName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$true)][string]$Publisher,
+        [Parameter(Mandatory=$true)][string]$ExtensionType,
+        [Parameter(Mandatory=$true)][string]$TypeHandlerVersion
+    )
+
+    foreach ($node in $VmName) {
+
+        $azVmExtension = Get-AzVmExtension -ResourceGroupName $resourceGroupName -VMName $node -Name $Name -ErrorAction SilentlyContinue
+        if (!$azVmExtension) {
+            Set-AzVMExtension -ResourceGroupName $resourceGroupName -VMName $node -Name $Name -TypeHandlerVersion $bgInfoTypeHandlerVersion -Location $Location
+        }
+
+    }
+}
