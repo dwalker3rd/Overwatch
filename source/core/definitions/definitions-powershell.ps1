@@ -12,16 +12,6 @@
     }
 
 #endregion PSVERSION
-#region PSEXEC
-
-    $global:Location.Sysinternals = @{}
-    $global:Location.Sysinternals.PsExec = ""
-    if (![string]::IsNullOrEmpty($global:Location.Sysinternals.PsExec)) {
-        $psExecResults = . "$($global:Location.Sysinternals.PsExec)\psexec.exe" -accepteula -nobanner 2>&1
-        $psExecResults | Out-Null
-    }
-
-#endregion PSEXEC
 #region CONSOLE SEQUENCES
 
     $global:consoleSequence = @{

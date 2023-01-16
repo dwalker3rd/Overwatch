@@ -21,6 +21,7 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Environ = @{}
 $global:Location = @{}
 
+. $PSScriptRoot\source\core\definitions\definitions-sysinternals.ps1
 . $PSScriptRoot\source\core\definitions\definitions-powershell.ps1
 . $PSScriptRoot\source\core\definitions\classes.ps1
 . $PSScriptRoot\source\core\definitions\catalog.ps1
@@ -962,6 +963,7 @@ Clear-Host
 
 #endregion INSTALL UPDATE
 
+    . $PSScriptRoot\definitions\definitions-sysinternals.ps1
     . $PSScriptRoot\definitions\definitions-powershell.ps1
     . $PSScriptRoot\definitions\classes.ps1
     . $PSScriptRoot\definitions\catalog.ps1

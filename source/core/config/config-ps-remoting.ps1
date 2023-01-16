@@ -46,7 +46,7 @@ $global:WarningPreference = "SilentlyContinue"
             if (!$_psSessionConfiguration) {
                 # Enable-PSRemoting to recreate the PSSession configurations since we just unregistered PowerShell.7
                 # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
-                $psexecResults = . "$($global:Location.Sysinternals.PsExec)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
+                $psexecResults = . "$($global:Location.Sysinternals)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
                 $_psSessionConfiguration = invoke-command -computername $node -configurationname $global:PSSessionConfigurationName -ScriptBlock {Get-PSSessionConfiguration | Where-Object {$_.Name -ne $using:PSSessionConfigurationName}}
             }
 
@@ -64,7 +64,7 @@ $global:WarningPreference = "SilentlyContinue"
                         
                         # Enable-PSRemoting to recreate the PSSession configurations since we just unregistered PowerShell.7
                         # easiest way to enable psremoting remotely: psexec is part of the Microsoft SysInternals Suite
-                        $psexecResults = . "$($global:Location.Sysinternals.PsExec)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
+                        $psexecResults = . "$($global:Location.Sysinternals)\psexec.exe" "\\$node" -h -s pwsh.exe -Command "Enable-PSRemoting -SkipNetworkProfileCheck -Force" # -accepteula -nobanner 2>&1
 
                         # $_psRequiredConfiguration = Get-PSSessionConfiguration -Name $using:PSSessionConfigurationName -ErrorAction SilentlyContinue
 

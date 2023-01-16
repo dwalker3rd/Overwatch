@@ -9,6 +9,11 @@
     . $PSScriptRoot\environ.ps1
 
 #endregion ENVIRON
+#region SYSINTERNALS
+
+    . "$($global:Location.Definitions)\definitions-sysinternals.ps1"
+
+#endregion SYSINTERNALS
 #region POWERSHELL
 
     . "$($global:Location.Definitions)\definitions-powershell.ps1"

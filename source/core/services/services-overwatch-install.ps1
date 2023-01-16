@@ -239,8 +239,9 @@ function script:Copy-File {
         param(
             [Parameter(Mandatory=$true)][string]$Source,
             [Parameter(Mandatory=$false)][string]$Destination = $Source,
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Provider","Product")][Alias("Provider","Product")][string]$Type,
-            [Parameter(Mandatory=$false)][string]$Name
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Provider","Product","Location")][string]$Type,
+            [Parameter(Mandatory=$false)][string]$Name,
+            [Parameter(Mandatory=$false)][string]$Expression = "`"`$(`$global:Location.Root)\$($Name.ToLower())`""
         )
 
         if ([string]::IsNullOrEmpty($Type)) {
@@ -264,6 +265,28 @@ function script:Copy-File {
                 Copy-File $Source $Destination -Component Environ -WhatIf -Quiet
             }
             return $PSBoundParameters.ContainsKey('WhatIf') ? $true : $null
+        }
+        elseif ($Type -eq "Location") {
+            $environFileContent = Get-Content -Path $Source -Raw
+            if ($environFileContent -match "(?s)\`$global:Location\s*\+=\s*@{(.*)}") {
+                $locationContent = $matches[1]
+                Write-Host+ -NoTrace -NoTimestamp "  [Environ] `$global:Location.$Name = `"$(Invoke-Expression $Expression)`"" -ForegroundColor DarkGray
+                if ($locationContent -match "$Name\s*=\s*`"(.*)`"") {
+                    Write-Host+ -NoTrace -NoTimestamp "  [Environ] `$global:Location.$Name = `"$(Invoke-Expression $matches[1])`"" -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp "  [Environ] Unable to add `"`$global:Location.$Name`"" -ForegroundColor Red
+                    return
+                }
+                elseif (![string]::IsNullOrEmpty($global:Location.$Name) -and$global:Location.$Name -ne $Expression) {
+                    Write-Host+ -NoTrace -NoTimestamp "  [Location] `$global:Location.$Name = `"$($global:Location.$Name)`"" -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp "  [Environ] Unable to add `"`$global:Location.$Name`"" -ForegroundColor Red
+                    return
+                }
+                else {
+                    $newLocationContent = $locationContent + "        " + $Name + " = " + $Expression + "`n"
+                    $environFileContent = $environFileContent.Replace($locationContent, $newLocationContent)
+                    $environFileContent | Set-Content -Path $Destination
+                }
+            }
         }
         else {
             $environItems = Select-String $Destination -Pattern "$Type = " -Raw

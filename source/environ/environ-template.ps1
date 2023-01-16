@@ -16,22 +16,30 @@
         Images = "<imagesURI>"
     }
     $global:Location += @{
-        Scripts = "$($global:Location.Root)"
-        Definitions = "$($global:Location.Root)\definitions"
-        Providers = "$($global:Location.Root)\providers"
-        Services = "$($global:Location.Root)\services"
-        Install = "$($global:Location.Root)\install"
-        Initialize = "$($global:Location.Root)\initialize"
-        Preflight = "$($global:Location.Root)\preflight"
-        Postflight = "$($global:Location.Root)\postflight"
-        Help = "$($global:Location.Root)\help"
         Config = "$($global:Location.Root)\config"
-        Data = "$($global:Location.Root)\data"
         Credentials = "$($global:Location.Root)\data"
-        Views = "$($global:Location.Root)\views"
+        Data = "$($global:Location.Root)\data"
+        Definitions = "$($global:Location.Root)\definitions"
+        Help = "$($global:Location.Root)\help"
+        Initialize = "$($global:Location.Root)\initialize"
+        Install = "$($global:Location.Root)\install"
         Logs = "$($global:Location.Root)\logs"
-        Temp = "$($global:Location.Root)\temp"
+        Postflight = "$($global:Location.Root)\postflight"
+        Preflight = "$($global:Location.Root)\preflight"
+        Providers = "$($global:Location.Root)\providers"
+        Scripts = "$($global:Location.Root)"
+        Services = "$($global:Location.Root)\services"
         Source = "$($global:Location.Root)\source"
-    }
+        Temp = "$($global:Location.Root)\temp"
+        Views = "$($global:Location.Root)\views"
+        Sysinternals = "$($global:Location.Root)\sysinternals"
+}
 
 #endregion LOCATION     
+
+
+
+
+
+
+

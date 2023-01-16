@@ -274,14 +274,9 @@ $global:Catalog.Product += @{ BgInfo =
         Id = "BgInfo"
         Name = "BgInfo"
         DisplayName = "BgInfo"
-        Description = "Automation wrapper for BgInfo from Microsoft SysInternalsSuite"
+        Description = "Automation for BgInfo from Microsoft Sysinternals"
         Publisher = "Overwatch"
-        HasTask = $true
-        Installation = @{
-            Prerequisite = @{
-                Utility = @("Sysinternals")
-            }
-        }
+        HasTask = $false
     }
 }
 
