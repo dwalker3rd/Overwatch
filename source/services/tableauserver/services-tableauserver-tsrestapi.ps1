@@ -55,6 +55,11 @@ $FlowPermissions = @(
     "Write:Allow","Write:Deny"
 )
 
+$DataRolePermissions = @()
+$DatabasePermissions = @()
+$MetricPermissions = @()
+$LensPermissions = @()
+
 #endregion DEFINITIONS
 #region CONFIG
 
@@ -593,7 +598,16 @@ function global:Update-TSRestApiMethods {
                 Response = @{Keys = "collections.collection"}
             }
 
-        #endregion METRIC METHODS
+        #endregion COLLECTION METHODS
+        #region VIRTUALCONNECTION METHODS
+
+            GetVirtualConnections = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/virtualconnections"
+                HttpMethod = "GET"
+                Response = @{Keys = "virtualconnections.virtualconnection"}
+            }
+
+        #endregion VIRTUALCONNECTION METHODS
         #region FAVORITE METHODS
 
             GetFavorites = @{
@@ -601,10 +615,15 @@ function global:Update-TSRestApiMethods {
                 HttpMethod = "GET"
                 Response = @{Keys = "favorites.favorite"}
             }
-            AddFavorites = @{
+            AddFavorite = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><favorite label='<1>'><<2> id='<3>'/></favorite></tsRequest>"
+                Response = @{Keys = "favorites.favorite"}
+            }
+            RemoveFavorite = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>/<1>/<2>"
+                HttpMethod = "DELETE"
                 Response = @{Keys = "favorites.favorite"}
             }
 
@@ -887,7 +906,7 @@ function global:Download-TSObject {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Method,
-        [Parameter(Mandatory=$true)][Alias("Workbook","Datasource","Flow")][object]$InputObject,
+        [Parameter(Mandatory=$true)][Alias("Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject,
         [Parameter(Mandatory=$false)][string[]]$Params = @($InputObject.Id),
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 0
     )
@@ -1307,12 +1326,13 @@ function global:Invoke-TSMethod {
 
 function global:Find-TSObject {
 
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false,ParameterSetName="ById")]
         [Parameter(Mandatory=$false,ParameterSetName="ByName")]
         [Parameter(Mandatory=$false,ParameterSetName="ByContentUrl")]
         [Parameter(Mandatory=$false,ParameterSetName="ByOwnerId")]
-        [Alias("Sites","Projects","Groups","Users","Workbooks","Views","Datasources","Favorites")]
+        [Alias("Sites","Projects","Groups","Users","Workbooks","Views","Datasources","Flows","Metrics","Collections","VirtualConnections","Favorites")]
         [object[]]
         $InputObject,
 
@@ -1320,7 +1340,7 @@ function global:Find-TSObject {
         [Parameter(Mandatory=$true,ParameterSetName="ByName")]
         [Parameter(Mandatory=$true,ParameterSetName="ByContentUrl")]
         [Parameter(Mandatory=$false,ParameterSetName="ByOwnerId")]
-        [ValidateSet("Site","Project","Group","User","Workbook","View","Datasource","Favorite")]
+        [ValidateSet("Site","Project","Group","User","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection","Favorite")]
         [string]
         $Type,
 
@@ -1463,6 +1483,8 @@ function global:Get-TSCurrentSite {
 }
 
 function global:Find-TSSite {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Site,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -1535,6 +1557,8 @@ function global:Get-TSCurrentUser {
 }
 
 function global:Find-TSUser {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Users,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -1732,6 +1756,8 @@ function global:Get-TSGroups {
 }
 
 function global:Find-TSGroup {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Groups,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -1813,32 +1839,32 @@ function global:Get-TSProjects+ {
     param(
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
-        [Parameter(Mandatory=$false)][object]$Projects,
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    if (!$Projects) {
-        $params = @{}
-        if ($Filter) { $params += @{ Filte = $Filter } }
-        $Projects = Get-TSProjects @params
+    $projects = @()
+    Get-TSProjects -Filter $Filter | Foreach-Object {
+        $projects += Get-TSProject+ -Id $_.id -Users $Users -Groups $Groups -Filter $Filter
     }
 
-    $projectPermissions = Get-TSProjectPermissions+ -Users $Users -Groups $Groups -Projects $Projects
+    return $projects
+}
 
-    $projectsPlus = @()
-    $Projects | ForEach-Object {
-        $project = @{}
-        $projectMembers = $_ | Get-Member -MemberType Property
-        foreach ($member in  $projectMembers) {
-            $project.($member.Name) = $_.($member.Name)
-        }
-        $project.owner = Find-TSUser -Users $Users -Id $_.owner.id
-        $project.granteeCapabilities = $projectPermissions.$($_.id).granteeCapabilities
-        $project.defaultPermissions = $projectPermissions.$($_.id).defaultPermissions
-        $projectsPlus += $project
-    }
+function global:Get-TSProject+ {
 
-    return $projectsPlus
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][string]$Filter
+    )
+
+    $project = Get-TSProjects -Filter $Filter | Where-Object {$_.id -eq $Id}
+    $projectPermissions = Get-TSProjectPermissions+ -Users $Users -Groups $Groups -Projects $project
+    $project | Add-Member -NotePropertyName permissions -NotePropertyValue $projectPermissions
+
+    return $project
 }
 
 function global:Get-TSProjects {
@@ -1848,12 +1874,13 @@ function global:Get-TSProjects {
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    return Get-TSObjects -Method GetProjects -Filter $Filter
+    return [PSCustomObject](Get-TSObjects -Method GetProjects -Filter $Filter)
 
 }
 
 function global:Find-TSProject {
     
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Projects,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -1868,7 +1895,7 @@ function global:Find-TSProject {
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
-    return Find-TSObject -Type "Project" -Projects $Projects @params
+    return [PSCustomObject](Find-TSObject -Type "Project" -Projects $Projects @params)
 
 }
 
@@ -1880,48 +1907,33 @@ function global:Get-TSProjectPermissions+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
     )
 
-    if (!$Projects) {throw "Workbooks is empty"}
-    if (!$Groups) {throw "Groups is empty"}
-    if (!$Users) {throw "Users is empty"}
+    $projectPermissions = @()
+    foreach ($project in $projects) {
 
-    $projectPermissions = Get-TSProjectPermissions -Project $Projects
-    $projectPermissionsCount = ($projectPermissions.keys | ForEach-Object {$projectPermissions.$_.granteeCapabilities.count} | Measure-Object -Sum).Sum 
+        $permissions = Get-TSProjectPermissions -Project $project
+        $permissions | Add-Member -NotePropertyName defaultPermissions -NotePropertyValue (Get-TSProjectDefaultPermissions+ -Project $project)
+        foreach ($permission in $permissions) {
+            foreach ($granteeCapability in $permission.GranteeCapabilities) {
+                if ($granteeCapability.user) {
+                    $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                    }
+                }
+                elseif ($granteeCapability.group) {
+                    $granteeCapabilityGroup = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    foreach ($member in $granteeCapabilityGroup | Get-Member -MemberType Property) {
+                        $granteeCapability.group | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityGroup.($member.Name) -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+            $projectPermissions += $permissions
+        }
 
-    $projectDefaultPermissions = @{}
-    foreach ($permissionType in @("Workbooks","Datasources")) {   
-        
-        $projectDefaultPermissions.$permissionType = Get-TSProjectDefaultPermissions+ -Project $Projects -Type $permissionType
-        $projectPermissionsCount += ($projectDefaultPermissions.$permissionType.keys | ForEach-Object {$projectDefaultPermissions.$permissionType.$_.granteeCapabilities.count} | Measure-Object -Sum).Sum
-        
     }
 
-    $projectPermissionsPlus = @{}
-    foreach ($projectKey in $Projects.id) {
+    return [PSCustomObject]$projectPermissions
 
-        $perm = @{
-            project = Find-TSProject -id $projectKey -Projects $Projects
-            granteeCapabilities = @()
-            defaultPermissions = @{}
-        }
-        foreach ($permissionType in @("Workbooks","Datasources")) {
-            $perm.defaultPermissions.$permissionType = $projectDefaultPermissions.$permissionType.$projectKey
-        }
-
-        foreach ($granteeCapability in $projectPermissions.$projectKey.granteeCapabilities) { 
-            $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
-            if ($granteeCapability.user) {
-                $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
-            }
-            elseif ($granteeCapability.group) {
-                $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
-            }
-            $perm.granteeCapabilities += $granteeCapabilityPlus
-        }
-
-        $projectPermissionsPlus += @{$projectKey = $perm}
-    }
-
-    return $projectPermissionsPlus
 }
 
 function global:Get-TSProjectPermissions {
@@ -1931,9 +1943,9 @@ function global:Get-TSProjectPermissions {
         [Parameter(Mandatory=$true,Position=0)][object[]]$Projects
     )
 
-    $projectPermissions = @{}
+    $projectPermissions = @()
     foreach ($project in $Projects) {
-        $projectPermissions += @{$project.id = Get-TSObjects -Method GetProjectPermissions -Params @($Project.Id,$Type)}
+        $projectPermissions += [PSCustomObject](Get-TSObjects -Method GetProjectPermissions -Params @($Project.Id,$Type))
     }
     
     return $projectPermissions
@@ -1974,12 +1986,6 @@ function global:Add-TSProjectPermissions {
     $capabilityXML += "</capabilities>"
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method AddProjectPermissions -Params @($Project.id,$capabilityXML)
-    # if ($responseError) { #}.code -eq "401002") {
-    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-    #     Write-Host+ $errorMessage -ForegroundColor Red
-    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddProjectPermissions" -Status "Error"
-    #     # return
-    # }
     
     return $response,$responseError
 }
@@ -2012,12 +2018,6 @@ function global:Remove-TSProjectPermissions {
     foreach ($capability in $Capabilities) {
         $capabilityName,$capabilityMode = $capability.split(":")
         $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveProjectPermissions" -Params @($Project.id,$granteeType,$grantee.Id,$capabilityName,$capabilityMode)
-        # if ($responseError) { #}.code -eq "401002") {
-        #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        #     Write-Host+ $errorMessage -ForegroundColor Red
-        #     Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveProjectPermissions" -Status "Error"
-        #     # return
-        # }
     }
     
     return $response,$responseError
@@ -2026,42 +2026,43 @@ function global:Remove-TSProjectPermissions {
 function global:Get-TSProjectDefaultPermissions+ {
 
     param(
-        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$true)][string]$Type,
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+        [Parameter(Mandatory=$false)]
+        [object]$Projects = (Get-TSProjects+),
+        
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("workbooks","datasources","dataroles","lenses","flows","metrics","databases")]
+        [string[]]$Type = @("workbooks","datasources","dataroles","lenses","flows","metrics","databases"),
+        
+        [Parameter(Mandatory=$false)]
+        [object]$Groups = (Get-TSGroups),
+        
+        [Parameter(Mandatory=$false)]
+        [object]$Users = (Get-TSUsers)
     )
 
-    if (!$Projects) {throw "Projects is empty"}
-    if (!$Groups) {throw "Groups is empty"}
-    if (!$Users) {throw "Users is empty"}
-    if (!$Type) {throw "Type is empty"}
-
-    $projectDefaultPermissions = Get-TSProjectDefaultPermissions -Projects $Projects -Type $Type
-
-    $projectDefaultPermissionsPlus = @{}
-    foreach ($projectKey in $Projects.id) {
-        $perm = @{
-            project = Find-TSProject -id $projectKey -Projects $Projects
-            granteeCapabilities = @()
-            defaultPermissions = $true
-            permissionType = $Type
-        }
-        foreach ($granteeCapability in $projectDefaultPermissions.$projectKey.GranteeCapabilities) { 
-            $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
-            if ($granteeCapability.user) {
-                $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
+    $projectDefaultPermissions = @()
+    foreach ($project in $Projects) {
+        $permissions = Get-TSProjectDefaultPermissions -Projects $project -Type $Type
+        foreach ($permission in $permissions) {
+            foreach ($granteeCapability in $permission.GranteeCapabilities) {
+                if ($granteeCapability.user) {
+                    $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                    }
+                }
+                elseif ($granteeCapability.group) {
+                    $granteeCapabilityGroup = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    foreach ($member in $granteeCapabilityGroup | Get-Member -MemberType Property) {
+                        $granteeCapability.group | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityGroup.($member.Name) -ErrorAction SilentlyContinue
+                    }
+                }
             }
-            elseif ($granteeCapability.group) {
-                $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
-            }
-            $perm.granteeCapabilities += $granteeCapabilityPlus
+            $projectDefaultPermissions += $permissions
         }
-        $projectDefaultPermissionsPlus += @{$projectKey = $perm}
-        
     }
 
-    return $projectDefaultPermissionsPlus
+    return $projectDefaultPermissions
 }
 
 function global:Get-TSProjectDefaultPermissions {
@@ -2069,12 +2070,16 @@ function global:Get-TSProjectDefaultPermissions {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object[]]$Projects,
-        [Parameter(Mandatory=$true)][ValidateSet("Workbooks","Datasources","Metrics","Flows")][string]$Type
+        [Parameter(Mandatory=$true)][ValidateSet("workbooks","datasources","dataroles","lenses","flows","metrics","databases")][string[]]$Type
     )
 
-    $projectDefaultPermissions = @{}
+    $projectDefaultPermissions = @()
     foreach ($project in $Projects) {
-        $projectDefaultPermissions += @{$project.id = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($Project.Id,$Type)}
+        $_projectDefaultPermissions = @{}
+        foreach ($_type in $Type) {
+            $_projectDefaultPermissions += @{ $($_type -replace "s$","") = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) }
+        }
+        $projectDefaultPermissions += [PSCustomObject]$_projectDefaultPermissions
     }
     
     return $projectDefaultPermissions
@@ -2085,43 +2090,21 @@ function global:Add-TSProjectDefaultPermissions {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$Project,
-        [Parameter(Mandatory=$true)][ValidateSet("Workbooks","Datasources","Flows","Metrics")][string]$Type, # "DataRoles"
+        [Parameter(Mandatory=$true)][ValidateSet("workbooks","datasources","dataroles","lenses","flows","metrics","databases")][string]$Type, # "DataRoles"
         [Parameter(Mandatory=$false)][object]$Group,
         [Parameter(Mandatory=$false)][object]$User,
         [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
 
     switch ($Type) {
-        "Workbooks" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $workbookPermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
-        "Views" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $viewPermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
-        "Datasources" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $dataSourcePermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
-        "Flows" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $flowPermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
+        "workbooks" { $Capabilities | Foreach-Object { if ($_ -notin $workbookPermissions) { throw "$($_) is not a valid capability" } } }
+        "datasources" { $Capabilities | Foreach-Object { if ($_ -notin $datasourcePermissions) { throw "$($_) is not a valid capability" } } }
+        "dataroles" { $Capabilities | Foreach-Object { if ($_ -notin $datarolePermissions) { throw "$($_) is not a valid capability" } } }
+        "lenses" { $Capabilities | Foreach-Object { if ($_ -notin $lensPermissions) { throw "$($_) is not a valid capability" } } }
+        "flows" {$Capabilities | Foreach-Object { if ($_ -notin $flowPermissions) { throw "$($_) is not a valid capability" } } }
+        "metrics" { $Capabilities | Foreach-Object { if ($_ -notin $metricPermissions) { throw "$($_) is not a valid capability" } } }
+        "databases" { $Capabilities | Foreach-Object { if ($_ -notin $databasePermissions) { throw "$($_) is not a valid capability" } } }
     }
-
     
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
@@ -2139,12 +2122,6 @@ function global:Add-TSProjectDefaultPermissions {
     $capabilityXML += "</capabilities>"
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddProjectDefaultPermissions" -Params @($Project.id,$Type,$capabilityXML)
-    # if ($responseError) { #}.code -eq "401002") {
-    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-    #     Write-Host+ $errorMessage -ForegroundColor Red
-    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddProjectDefaultPermissions" -Status "Error"
-    #     # return
-    # }
     
     return $response,$responseError
 }
@@ -2154,43 +2131,21 @@ function global:Remove-TSProjectDefaultPermissions {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$Project,
-        [Parameter(Mandatory=$true)][ValidateSet("Workbooks","Datasources")][string]$Type,
+        [Parameter(Mandatory=$true)][ValidateSet("workbooks","datasources","dataroles","lenses","flows","metrics","databases")][string]$Type,
         [Parameter(Mandatory=$false)][object]$Group,
         [Parameter(Mandatory=$false)][object]$User,
         [Parameter(Mandatory=$false)][string[]]$Capabilities 
     )
 
     switch ($Type) {
-        "Workbooks" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $workbookPermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
-        "Views" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $viewPermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }            
-        "Datasources" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $dataSourcePermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
-        "Flows" {
-            $Capabilities | Foreach-Object {
-                if ($_ -notin $flowPermissions) {
-                    throw "$($_) is not a valid capability"
-                }
-            }
-        }
+        "workbooks" { $Capabilities | Foreach-Object { if ($_ -notin $workbookPermissions) { throw "$($_) is not a valid capability" } } }
+        "datasources" { $Capabilities | Foreach-Object { if ($_ -notin $datasourcePermissions) { throw "$($_) is not a valid capability" } } }
+        "dataroles" { $Capabilities | Foreach-Object { if ($_ -notin $datarolePermissions) { throw "$($_) is not a valid capability" } } }
+        "lenses" { $Capabilities | Foreach-Object { if ($_ -notin $lensPermissions) { throw "$($_) is not a valid capability" } } }
+        "flows" {$Capabilities | Foreach-Object { if ($_ -notin $flowPermissions) { throw "$($_) is not a valid capability" } } }
+        "metrics" { $Capabilities | Foreach-Object { if ($_ -notin $metricPermissions) { throw "$($_) is not a valid capability" } } }
+        "databases" { $Capabilities | Foreach-Object { if ($_ -notin $databasePermissions) { throw "$($_) is not a valid capability" } } }
     }
-
     
     if (!($Group -or $User) -or ($Group -and $User)) {
         throw "Must specify either Group or User"
@@ -2202,12 +2157,6 @@ function global:Remove-TSProjectDefaultPermissions {
     foreach ($capability in $Capabilities) {
         $capabilityName,$capabilityMode = $capability.split(":")
         $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveProjectDefaultPermissions" -Params @($Project.id,$Type,$granteeType,$grantee.Id,$capabilityName,$capabilityMode)
-        # if ($responseError) { #}.code -eq "401002") {
-        #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        #     Write-Host+ $errorMessage -ForegroundColor Red
-        #     Write-Log -Message $errorMessage -EntryType "Error" -Action "RemoveProjectDefaultPermissions" -Status "Error"
-        #     # return
-        # }
     }
     
     return $response,$responseError
@@ -2227,43 +2176,38 @@ function global:Get-TSWorkbooks+ {
         [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    $workbooks = (Get-TSWorkbooks -Filter $Filter -Download:$Download.IsPresent)
-    if (!$workbooks) { return }
-
-    $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $workbooks
-
-    # $col1 = @{ label = "Project"; value = $null; width = 50 }
-    # $col2 = @{ label = "Workbook"; value = $null; width = 50 }
-    # Write-Host+ -NoTimestamp -NoSeparator $col1.label,$emptyString.PadLeft($col1.width-$col1.label.Length," "),$col2.label,$emptyString.PadLeft($col2.width-$col2.label.Length," ")
-    # Write-Host+ -NoTrace -NoTimestamp -NoSeparator $emptyString.PadLeft($col1.label.Length,"-"),$emptyString.PadLeft($col1.width-$col1.label.Length," "),$emptyString.PadLeft($col2.label.Length,"-"),$emptyString.PadLeft($col2.width-$col2.label.Length," ")
-
-    $workbooksPlus = @()
-    $workbooks | ForEach-Object {
-
-        # $col1.value = $_.project ? $_.project.Name : "Personal Space ($((Find-TSUser -Users $Users -Id $_.owner.id).fullName))"
-        # $col1.value = $col1.value.substring(0,($col1.value.length -gt $col1.width ? $col1.width-1 : $col1.value.length))
-        # $col1.value = $col1.value.PadRight($col1.width," ")
-        # $col2.value = $_.name
-        # $col2.value = $col2.value.substring(0,($col2.value.length -gt $col2.width ? $col2.width-1 : $col2.value.length))
-        # $col2.value = $col2.value.PadRight($col2.width," ")
-        # Write-Host+ -NoTrace -NoTimestamp $col1.value,$col2.value
-
-        $workbook = @{}
-        $workbookMembers = $_ | Get-Member -MemberType Property
-        foreach ($member in  $workbookMembers) {
-            $workbook.($member.Name) = $_.($member.Name)
-        }
-        $workbook.objectType = "workbook"
-        $workbook.owner = Find-TSUser -Users $Users -Id $_.owner.id
-        $workbook.project = Find-TSProject -Projects $Projects -Id $_.project.id
-        $workbook.granteeCapabilities = $workbookPermissions.$($_.id).granteeCapabilities
-        $workbook.revisions = Get-TSWorkbookRevisions -Workbook $_
-        $workbook.connections = Get-TSWorkbookConnections -Id $_.id
-        $workbooksPlus += $workbook
-
+    $workbooks = @()
+    Get-TSWorkbooks -Filter $Filter -Download:$Download.IsPresent | Foreach-Object {
+        $workbooks += Get-TSWorkbook+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter -Download:$Download.IsPresent
     }
 
-    return $workbooksPlus
+    return $workbooks
+
+}
+
+function global:Get-TSWorkbook+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][string]$Filter,
+        [Parameter(Mandatory=$false)][switch]$Download
+    )
+
+    $workbook = Get-TSWorkbook -Id $Id -Download:$Download.IsPresent
+
+    $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $workbook
+    $workbookRevisions = Get-TSWorkbookRevisions -Workbook $workbook
+    $workbookConnections = Get-TSWorkbookConnections -Id $workbook.id
+
+    $workbook | Add-Member -NotePropertyName permissions -NotePropertyValue $workbookPermissions
+    $workbook | Add-Member -NotePropertyName revisions -NotePropertyValue $workbookRevisions
+    $workbook | Add-Member -NotePropertyName connections -NotePropertyValue $workbookConnections
+
+    return $workbook
 }
 
 function global:Get-TSWorkbooks {
@@ -2274,38 +2218,8 @@ function global:Get-TSWorkbooks {
         [switch]$Download
     )
 
-    return Get-TSObjects -Method GetWorkbooks -Filter $Filter -Download:$Download.IsPresent
+    return [PSCustomObject](Get-TSObjects -Method GetWorkbooks -Filter $Filter -Download:$Download.IsPresent)
 
-}
-
-function global:Get-TSWorkbook+ {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][object]$Id,
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
-        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$false)][string]$Filter,
-        [Parameter(Mandatory=$false)][switch]$Download
-    )
-
-    $workbook = Get-TSWorkbook -Id $Id -Filter $Filter -Download:$Download.IsPresent
-    $workbookPermissions = Get-TSWorkbookPermissions+ -Users $Users -Groups $Groups -Workbooks $workbook
-
-    $workbookPlus = @{}
-    $workbookMembers = $workbook | Get-Member -MemberType Property
-    foreach ($member in  $workbookMembers) {
-        $workbookPlus.($member.Name) = $workbook.($member.Name)
-    }
-    $workbookPlus.objectType = "workbook"
-    $workbookPlus.owner = Find-TSUser -Users $Users -Id $workbook.owner.id
-    $workbookPlus.project = Find-TSProject -Projects $Projects -Id $workbook.project.id
-    $workbookPlus.granteeCapabilities = $WorkbookPermissions.$Id.granteeCapabilities
-    $workbookPlus.revisions = Get-TSWorkbookRevisions -Workbook $workbook
-    $workbookPlus.connections = Get-TSWorkbookConnections -Id $workbook.id
-
-    return $workbookPlus
 }
 
 function global:Get-TSWorkbook {
@@ -2316,7 +2230,7 @@ function global:Get-TSWorkbook {
         [switch]$Download
     )
 
-    return Get-TSObjects -Method GetWorkbook -Params @($Id) -Download:$Download.IsPresent
+    return [PSCustomObject](Get-TSObjects -Method GetWorkbook -Params @($Id) -Download:$Download.IsPresent)
 
 }
 
@@ -2346,6 +2260,8 @@ function global:Get-TSWorkbookConnections {
 }
 
 function global:Find-TSWorkbook {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Workbooks,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -2372,31 +2288,30 @@ function global:Get-TSWorkbookPermissions+ {
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
     )
-
-    if (!$Workbooks) {throw "Workbooks is empty"}
-    if (!$Groups) {throw "Groups is empty"}
-    if (!$Users) {throw "Users is empty"}
     
-    $workbookPermissions = @{}
+    $workbookPermissions = @()
     foreach ($workbook in $workbooks) {
         $permissions = Get-TSWorkbookPermissions -Workbook $Workbook
-        foreach ($defaultPermission in $permissions) {
-            $perm = @{workbook = $workbook; granteeCapabilities = @()}
-            foreach ($granteeCapability in $defaultPermission.GranteeCapabilities) { 
-                $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
+        foreach ($permission in $permissions) {
+            foreach ($granteeCapability in $permission.GranteeCapabilities) {
                 if ($granteeCapability.user) {
-                    $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                    }
                 }
                 elseif ($granteeCapability.group) {
-                    $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    $granteeCapabilityGroup = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    foreach ($member in $granteeCapabilityGroup | Get-Member -MemberType Property) {
+                        $granteeCapability.group | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityGroup.($member.Name) -ErrorAction SilentlyContinue
+                    }
                 }
-                $perm.granteeCapabilities += $granteeCapabilityPlus
             }
-            $workbookPermissions += @{$workbook.id = $perm}
+            $workbookPermissions += $permissions
         }
     }
 
-    return $workbookPermissions
+    return [PSCustomObject]$workbookPermissions
 }
 
 function global:Get-TSWorkbookPermissions {
@@ -2412,7 +2327,7 @@ function global:Get-TSWorkbookPermissions {
         return
     }
     
-    return Get-TSObjects -Method "GetWorkbookPermissions" -Params @($Workbook.Id)
+    return [PSCustomObject](Get-TSObjects -Method "GetWorkbookPermissions" -Params @($Workbook.Id))
 
 }
 
@@ -2562,6 +2477,8 @@ function global:Get-TSViews {
 }
 
 function global:Find-TSView {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Views,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -2808,6 +2725,8 @@ function global:Get-TSDataSourceConnections {
 }
 
 function global:Find-TSDatasource {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Datasources,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -3017,6 +2936,8 @@ function global:Update-TSFlow {
 }
 
 function global:Find-TSFlow {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Flows,
         [Parameter(Mandatory=$false)][string]$Id,
@@ -3165,17 +3086,71 @@ function global:Add-TSFlowPermissions {
             [Parameter(Mandatory=$false)][object]$User=(Get-TSCurrentUser)
         )
 
+        Write-Host+ -MaxBlankLines 1
         $responseError = "Collections are not yet supported by the Tableau Server REST API."
-        Write-Host+ $responseError -ForegroundColor DarkYellow
+        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
         Write-Log -EntryType "Warning" -Action "GetCollections" -Target "Collections" -Status "NotSupported" -Message $responseError 
         return
 
-        $collection = Get-TSObjects -Method GetCollections -Params @($User.id)
+    }
 
-        return $collection
+
+    function global:Find-TSCollection {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false)][object]$Collections,
+            [Parameter(Mandatory=$false)][string]$Id,
+            [Parameter(Mandatory=$false)][string]$Name,
+            [Parameter(Mandatory=$false)][object]$Owner,
+            [Parameter(Mandatory=$false)][string]$Operator="eq"
+        )
+        
+        Write-Host+ -MaxBlankLines 1
+        $responseError = "Collections are not yet supported by the Tableau Server REST API."
+        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
+        Write-Log -EntryType "Warning" -Action "GetCollections" -Target "Collections" -Status "NotSupported" -Message $responseError 
+        return
+
     }
 
 #endregion COLLECTIONS
+#region VIRTUALCONNECTIONS
+
+    function global:Get-TSVirtualConnections {
+
+        [CmdletBinding()]
+        param(  
+            [Parameter(Mandatory=$false)][string]$Filter
+        )
+
+        Write-Host+ -MaxBlankLines 1
+        $responseError = "VirtualConnections are not yet supported by the Tableau Server REST API."
+        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
+        Write-Log -EntryType "Warning" -Action "GetVirtualConnections" -Target "VirtualConnections" -Status "NotSupported" -Message $responseError 
+        return
+    }
+
+    function global:Find-TSVirtualConnection {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false)][object]$VirtualConnections,
+            [Parameter(Mandatory=$false)][string]$Id,
+            [Parameter(Mandatory=$false)][string]$Name,
+            [Parameter(Mandatory=$false)][object]$Owner,
+            [Parameter(Mandatory=$false)][string]$Operator="eq"
+        )
+
+        Write-Host+ -MaxBlankLines 1
+        $responseError = "VirtualConnections are not yet supported by the Tableau Server REST API."
+        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
+        Write-Log -EntryType "Warning" -Action "GetVirtualConnections" -Target "VirtualConnections" -Status "NotSupported" -Message $responseError 
+        return
+
+    }
+
+#endregion VIRTUALCONNECTIONS
 #region FAVORITES
 
 function global:Get-TSFavorites+ {
@@ -3183,19 +3158,19 @@ function global:Get-TSFavorites+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
-        [Parameter(Mandatory=$false)][object]$UsersWithFavorites,
-        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks+),
-        [Parameter(Mandatory=$false)][object]$Views = (Get-TSViews+),
-        [Parameter(Mandatory=$false)][object]$Datasources = (Get-TSDatasources+),
-        [Parameter(Mandatory=$false)][object]$Flows = (Get-TSFlows+),
-        [Parameter(Mandatory=$false)][object]$Metrics = (Get-TSMetrics),
-        [Parameter(Mandatory=$false)][object]$Collections = (Get-TSCollections)
+        [Parameter(Mandatory=$false)][object]$Projects,
+        [Parameter(Mandatory=$false)][object]$Workbooks,
+        [Parameter(Mandatory=$false)][object]$Views,
+        [Parameter(Mandatory=$false)][object]$Datasources,
+        [Parameter(Mandatory=$false)][object]$Flows,
+        [Parameter(Mandatory=$false)][object]$Metrics,
+        [Parameter(Mandatory=$false)][object]$Collections,
+        [Parameter(Mandatory=$false)][object]$VirtualConnections
     )
 
     $favoritesPlus = @()
-    foreach ($user in ($UsersWithFavorites ?? $Users)) {
-        $favorites = Get-TSObjects -Method GetFavorites -Params @($user.id) 
+    foreach ($user in $Users) {
+        $favorites = Get-TSFavorites -User $user
         foreach ($favorite in $favorites) {
 
             $favoriteType = $null
@@ -3233,6 +3208,7 @@ function global:Get-TSFavorites+ {
                 }
                 "metric" {}
                 "collection" {}
+                "virtualconnection" {}
                 default {}
             }
 
@@ -3247,47 +3223,70 @@ function global:Get-TSFavorites {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$User=(Get-TSCurrentUser)
+        [Parameter(Mandatory=$false)][Alias("Owner")][object]$User=(Get-TSCurrentUser)
     )
 
-    $favorite = Get-TSObjects -Method GetFavorites -Params @($User.id)
+    # $response = Get-TSObjects -Method GetFavorites -Params @($User.id)
 
-    return $favorite
+    $favoritesQuery = "select ali.usedobj_name as label,ali.position,ali.added_timestamp as addedat,ali.useable_type as favoriteType,ali.useable_id,ali.useable_luid,ali.suspected_as_deleted as deleted from asset_lists al join asset_list_items ali on al.id = ali.asset_list_id join sites s on al.site_id = s.id join users u on al.owner_id = u.id join system_users su on u.system_user_id = su.id"
+    $favoritesFilter = "s.name = '$((Get-TSCurrentSite).name)' and su.name = '$($User.name)'"
+    $response = read-postgresdata -database workgroup -query $favoritesQuery -filter $favoritesFilter
+
+    $favoritesPlus = @()
+    foreach ($favorite in $response) {
+
+        $favoritePlus = [PSCustomObject]@{
+            favoritetype = $favorite.favoriteType
+            label = $favorite.label
+            position = $favorite.position
+            addedAt = $favorite.addedAt
+            deleted = $favorite.deleted
+            id = $favorite.useable_luid
+            $favorite.favoriteType = $null
+            owner = $User
+        }
+
+        if (!$favorite.deleted) {
+            $favoritePlus.($favorite.favoriteType) = Invoke-Expression "Find-TS$($favorite.favoriteType) -Id $($favorite.useable_luid)"
+        }
+
+        $favoritesPlus += $favoritePlus
+
+    }
+
+    return $favoritesPlus
+
 }
 
 function global:Find-TSFavorite {
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$User,
         [Parameter(Mandatory=$false)][object]$Favorites = (Get-TSFavorites -User $User),
-        [Parameter(Mandatory=$false)][string]$Id,
-        [Parameter(Mandatory=$false)][Alias("Label")][string]$Name,
+        [Parameter(Mandatory=$true)][Alias("Label")][string]$Name,
         [Parameter(Mandatory=$false)][string]$Operator="eq"
     )
-    if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name)) {
-        Write-Host+ "ERROR: The search parameters `$Id and `$Name are null." -ForegroundColor Red
-        return
-    }
+
     $params = @{Operator = $Operator}
-    if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
-    if ($Owner) {$params += @{OwnerId = $Owner.id}}
     return Find-TSObject -Type "Favorite" -Favorites $Favorites @Params
+
 }
 
 function global:Add-TSFavorites {
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$Favorites
     )
 
     foreach ($favorite in $favorites) {
-        $response,$responseError = Add-TSFavorite -User $favorite.owner -Label $favorite.label -Type $favorite.favoriteType -InputObject $favorite.($favorite.favoriteType)
-        if ($responseError.code) {
-            return
-        }
+        $response = Add-TSFavorite -User $favorite.owner -Label $favorite.label -Type $favorite.favoriteType -InputObject $favorite.($favorite.favoriteType)
     }
 
-    return
+    return $response
+
 }
 
 function global:Add-TSFavorite {
@@ -3296,16 +3295,64 @@ function global:Add-TSFavorite {
     param(
         [Parameter(Mandatory=$true)][object]$User,
         [Parameter(Mandatory=$true)][string]$Label,
-        [Parameter(Mandatory=$true)][string]$Type,
-        [Parameter(Mandatory=$true)][Alias("Workbook","View","DataSource","Project","Flow","Metric","Collection")][object]$InputObject
+        [Parameter(Mandatory=$true)][ValidateSet("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][string]$Type,
+        [Parameter(Mandatory=$true)][Alias("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject,
+        [switch]$ShowIsEmpty
     )
 
-    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddFavorites" -Params @($User.id,($Label.replace("&","&amp;")),$Type,$InputObject.id)
-    if ($responseError.code) {
-        return
+    $_attempt = 0; $_maxAttempts = 3;
+    do {
+        $_label = $Label.replace("&","&amp;") + $emptySTring.PadLeft($_attempt," ")
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddFavorite" -Params @($User.id,$_label,$Type,$InputObject.id) 
+        $_attempt++          
+    } while (
+        $null -ne $responseError -and $responseError.StartsWith("Resource Conflict") -and $_attempt -le $_maxAttempts
+    )
+    if ($responseError) {
+        throw $responseError
     }
-    
-    return $response,$responseError
+
+    $favoritesPlus = @()
+    foreach ($favorite in $response) {
+
+        $favoritePlus = [PSCustomObject]@{
+            label = $favorite.label
+            position = [int]$favorite.position
+            addedAt = [datetime]$favorite.addedAt
+            isEmpty = $favorite.IsEmpty
+        }
+
+        $favoritePlusMembers = $favoritePlus | Get-Member -MemberType NoteProperty
+        $favoriteMembers = $favorite | Get-Member -MemberType Property  | Where-Object {$_.name -notin $favoritePlusMembers.name}
+        foreach ($member in $favoriteMembers) {
+            $favoritePlus | Add-Member -NotePropertyName $member.Name -NotePropertyValue $favorite.($member.Name)
+            $favoritePlus | Add-Member -NotePropertyName "favoriteType" -NotePropertyValue $member.Name
+        }
+
+        $favoritesPlus += $favoritePlus
+
+    }
+
+    return ($ShowIsEmpty ? $favoritesPlus : ($favoritesPlus | Where-Object {!$_.IsEmpty} | Select-Object -ExcludeProperty IsEmpty))
+
+}
+
+function global:Remove-TSFavorite {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$User,
+        [Parameter(Mandatory=$true)][ValidateSet("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][string]$Type,
+        [Parameter(Mandatory=$true)][Alias("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject
+    )
+
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveFavorite" -Params @($User.id,"$($Type)s",$InputObject.id)
+    if ($responseError) {
+        throw $responseError
+    }
+
+    return $response
+
 }
 
 #endregion FAVORITES
