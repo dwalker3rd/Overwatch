@@ -177,8 +177,92 @@ class PerformanceMeasurement {
     [string]$ComputerName
 }
 
+class DirectoryObject {
+
+    [ValidateNotNullOrEmpty()]
+    [string]$Path
+
+    [ValidateNotNullOrEmpty()]
+    [ValidatePattern('^[a-z0-9-]+$')]
+    [string]$ComputerName
+
+    [string]$OriginalPath
+    [string]$FullPath
+    [string]$Root
+    [string]$Parent
+
+    [DirectoryInfo]$DirectoryInfo
+
+    DirectoryObject() {}
+    DirectoryObject([string]$Path) { $this.Init($Path,$env:COMPUTERNAME) }
+    DirectoryObject([string]$Path,[string]$ComputerName) { $this.Init($Path,$ComputerName) }
+    
+    [void]Init(
+        [string]$Path,
+        [string]$ComputerName
+    ) {
+        # validate
+        $this.Validate($Path, $ComputerName)
+
+        $this.OriginalPath = $Path
+        $this.FullPath = [Path]::GetFullPath($Path)
+        $this.ComputerName = $ComputerName
+        $this.Path = $this.ToUnc($this.FullPath,$ComputerName)
+
+        $this.Parent = $this.GetParent()
+        $this.Root = $this.GetDirectoryRoot()
+
+        $this.DirectoryInfo = [DirectoryInfo]::New($this.Path)
+
+    }
+
+    [void]Validate([string]$Path,[string]$ComputerName) {
+
+        if (!(Test-Path -Path $Path -IsValid)) {
+            throw "[Test-Path -IsValid] Path '$($Path)' is invalid."
+        }
+        if ($ComputerName -notmatch '^[a-z0-9-]+$') {
+            throw "[Regex] ComputerName '$($ComputerName)' contains invalid characters."
+        }
+
+        if (!(Test-WSMan $ComputerName)) {
+            throw "[Test-WSMan] Unable to resolve or connect to ComputerName '$($ComputerName)'."
+        }
+
+    }
+
+    [void]CreateDirectory() { $this.CreateDirectory($this.Path) }
+    [void]CreateDirectory([string]$Path) { if (!$this.Exists($Path)) { $this.DirectoryInfo = [Directory]::CreateDirectory($Path) } }
+    [void]Delete() { $this.Delete($this.Path, $false) }
+    [bool]Exists() {return $this.Exists($this.Path) }
+    [bool]Exists([string]$Path) {return [Directory]::Exists($Path) }
+    [datetime]GetCreationTime() { return [Directory]::GetCreationTime($this.Path) }
+    [datetime]GetCreationTimeUtc() { return [Directory]::GetCreationTimeUtc($this.Path) }
+    [string[]]GetDirectories() {return [Directory]::GetDirectories($this.Path)}
+    [string[]]GetDirectories([string]$searchPattern) {return [Directory]::GetDirectories($this.Path,$searchPattern,[SearchOption]::TopDirectoryOnly)}
+    [string[]]GetDirectories([SearchOption]$searchOption) {return [Directory]::GetDirectories($this.Path,"*",$searchOption)}
+    [string[]]GetDirectories([string]$searchPattern,[SearchOption]$searchOption) {return [Directory]::GetDirectories($this.Path,$searchPattern,$searchOption)}
+    [string[]]GetDirectoryRoot() {return [Directory]::GetDirectoryRoot($this.Path)}
+    [string[]]GetFiles() {return [Directory]::GetFiles($this.Path)}
+    [string[]]GetFiles([string]$searchPattern) {return [Directory]::GetFiles($this.Path,$searchPattern,[SearchOption]::TopDirectoryOnly)}
+    [string[]]GetFiles([SearchOption]$searchOption) {return [Directory]::GetFiles($this.Path,"*",$searchOption)}
+    [string[]]GetFiles([string]$searchPattern,[SearchOption]$searchOption) {return [Directory]::GetFiles($this.Path,$searchPattern,$searchOption)}
+    [datetime]GetLastAccessTime() { return [Directory]::GetLastAccessTime($this.Path) }
+    [datetime]GetLastAccessTimeUtc() { return [Directory]::GetLastAccessTimeUtc($this.Path) }
+    [datetime]GetLastWriteTime() { return [Directory]::GetLastWriteTime($this.Path) }
+    [datetime]GetLastWriteTimeUtc() { return [Directory]::GetLastWriteTimeUtc($this.Path) }
+    [object]GetParent() { return [Directory]::GetParent($this.Path) }
+    [void]Move([string]$Destination) { [Directory]::Move($this.Path, $Destination) }
+    [void]SetCurrentDirectory() { [Directory]::SetCurrentDirectory($this.Path) }
+    
+    [string]ToUnc() { return $this.ToUnc($this.Path, $this.ComputerName) }
+    [string]ToUnc([string]$Path, [string]$ComputerName) { return $Path -replace "^([a-zA-Z])\:","\\$($ComputerName)\`$1`$" }
+
+}
+
 class FileObject {
-    [ValidateNotNullOrEmpty()][string]$Path
+    [ValidateNotNullOrEmpty()]
+    [string]$Path
 
     [ValidateNotNullOrEmpty()]
     [ValidatePattern('^[a-z0-9-]+$')]
@@ -217,6 +301,7 @@ class FileObject {
 
         if ($this.IsDirectory()) {
             $this.Directory = $this.FullPathName
+            # Write-Warning "Use the DirectoryObject class for directories."
         }
         else {
             $this.Directory = [Path]::GetDirectoryName($this.FullPathName)
