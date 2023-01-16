@@ -3157,45 +3157,74 @@ function global:Get-TSFavorites+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][Alias("Owner")][object[]]$Users=(Get-TSCurrentUser)
+        [Parameter(Mandatory=$false)][object]$Site = (Get-TSCurrentSite),
+        [Parameter(Mandatory=$false)][object[]]$Users = (Get-TSCurrentUser),
+        [switch]$All
     )
 
     # $response = Get-TSObjects -Method GetFavorites -Params @($User.id)
 
-    $favoritesPlusUsers = @()
-    foreach ($user in $Users) {
+    function New-FavoritePlus {
 
-        $response = Get-TSFavorites -User $user
+        param(
+            [Parameter(Mandatory=$false)][object[]]$User,
+            [Parameter(Mandatory=$true)][object[]]$Favorites
+        )
 
-        $favoritePlusUser = @()
-        foreach ($favorite in $response) {
+        $originalSite = Get-TSCurrentSite
+        $currentSite = Get-TSCurrentSite
 
-            $favoriteType = $favorite.favoriteType.ToLower()
+        $favoritesPlus = @()
+        foreach ($favorite in $Favorites) {
+
+            $favoriteSite = Find-TSSite -Id $favorite.site_luid
+            if ($currentSite.contentUrl -ne $favoriteSite.contentUrl) {
+                Switch-TSSite -ContentUrl $favoriteSite.contentUrl
+                $currentSite = $favoriteSite
+            }
+
+            $type = $favorite.type.ToLower()
 
             $favoritePlus = [PSCustomObject]@{
-                favoritetype = $favoriteType
                 label = $favorite.label
                 position = $favorite.position
                 addedAt = $favorite.addedAt
+                type = $type
+                $type = $null
+                "$($type)Id" = $favorite.useable_luid
                 deleted = $favorite.deleted
-                id = $favorite.useable_luid
-                $favoriteType = $null
-                owner = $User
+                owner = Get-TSUser -Id $favorite.user_luid
+                site = $favoriteSite
             }
 
             if (!$favorite.deleted) {
-                $favoritePlus.($favoriteType) = Invoke-Expression "Find-TS$($favoriteType) -Id $($favorite.useable_luid)"
+                $favoritePlus.($type) = Invoke-Expression "Find-TS$($type) -Id $($favorite.useable_luid)"
             }
 
-            $favoritePlusUser += $favoritePlus
+            $favoritesPlus += $favoritePlus
 
         }
 
-        $favoritesPlusUsers += $favoritePlusUser
+        if ($currentSite.contentUrl -ne $originalSite.contentUrl) {
+            Switch-TSSite -ContentUrl $originalSite.contentUrl
+        }
+
+        return $favoritesPlus
 
     }
 
-    return $favoritesPlusUsers
+    if ($All) {
+        $favorites = Get-TSFavorites -All:$All.IsPresent
+        $favoritesPlus = New-FavoritePlus -Favorites $favorites
+    }
+    else {
+        foreach ($user in $Users) {
+            $favorites = Get-TSFavorites -Site $Site -User $user
+            $favoritesPlus = New-FavoritePlus -Favorites $favorites -User $user
+        }
+    }
+
+    return $favoritesPlus
 
 }
 
@@ -3203,14 +3232,16 @@ function global:Get-TSFavorites {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][Alias("Owner")][object]$User=(Get-TSCurrentUser)
+        [Parameter(Mandatory=$false)][object]$Site = (Get-TSCurrentSite),
+        [Parameter(Mandatory=$false)][object]$User = (Get-TSCurrentUser),
+        [switch]$All
     )
 
     # $response = Get-TSObjects -Method GetFavorites -Params @($User.id)
 
-    $favoritesQuery = "select ali.usedobj_name as label,ali.position,ali.added_timestamp as addedat,ali.useable_type as favoriteType,ali.useable_id,ali.useable_luid,ali.suspected_as_deleted as deleted from asset_lists al join asset_list_items ali on al.id = ali.asset_list_id join sites s on al.site_id = s.id join users u on al.owner_id = u.id join system_users su on u.system_user_id = su.id"
-    $favoritesFilter = "s.name = '$((Get-TSCurrentSite).name)' and su.name = '$($User.name)'"
-    $response = read-postgresdata -database workgroup -query $favoritesQuery -filter $favoritesFilter
+    $query = "select ali.id as id,s.luid as site_luid,u.luid as user_luid,ali.usedobj_name as label,ali.position,ali.added_timestamp as addedat,ali.useable_type as type,ali.useable_id,ali.useable_luid,ali.suspected_as_deleted as deleted from asset_lists al join asset_list_items ali on al.id = ali.asset_list_id join sites s on al.site_id = s.id join users u on al.owner_id = u.id join system_users su on u.system_user_id = su.id"
+    $filter = $All ? "" : "s.name = '$($Site.name)' and su.name = '$($User.name)'"
+    $response = read-postgresdata -database workgroup -query $query -filter $filter
 
     return $response
 
@@ -3240,7 +3271,7 @@ function global:Add-TSFavorites {
     )
 
     foreach ($favorite in $favorites) {
-        $response = Add-TSFavorite -User $favorite.owner -Label $favorite.label -Type $favorite.favoriteType -InputObject $favorite.($favorite.favoriteType)
+        $response = Add-TSFavorite -User $favorite.owner -Label $favorite.label -Type $favorite.type -InputObject $favorite.($favorite.type)
     }
 
     return $response
@@ -3284,7 +3315,7 @@ function global:Add-TSFavorite {
         $favoriteMembers = $favorite | Get-Member -MemberType Property  | Where-Object {$_.name -notin $favoritePlusMembers.name}
         foreach ($member in $favoriteMembers) {
             $favoritePlus | Add-Member -NotePropertyName $member.Name -NotePropertyValue $favorite.($member.Name)
-            $favoritePlus | Add-Member -NotePropertyName "favoriteType" -NotePropertyValue $member.Name
+            $favoritePlus | Add-Member -NotePropertyName "type" -NotePropertyValue $member.Name
         }
 
         $favoritesPlus += $favoritePlus
@@ -3312,6 +3343,30 @@ function global:Remove-TSFavorite {
     return $response
 
 }
+
+    function global:Repair-TSFavorites {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false)][object]$Site = (Get-TSCurrentSite),
+            [Parameter(Mandatory=$false)][object]$User = (Get-TSCurrentUser),
+            [switch]$All,
+            [switch]$Quiet
+        )
+    
+        $favorites = $All ? (Get-TSFavorites -All) : (Get-TSFavorites -Site $Site -User $User)
+        $orphanedFavorites = $favorites | Where-Object {$_.deleted}
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTimestamp "Found $($orphanedFavorites.Count.ToString()) orphaned favorite$($orphanedFavorites.Count -ne 1 ? 's' : '')." -ForegroundColor DarkGray
+        if (!$orphanedFavorites) { return }
+
+        $table = "asset_list_items"
+        $filter = $All ? "suspected_as_deleted" : "id in ($($orphanedFavorites.id -join ","))"
+        $rowsAffected = Remove-PostgresData -Database workgroup -Table $table -Filter $filter
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTimestamp "Removed $($rowsAffected.ToString()) orphaned favorite$($orphanedFavorites.Count -ne 1 ? 's' : '')." -ForegroundColor DarkGray
+    
+        return
+    
+    }
 
 #endregion FAVORITES
 #region SCHEDULES
