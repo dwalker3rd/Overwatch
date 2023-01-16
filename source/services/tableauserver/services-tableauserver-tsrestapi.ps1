@@ -3157,66 +3157,46 @@ function global:Get-TSFavorites+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
-        [Parameter(Mandatory=$false)][object]$Projects,
-        [Parameter(Mandatory=$false)][object]$Workbooks,
-        [Parameter(Mandatory=$false)][object]$Views,
-        [Parameter(Mandatory=$false)][object]$Datasources,
-        [Parameter(Mandatory=$false)][object]$Flows,
-        [Parameter(Mandatory=$false)][object]$Metrics,
-        [Parameter(Mandatory=$false)][object]$Collections,
-        [Parameter(Mandatory=$false)][object]$VirtualConnections
+        [Parameter(Mandatory=$false)][Alias("Owner")][object[]]$Users=(Get-TSCurrentUser)
     )
 
-    $favoritesPlus = @()
-    foreach ($user in $Users) {
-        $favorites = Get-TSFavorites -User $user
-        foreach ($favorite in $favorites) {
+    # $response = Get-TSObjects -Method GetFavorites -Params @($User.id)
 
-            $favoriteType = $null
+    $favoritesPlusUsers = @()
+    foreach ($user in $Users) {
+
+        $response = Get-TSFavorites -User $user
+
+        $favoritePlusUser = @()
+        foreach ($favorite in $response) {
+
+            $favoriteType = $favorite.favoriteType.ToLower()
 
             $favoritePlus = [PSCustomObject]@{
-                favoriteType = $null
-                owner = Find-TSUser -Users $Users -Id $user.id
+                favoritetype = $favoriteType
                 label = $favorite.label
-                position = [int]$favorite.position
-                addedat = [datetime]$favorite.addedat
+                position = $favorite.position
+                addedAt = $favorite.addedAt
+                deleted = $favorite.deleted
+                id = $favorite.useable_luid
+                $favoriteType = $null
+                owner = $User
             }
 
-            $favoritePlusMembers = $favoritePlus | Get-Member -MemberType NoteProperty
-            $favoriteMembers = $favorite | Get-Member -MemberType Property  | Where-Object {$_.name -notin $favoritePlusMembers.name}
-            foreach ($member in  $favoriteMembers) {
-                $favoritePlus | Add-Member -NotePropertyName $member.Name -NotePropertyValue $favorite.($member.Name)
-                $favoritePlus.favoriteType = $member.Name
-            }
-            
-            switch ($favoriteType) {
-                "project" {
-                    $favoritePlus.project = Find-TSProject -Projects $Projects -Id $favorite.project.id
-                }
-                "workbook" {
-                    $favoritePlus.workbook = Find-TSWorkbook -Workbooks $Workbooks -Id $favorite.workbook.id
-                }
-                "view" {
-                    $favoritePlus.view = Find-TSView -Views $Views -Id $favorite.view.id
-                }
-                "datasource" {
-                    $favoritePlus.datasource = Find-TSDataSource -Datasources $Datasources -Id $favorite.datasource.id
-                }
-                "flow" {
-                    $favoritePlus.flow = Find-TSFlow -Flows $Flows -Id $favorite.flow.id
-                }
-                "metric" {}
-                "collection" {}
-                "virtualconnection" {}
-                default {}
+            if (!$favorite.deleted) {
+                $favoritePlus.($favoriteType) = Invoke-Expression "Find-TS$($favoriteType) -Id $($favorite.useable_luid)"
             }
 
-            $favoritesPlus += $favoritePlus
+            $favoritePlusUser += $favoritePlus
+
         }
+
+        $favoritesPlusUsers += $favoritePlusUser
+
     }
 
-    return $favoritesPlus
+    return $favoritesPlusUsers
+
 }
 
 function global:Get-TSFavorites {
@@ -3232,29 +3212,7 @@ function global:Get-TSFavorites {
     $favoritesFilter = "s.name = '$((Get-TSCurrentSite).name)' and su.name = '$($User.name)'"
     $response = read-postgresdata -database workgroup -query $favoritesQuery -filter $favoritesFilter
 
-    $favoritesPlus = @()
-    foreach ($favorite in $response) {
-
-        $favoritePlus = [PSCustomObject]@{
-            favoritetype = $favorite.favoriteType
-            label = $favorite.label
-            position = $favorite.position
-            addedAt = $favorite.addedAt
-            deleted = $favorite.deleted
-            id = $favorite.useable_luid
-            $favorite.favoriteType = $null
-            owner = $User
-        }
-
-        if (!$favorite.deleted) {
-            $favoritePlus.($favorite.favoriteType) = Invoke-Expression "Find-TS$($favorite.favoriteType) -Id $($favorite.useable_luid)"
-        }
-
-        $favoritesPlus += $favoritePlus
-
-    }
-
-    return $favoritesPlus
+    return $response
 
 }
 
