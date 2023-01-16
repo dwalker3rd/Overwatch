@@ -54,7 +54,7 @@
             [Parameter(Mandatory=$false)][string]$Name,
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
             [switch]$ResetCache,
-            [switch]$ReadOnly
+            [switch]$NoCache
         )
 
         # if this is a remote query, then ...
@@ -65,7 +65,7 @@
         $ResetCache = $remoteQuery ? $false : $ResetCache
 
         $products = @()
-        if (!$ResetCache) {
+        if (!$ResetCache -and !$NoCache) {
             if ($(get-cache products -ComputerName $ComputerName).Exists()) {
                 $products = Read-Cache products -ComputerName $ComputerName #-MaxAge $(New-Timespan -Minutes 2)
             }
