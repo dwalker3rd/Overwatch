@@ -3087,7 +3087,7 @@ function global:Add-TSFlowPermissions {
         )
 
         Write-Host+ -MaxBlankLines 1
-        $responseError = "Collections are not yet supported by the Tableau Server REST API."
+        $responseError = "Collections are not yet supported."
         Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
         Write-Log -EntryType "Warning" -Action "GetCollections" -Target "Collections" -Status "NotSupported" -Message $responseError 
         return
@@ -3107,7 +3107,7 @@ function global:Add-TSFlowPermissions {
         )
         
         Write-Host+ -MaxBlankLines 1
-        $responseError = "Collections are not yet supported by the Tableau Server REST API."
+        $responseError = "Collections are not yet supported."
         Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
         Write-Log -EntryType "Warning" -Action "GetCollections" -Target "Collections" -Status "NotSupported" -Message $responseError 
         return
@@ -3125,7 +3125,7 @@ function global:Add-TSFlowPermissions {
         )
 
         Write-Host+ -MaxBlankLines 1
-        $responseError = "VirtualConnections are not yet supported by the Tableau Server REST API."
+        $responseError = "VirtualConnections are not yet supported."
         Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
         Write-Log -EntryType "Warning" -Action "GetVirtualConnections" -Target "VirtualConnections" -Status "NotSupported" -Message $responseError 
         return
@@ -3143,7 +3143,7 @@ function global:Add-TSFlowPermissions {
         )
 
         Write-Host+ -MaxBlankLines 1
-        $responseError = "VirtualConnections are not yet supported by the Tableau Server REST API."
+        $responseError = "VirtualConnections are not yet supported."
         Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
         Write-Log -EntryType "Warning" -Action "GetVirtualConnections" -Target "VirtualConnections" -Status "NotSupported" -Message $responseError 
         return
