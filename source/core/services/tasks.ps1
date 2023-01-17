@@ -521,9 +521,6 @@ function global:Show-PlatformTask {
         # WriteHostPlusPreference is set to SilentlyContinue/Quiet.  nothing to write/output, so return
         if ($global:WriteHostPlusPreference -ne "Continue") { return }
 
-        # nothing from the pipeline nor from the parameters, return
-        if (!$ComputerName -and !$platformTasks -and $PSCmdlet.MyInvocation.ExpectingInput) { return }
-
         if (!$ComputerName) {
             if (!$platformTasks) {
                 $ComputerName = $env:COMPUTERNAME
@@ -540,6 +537,12 @@ function global:Show-PlatformTask {
                 # unhandled type
             }
         }
+        else {
+            if (!$platformTasks) {
+                $platformTasks = Get-PlatformTask -ComputerName $ComputerName
+            }
+        }
+
         if (!$platformTasks) { return }
         
         if ($Disabled) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled} }
