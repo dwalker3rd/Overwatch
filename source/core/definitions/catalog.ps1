@@ -277,6 +277,11 @@ $global:Catalog.Product += @{ BgInfo =
         Description = "Automation for BgInfo from Microsoft Sysinternals"
         Publisher = "Overwatch"
         HasTask = $true
+        Installation = @{
+            Prerequisite = @{
+                Service = @("Azure")
+            }
+        }
     }
 }
 

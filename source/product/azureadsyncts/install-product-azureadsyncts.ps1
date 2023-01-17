@@ -13,7 +13,7 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1
 Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\definitions-product-$($product.Id.ToLower())-template.ps1" "$($global:Location.Root)\definitions\definitions-product-$($product.Id.ToLower()).ps1" -Quiet
 
 foreach ($node in (pt nodes -k)) {
-    $remotedirectory = "\\$node\$(($global:AzureAD.Data).Replace(":","$"))"
+    $remotedirectory = "\\$node\$(($global:AzureAD.Location.Data).Replace(":","$"))"
     if (!(Test-Path $remotedirectory)) { 
         New-Item -ItemType Directory -Path $remotedirectory -Force | Out-Null
     }

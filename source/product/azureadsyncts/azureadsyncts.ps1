@@ -132,7 +132,7 @@ try {
 
     $azureADSyncLog = read-log -context $global:Product.Id
     if ($azureADSyncLog.Count -gt 0) {
-        $azureADSyncLog | Export-Log "$($azureAD.Data)\AzureADSyncLog.csv"
+        $azureADSyncLog | Export-Log "$($AzureAD.Location.Data)\AzureADSyncLog.csv"
     }
 
     $azureADSyncTransactionCount = $azureADSyncLog.Count -gt 0 ? ($azureADSyncLog.Count).ToString() : "None"
@@ -141,7 +141,7 @@ try {
 
     if ($azureADSyncLog.Count -gt 0) {
         Write-Host+
-        Copy-Files -Path "$($azureAD.Data)\AzureADSyncLog.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+        Copy-Files -Path "$($AzureAD.Location.Data)\AzureADSyncLog.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
         Write-Host+   
     }
 

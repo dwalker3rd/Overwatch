@@ -15,12 +15,12 @@ function global:Connect-AzAccount+ {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $subscriptionId = $global:AzureAD.$tenantKey.Subscription.Id
-    $tenantId = $global:AzureAD.$tenantKey.Tenant.Id
+    $subscriptionId = $global:Azure.$tenantKey.Subscription.Id
+    $tenantId = $global:Azure.$tenantKey.Tenant.Id
 
-    $creds = get-credentials $global:AzureAD.$tenantKey.Admin.Credentials
+    $creds = get-credentials $global:Azure.$tenantKey.Admin.Credentials
 
     $azureProfile = Connect-AzAccount -Credential $creds -TenantId $tenantId -SubscriptionId $subscriptionId -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     if (!$azureProfile) {
@@ -40,11 +40,11 @@ function global:New-AzResourceGroup+ {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][string]$ResourceGroupName,
-        [Parameter(Mandatory=$false)][string]$Location = $global:AzureAD.$tenantKey.Defaults.Location
+        [Parameter(Mandatory=$false)][string]$Location = $global:Azure.Defaults.Location
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     return New-AzResourceGroup -Name $ResourceGroupName -Location $Location
 
@@ -57,17 +57,17 @@ function global:New-AzStorageAccount+ {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][string]$StorageAccountName,
         [Parameter(Mandatory=$true)][string]$ResourceGroupName,
-        [Parameter(Mandatory=$false)][string]$SKU = $global:AzureAD.$tenantKey.Defaults.StorageAccount.SKU,
-        [Parameter(Mandatory=$false)][string]$Location = $global:AzureAD.$tenantKey.Defaults.Location,
-        [Parameter(Mandatory=$false)][int]$RetentionDays = $global:AzureAD.$tenantKey.Defaults.StorageAccount.SoftDelete.RetentionDays
+        [Parameter(Mandatory=$false)][string]$SKU = $global:Azure.Defaults.StorageAccount.SKU,
+        [Parameter(Mandatory=$false)][string]$Location = $global:Azure.Defaults.Location,
+        [Parameter(Mandatory=$false)][int]$RetentionDays = $global:Azure.Defaults.StorageAccount.SoftDelete.RetentionDays
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $storageAccount = New-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $StorageAccountName -SkuName $SKU -Location $location
 
-    if ($global:AzureAD.$tenantKey.Defaults.StorageAccount.SoftDelete.Enabled) {
+    if ($global:Azure.Defaults.StorageAccount.SoftDelete.Enabled) {
         Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName -RetentionDays $RetentionDays
     }
 
@@ -81,11 +81,11 @@ function global:New-AzStorageContainer+ {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][object]$Context,
         [Parameter(Mandatory=$true)][string]$ContainerName,
-        [Parameter(Mandatory=$false)][ValidateSet("Container","Blob","Off")][string]$Permission = $global:AzureAD.$tenantKey.Defaults.StorageAccount.Permission
+        [Parameter(Mandatory=$false)][ValidateSet("Container","Blob","Off")][string]$Permission = $global:Azure.Defaults.StorageAccount.Permission
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     return New-AzStorageContainer -Name $ContainerName.ToLower() -Context $Context -Permission $Permission
 
@@ -120,9 +120,9 @@ function global:Get-AzRoleAssignments {
     )
 
     $tenantkey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $subscriptionId = $global:AzureAD.$tenantKey.Subscription.Id
+    $subscriptionId = $global:Azure.$tenantKey.Subscription.Id
     $subscriptionScope = "/subscriptions/$($subscriptionId)"
     $ignore = @("/",$subscriptionScope)
 
@@ -203,9 +203,9 @@ function global:Initialize-AzProject {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    if ([string]::IsNullOrEmpty($global:AzureAD.$tenantKey.MsGraph.AccessToken)) {
+    if ([string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.AccessToken)) {
         Connect-AzureAD -Tenant $tenantKey
     }
 
@@ -213,14 +213,14 @@ function global:Initialize-AzProject {
     $projectNameUpperCase = $ProjectName.ToUpper()
     $groupNameLowerCase = $GroupName.ToLower()
 
-    # add new group to AzureProjects
-    if (!$global:AzureProjects.Group.$groupNameLowerCase) {
-        $global:AzureProjects.Group += @{
+    # add new group to Azure
+    if (!$global:Azure.Group.$groupNameLowerCase) {
+        $global:Azure.Group += @{
             $groupNameLowerCase = @{
                 Name = $groupNameLowerCase
                 DisplayName = $GroupName
                 Location = @{
-                    Data = "$($global:AzureProjects.Location.Data)\$groupNameLowerCase"
+                    Data = "$($global:Azure.Location.Data)\$groupNameLowerCase"
                 }
                 Project = @{}
             }
@@ -228,11 +228,11 @@ function global:Initialize-AzProject {
     }
 
     # create group directory
-    if (!(Test-Path -Path $global:AzureProjects.Group.$groupNameLowerCase.Location.Data)) {
-        New-Item -Path $global:AzureProjects.Location.Data -Name $groupNameLowerCase -ItemType "directory" | Out-Null
+    if (!(Test-Path -Path $global:Azure.Group.$groupNameLowerCase.Location.Data)) {
+        New-Item -Path $global:Azure.Location.Data -Name $groupNameLowerCase -ItemType "directory" | Out-Null
     }
 
-    if ($global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Initialized) {
+    if ($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Initialized) {
         Write-Host+ -NoTrace "WARN: Project `"$projectNameLowerCase`" has already been initialized." -ForegroundColor DarkYellow
         Write-Host+ -Iff $(!($Reinitialize.IsPresent)) -NoTrace "INFO: To reinitialize project `"$projectNameLowerCase`", add the -Reinitialize switch."
         Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "WARN: Reinitializing project `"$projectNameLowerCase`"." -ForegroundColor DarkYellow
@@ -241,48 +241,48 @@ function global:Initialize-AzProject {
     # Connect-AzAccount+
     # if the project's ConnectedAccount contains an AzureProfile, save it for reuse
     # otherwise, connect with Connect-AzAccount+ which returns an AzureProfile
-    if ($global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ConnectedAccount) {
+    if ($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ConnectedAccount) {
         Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "INFO: Reusing ConnectedAccount from project `"$projectNameLowerCase`"`."
-        $_connectedAccount = $global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ConnectedAccount
+        $_connectedAccount = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ConnectedAccount
     }
     else {
         $_connectedAccount = Connect-AzAccount+ -Tenant $tenantKey
     }
 
-    # reinitializing the project, so remove the project from $global:AzureProjects
-    if ($global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase) {
-        $global:AzureProjects.Group.$groupNameLowerCase.Project.Remove($projectNameLowerCase)
+    # reinitializing the project, so remove the project from $global:Azure
+    if ($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase) {
+        $global:Azure.Group.$groupNameLowerCase.Project.Remove($projectNameLowerCase)
     }
 
     # clear the global scope variable AzureProject as it points to the last initialized project
     Remove-Variable AzureProject -Scope Global -ErrorAction SilentlyContinue 
 
-    #add new project to AzureProjects
-    $global:AzureProjects.Group.$groupNameLowerCase.Project += @{
+    #add new project to Azure
+    $global:Azure.Group.$groupNameLowerCase.Project += @{
         $projectNameLowerCase = @{
             Name = $projectNameLowerCase
             DisplayName = $ProjectName
             GroupName = $groupNameLowerCase
             Location = @{
-                Data = "$($global:AzureProjects.Group.$groupNameLowerCase.Location.Data)\$projectNameLowerCase"
-                Credentials = "$($global:AzureProjects.Group.$groupNameLowerCase.Location.Data)\$projectNameLowerCase"
+                Data = "$($global:Azure.Group.$groupNameLowerCase.Location.Data)\$projectNameLowerCase"
+                Credentials = "$($global:Azure.Group.$groupNameLowerCase.Location.Data)\$projectNameLowerCase"
             }
             Initialized = $false
         }
     }
     
     #create project directory 
-    if (!(Test-Path -Path $global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)) {
-        New-Item -Path $global:AzureProjects.Group.$groupNameLowerCase.Location.Data -Name $projectNameLowerCase -ItemType "directory" | Out-Null
+    if (!(Test-Path -Path $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)) {
+        New-Item -Path $global:Azure.Group.$groupNameLowerCase.Location.Data -Name $projectNameLowerCase -ItemType "directory" | Out-Null
     }
 
     # get/read/update $Prefix
-    $prefixIni = "$($global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)\$projectNameLowerCase-prefix.ini"
+    $prefixIni = "$($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)\$projectNameLowerCase-prefix.ini"
     if (!$Prefix) {
         if (Test-Path $prefixIni) {
             $Prefix = (Get-Content $prefixIni | Where-Object {$_ -like "prefix*"}).split(" : ")[1].Trim()
         }
-        $Prefix = $Prefix ?? $global:AzureAD.$tenantKey.Prefix
+        $Prefix = $Prefix ?? $global:Azure.$tenantKey.Prefix
     }
     if (!(Test-Path $prefixIni)) {
         New-Item -Path $prefixIni -ItemType File | Out-Null
@@ -290,30 +290,26 @@ function global:Initialize-AzProject {
     Clear-Content $prefixIni
     Add-Content $prefixIni "prefix : $Prefix"
 
-    $global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase += @{
+    $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase += @{
         Prefix = $Prefix
-        AzureAD = @{
-            Tenant = $tenantKey
-            Invitation = @{
-                Message = "You have been invited by $($global:AzureAD.$tenantKey.DisplayName) to collaborate on project $projectNameUpperCase."
-            }
-            Location = $global:AzureAD.$tenantKey.Defaults.Location
+        Invitation = @{
+            Message = "You have been invited by $($global:Azure.$tenantKey.DisplayName) to collaborate on project $projectNameUpperCase."
         }
         ConnectedAccount = $_connectedAccount
         ResourceType = @{
             ResourceGroup = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.ResourceGroup.Name.Template.replace("<0>",$groupNameLowerCase).replace("<1>",$projectNameLowerCase)
-                Scope = "/subscriptions/$($global:AzureAD.$tenantKey.Subscription.Id)/resourceGroups/" + $global:AzureAD.$tenantKey.Defaults.ResourceGroup.Name.Template.replace("<0>",$groupNameLowerCase).replace("<1>",$projectNameLowerCase)
+                Name = $global:Azure.Defaults.ResourceGroup.Name.Template.replace("<0>",$groupNameLowerCase).replace("<1>",$projectNameLowerCase)
+                Scope = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/" + $global:Azure.Defaults.ResourceGroup.Name.Template.replace("<0>",$groupNameLowerCase).replace("<1>",$projectNameLowerCase)
                 Object = $null
             }
             BatchAccount = @{
-                Name =  $global:AzureAD.$tenantKey.Defaults.BatchAccount.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name =  $global:Azure.Defaults.BatchAccount.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
                 Scope = $null
                 Object = $null
                 Context = $null
             }
             StorageAccount = @{
-                Name =  ![string]::IsNullOrEmpty($StorageAccountName) ? $StorageAccountName : $global:AzureAD.$tenantKey.Defaults.StorageAccount.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name =  ![string]::IsNullOrEmpty($StorageAccountName) ? $StorageAccountName : $global:Azure.Defaults.StorageAccount.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
                 Scope = $null
                 Object = $null
                 Context = $null
@@ -324,46 +320,46 @@ function global:Initialize-AzProject {
                 Object = $null
             }
             Bastion = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.Bastion.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $global:Azure.Defaults.Bastion.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
                 Scope = $null
                 Object = $null
             }
             VM = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.VM.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
-                Admin = $global:AzureAD.$tenantKey.Defaults.VM.Admin.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $global:Azure.Defaults.VM.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
+                Admin = $global:Azure.Defaults.VM.Admin.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
                 Scope = $null
                 Object = $null
             }
             NetworkInterface = @()
             MLWorkspace = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.MLWorkspace.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
+                Name = $global:Azure.Defaults.MLWorkspace.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
                 Scope = $null
                 Object = $null
             }
             CosmosDBAccount = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.CosmosDBAccount.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
+                Name = $global:Azure.Defaults.CosmosDBAccount.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
                 Scope = $null
                 Object = $null
             }
             SqlVM = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.SqlVM.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
+                Name = $global:Azure.Defaults.SqlVM.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
                 Scope = $null
                 Object = $null
             }
             KeyVault = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.KeyVault.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $global:Azure.Defaults.KeyVault.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
                 Scope = $null
                 Object = $null
             }
             DataFactory = @{
-                Name = $global:AzureAD.$tenantKey.Defaults.DataFactory.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $global:Azure.Defaults.DataFactory.Name.Template.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
                 Scope = $null
                 Object = $null
             }
         }
     }
 
-    $global:AzureProject = $global:AzureProjects.Group.$groupNameLowerCase.Project.$projectNameLowerCase
+    $global:AzureProject = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase
 
     Get-AzProjectResourceScopes -Tenant $tenantKey
     Get-AzProjectDeployedResources
@@ -382,9 +378,9 @@ function global:Get-AzProjectResourceScopes {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $scopeBase = "/subscriptions/$($global:AzureAD.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
+    $scopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
 
     $global:AzureProject.ResourceType.BatchAccount.Scope = "$scopeBase/Microsoft.Batch/BatchAccounts/$($global:AzureProject.ResourceType.BatchAccount.Name)"
     $global:AzureProject.ResourceType.StorageAccount.Scope = "$scopeBase/Microsoft.Storage/storageAccounts/$($global:AzureProject.ResourceType.StorageAccount.Name)"
@@ -438,7 +434,7 @@ function global:New-AzResource {
     $applicationInsights = Get-AzApplicationInsights -ResourceGroupName $ResourceGroupName
     $containerRegistry = Get-AzContainerRegistry -ResourceGroupName $ResourceGroupName
     $keyVault = $global:AzureProject.ResourceType.KeyVault
-    $location = $global:AzureProject.AzureAD.Location
+    $location = $global:Azure.Defaults.Location
     $storageAccount = $global:AzureProject.ResourceType.StorageAccount
 
     $object = $null
@@ -481,7 +477,7 @@ function global:New-AzProject {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $emptyString = ""
 
@@ -701,9 +697,9 @@ function global:Grant-AzProjectRole {
         )
     
         $tenantKey = $Tenant.split(".")[0].ToLower()
-        if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     
-        $scopeBase = "/subscriptions/$($global:AzureAD.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
+        $scopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
         $resourceName = $Scope.Split("/")[-1]
         $provider = $Scope.Replace($scopeBase,"")
         $provider = $provider.Substring(1,$provider.LastIndexOf("/")-1)
@@ -806,7 +802,7 @@ function global:Grant-AzProjectRole {
     }
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     $resourceGroupName = $global:AzureProject.ResourceType.ResourceGroup.Name
@@ -1138,7 +1134,7 @@ function global:Grant-AzProjectRole {
             
                 if (!$guest) {
                     $fullName = ($users | Where-Object {$_.signInName -eq $signInName})[0].fullName
-                    $invitation = Send-AzureADInvitation -Tenant $tenantKey -Email $signInName -DisplayName $fullName -Message $global:AzureProject.AzureAD.Invitation.Message
+                    $invitation = Send-AzureADInvitation -Tenant $tenantKey -Email $signInName -DisplayName $fullName -Message $global:AzureProject.Invitation.Message
                     $invitation | Out-Null
                     Write-Host+ -NoTrace -NoTimeStamp "Invitation sent" -ForegroundColor DarkGreen
                 }
@@ -1270,7 +1266,7 @@ function global:Grant-AzProjectRole {
 
             Write-Host+ -NoTrace "    $($emptyString.PadLeft($signInName.Length,"-"))" -ForegroundColor Gray
 
-            $identity = $assignee.identities | Where-Object {$_.issuer -eq $global:AzureAD.$tenantKey.Tenant.Name}
+            $identity = $assignee.identities | Where-Object {$_.issuer -eq $global:Azure.$tenantKey.Tenant.Name}
             $signInType = $identity.signInType
             $signIn = $signInType -eq "userPrincipalName" ? $assignee.userPrincipalName : $signInName
             
@@ -1413,7 +1409,7 @@ function global:Deploy-AzProject {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     switch ($DeploymentType) {
@@ -1449,18 +1445,18 @@ function global:Deploy-DSnA {
     # Initialize-AzureAD
 
     # $tenantKey = $Tenant.split(".")[0].ToLower()
-    # if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    # if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     # Connect-AzureAD -Tenant $tenantKey
 
     # Initialize-AzProject -ProjectName $ProjectName -Tenant $tenantKey
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
-    $VmSize = ![string]::IsNullOrEmpty($VmSize) ? $VmSize : $global:AzureAD.$tenantKey.Defaults.VM.Size 
-    $VmOsType = ![string]::IsNullOrEmpty($VmOsType) ? $VmOsType : $global:AzureAD.$tenantKey.Defaults.VM.OsType
+    $VmSize = ![string]::IsNullOrEmpty($VmSize) ? $VmSize : $global:Azure.Defaults.VM.Size 
+    $VmOsType = ![string]::IsNullOrEmpty($VmOsType) ? $VmOsType : $global:Azure.Defaults.VM.OsType
 
     if (Test-Credentials $global:AzureProject.ResourceType.VM.Admin -NoValidate) {
         $adminCreds = Get-Credentials $global:AzureProject.ResourceType.VM.Admin -Location $global:AzureProject.Location.Credentials
@@ -1471,14 +1467,14 @@ function global:Deploy-DSnA {
     }
 
     $params = @{
-        Subscription = $global:AzureAD.$tenantKey.Subscription.Id
-        Tenant = $global:AzureAD.$tenantKey.Tenant.Id
-        Prefix = $global:AzureAD.$tenantKey.Prefix
+        Subscription = $global:Azure.$tenantKey.Subscription.Id
+        Tenant = $global:Azure.$tenantKey.Tenant.Id
+        Prefix = $global:Azure.$tenantKey.Prefix
         Random = $ProjectName
         ResourceGroup = $global:AzureProject.ResourceType.ResourceGroup.Name
         BlobContainerName = $global:AzureProject.ResourceType.StorageContainer.Name
         VMSize = $VmSize
-        location = $global:AzureProject.AzureAD.Location
+        location = $global:Azure.Defaults.Location
     }
 
     Set-Location "$($Location.Data)\azure\deployment\vmImages\$VmImagePublisher\$VmImageOffer\config"
@@ -1518,8 +1514,11 @@ function global:Get-AzVmContext {
             }
         }
     }
-    $azVmContext += @{
-        Extensions = Get-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name
+    $azVmContext += @{ Extensions = @{} }
+    foreach ($extension in Get-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name) {
+        $azVmContext.Extensions += @{
+            $extension.Name = $extension
+        }
     }
 
     $azVmContext += @{ ResourceGroup = @{} }

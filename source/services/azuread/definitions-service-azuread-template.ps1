@@ -7,7 +7,10 @@ function global:Initialize-AzureAD {
     $global:AzureAD = @()
     $global:AzureAD += @{
 
-        Data = "$($global:Location.Root)\data\azureAD"
+        Location = @{
+            Data = "$($global:Location.Root)\data\azureAD"
+        }
+
         SpecialGroups = @("All Users", "All Domain Users")
 
         acme = @{
@@ -61,6 +64,7 @@ function global:Initialize-AzureAD {
                 Credentials = "acmeb2c-admin"
             }
         }
+        
     }
 
 }

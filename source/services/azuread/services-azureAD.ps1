@@ -925,12 +925,12 @@ function global:Export-AzureADObjects {
                     "default" {
                         $azureADUsers | Sort-Object -property userPrincipalName | 
                             Select-Object -property @{name="User Id";expression={$_.id}},@{name="User Principal Name";expression={$_.userPrincipalName}},@{name="User Display Name";expression={$_.displayName}},@{name="User Mail";expression={$_.mail}},@{name="User Account Enabled";expression={$_.accountEnabled}},timestamp | 
-                                Export-Csv  "$($azureAD.Data)\$tenantKey-users.csv"
+                                Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-users.csv"
                     }
                     "Azure AD B2C" {
                         $azureADUsers | Sort-Object -property userPrincipalName | 
                             Select-Object -property @{name="User Id";expression={$_.id}},@{name="User Principal Name";expression={$_.userPrincipalName}},@{name="User Display Name";expression={$_.displayName}},@{name="User Mail";expression={($_.identities | where-object {$_.signInType -eq "emailAddress"}).issuerAssignedId}},@{name="User Account Enabled";expression={$_.accountEnabled}},timestamp | 
-                                Export-Csv  "$($azureAD.Data)\$tenantKey-users.csv"
+                                Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-users.csv"
                     }
                 }
 
@@ -938,7 +938,7 @@ function global:Export-AzureADObjects {
                 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
 
                 Write-Host+
-                Copy-Files -Path "$($azureAD.Data)\$tenantKey-$typeLowerCase.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+                Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-$typeLowerCase.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
                 Write-Host+
 
             }
@@ -946,18 +946,18 @@ function global:Export-AzureADObjects {
                 $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $tenantKey -AsArray
                 $azureADGroups | Sort-Object -property displayName | 
                     Select-Object -property @{name="Group Id";expression={$_.id}},@{name="Group Display Name";expression={$_.displayName}},@{name="Group Security Enabled";expression={$_.securityEnabled}},@{name="Group Type";expression={$_.groupTypes}},timestamp  | 
-                        Export-Csv  "$($azureAD.Data)\$tenantKey-groups.csv"
+                        Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-groups.csv"
                 ($azureADGroups | Foreach-Object {$groupId = $_.id; $_.members | Foreach-Object { @{groupId = $groupId; userId=$_} } }) | 
                     Sort-Object -property groupId,userId -unique | 
                         Select-Object -property @{name="Group Id";expression={$_.groupId}}, @{name="User Id";expression={$_.userId}} | 
-                            Export-Csv  "$($azureAD.Data)\$tenantKey-groupMembership.csv"
+                            Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-groupMembership.csv"
 
                 $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen                             
 
                 Write-Host+
-                Copy-Files -Path "$($azureAD.Data)\$tenantKey-groups.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
-                Copy-Files -Path "$($azureAD.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+                Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-groups.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+                Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
                 Write-Host+
             }
         }
