@@ -32,7 +32,6 @@
         Source = "$($global:Location.Root)\source"
         Temp = "$($global:Location.Root)\temp"
         Views = "$($global:Location.Root)\views"
-        Sysinternals = "$($global:Location.Root)\sysinternals"
 }
 
 #endregion LOCATION     

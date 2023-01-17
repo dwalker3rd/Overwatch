@@ -21,6 +21,20 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Environ = @{}
 $global:Location = @{}
 
+# if this is first install, then environ.ps1 does not exist
+# copy it to the users' temp directory and update the global Location variable
+if (!(Test-Path "environ.ps1")) {
+    $sourceEnvironFile = "$PSScriptRoot\source\environ\environ-template.ps1"
+    $environFile = "$($env:TEMP)\environ.ps1"
+    Copy-File $sourceEnvironFile $environFile -Quiet
+    Update-Environ -Source $sourceEnvironFile -Destination $environFile -Type Location -Name Root -Expression (Get-Location) 
+    Remove-Variable -Scope Global Environ
+}
+else {
+    $environFile = "$PSScriptRoot\environ.ps1"
+}
+
+. $environFile
 . $PSScriptRoot\source\core\definitions\definitions-sysinternals.ps1
 . $PSScriptRoot\source\core\definitions\definitions-powershell.ps1
 . $PSScriptRoot\source\core\definitions\classes.ps1
@@ -63,11 +77,11 @@ $global:PreflightPreference = "SilentlyContinue"
 $global:PostflightPreference = "SilentlyContinue"
 $global:WriteHostPlusPreference = "Continue"
 
-Clear-Host
+# Clear-Host
 
 #region CHECK INSTALLUPDATERESTART
 
-    $installUpdateRestart = (read-cache installUpdateRestart) -eq "True"
+    $installUpdateRestart = (read-cache installUpdateRestart).installUpdateRestart
     if ($installUpdateRestart) { $UseDefaultResponses = $true }
 
 #endregion CHECK INSTALLUPDATERESTART
@@ -277,7 +291,7 @@ Clear-Host
         else {
             Write-Host+
         }
-        $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
+        $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceWriteDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
         if (![string]::IsNullOrEmpty($platformInstanceDomain) -and $platformInstanceUri.Host -notlike "*$platformInstanceDomain") {
             Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid domain. Domain must match the platform instance URI" -ForegroundColor Red
             $platformInstanceDomain = $null
@@ -766,8 +780,14 @@ Clear-Host
         $providerIds += $global:Environ.Provider | Where-Object {$_ -notin $providerIds}
     }
 
-    $disabledProductIDS = @()
-    $impactedProductIds = $productIds | Where-Object {$_ -in $global:Environ.Product}
+    if ($installUpdateRestart) {
+        $impactedProductIds = @()
+        $productIds = (Get-Product).Id 
+    }
+    else {
+        $disabledProductIDS = @()
+        $impactedProductIds = $productIds | Where-Object {$_ -in $global:Environ.Product}
+    }
 
     if ($impactedProductIds) {
 
@@ -949,7 +969,12 @@ Clear-Host
 
     if ($installUpdate) {
 
-        $installUpdate | Write-Cache installUpdateRestart
+        $installUpdateRestartData = [PSCustomObject]@{
+            installUpdateRestart = $true
+            disabledProductIds = $disabledProductIds
+        }  
+        
+        $installUpdateRestartData | Write-Cache installUpdateRestart
 
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "The installer has been updated and must be restarted." -ForegroundColor DarkYellow
@@ -1228,8 +1253,10 @@ Clear-Host
         #region PRODUCTS
 
             if ($installUpdateRestart) {
-                $disabledProductIds = (Get-PlatformTask | Where-Object {$_.Status -eq "Disabled"}).ProductID | Where-Object {(Get-Product $_).IsInstalled}
-                $productIds += $disabledProductIds | Where-Object {$_ -notin $productIds}
+                $disabledProductIds = (read-cache installUpdateRestart).disabledProductIds
+                if ($disabledProductIds) {
+                    $productIds += $disabledProductIds | Where-Object {$_ -notin $productIds}
+                }
             }
 
             if ($productIds) {

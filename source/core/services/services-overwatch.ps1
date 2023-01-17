@@ -7,17 +7,18 @@
         [CmdletBinding()] 
         param (
             [Parameter(Mandatory=$true,Position=0)][string]$Key,
-            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+            [Parameter(Mandatory=$false)][string]$Path = "$($global:Location.Root)\environ.ps1"
         )
 
         # find the environ.ps1 file on the remote node
-        $environFile = [FileObject]::new("environ.ps1",$ComputerName)
+        $environFile = [FileObject]::new($Path,$ComputerName)
 
         # if node is not an overwatch controller, use the settings from the overwatch controller
         # note: for now, the overwatch controller is assumed to be the local machine
         if (!$environFile.Exists()) { 
             $ComputerName = $env:COMPUTERNAME
-            $environFile = [FileObject]::new("environ.ps1",$ComputerName)
+            $environFile = [FileObject]::new($Path,$ComputerName)
         }
 
         # get the content from the environ.ps1 file, mod the content to not be global, execute the content

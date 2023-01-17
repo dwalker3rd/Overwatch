@@ -276,7 +276,7 @@ $global:Catalog.Product += @{ BgInfo =
         DisplayName = "BgInfo"
         Description = "Automation for BgInfo from Microsoft Sysinternals"
         Publisher = "Overwatch"
-        HasTask = $false
+        HasTask = $true
     }
 }
 
