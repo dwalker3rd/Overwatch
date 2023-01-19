@@ -22,19 +22,19 @@ function global:Get-ServerStatus {
     return
 }
 
-function global:Register-GroupPolicyScript {
+# function global:Register-GroupPolicyScript {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true)][string]$Path,
-        [Parameter(Mandatory=$true)][ValidateSet("Shutdown","Startup")][string]$Type,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-        [switch]$AllowDuplicates
-    )
+#     [CmdletBinding()]
+#     param (
+#         [Parameter(Mandatory=$true)][string]$Path,
+#         [Parameter(Mandatory=$true)][ValidateSet("Shutdown","Startup")][string]$Type,
+#         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+#         [switch]$AllowDuplicates
+#     )
 
-    throw ("$($MyInvocation.MyCommand) is a STUB")
-    return
-}
+#     throw ("$($MyInvocation.MyCommand) is a STUB")
+#     return
+# }
 
 function global:Get-Disk {
 

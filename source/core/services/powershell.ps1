@@ -199,3 +199,21 @@ function global:Remove-WSManTrustedHosts {
     return Get-WSManTrustedHosts
 
 }
+
+function global:ConvertTo-PSCustomObject {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,ValueFromPipeline)][object]$InputObject
+    )
+    begin { 
+        $outputObject = @() 
+    }
+    process { 
+        $outputObject = [PSCustomObject]$InputObject 
+    }
+    end { 
+        return $outputObject 
+    }
+
+}

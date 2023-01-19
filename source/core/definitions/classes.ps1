@@ -134,6 +134,22 @@ class Provider {
     [bool]$IsInstalled
 }
 
+class Service {
+    [string]$Id
+    [string]$Name
+    [string]$DisplayName
+    [string]$Description
+    [string]$Image
+    [string]$Category
+    [string]$SubCategory
+    [string]$Version
+    [string]$Log
+    [object]$Config
+    [string]$Publisher
+    [object]$Installation
+    [bool]$IsInstalled
+}
+
 class Heartbeat {
     [bool]$IsOK
     [string]$Status

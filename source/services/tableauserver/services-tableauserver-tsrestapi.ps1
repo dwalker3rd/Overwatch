@@ -438,6 +438,11 @@ function global:Update-TSRestApiMethods {
                 Body = "<tsRequest><workbook name='<1>' ><project id='<2>' /><owner id='<3>' /></workbook></tsRequest>"
                 Response = @{Keys = "workbook"}
             }
+            GetWorkbookConnections = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/connections"
+                HttpMethod = "GET"
+                Response = @{Keys = "connections.connection"}
+            }
             GetWorkbookRevisions = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/revisions"
                 HttpMethod = "GET"
@@ -460,15 +465,15 @@ function global:Update-TSRestApiMethods {
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
-            GetWorkbookConnections = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/connections"
-                HttpMethod = "GET"
-                Response = @{Keys = "connections.connection"}
-            }
 
         #endregion WORKBOOK METHODS
         #region VIEW METHODS 
 
+            GetView = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "view"}
+            }
             GetViewsForSite = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views"
                 HttpMethod = "GET"
@@ -492,6 +497,36 @@ function global:Update-TSRestApiMethods {
             }
 
         #endregion VIEW METHODS 
+        #region CUSTOMVIEW METHODS 
+
+            GetCustomView = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/customviews/<0>"
+                HttpMethod = "GET"
+                Response = @{Keys = "customview"}
+                Prerequisite = @(
+                    @{ 
+                        Platform = "TableauCloud"
+                        ApiVersion = @{
+                            Minimum = "3.18" 
+                        }
+                    }
+                )
+            }
+            GetCustomViewsForSite = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/customviews"
+                HttpMethod = "GET"
+                Response = @{Keys = "customviews.customview"}
+                Prerequisite = @(
+                    @{ 
+                        Platform = "TableauCloud"
+                        ApiVersion = @{
+                            Minimum = "3.18" 
+                        }
+                    }
+                )
+            }
+
+        #endregion VIEW METHODS         
         #region DATASOURCE METHODS 
 
             GetDataSource = @{
@@ -546,6 +581,11 @@ function global:Update-TSRestApiMethods {
                 HttpMethod = "GET"
                 Response = @{Keys = "flows.flow"}
             }
+            GetFlowsForUser = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/<0>/flows"
+                HttpMethod = "GET"
+                Response = @{Keys = "flows.flow"}
+            }
             GetFlow = @{
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>"
                 HttpMethod = "GET"
@@ -567,6 +607,22 @@ function global:Update-TSRestApiMethods {
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
+            }
+            GetFlowConnections = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/connections"
+                HttpMethod = "GET"
+                Response = @{Keys = "connections.connection"}
+            }
+            GetFlowRevisions = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/revisions"
+                HttpMethod = "GET"
+                Response = @{Keys = "revisions.revision"}
+            }
+            GetFlowRevision = @{
+                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/revisions/<1>"
+                HttpMethod = "GET"
+                Response = @{Keys = "revisions.revision"}
+                Revision = "<1>"
             }
 
         #endregion FLOW METHODS          
@@ -596,6 +652,13 @@ function global:Update-TSRestApiMethods {
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/collections/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "collections.collection"}
+                Prerequisite = @(
+                    @{
+                        ApiVersion = @{
+                            Minimum = "9.99"
+                        }
+                    }
+                )
             }
 
         #endregion COLLECTION METHODS
@@ -605,6 +668,14 @@ function global:Update-TSRestApiMethods {
                 Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/virtualconnections"
                 HttpMethod = "GET"
                 Response = @{Keys = "virtualconnections.virtualconnection"}
+                Prerequisite = @(
+                    @{ 
+                        Platform = "TableauCloud"
+                        ApiVersion = @{
+                            Minimum = "3.18" 
+                        }
+                    }
+                )
             }
 
         #endregion VIRTUALCONNECTION METHODS
@@ -816,6 +887,25 @@ function global:Invoke-TSRestApiMethod {
         }
     }
 
+    # check method's prerequisites
+    $prerequisite = $global:tsRestApiConfig.Method.$Method.Prerequisite
+    if ($prerequisite) {
+        $prerequisiteError = "$Method not available "
+        if ($prerequisite.ApiVersion) {
+            $currentApiVersion = ([regex]::Matches($global:tsRestApiConfig.Method.$Method.Uri,"/api/(\d+\.\d+)/")).Groups[1].Value
+            if ($currentApiVersion -lt $prerequisite.ApiVersion.Minimum -or $currentApiVersion -gt $prerequisite.ApiVersion.Maximum) {
+                $prerequisiteError += " in API $currentVersion"
+            }
+        }
+        if (![string]::IsNullOrEmpty($prerequisite.Platform)) {
+            if ($prerequisite.Platform -contains $tsRestApiConfig.Platform.Id) {
+                $prerequisiteError += " for $($tsRestApiConfig.Platform.Name)"
+            }
+        }
+        Write-Log -EntryType "Error" -Action $Method -Status "NotAvailable" -Message $prerequisiteError
+        throw $prerequisiteError 
+    }
+
     $responseRoot = (IsRestApiVersioning -Method $Method) ? "tsResponse" : $null
     
     $pageFilter = "pageNumber=$($PageNumber)&pageSize=$($PageSize)"
@@ -862,7 +952,10 @@ function global:Invoke-TSRestApiMethod {
         }
     }
     catch {
-        $responseError = $_.ErrorDetails.Message ?? $_.Exception.Message
+        if ($_.ErrorDetails.Message -cmatch "^.*([a-z])([A-Z]).*$") {
+            $responseError = $matches[0] -replace "$($matches[1])$($matches[2])","$($matches[1]): $($matches[2])"
+        }
+        $responseError = $responseError ?? $_.Exception.Message
     }
 
     if ($responseError) {
@@ -1333,7 +1426,7 @@ function global:Find-TSObject {
         [Parameter(Mandatory=$false,ParameterSetName="ByContentUrl")]
         [Parameter(Mandatory=$false,ParameterSetName="ByOwnerId")]
         [Alias("Sites","Projects","Groups","Users","Workbooks","Views","Datasources","Flows","Metrics","Collections","VirtualConnections","Favorites")]
-        [object[]]
+        [object]
         $InputObject,
 
         [Parameter(Mandatory=$true,ParameterSetName="ById")]
@@ -1461,7 +1554,8 @@ function global:Get-TSSites {
 
     if (IsTableauCloud) { return Get-TSSite }
 
-    return Get-TSObjects -Method GetSites
+    return Get-TSObjects -Method GetSites | ConvertTo-PSCustomObject
+
 }
 
 function global:Get-TSSite {
@@ -1469,7 +1563,7 @@ function global:Get-TSSite {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetSite
+    return Get-TSObjects -Method GetSite | ConvertTo-PSCustomObject
 
 }
 
@@ -1478,7 +1572,7 @@ function global:Get-TSCurrentSite {
     [CmdletBinding()]
     param()
 
-    return (Get-TSCurrentSession).site
+    return (Get-TSCurrentSession).site | ConvertTo-PSCustomObject
 
 }
 
@@ -1486,7 +1580,7 @@ function global:Find-TSSite {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$Site,
+        [Parameter(Mandatory=$false)][object]$Sites,
         [Parameter(Mandatory=$false)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$ContentUrl,
@@ -1496,7 +1590,7 @@ function global:Find-TSSite {
         Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$ContentUrl are null." -ForegroundColor Red
         return
     }
-    if (!$Site) { $Site = Get-TSSites }
+    if (!$Sites) { $Sites = Get-TSSites }
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
@@ -1510,22 +1604,29 @@ function global:Find-TSSite {
 function global:Get-TSUsers+ {
 
     [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
-    )
+    param()
 
-    $usersPlus = @()
-    $Users | ForEach-Object {
-        $user = @{}
-        $userMembers = $_ | Get-Member -MemberType Property
-        foreach ($member in  $userMembers) {
-            $user.($member.Name) = $_.($member.Name)
-        }
-        $user.membership = Get-TSUserMembership -User $_
-        $usersPlus += $user
+    $users = @()
+    Get-TSUsers | ForEach-Object {
+        $users += Get-TSUser+ -Id $_.Id
     }
 
-    return $usersPlus
+    return $users
+    
+}
+
+function global:Get-TSUser+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Id
+    )
+
+    $user = Get-TSUser -Id $Id
+    $groups = Get-TSUserMembership -User $user
+    $user | Add-Member -NotePropertyName membership -NotePropertyValue $groups
+
+    return $user
     
 }
 
@@ -1534,7 +1635,8 @@ function global:Get-TSUsers {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetUsers
+    return Get-TSObjects -Method GetUsers | ConvertTo-PSCustomObject
+
 }
 
 function global:Get-TSUser {
@@ -1544,7 +1646,7 @@ function global:Get-TSUser {
         [Parameter(Mandatory=$false,Position=0)][string]$Id = ((Get-TSCurrentUser).id)
     )
 
-    return Get-TSObjects -Method GetUser -Params @($Id)
+    return Get-TSObjects -Method GetUser -Params @($Id) | ConvertTo-PSCustomObject
 }
 
 function global:Get-TSCurrentUser {
@@ -1583,7 +1685,7 @@ function global:Get-TSUserMembership {
         [Parameter(Mandatory=$false,Position=0)][object]$User = (Get-TSCurrentUser)
     )
 
-    return Get-TSObjects -Method GetUserMembership -Params @($User.Id)
+    return Get-TSObjects -Method GetUserMembership -Params @($User.Id) | ConvertTo-PSCustomObject
 
 }
 
@@ -1732,18 +1834,12 @@ function global:Get-TSGroups+ {
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups)
     )
 
-    $groupsPlus = @()
-    $Groups | ForEach-Object {
-        $group = @{}
-        $groupMembers = $_ | Get-Member -MemberType Property
-        foreach ($member in  $groupMembers) {
-            $group.($member.Name) = $_.($member.Name)
-        }
-        $group.membership = Get-TSGroupMembership -Group $_
-        $groupsPlus += $group
+    foreach ($group in $Groups) {
+        $users = Get-TSGroupMembership -Group $group
+        $group | Add-Member -NotePropertyName membership -NotePropertyValue $users
     }
 
-    return $groupsPlus
+    return $Groups
     
 }
 
@@ -1752,7 +1848,7 @@ function global:Get-TSGroups {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetGroups
+    return Get-TSObjects -Method GetGroups | ConvertTo-PSCustomObject
 }
 
 function global:Find-TSGroup {
@@ -1782,7 +1878,7 @@ function global:Get-TSGroupMembership {
         [Parameter(Mandatory=$true,Position=0)][object]$Group
     )
 
-    return Get-TSObjects -Method GetGroupMembership -Params @($Group.Id)
+    return Get-TSObjects -Method GetGroupMembership -Params @($Group.Id) | ConvertTo-PSCustomObject
 
 }
 
@@ -1791,7 +1887,7 @@ function global:Add-TSUserToGroup {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$Group,
-        [Parameter(Mandatory=$true)][object[]]$User
+        [Parameter(Mandatory=$true)][object]$User
     )
 
     $User | ForEach-Object {
@@ -1814,7 +1910,7 @@ function global:Remove-TSUserFromGroup {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$Group,
-        [Parameter(Mandatory=$true)][object[]]$User
+        [Parameter(Mandatory=$true)][object]$User
     )
 
     $User | ForEach-Object {
@@ -1874,7 +1970,7 @@ function global:Get-TSProjects {
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    return [PSCustomObject](Get-TSObjects -Method GetProjects -Filter $Filter)
+    return Get-TSObjects -Method GetProjects -Filter $Filter | ConvertTo-PSCustomObject
 
 }
 
@@ -1895,7 +1991,7 @@ function global:Find-TSProject {
     $params = @{Operator = $Operator}
     if ($Id) {$params += @{Id = $Id}}
     if ($Name) {$params += @{Name = $Name}}
-    return [PSCustomObject](Find-TSObject -Type "Project" -Projects $Projects @params)
+    return Find-TSObject -Type "Project" -Projects $Projects @params | ConvertTo-PSCustomObject
 
 }
 
@@ -1903,8 +1999,8 @@ function global:Get-TSProjectPermissions+ {
 
     param(
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups+),
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers+)
     )
 
     $projectPermissions = @()
@@ -1921,7 +2017,7 @@ function global:Get-TSProjectPermissions+ {
                     }
                 }
                 elseif ($granteeCapability.group) {
-                    $granteeCapabilityGroup = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    $granteeCapabilityGroup = Find-TSGroup -Groups $Groups -Id $granteeCapability.group.id
                     foreach ($member in $granteeCapabilityGroup | Get-Member -MemberType Property) {
                         $granteeCapability.group | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityGroup.($member.Name) -ErrorAction SilentlyContinue
                     }
@@ -1932,7 +2028,7 @@ function global:Get-TSProjectPermissions+ {
 
     }
 
-    return [PSCustomObject]$projectPermissions
+    return $projectPermissions
 
 }
 
@@ -1940,12 +2036,12 @@ function global:Get-TSProjectPermissions {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true,Position=0)][object[]]$Projects
+        [Parameter(Mandatory=$true,Position=0)][object]$Projects
     )
 
     $projectPermissions = @()
     foreach ($project in $Projects) {
-        $projectPermissions += [PSCustomObject](Get-TSObjects -Method GetProjectPermissions -Params @($Project.Id,$Type))
+        $projectPermissions += Get-TSObjects -Method GetProjectPermissions -Params @($Project.Id,$Type) | ConvertTo-PSCustomObject
     }
     
     return $projectPermissions
@@ -2069,7 +2165,7 @@ function global:Get-TSProjectDefaultPermissions {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][object[]]$Projects,
+        [Parameter(Mandatory=$true)][object]$Projects,
         [Parameter(Mandatory=$true)][ValidateSet("workbooks","datasources","dataroles","lenses","flows","metrics","databases")][string[]]$Type
     )
 
@@ -2079,7 +2175,7 @@ function global:Get-TSProjectDefaultPermissions {
         foreach ($_type in $Type) {
             $_projectDefaultPermissions += @{ $($_type -replace "s$","") = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) }
         }
-        $projectDefaultPermissions += [PSCustomObject]$_projectDefaultPermissions
+        $projectDefaultPermissions += $_projectDefaultPermissions | ConvertTo-PSCustomObject
     }
     
     return $projectDefaultPermissions
@@ -2218,7 +2314,7 @@ function global:Get-TSWorkbooks {
         [switch]$Download
     )
 
-    return [PSCustomObject](Get-TSObjects -Method GetWorkbooks -Filter $Filter -Download:$Download.IsPresent)
+    return Get-TSObjects -Method GetWorkbooks -Filter $Filter -Download:$Download.IsPresent | ConvertTo-PSCustomObject
 
 }
 
@@ -2230,7 +2326,7 @@ function global:Get-TSWorkbook {
         [switch]$Download
     )
 
-    return [PSCustomObject](Get-TSObjects -Method GetWorkbook -Params @($Id) -Download:$Download.IsPresent)
+    return Get-TSObjects -Method GetWorkbook -Params @($Id) -Download:$Download.IsPresent | ConvertTo-PSCustomObject
 
 }
 
@@ -2247,16 +2343,6 @@ function global:Update-TSWorkbook {
 
     return $response, $responseError
 
-}
-
-function global:Get-TSWorkbookConnections {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Id
-    )
-
-    return Get-TSObjects -Method GetWorkbookConnections -Params @($Id)
 }
 
 function global:Find-TSWorkbook {
@@ -2285,8 +2371,8 @@ function global:Get-TSWorkbookPermissions+ {
 
     param(
         [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks+),
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups+),
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers+)
     )
     
     $workbookPermissions = @()
@@ -2311,7 +2397,7 @@ function global:Get-TSWorkbookPermissions+ {
         }
     }
 
-    return [PSCustomObject]$workbookPermissions
+    return $workbookPermissions
 }
 
 function global:Get-TSWorkbookPermissions {
@@ -2327,7 +2413,7 @@ function global:Get-TSWorkbookPermissions {
         return
     }
     
-    return [PSCustomObject](Get-TSObjects -Method "GetWorkbookPermissions" -Params @($Workbook.Id))
+    return Get-TSObjects -Method "GetWorkbookPermissions" -Params @($Workbook.Id) | ConvertTo-PSCustomObject
 
 }
 
@@ -2369,14 +2455,19 @@ function global:Add-TSWorkbookPermissions {
     $capabilityXML += "</capabilities>"
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddWorkBookPermissions" -Params @($Workbook.id,$capabilityXML)
-    # if ($responseError) { #}.code -eq "401002") {
-    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-    #     Write-Host+ $errorMessage -ForegroundColor Red
-    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddWorkBookPermissions" -Status "Error"
-    #     # return
-    # }
-    
+
     return $response,$responseError
+}
+
+function global:Get-TSWorkbookConnections {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetWorkbookConnections -Params @($Id)  | ConvertTo-PSCustomObject
+    
 }
 
 function global:Get-TSWorkbookRevisions {
@@ -2388,7 +2479,7 @@ function global:Get-TSWorkbookRevisions {
         [switch]$Download
     )
 
-    $workbookRevisions = Get-TSObjects -Method GetWorkbookRevisions -Params @($Workbook.Id)
+    $workbookRevisions = Get-TSObjects -Method GetWorkbookRevisions -Params @($Workbook.Id) | ConvertTo-PSCustomObject
     if ($Revision) { $workbookRevisions = $workbookRevisions | Where-Object {$_.revisionNumber -eq $Revision} }
     
     if ($workbookRevisions -and $Download) {
@@ -2432,48 +2523,69 @@ function global:Get-TSViews+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
-        [Parameter(Mandatory=$false)][object]$Workbooks = (Get-TSWorkbooks+),
-        [Parameter(Mandatory=$false)][object]$Views = (Get-TSViews)
+        [Parameter(Mandatory=$false)][object]$Workbooks,
+        [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    if (!$Views) {
-        return
+    $views = @()
+    Get-TSViews -Filter $Filter | Foreach-Object {
+        $views += Get-TSView+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter
     }
 
-    $viewPermissions = Get-TSViewPermissions+ -Users $Users -Groups $Groups -Views $Views
+    return $views
+}
 
-    $viewsPlus = @()
-    $Views | ForEach-Object {
-        $view = @{}
-        $viewMembers = $_ | Get-Member -MemberType Property
-        foreach ($member in  $viewMembers) {
-            $view.($member.Name) = $_.($member.Name)
-        }
-        $view.owner = Find-TSUser -Users $Users -Id $_.owner.id
-        $view.project = Find-TSProject -Projects $Projects -Id $_.project.id
-        $view.workbook = Find-TSWorkbook -Workbooks $Workbooks -Id $_.workbook.id
-        $view.granteeCapabilities = $viewPermissions.$($_.id).granteeCapabilities
-        $viewsPlus += $view
-    }
+function global:Get-TSView+ {
 
-    return $viewsPlus
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][string]$Filter
+    )
+
+    $view = Get-TSView -Id $Id
+
+    $viewPermissions = Get-TSViewPermissions+ -Users $Users -Groups $Groups -Views $view
+    $view | Add-Member -NotePropertyName permissions -NotePropertyValue $viewPermissions
+
+    return $view
+}
+
+function global:Get-TSView {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Id
+    )
+
+    return Get-TSObjects -Method "GetView" -Params @($Id) | ConvertTo-PSCustomObject
+
 }
 
 function global:Get-TSViews {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$Workbook
+        [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    if ($Workbook) {
-        return Get-TSObjects -Method "GetViewsForWorkbook" -Params @($Workbook.id)
-    }
-    else {
-        return Get-TSObjects -Method "GetViewsForSite"
-    }
-    
-    return
+    return Get-TSObjects -Method "GetViewsForSite" -Filter $Filter | ConvertTo-PSCustomObject
+
+}
+
+function global:Get-TSViewsForWorkbook {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][object]$Workbook,
+        [Parameter(Mandatory=$false)][string]$Filter
+    )
+
+    return Get-TSObjects -Method "GetViewsForWorkbook" -Params @($Workbook.id) | ConvertTo-PSCustomObject
+
 }
 
 function global:Find-TSView {
@@ -2506,30 +2618,30 @@ function global:Get-TSViewPermissions+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
     )
 
-    if (!$Views) {throw "Views is empty"}
-    if (!$Groups) {throw "Groups is empty"}
-    if (!$Users) {throw "Users is empty"}
-    
-    $viewPermissions = @{}
+    $viewPermissions = @()
     foreach ($view in $views) {
         $permissions = Get-TSViewPermissions -View $View
-        foreach ($defaultPermission in $permissions) {
-            $perm = @{view = $view; granteeCapabilities = @()}
-            foreach ($granteeCapability in $defaultPermission.GranteeCapabilities) { 
-                $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
+        foreach ($permission in $permissions) {
+            foreach ($granteeCapability in $permission.GranteeCapabilities) {
                 if ($granteeCapability.user) {
-                    $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                    }
                 }
                 elseif ($granteeCapability.group) {
-                    $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    $granteeCapabilityGroup = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    foreach ($member in $granteeCapabilityGroup | Get-Member -MemberType Property) {
+                        $granteeCapability.group | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityGroup.($member.Name) -ErrorAction SilentlyContinue
+                    }
                 }
-                $perm.granteeCapabilities += $granteeCapabilityPlus
             }
-            $viewPermissions += @{$view.id = $perm}
+            $viewPermissions += $permissions
         }
     }
 
     return $viewPermissions
+
 }
 
 function global:Get-TSViewPermissions {
@@ -2545,7 +2657,7 @@ function global:Get-TSViewPermissions {
         return
     }
 
-    return Get-TSObjects -Method "GetViewPermissions" -Params @($View.Id)
+    return Get-TSObjects -Method "GetViewPermissions" -Params @($View.Id) | ConvertTo-PSCustomObject
 }
 
 function global:Add-TSViewPermissions {
@@ -2586,12 +2698,6 @@ function global:Add-TSViewPermissions {
     $capabilityXML += "</capabilities>"
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddViewPermissions" -Params @($View.id,$capabilityXML)
-    # if ($responseError) { #}.code -eq "401002") {
-    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-    #     Write-Host+ $errorMessage -ForegroundColor Red
-    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddViewPermissions" -Status "Error"
-    #     # return
-    # }
     
     return $response,$responseError
 }
@@ -2610,27 +2716,39 @@ function global:Get-TSDatasources+ {
         [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    $datasources = Get-TSDatasources -Filter $Filter -Download:$Download.IsPresent
-    if (!$datasources) { return }
-    
-    $datasourcePermissions = Get-TSDatasourcePermissions+ -Users $Users -Groups $Groups -Datasource $datasources
-
-    $datasourcesPlus = @()
-    $datasources | ForEach-Object {
-        $datasource = @{}
-        $datasourceMembers = $_ | Get-Member -MemberType Property
-        foreach ($member in  $datasourceMembers) {
-            $datasource.($member.Name) = $_.($member.Name)
-        }
-        $datasource.owner = Find-TSUser -Users $Users -Id $_.owner.id
-        $datasource.project = Find-TSProject -Projects $Projects -Id $_.project.id
-        $datasource.granteeCapabilities = $datasourcePermissions.$($_.id).granteeCapabilities
-        $datasource.revisions = Get-TSDataSourceRevisions -Datasource $_
-        $datasource.connections = Get-TSDataSourceConnections -Id $_.id
-        $datasourcesPlus += $datasource
+    $datasources = @()
+    Get-TSDatasources -Filter $Filter -Download:$Download.IsPresent | Foreach-Object {
+        $datasources += Get-TSDatasource+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter -Download:$Download.IsPresent
     }
 
-    return $datasourcesPlus
+    return $datasources
+
+}
+
+function global:Get-TSDatasource+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][string]$Filter,
+        [Parameter(Mandatory=$false)][switch]$Download
+    )
+
+    $datasource = Get-TSDatasource -Id $Id -Download:$Download.IsPresent
+
+    $datasourcePermissions = Get-TSDatasourcePermissions+ -Users $Users -Groups $Groups -Datasource $datasource
+    $datasourceRevisions = Get-TSDatasourceRevisions -Datasource $datasource
+    $datasourceConnections = Get-TSDatasourceConnections -Id $datasource.id
+
+    $datasource | Add-Member -NotePropertyName permissions -NotePropertyValue $datasourcePermissions
+    $datasource | Add-Member -NotePropertyName revisions -NotePropertyValue $datasourceRevisions
+    $datasource | Add-Member -NotePropertyName connections -NotePropertyValue $datasourceConnections
+
+    return $datasource
+
 }
 
 function global:Get-TSDataSources {
@@ -2641,7 +2759,7 @@ function global:Get-TSDataSources {
         [switch]$Download
     )
 
-    return Get-TSObjects -Method GetDatasources -Filter $Filter -Download:$Download.IsPresent
+    return Get-TSObjects -Method GetDatasources -Filter $Filter -Download:$Download.IsPresent | ConvertTo-PSCustomObject
 
 }
 
@@ -2653,7 +2771,7 @@ function global:Get-TSDataSource {
         [switch]$Download
     )
 
-    return Get-TSObjects -Method GetDataSource -Params @($Id) -Download:$Download.IsPresent
+    return Get-TSObjects -Method GetDataSource -Params @($Id) -Download:$Download.IsPresent | ConvertTo-PSCustomObject
 }
 
 function global:Update-TSDataSource {
@@ -2680,7 +2798,7 @@ function global:Get-TSDatasourceRevisions {
         [switch]$Download
     )
 
-    $datasourceRevisions = Get-TSObjects -Method GetDatasourceRevisions -Params @($Datasource.Id)
+    $datasourceRevisions = Get-TSObjects -Method GetDatasourceRevisions -Params @($Datasource.Id) | ConvertTo-PSCustomObject
     if ($Revision) { $datasourceRevisions = $datasourceRevisions | Where-Object {$_.revisionNumber -eq $Revision} }
     
     if ($datasourceRevisions -and $Download) {
@@ -2721,7 +2839,7 @@ function global:Get-TSDataSourceConnections {
         [Parameter(Mandatory=$true,Position=0)][string]$Id
     )
 
-    return Get-TSObjects -Method GetDataSourceConnections -Params @($Id)
+    return Get-TSObjects -Method GetDataSourceConnections -Params @($Id) | ConvertTo-PSCustomObject
 }
 
 function global:Find-TSDatasource {
@@ -2753,27 +2871,26 @@ function global:Get-TSDatasourcePermissions+ {
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
     )
-
-    if (!$Datasources) {throw "Datasources is empty"}
-    if (!$Groups) {throw "Groups is empty"}
-    if (!$Users) {throw "Users is empty"}
     
-    $datasourcePermissions = @{}
+    $datasourcePermissions = @()
     foreach ($datasource in $datasources) {
         $permissions = Get-TSDatasourcePermissions -Datasource $Datasource
-        foreach ($defaultPermission in $permissions) {
-            $perm = @{datasource = $datasource; granteeCapabilities = @()}
-            foreach ($granteeCapability in $defaultPermission.GranteeCapabilities) { 
-                $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
+        foreach ($permission in $permissions) {
+            foreach ($granteeCapability in $permission.GranteeCapabilities) {
                 if ($granteeCapability.user) {
-                    $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                    }
                 }
                 elseif ($granteeCapability.group) {
-                    $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    $granteeCapabilityGroup = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    foreach ($member in $granteeCapabilityGroup | Get-Member -MemberType Property) {
+                        $granteeCapability.group | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityGroup.($member.Name) -ErrorAction SilentlyContinue
+                    }
                 }
-                $perm.granteeCapabilities += $granteeCapabilityPlus
             }
-            $datasourcePermissions += @{$datasource.id = $perm}
+            $datasourcePermissions += $permissions
         }
     }
 
@@ -2787,7 +2904,13 @@ function global:Get-TSDatasourcePermissions {
         [Parameter(Mandatory=$true,Position=0)][object]$Datasource
     )
 
-    return Get-TSObjects -Method GetDatasourcePermissions -Params @($Datasource.Id)
+    if ($Datasource.location.type -eq "PersonalSpace") {
+        $responseError = "Method 'GetDatasourcePermissions' is not authorized for datasources in a personal space."
+        Write-Log -EntryType "Error" -Action "GetDatasourcePermissions" -Target "datasources\$($Datasource.id)" -Status "Forbidden" -Message $responseError 
+        return
+    }
+
+    return Get-TSObjects -Method GetDatasourcePermissions -Params @($Datasource.Id) | ConvertTo-PSCustomObject
 }
 
 function global:Add-TSDataSourcePermissions {
@@ -2823,12 +2946,6 @@ function global:Add-TSDataSourcePermissions {
     $capabilityXML += "</capabilities>"
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddDataSourcePermissions" -Params @($DataSource.id,$capabilityXML)
-    # if ($responseError) { #}.code -eq "401002") {
-    #     $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-    #     Write-Host+ $errorMessage -ForegroundColor Red
-    #     Write-Log -Message $errorMessage -EntryType "Error" -Action "AddDataSourcePermissions" -Status "Error"
-    #     # return
-    # }
     
     return $response,$responseError
 }
@@ -2847,25 +2964,37 @@ function global:Get-TSFlows+ {
         [Parameter(Mandatory=$false)][switch]$Download
     )
 
-    $flows = Get-TSFlows -Filter $Filter -Download:$Download.IsPresent
-    if (!$flows) { return }
-
-    $flowPermissions = Get-TSFlowPermissions+ -Users $Users -Groups $Groups -Flow $Flows
-
-    $flowsPlus = @()
-    $flows | ForEach-Object {
-        $flow = @{}
-        $flowMembers = $_ | Get-Member -MemberType Property
-        foreach ($member in  $flowMembers) {
-            $flow.($member.Name) = $_.($member.Name)
-        }
-        $flow.owner = Find-TSUser -Users $Users -Id $_.owner.id
-        $flow.project = Find-TSProject -Projects $Projects -Id $_.project.id
-        $flow.granteeCapabilities = $flowPermissions.$($_.id).granteeCapabilities
-        $flowsPlus += $flow
+    $flows = @()
+    Get-TSFlows -Filter $Filter -Download:$Download.IsPresent | Foreach-Object {
+        $flows += Get-TSFlow+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter -Download:$Download.IsPresent
     }
 
-    return $flowsPlus
+    return $flows
+
+}
+
+function global:Get-TSFlow+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
+        [Parameter(Mandatory=$false)][string]$Filter,
+        [Parameter(Mandatory=$false)][switch]$Download
+    )
+
+    $flow = Get-TSFlow -Id $Id -Download:$Download.IsPresent
+
+    $flowPermissions = Get-TSFlowPermissions+ -Users $Users -Groups $Groups -Flows $flow
+    $flowRevisions = Get-TSFlowRevisions -Flow $flow
+    $flowConnections = Get-TSFlowConnections -Id $flow.id
+
+    $flow | Add-Member -NotePropertyName permissions -NotePropertyValue $flowPermissions
+    $flow | Add-Member -NotePropertyName revisions -NotePropertyValue $flowRevisions
+    $flow | Add-Member -NotePropertyName connections -NotePropertyValue $flowConnections
+
+    return $flow
 }
 
 function global:Get-TSFlows {
@@ -2876,12 +3005,19 @@ function global:Get-TSFlows {
         [switch]$Download
     )
 
-    $flows = @()
-    foreach ($flow in Get-TSObjects -Method GetFlows -Filter $Filter) {
-        $flows += Get-TSFlow -Id $flow.Id -Download:$Download.IsPresent
-    }
+    return Get-TSObjects -Method GetFlows -Filter $Filter -Download:$Download.IsPresent | ConvertTo-PSCustomObject
 
-    return $flows
+}
+
+function global:Get-TSFlowsForUser {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Filter,
+        [switch]$Download
+    )
+
+    return Get-TSObjects -Method GetFlowsForUser -Filter $Filter -Download:$Download.IsPresent | ConvertTo-PSCustomObject
 
 }
 
@@ -2893,7 +3029,7 @@ function global:Get-TSFlow {
         [switch]$Download
     )
 
-    $flow = Get-TSObjects -Method GetFlow -Params @($Id)
+    $flow = Get-TSObjects -Method GetFlow -Params @($Id) | ConvertTo-PSCustomObject
     if (!$flow) { return }
 
     # special processing for downloading flows
@@ -2965,26 +3101,25 @@ function global:Get-TSFlowPermissions+ {
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
     )
 
-    if (!$Flows) {throw "Flows is empty"}
-    if (!$Groups) {throw "Groups is empty"}
-    if (!$Users) {throw "Users is empty"}
-    
-    $flowPermissions = @{}
+    $flowPermissions = @()
     foreach ($flow in $flows) {
         $permissions = Get-TSFlowPermissions -Flow $Flow
-        foreach ($defaultPermission in $permissions) {
-            $perm = @{flow = $flow; granteeCapabilities = @()}
-            foreach ($granteeCapability in $defaultPermission.GranteeCapabilities) { 
-                $granteeCapabilityPlus = @{capabilities = $granteeCapability.capabilities}
+        foreach ($permission in $permissions) {
+            foreach ($granteeCapability in $permission.GranteeCapabilities) {
                 if ($granteeCapability.user) {
-                    $granteeCapabilityPlus.user = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
+                    foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                    }
                 }
                 elseif ($granteeCapability.group) {
-                    $granteeCapabilityPlus.group = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    $granteeCapabilityGroup = Find-TSGroup -Groups $groups -Id $granteeCapability.group.id
+                    foreach ($member in $granteeCapabilityGroup | Get-Member -MemberType Property) {
+                        $granteeCapability.group | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityGroup.($member.Name) -ErrorAction SilentlyContinue
+                    }
                 }
-                $perm.granteeCapabilities += $granteeCapabilityPlus
             }
-            $flowPermissions += @{$flow.id = $perm}
+            $flowPermissions += $permissions
         }
     }
 
@@ -2998,7 +3133,14 @@ function global:Get-TSFlowPermissions {
         [Parameter(Mandatory=$true,Position=0)][object]$Flow
     )
 
-    return Get-TSObjects -Method GetFlowPermissions -Params @($Flow.Id)
+    if ($Flow.location.type -eq "PersonalSpace") {
+        $responseError = "Method 'GetFlowPermissions' is not authorized for flows in a personal space."
+        Write-Log -EntryType "Error" -Action "GetFlowPermissions" -Target "flows\$($Flow.id)" -Status "Forbidden" -Message $responseError 
+        return
+    }
+
+    return Get-TSObjects -Method GetFlowPermissions -Params @($Flow.Id) | ConvertTo-PSCustomObject
+
 }
 
 function global:Add-TSFlowPermissions {
@@ -3038,6 +3180,59 @@ function global:Add-TSFlowPermissions {
     return $response,$responseError
 }
 
+function global:Get-TSFlowConnections {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Id
+    )
+
+    return Get-TSObjects -Method GetFlowConnections -Params @($Id)  | ConvertTo-PSCustomObject
+    
+}
+
+function global:Get-TSFlowRevisions {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][object]$Flow,
+        [Parameter(Mandatory=$false)][string]$Revision,
+        [switch]$Download
+    )
+
+    $flowRevisions = Get-TSObjects -Method GetFlowRevisions -Params @($Flow.Id) | ConvertTo-PSCustomObject
+    if ($Revision) { $flowRevisions = $flowRevisions | Where-Object {$_.revisionNumber -eq $Revision} }
+    
+    if ($flowRevisions -and $Download) {
+        foreach ($flowRevision in $flowRevisions) {
+            $response = Download-TSObject -Method GetFlowRevision -InputObject $Flow -Params @($Flow.Id, $flowRevision.revisionNumber)
+            if ($response.error) {
+                $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
+                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                $flowRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
+            }
+            else {
+                $flowRevision.SetAttribute("outFile", $response.outFile)
+            }
+        }
+    }
+
+    return $flowRevisions
+
+}
+
+function global:Get-TSFlowRevision {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][object]$Flow,
+        [Parameter(Mandatory=$true)][string]$Revision,
+        [switch]$Download
+    )
+
+    return Get-TSFlowRevisions -Flow $Flow -Revision $Revision -Download:$Download.IsPresent
+
+}
 #endregion FLOWS
 #region METRICS
 
@@ -3048,7 +3243,7 @@ function global:Add-TSFlowPermissions {
             [Parameter(Mandatory=$false)][string]$Filter
         )
 
-        return Get-TSObjects -Method GetMetrics -Filter $Filter
+        return Get-TSObjects -Method GetMetrics -Filter $Filter | ConvertTo-PSCustomObject
     }
 
     function global:Get-TSMetric {
@@ -3058,7 +3253,7 @@ function global:Add-TSFlowPermissions {
             [Parameter(Mandatory=$true)][string]$MetricLuid
         )
 
-        return Get-TSObjects -Method GetMetric -Params @($MetricLuid)
+        return Get-TSObjects -Method GetMetric -Params @($MetricLuid) | ConvertTo-PSCustomObject
     }
 
     function global:Update-TSMetric {
@@ -3076,6 +3271,30 @@ function global:Add-TSFlowPermissions {
 
     }
 
+    function global:Find-TSMetric {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false)][object]$Metrics,
+            [Parameter(Mandatory=$false)][string]$Id,
+            [Parameter(Mandatory=$false)][string]$Name,
+            [Parameter(Mandatory=$false)][object]$Owner,
+            [Parameter(Mandatory=$false)][string]$Operator="eq"
+        )
+        
+        if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($Owner)) {
+            Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$Owner are null." -ForegroundColor Red
+            return
+        }
+        if (!$Metrics) { $Metrics = Get-TSMetrics }
+        $params = @{Operator = $Operator}
+        if ($Id) {$params += @{Id = $Id}}
+        if ($Name) {$params += @{Name = $Name}}
+        if ($Owner) {$params += @{OwnerId = $Owner.id}}
+        return Find-TSObject -Type "Metric" -Metrics $Metrics @Params
+
+    }
+
 #endregion METRICS
 #region COLLECTIONS
 
@@ -3086,11 +3305,7 @@ function global:Add-TSFlowPermissions {
             [Parameter(Mandatory=$false)][object]$User=(Get-TSCurrentUser)
         )
 
-        Write-Host+ -MaxBlankLines 1
-        $responseError = "Collections are not yet supported."
-        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
-        Write-Log -EntryType "Warning" -Action "GetCollections" -Target "Collections" -Status "NotSupported" -Message $responseError 
-        return
+        return Get-TSObjects -Method GetCollections | ConvertTo-PSCustomObject
 
     }
 
@@ -3106,11 +3321,16 @@ function global:Add-TSFlowPermissions {
             [Parameter(Mandatory=$false)][string]$Operator="eq"
         )
         
-        Write-Host+ -MaxBlankLines 1
-        $responseError = "Collections are not yet supported."
-        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
-        Write-Log -EntryType "Warning" -Action "GetCollections" -Target "Collections" -Status "NotSupported" -Message $responseError 
-        return
+        if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($Owner)) {
+            Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$Owner are null." -ForegroundColor Red
+            return
+        }
+        if (!$Collections) { $Collections = Get-TSCollections }
+        $params = @{Operator = $Operator}
+        if ($Id) {$params += @{Id = $Id}}
+        if ($Name) {$params += @{Name = $Name}}
+        if ($Owner) {$params += @{OwnerId = $Owner.id}}
+        return Find-TSObject -Type "Collection" -Collections $Collections @Params
 
     }
 
@@ -3124,11 +3344,7 @@ function global:Add-TSFlowPermissions {
             [Parameter(Mandatory=$false)][string]$Filter
         )
 
-        Write-Host+ -MaxBlankLines 1
-        $responseError = "VirtualConnections are not yet supported."
-        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
-        Write-Log -EntryType "Warning" -Action "GetVirtualConnections" -Target "VirtualConnections" -Status "NotSupported" -Message $responseError 
-        return
+        return Get-TSObjects -Method GetVirtualConnections | ConvertTo-PSCustomObject
     }
 
     function global:Find-TSVirtualConnection {
@@ -3142,11 +3358,16 @@ function global:Add-TSFlowPermissions {
             [Parameter(Mandatory=$false)][string]$Operator="eq"
         )
 
-        Write-Host+ -MaxBlankLines 1
-        $responseError = "VirtualConnections are not yet supported."
-        Write-Host+ -NoTimestamp $responseError -ForegroundColor DarkYellow
-        Write-Log -EntryType "Warning" -Action "GetVirtualConnections" -Target "VirtualConnections" -Status "NotSupported" -Message $responseError 
-        return
+        if ([string]::IsNullOrEmpty($Id) -and [string]::IsNullOrEmpty($Name) -and [string]::IsNullOrEmpty($Owner)) {
+            Write-Host+ "ERROR: The search parameters `$Id, `$Name and `$Owner are null." -ForegroundColor Red
+            return
+        }
+        if (!$VirtualConnections) { $VirtualConnections = Get-TSVirtualConnections }
+        $params = @{Operator = $Operator}
+        if ($Id) {$params += @{Id = $Id}}
+        if ($Name) {$params += @{Name = $Name}}
+        if ($Owner) {$params += @{OwnerId = $Owner.id}}
+        return Find-TSObject -Type "VirtualConnection" -VirtualConnections $VirtualConnections @Params
 
     }
 
@@ -3158,7 +3379,7 @@ function global:Get-TSFavorites+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][object]$Site = (Get-TSCurrentSite),
-        [Parameter(Mandatory=$false)][object[]]$Users = (Get-TSCurrentUser),
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSCurrentUser),
         [switch]$All
     )
 
@@ -3167,8 +3388,8 @@ function global:Get-TSFavorites+ {
     function New-FavoritePlus {
 
         param(
-            [Parameter(Mandatory=$false)][object[]]$User,
-            [Parameter(Mandatory=$true)][object[]]$Favorites
+            [Parameter(Mandatory=$false)][object]$User,
+            [Parameter(Mandatory=$true)][object]$Favorites
         )
 
         $originalSite = Get-TSCurrentSite
@@ -3205,9 +3426,7 @@ function global:Get-TSFavorites+ {
 
         }
 
-        if ($currentSite.contentUrl -ne $originalSite.contentUrl) {
-            Switch-TSSite -ContentUrl $originalSite.contentUrl
-        }
+        Switch-TSSite -ContentUrl $originalSite.contentUrl
 
         return $favoritesPlus
 
@@ -3376,7 +3595,7 @@ function global:Get-TSSchedules {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetSchedules
+    return Get-TSObjects -Method GetSchedules | ConvertTo-PSCustomObject
 
 }
 
@@ -3387,7 +3606,7 @@ function global:Get-TSSchedule {
         [Parameter(Mandatory=$true,Position=0)][string]$Id
     )
 
-    return Get-TSObjects -Method GetSchedule -Params @($Id)
+    return Get-TSObjects -Method GetSchedule -Params @($Id) | ConvertTo-PSCustomObject
 
 }
 
@@ -3399,7 +3618,7 @@ function global:Get-TSSubscriptions {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetSubscriptions
+    return Get-TSObjects -Method GetSubscriptions | ConvertTo-PSCustomObject
 
 }
 
@@ -3410,7 +3629,7 @@ function global:Get-TSSubscription {
         [Parameter(Mandatory=$true,Position=0)][string]$Id
     )
 
-    return Get-TSObjects -Method GetSubscription -Params @($Id)
+    return Get-TSObjects -Method GetSubscription -Params @($Id) | ConvertTo-PSCustomObject
 
 }
 
@@ -3422,7 +3641,7 @@ function global:Get-TSDataAlerts {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetDataAlerts
+    return Get-TSObjects -Method GetDataAlerts | ConvertTo-PSCustomObject
 
 }
 
@@ -3433,7 +3652,7 @@ function global:Get-TSDataAlert {
         [Parameter(Mandatory=$true,Position=0)][string]$Id
     )
 
-    return Get-TSObjects -Method GetDataAlert -Params @($Id)
+    return Get-TSObjects -Method GetDataAlert -Params @($Id) | ConvertTo-PSCustomObject
 
 }
 
@@ -3442,7 +3661,7 @@ function global:Get-TSUserNotificationPreferences {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetUserNotificationPreferences
+    return Get-TSObjects -Method GetUserNotificationPreferences | ConvertTo-PSCustomObject
 
 }
 
@@ -3454,7 +3673,7 @@ function global:Get-TSWebhooks {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method GetWebhooks
+    return Get-TSObjects -Method GetWebhooks | ConvertTo-PSCustomObject
 
 }
 
@@ -3465,7 +3684,7 @@ function global:Get-TSWebhook {
         [Parameter(Mandatory=$true,Position=0)][string]$Id
     )
 
-    return Get-TSObjects -Method GetWebhook -Params @($Id)
+    return Get-TSObjects -Method GetWebhook -Params @($Id) | ConvertTo-PSCustomObject
 
 }
 
@@ -3508,7 +3727,7 @@ function global:Get-TSAnalyticsExtensionsConnections {
     $key = ($global:tsRestApiConfig.Method.$method.Response.Keys).Split(".")[0]
     $tsObject = (Get-TSObjects -Method $method)
 
-    return [PSCustomObject]@{ $key = $tsObject } | Add-TSAnalyticsExtensionsMeta -Target $Target
+    return @{ $key = $tsObject } | Add-TSAnalyticsExtensionsMeta -Target $Target | ConvertTo-PSCustomObject
 
 }
 
@@ -3523,7 +3742,7 @@ function global:Get-TSAnalyticsExtensionsEnabledState {
     $key = ($global:tsRestApiConfig.Method.$method.Response.Keys).Split(".")[0]
     $tsObject = (Get-TSObjects -Method $method)
 
-    return [PSCustomObject]@{ $key = $tsObject } | Add-TSAnalyticsExtensionsMeta -Target $Target
+    return @{ $key = $tsObject } | Add-TSAnalyticsExtensionsMeta -Target $Target | ConvertTo-PSCustomObject
 
 }
 
@@ -3572,7 +3791,7 @@ function global:Get-TSConnectedApplications {
     [CmdletBinding()]
     param()
 
-    return Get-TSObjects -Method "GetConnectedApplications"
+    return Get-TSObjects -Method "GetConnectedApplications" | ConvertTo-PSCustomObject
 
 }
 
@@ -3583,7 +3802,7 @@ function global:Get-TSConnectedApplication {
         [Parameter(Mandatory=$true)][string]$ClientId
     )
 
-    return Get-TSObjects -Method "GetConnectedApplications" -Params @($ClientId)
+    return Get-TSObjects -Method "GetConnectedApplications" -Params @($ClientId) | ConvertTo-PSCustomObject
 
 }
 

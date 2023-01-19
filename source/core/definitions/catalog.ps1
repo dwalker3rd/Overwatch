@@ -8,8 +8,9 @@ $global:Catalog.OS = @{}
 $global:Catalog.Platform = @{}
 $global:Catalog.Product = @{}
 $global:Catalog.Provider = @{}
+$global:Catalog.Service = @{}
 
-$global:Catalog.Overwatch = 
+$global:Catalog.Overwatch += @{ Overwatch =  
     [Overwatch]@{
         Id = "Overwatch"
         Name = "Overwatch"
@@ -17,6 +18,7 @@ $global:Catalog.Overwatch =
         Description = ""
         Version = "2.0"
     }
+}
 
 $global:Catalog.OS += @{ WindowsServer = 
     [OS]@{
@@ -219,7 +221,6 @@ $global:Catalog.Product += @{ AzureADSyncB2C =
         HasTask = $true
         Installation = @{
             Prerequisite = @{
-                Platform = @("TableauServer")
                 Service = @("AzureAD")
                 Product = @("AzureADCache")
             }
@@ -294,6 +295,17 @@ $global:Catalog.Provider += @{ SMTP =
         Description = "Overwatch messaging via SMTP"
         Publisher = "Overwatch"
         Log = "SMTP"
+        Installation = @{
+            Prerequisite = @{
+                PowerShell = @{
+                    Package = @(
+                        @{ Name = "Portable.BouncyCastle" },
+                        @{ Name = "MimeKit" },
+                        @{ Name = "MailKit" }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -378,5 +390,56 @@ $global:Catalog.Provider += @{ Okta =
         Description = "Okta Identity Provider"
         Publisher = "Overwatch"
         Log = "Okta"
+    }
+}
+
+$global:Catalog.Service += @{ Azure = 
+    [Service]@{
+        Id = "Azure"
+        Name = "Azure"
+        DisplayName = "Azure"
+        Category = "Cloud"
+        Description = "Azure Services"
+        Publisher = "Overwatch"
+        Installation = @{
+            Prerequisite = @{
+                PowerShell = @{
+                    Module = @(
+                        @{ Name = "Az.Accounts" },
+                        @{ Name = "Az.Compute" },
+                        @{ Name = "Az.Resources" },
+                        @{ Name = "Az.Storage" },
+                        @{ Name = "Az.Network" },
+                        @{ Name = "Az.CosmosDb" },
+                        @{ Name = "Az.SqlVirtualMachine" },
+                        @{ Name = "Az.KeyVault" },
+                        @{ Name = "Az.DataFactory" },
+                        @{ Name = "Az.Batch" }
+                    )
+                }
+            }
+        }
+    }
+}
+
+$global:Catalog.Service += @{ AzureAD =
+    [Service]@{
+        Id = "AzureAD"
+        Name = "AzureAD"
+        DisplayName = "AzureAD"
+        Category = "Cloud"
+        Description = "AzureAD Services"
+        Publisher = "Overwatch"
+    }
+}
+
+$global:Catalog.Service += @{ TableauServer =
+    [Service]@{
+        Id = "TableauServer"
+        Name = "TableauServer"
+        DisplayName = "TableauServer"
+        Category = "Cloud"
+        Description = "Tableau Server Services"
+        Publisher = "Overwatch"
     }
 }

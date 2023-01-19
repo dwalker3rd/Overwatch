@@ -23,11 +23,6 @@ The message object used by the Overwatch messaging service.
 The message object used by the Overwatch messaging service serialized into JSON.
 #>
 
-$mailKit = Get-Package -Name MailKit
-$mimeKit = Get-Package -Name MimeKit
-Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mailKit.Name).$($mailKit.Version)\lib\net48\MailKit.dll"
-Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mimeKit.Name).$($mimeKit.Version)\lib\net48\MimeKit.dll"
-
 function global:Send-SMTP {
  
     [CmdletBinding()]

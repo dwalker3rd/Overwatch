@@ -1,6 +1,6 @@
 #region OVERWATCH DEFINITIONS
 
-    $global:Overwatch = $global:Catalog.Overwatch
+    $global:Overwatch = $global:Catalog.Overwatch.Overwatch
 
 #endregion OVERWATCH DEFINITIONS
 #region CONSTANTS

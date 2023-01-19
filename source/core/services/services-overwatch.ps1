@@ -43,7 +43,32 @@
 
         }
 
-        return Invoke-Expression "`$$Key"
+        $result = Invoke-Expression "`$$Key"
+        Remove-Variable -Scope Local Environ
+        Remove-Variable -Scope Local Location
+
+        return $result
+
+    }
+
+    function global:Get-Overwatch { 
+
+        [CmdletBinding()] 
+        param (
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        )
+
+        Get-EnvironConfig -Key Overwatch.Overwatch -ComputerName $ComputerName
+
+    }
+    function global:Get-OS {
+
+        [CmdletBinding()] 
+        param (
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        )
+
+        Get-EnvironConfig -Key OS $Id -ComputerName $ComputerName
 
     }
 
@@ -173,63 +198,79 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][ValidateSet("OS","Platform","Product","Provider")][string]$Type,
-            [Parameter(Mandatory=$false,Position=0)][string]$Name
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service")][string]$Type,
+            [Parameter(Mandatory=$false,Position=0)][string]$Id,
+            [switch]$Duplicates
         )
 
-        if ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
+        $catalogObjects = @()
 
-            if ($global:Catalog.OS.$Name) {
-                $Type = "OS"
-            }
-            if ($global:Catalog.Platform.$Name) {
-                if ($Type) {
-                    throw "Catalog contains multiple objects with the name `"$Name`""
-                }
-                $Type = "Platform"
-            }
-            if ($global:Catalog.Product.$Name) {
-                if ($Type) {
-                    throw "Catalog contains multiple objects with the name `"$Name`""
-                }
-                $Type = "Product"
-            }
-            if ($global:Catalog.Provider.$Name) {
-                if ($Type) {
-                    throw "Catalog contains multiple objects with the name `"$Name`""
-                }
-                $Type = "Provider"
-            }
-
-            if ([string]::IsNullOrEmpty($Type)) {
-                throw "Catalog $($Type ? $Type.ToLower() : "object") `"$Name`" was not found"
-            }
-
+        if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {
+            $catalogObjects += $global:Catalog.$Type.$Id
         }
-        if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Name)) {
-
-            if (!$global:Catalog.$Type.$Name) {
-                throw "Catalog $($Type.ToLower()) `"$Name`" was not found"
-            }
-
-        }
-
-        $catalogObjects = $null
-        if (![string]::IsNullOrEmpty($Name)) {
-            $catalogObjects = $global:Catalog.$Type.$Name
-        }
-        elseif (![string]::IsNullOrEmpty($Type)) { 
-            $catalogObjects = @()
+        elseif (![string]::IsNullOrEmpty($Type) -and [string]::IsNullOrEmpty($Id)) { 
             $catalogObjects += $global:Catalog.$Type.values
         }
-        else {
-            $catalogObjects = @{}
-            foreach ($key in $global:Catalog.Keys) {
-                $catalogObjects += @{ $key = [array]$global:Catalog.$key.values }
+        elseif ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) { 
+            $params = @{
+                Id = $Id
+                Duplicates = $Duplicates.IsPresent
             }
+            if ($PSBoundParameters.ErrorAction) {$params += @{ ErrorAction = $PSBoundParameters.ErrorAction }}
+            $catalogObjects += (Search-Catalog @params).object
+        }
+        else {
+            $global:Catalog
         }
 
         return $catalogObjects
+
+    }
+
+    function global:Search-Catalog {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service")][string]$Type,
+            [Parameter(Mandatory=$true,Position=0)][string]$Id,
+            [switch]$Duplicates
+        )
+
+        $catalogObject = @()
+
+        if ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {
+            foreach ($pkey in $global:Catalog.Keys) {
+                if ($global:Catalog.$pkey.$Id) {
+                    $catalogObject += [PSCustomObject]@{
+                        Type = $pkey
+                        Id = $global:Catalog.$pkey.$Id.Id
+                        Object = $global:Catalog.$pkey.$Id
+                    } 
+                }
+            }
+        }
+
+        if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) { 
+            $catalogObject += [PSCustomObject]@{
+                Type = $Type
+                Id = $global:Catalog.$Type.$Id.Id
+                Object = $global:Catalog.$Type.$Id
+            }
+        }       
+
+        if ($catalogObject.Count -eq 0) {
+            if ($PSBoundParameters.ErrorAction -and $PSBoundParameters.ErrorAction -ne "SilentlyContinue") {
+                Write-Host+ -NoTimestamp "A $($Type ? "$Type " : $null ) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
+            }
+            return
+        }
+        if (!$Duplicates -and $catalogObject.Count -gt 1) {
+            Write-Host+ -NoTimestamp "Multiple objects with the id `"$($catalogObject[0].Id)`" were found in the catalog." -ForegroundColor Red
+            Write-Host+ -NoTimestamp "Use the -Type parameter to specify the object type or the -Duplicates switch to return all the objects with the id `"$($Id)`"." -ForegroundColor Red
+            return
+        }
+        
+        return $catalogObject
 
     }
 
@@ -237,46 +278,63 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$true,Position=0)][string]$Type,
-            [Parameter(Mandatory=$true,Position=1)][string]$Name,
-            [switch]$Installed
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service","PowerShell")][string]$Type,
+            [Parameter(Mandatory=$true,Position=0)][string]$Id,            
+            
+            [switch]$Recurse,
+            [Parameter(Mandatory=$false)][int]$RecurseLevel = 0
         )
 
-        $catalogObject = $global:Catalog.$Type.$Name
+        if ([string]::IsNullOrEmpty($Type)) { 
+            $searchResults = Search-Catalog -Id $Id
+            $catalogObject = $searchResults.Object
+            $Type = $searchResults.Type
+        }
+
+        $catalogObject = $global:Catalog.$Type.$Id
         if (!$catalogObject) {
-            Write-Host+ -NoTimestamp -NoTrace "NOTFOUND: A $($Type.ToLower()) named $($Name) was not found in the catalog." -ForegroundColor Red
+            Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
             return
         }
 
-        $dependencies = @()
-        foreach ($key in $global:Catalog.Keys) {
-            foreach ($subKey in $global:Catalog.$key.Keys) {
-                if ([array]$global:Catalog.$key.$subKey.Installation.Prerequisite.$Type -contains $Name) { 
-                    $_obj = switch ($key) {
-                        "OS" { Get-EnvironConfig Environ.OS }
-                        "Platform" { Get-EnvironConfig Environ.Platform }
-                        "Product" { 
-                            $_product = Get-Product $subKey 
-                            if (!$_product.IsInstalled -and $Installed) { continue }
-                            $_product
+        $RecurseLevel--
+
+        $dependents = @()
+        $dependency = "$($Type).$($global:Catalog.$Type.$Id.Id)"
+        foreach ($pkey in $global:Catalog.Keys) {
+            foreach ($skey in $global:Catalog.$pkey.Keys) {
+                if ([array]$global:Catalog.$pkey.$skey.Installation.Prerequisite.$Type -contains $Id) { 
+                    $_dependents = @()
+                    switch ($pkey) {
+                        "PowerShell" {
+                            foreach ($tkey in $skey.Keys) {
+                                foreach ($_psObject in $skey.$tkey) {
+                                    $_dependents += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $tkey; Object = [PSCustomObject]$_psObject; Dependency = $dependency }
+                                }
+                            }
                         }
-                        "Provider" {
-                            $_provider = Get-Provider $subKey 
-                            if (!$_provider.IsInstalled -and $Installed) { continue }
-                            $_provider
+                        default { 
+                            $_dependents += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $catalogObject; Dependency = $dependency }
+                            if ($Recurse) {
+                                foreach ($dependent in $_dependents) {
+                                    $params = @{
+                                        Type = $dependent.Type
+                                        Id = $dependent.Id
+                                        Recurse = $Recurse.IsPresent
+                                        RecurseLevel = $RecurseLevel
+                                    }
+                                    $_dependents += Get-CatalogDependents @params
+                                }
+                            }
                         }
-                        default { $null }
                     }
-                    $dependencies += [PSCustomObject]@{
-                        Type = $key
-                        Name = $subKey
-                        Object = $_obj
-                    }
+    
+                    $dependents += $_dependents
                 }
             }
         }
 
-        return $dependencies
+        return $dependents
 
     }
 
@@ -284,40 +342,57 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$true,Position=0)][string]$Type,
-            [Parameter(Mandatory=$true,Position=1)][string]$Name,
-            [switch]$Installed
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service","PowerShell")][string]$Type,
+            [Parameter(Mandatory=$true,Position=0)][string]$Id,
+
+            [switch]$Recurse,
+            [Parameter(Mandatory=$false)][int]$RecurseLevel = 0
         )
 
-        $catalogObject = $global:Catalog.$Type.$Name
+        if ([string]::IsNullOrEmpty($Type)) { 
+            $searchResults = Search-Catalog -Id $Id
+            $catalogObject = $searchResults.Object
+            $Type = $searchResults.Type
+        }
+
+        $catalogObject = $global:Catalog.$Type.$Id
         if (!$catalogObject) {
-            Write-Host+ -NoTimestamp -NoTrace "NOTFOUND: A $($Type.ToLower()) named $($Name) was not found in the catalog." -ForegroundColor Red
+            Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
             return
         }
 
+        $RecurseLevel++
+
         $dependencies = @()
-        foreach ($key in $global:Catalog.$Type.$Name.Installation.Prerequisite.Keys) {
-            foreach ($subKey in $global:Catalog.$Type.$Name.Installation.Prerequisite[$key]) {
-                $_obj = switch ($key) {
-                    "OS" { Get-EnvironConfig Environ.OS }
-                    "Platform" { Get-EnvironConfig Environ.Platform }
-                    "Product" { 
-                        $_product = Get-Product $subKey 
-                        if (!$_product.IsInstalled -and $Installed) { continue }
-                        $_product
+        $dependent = "$($Type).$($global:Catalog.$Type.$Id.Id)"
+        foreach ($pkey in $global:Catalog.$Type.$Id.Installation.Prerequisite.Keys) {
+            foreach ($skey in $global:Catalog.$Type.$Id.Installation.Prerequisite.$pkey) {
+                $_dependencies = @()
+                switch ($pkey) {
+                    "PowerShell" {
+                        foreach ($tkey in $skey.Keys) {
+                            foreach ($_psObject in $skey.$tkey) {
+                                $_dependencies += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $tkey; Object = [PSCustomObject]$_psObject; Dependent = $dependent }
+                            }
+                        }
                     }
-                    "Provider" {
-                        $_provider = Get-Provider $subKey 
-                        if (!$_provider.IsInstalled -and $Installed) { continue }
-                        $_provider
+                    default { 
+                        $_dependencies += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $catalogObject; Dependent = $dependent }
+                        if ($Recurse) {
+                            foreach ($dependency in $_dependencies) {
+                                $params = @{
+                                    Type = $dependency.Type
+                                    Id = $dependency.Id
+                                    Recurse = $Recurse.IsPresent
+                                    RecurseLevel = $RecurseLevel
+                                }
+                                $_dependencies += Get-CatalogDependencies @params
+                            }
+                        }
                     }
-                    default { $null }
                 }
-                $dependencies += [PSCustomObject]@{
-                    Type = $key
-                    Name = $subKey
-                    Object = $_obj
-                }
+
+                $dependencies += $_dependencies
             }
         }
 
@@ -913,8 +988,8 @@
             }
             elseif ($InputObject -is [hashtable]) {
                 $ht = @{}
-                foreach ($key in $InputObject.Keys) {
-                    $ht.$key = ConvertFrom-XmlElement -InputObject $InputObject.$key
+                foreach ($pkey in $InputObject.Keys) {
+                    $ht.$pkey = ConvertFrom-XmlElement -InputObject $InputObject.$pkey
                 }
                 $ht
             }

@@ -144,9 +144,9 @@ $global:WriteHostPlusPreference = "Continue"
     $operatingSystemId = $installedOperatingSystem
 
     $installedPlatforms = @()
-    $services = Get-Service
+    $localServices = Get-Service
     foreach ($key in $global:Catalog.Platform.Keys) { 
-        if ($services.Name -contains $global:Catalog.Platform.$key.Installation.Discovery.Service) {
+        if ($localServices.Name -contains $global:Catalog.Platform.$key.Installation.Discovery.Service) {
             $installedPlatforms += $key
         }
     }
@@ -769,11 +769,20 @@ $global:WriteHostPlusPreference = "Continue"
 #endregion UPDATES
 #region IMPACT
 
+    $impactedIds = @()
+    if ($coreFiles) {
+        $impactedIds += "Overwatch.Overwatch"
+    }
+    if ($platformFiles) {
+        $impactedIds += "Platform.$platformId"
+    }
     if ($productFiles) {
         $productIds += ($productFiles.Product -split ",") | Where-Object {$_ -notin $productIds} | Sort-Object -Unique
+        $impactedIds += foreach ($productId in $productIds) { "Product.$productId" }
     }
     if ($providerFiles) {
         $providerIds += ($providerFiles.Provider -split ",") | Where-Object {$_ -notin $providerIds} | Sort-Object -Unique
+        $impactedIds += foreach ($providerId in $providerIds) { "Provider.$providerId" }
     }
     if ($coreFiles -or $osFiles -or $platformFiles) {
         $productIds += $global:Environ.Product | Where-Object {$_ -notin $productIds}
@@ -1004,31 +1013,67 @@ $global:WriteHostPlusPreference = "Continue"
 
         Write-Host+ -MaxBlankLines 1
         $message = "<Powershell modules/packages <.>48> INSTALLING"
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+
+        $requiredModules = @()
+        $requiredPackages = @()
+
+        foreach ($impactedId in $impactedIds) {
+            $dependencies = Get-CatalogDependencies -Type ($impactedId -split "\.")[0] -Id ($impactedId -split "\.")[1]  -Recurse
+            foreach ($dependency in ($dependencies | Where-Object {$_.Type -eq "PowerShell"})) {
+                if ($dependency.Id -eq "Module") { 
+                    $requiredModules +=  @{ Name = $dependency.Object.Name }
+                }
+                if ($dependency.Id -eq "Package") { 
+                    $requiredPackages +=  @{ Name = $dependency.Object.Name }
+                }
+            }
+        }
 
         if (!(Get-PackageSource -ProviderName PowerShellGet)) {
             Register-PackageSource -Name PSGallery -Location "https://www.powershellgallery.com/api/v2" -ProviderName PowerShellGet -ErrorAction SilentlyContinue | Out-Null
         }
-        $requiredModules = @("PsIni")
-        foreach ($module in $requiredModules) {
-            if (!(Get-Module -Name $module -ErrorAction SilentlyContinue | Out-Null)) {
-                Install-Module -Name $module -Force -ErrorAction SilentlyContinue | Out-Null
-                Import-Module -Name $module -ErrorAction SilentlyContinue | Out-Null
-            }
-        }
-
         if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
             Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -ErrorAction SilentlyContinue | Out-Null
         }
-        $requiredPackages = @("Portable.BouncyCastle","MimeKit","MailKit")
-        foreach ($package in $requiredPackages) {
-            if (!(Get-Package -Name $package -ErrorAction SilentlyContinue)) {
-                Install-Package -Name $package -SkipDependencies -Force | Out-Null
+
+        $requiredModules += @()
+        foreach ($module in $requiredModules) {
+
+            $message = "<  $($module.name) <.>36> PENDING"
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
+            $installedColor = "DarkGray"
+            if (!(Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue)) {
+                Install-Module -Name $module.name -Force -ErrorAction SilentlyContinue | Out-Null
+                Import-Module -Name $module.name -ErrorAction SilentlyContinue | Out-Null
+                $installedColor = "DarkGreen"
             }
+            
+            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
+
         }
 
-        $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        # $requiredPackages += @()
+        foreach ($package in $requiredPackages) {
+            
+            $message = "<  $($package.name) <.>36> PENDING"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
+            $installedColor = "DarkGray"
+            if (!(Get-InstalledModule -Name $package.name -ErrorAction SilentlyContinue)) {
+                Install-Package -Name $package.name -SkipDependencies -Force | Out-Null
+                $installedColor = "DarkGreen"
+            }
+
+            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
+
+        }
+
+        $message = "<Powershell modules/packages <.>48> INSTALLED"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
 
     }
 
@@ -1352,3 +1397,5 @@ $global:WriteHostPlusPreference = "Continue"
     [console]::CursorVisible = $true
 
 #endregion MAIN
+
+#tag you're it

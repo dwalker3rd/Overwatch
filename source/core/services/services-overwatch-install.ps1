@@ -481,7 +481,7 @@ function script:Copy-File {
 
         $productToInstall = (Get-Product $Context -ResetCache).Id ?? $Context
 
-        $productLogFile = (Get-Catalog -Name $productToInstall -Type Product).Log ? ((Get-Catalog -Name $productToInstall -Type Product).Log).ToLower() : $Platform.Instance
+        $productLogFile = (Get-Catalog -Id $productToInstall -Type Product).Log ? ((Get-Catalog -Id $productToInstall -Type Product).Log).ToLower() : $Platform.Instance
         if (!(Test-Log -Name $productLogFile)) {
             New-Log -Name $productLogFile | Out-Null
         }
@@ -611,7 +611,7 @@ function script:Copy-File {
 
         $providerToInstall = (Get-Provider $Context -ResetCache).Id ?? $Context
 
-        $providerLogFile = (Get-Catalog -Name $providerToInstall -Type Provider).Log ? ((Get-Catalog -Name $providerToInstall -Type Provider).Log).ToLower() : $Platform.Instance
+        $providerLogFile = (Get-Catalog -Id $providerToInstall -Type Provider).Log ? ((Get-Catalog -Id $providerToInstall -Type Provider).Log).ToLower() : $Platform.Instance
         if (!(Test-Log -Name $providerLogFile)) {
             New-Log -Name $providerLogFile | Out-Null
         }
