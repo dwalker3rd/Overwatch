@@ -1031,10 +1031,10 @@ $global:WriteHostPlusPreference = "Continue"
         }
 
         if (!(Get-PackageSource -ProviderName PowerShellGet)) {
-            Register-PackageSource -Name PSGallery -Location "https://www.powershellgallery.com/api/v2" -ProviderName PowerShellGet -ErrorAction SilentlyContinue | Out-Null
+            Register-PackageSource -Name PSGallery -ProviderName PowerShellGet -Trusted -ErrorAction SilentlyContinue | Out-Null
         }
         if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
-            Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -ErrorAction SilentlyContinue | Out-Null
+            Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -Trusted -ErrorAction SilentlyContinue | Out-Null
         }
 
         $requiredModules += @()
