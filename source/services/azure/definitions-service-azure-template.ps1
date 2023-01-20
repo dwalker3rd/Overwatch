@@ -1,13 +1,17 @@
 # The following line indicates a post-installation configuration to the installer
-# Manual Configuration > Service > Azure > Configure Azure Projects
+# Manual Configuration > Service > AzureAD > Configure Azure AD tenant
+# Manual Configuration > Service > AzureAD > Add MsGraph credentials to vault
+# Manual Configuration > Service > AzureAD > Add Admin credentials to vault
 
 function global:Initialize-Azure {
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
-    param()
+    param(
+        [switch]$Reinitialize
+    )
 
-    if ($null -eq $global:Azure) {
+    if ($null -eq $global:Azure -or $Reinitialize) {
         $global:Azure = @{}
         $global:Azure += @{
 
@@ -15,28 +19,28 @@ function global:Initialize-Azure {
                 Data = "$($global:Location.Root)\data\azure"
             }
 
-            acmeb2c = @{
-                Name = "acmeb2c"
-                Prefix = "acmeb2c"
-                DisplayName = "acmeb2c"
-                Organization = "ACMEB2C"
+            "<tenantKeyNoQuotes>" = @{
+                Name = "<tenantKey>"
+                Prefix = "<tenantKey>"
+                DisplayName = "<tenantName>"
+                Organization = ""
                 Subscription = @{
-                    Id = "00000000-0000-0000-0000-000000000000"
-                    Name = "ACMEB2C Azure AD B2C"
+                    Id = "<subscriptionId>"
+                    Name = "<subscriptionName>"
                 }
                 Tenant = @{
-                    Type = "Azure AD B2C"
-                    Id = "00000000-0000-0000-0000-000000000000"
-                    Name = "acmeb2c.onmicrosoft.com"
-                    Domain = @("acmeb2c.onmicrosoft.com")
+                    Type = "<tenantType>"
+                    Id = "<tenantId>"
+                    Name = "<tenantName>"
+                    Domain = @("<tenantDomain>")
                 }
                 MsGraph = @{
                     Scope = "https://graph.microsoft.com/.default"
-                    Credentials = "acmeb2c-msgraph" # app id/secret
+                    Credentials = "<tenantKey>-msgraph" # app id/secret
                     AccessToken = $null
                 }
                 Admin = @{
-                    Credentials = "acmeb2c-admin"
+                    Credentials = "<tenantKey>-admin"
                 }
             }
 
