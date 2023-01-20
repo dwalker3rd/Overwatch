@@ -186,15 +186,18 @@ function global:Copy-Credentials {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Source,
-        [Parameter(Mandatory=$true,Position=1)][string]$Target,
         [Parameter(Mandatory=$false)][object]$SourceSecretVault = "secret",
         [Parameter(Mandatory=$false)][object]$SourceKeyVault = "key",
-        [Parameter(Mandatory=$false)][object]$TargetSecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$TargetKeyVault = "key"
+        [Parameter(Mandatory=$false)][string]$SourceComputerName = $env:COMPUTERNAME,
+        
+        [Parameter(Mandatory=$false)][string]$Destination = $Source,
+        [Parameter(Mandatory=$false)][object]$DestinationSecretVault = $SourceSecretVault,
+        [Parameter(Mandatory=$false)][object]$DestinationKeyVault = $SourceKeyVault,
+        [Parameter(Mandatory=$false)][string]$DestinationComputerName = $SourceComputerName
     )
 
-    $creds = Get-Credentials $Source -SecretVault $SourceSecretVault -KeyVault $SourceKeyVault
-    Set-Credentials $Target -Credentials $creds -SecretVault $TargetSecretVault -KeyVault $TargetKeyVault
+    $creds = Get-Credentials $Source -SecretVault $SourceSecretVault -KeyVault $SourceKeyVault -ComputerName $SourceComputerName
+    Set-Credentials $Destination -Credentials $creds -SecretVault $DestinationSecretVault -KeyVault $DestinationKeyVault -ComputerName $DestinationComputerName
 
 }
 

@@ -430,6 +430,15 @@ $global:Catalog.Service += @{ AzureAD =
         Category = "Cloud"
         Description = "AzureAD Services"
         Publisher = "Overwatch"
+        Installation = @{
+            Prerequisite = @{
+                PowerShell = @{
+                    Module = @(
+                        @{ Name = "MSAL.PS" }
+                    )
+                }
+            }
+        }
     }
 }
 
