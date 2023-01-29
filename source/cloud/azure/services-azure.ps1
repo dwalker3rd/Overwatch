@@ -56,6 +56,7 @@ function global:Update-AzureConfig {
                 SubscriptionId = $global:Azure.$tenantKey.Subscription.Id
                 TenantId = $global:Azure.$tenantKey.Tenant.Id
                 TenantKey = $tenantKey
+                Credentials = "$tenantKey-admin"
             }
         }
     }
