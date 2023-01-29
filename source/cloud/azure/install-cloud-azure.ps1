@@ -18,7 +18,7 @@ if (Test-Path -Path $azureSettings) {
 
 $interaction = ![string]::IsNullOrEmpty($subscriptionId) -or ![string]::IsNullOrEmpty($tenantId) -or ![string]::IsNullOrEmpty($azureAdmin)
 
-Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credentials $azureAdmin
+Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credentials $azureAdmin -ErrorAction SilentlyContinue
 
 #region SAVE SETTINGS
 

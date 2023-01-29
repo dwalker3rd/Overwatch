@@ -49,7 +49,9 @@ function global:Update-AzureConfig {
 
     foreach ($tenantKey in (Get-AzureTenantKeys)) {
         if ($global:Azure.$tenantKey.Tenant.Id -eq $TenantId) {
-            Write-Host+ -NoTimestamp "    Tenant id `"$($global:Azure.$tenantKey.Tenant.Id)`" has already been added."
+            if ($PSBoundParameters.ErrorAction -and $PSBoundParameters.ErrorAction -ne "SilentlyContinue") {
+                Write-Host+ -NoTimestamp "    Tenant id `"$($global:Azure.$tenantKey.Tenant.Id)`" has already been added."
+            }
             return
         }
     }
