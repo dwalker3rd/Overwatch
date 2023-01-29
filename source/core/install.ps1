@@ -1422,7 +1422,7 @@ $providerIds = @()
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
                 foreach ($impactedProductIdsWithEnabledTask in $impactedProductIdsWithEnabledTasks) {
-                    Enable-Product $impactedProductIdsWithEnabledTask -NoNewLine
+                    Enable-Product $impactedProductIdsWithEnabledTask
                 }
 
                 Write-Host+

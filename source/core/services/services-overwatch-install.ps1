@@ -472,10 +472,10 @@ function script:Copy-File {
         }
 
         $productToEnable = Get-Product $Context -ResetCache     
-        $Name = $productToEnable.Name
+        $Id = $productToEnable.Id
 
         if (!$NoNewLine) {
-            $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","INSTALLED$($emptyString.PadLeft(11," "))PENDING$($emptyString.PadLeft(13," "))"
+            $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","INSTALLED$($emptyString.PadLeft(11," "))PENDING$($emptyString.PadLeft(13," "))"
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGreen
         }
 
