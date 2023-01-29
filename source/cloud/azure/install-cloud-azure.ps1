@@ -22,6 +22,8 @@ Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credenti
 
 #region SAVE SETTINGS
 
+    $tenantKey = Get-AzureTenantKeys | Where-Object {$global:Azure.$_.Tenant.Id -eq $TenantId}
+
     if (Test-Path $azureSettings) {Clear-Content -Path $azureSettings}
     '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $azureSettings
     "Param()" | Add-Content -Path $azureSettings
