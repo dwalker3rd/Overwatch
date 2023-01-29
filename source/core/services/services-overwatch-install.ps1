@@ -253,7 +253,7 @@ function script:Copy-File {
         param(
             [Parameter(Mandatory=$true)][string]$Source,
             [Parameter(Mandatory=$false)][string]$Destination = $Source,
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Provider","Product","Location")][string]$Type,
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","Provider","Product","Location")][string]$Type,
             [Parameter(Mandatory=$false)][string]$Name,
             [Parameter(Mandatory=$false)][string]$Expression = "`"`$(`$global:Location.Root)\$($Name.ToLower())`""
         )
@@ -559,8 +559,10 @@ function script:Uninstall-CatalogObject {
     Remove-CatalogObjectFiles -Type $Type -Id $Id -DeleteAllData:$DeleteAllData.IsPresent
     Update-Environ -Type $Type -Name $Id -Source "$($global:Location.Scripts)\environ.ps1"
 
-    $resetCacheResult = Invoke-Expression "Get-$($Type) $Id -ResetCache"
-    $resetCacheResult | Out-Null
+    if (Get-Command "Get-$($Type)".Parameters.Keys -contains "ResetCache") {
+        $resetCacheResult = Invoke-Expression "Get-$($Type) $Id -ResetCache"
+        $resetCacheResult | Out-Null
+    }
 
     $catalogObject.Refresh()
 
