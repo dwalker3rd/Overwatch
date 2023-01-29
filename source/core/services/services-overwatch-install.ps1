@@ -307,6 +307,7 @@ function script:Copy-File {
             $environItems = Select-String $Destination -Pattern "$Type = " -Raw
             if (!$PSBoundParameters.ContainsKey('WhatIf')) {
                 $updatedEnvironItems = $environItems.Replace("`"$Name`"","").Replace(", ,",",").Replace("(, ","(").Replace(", )",")")
+                if ($updatedEnvironItems -match "=\s*$") { $updatedEnvironItems += "`"None`""}
                 $content = Get-Content $Destination 
                 $newContent = $content | Foreach-Object {$_.Replace($environItems,$updatedEnvironItems)}
                 Set-Content $Destination -Value $newContent
@@ -559,7 +560,7 @@ function script:Uninstall-CatalogObject {
     Remove-CatalogObjectFiles -Type $Type -Id $Id -DeleteAllData:$DeleteAllData.IsPresent
     Update-Environ -Type $Type -Name $Id -Source "$($global:Location.Scripts)\environ.ps1"
 
-    if (Get-Command "Get-$($Type)".Parameters.Keys -contains "ResetCache") {
+    if ((Get-Command "Get-$($Type)").Parameters.Keys -contains "ResetCache") {
         $resetCacheResult = Invoke-Expression "Get-$($Type) $Id -ResetCache"
         $resetCacheResult | Out-Null
     }
