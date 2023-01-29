@@ -105,8 +105,6 @@ function global:Update-AzureConfig {
                 }
             } until ($TenantId)
 
-            Write-Host+
-
             $azureProfile = Connect-AzAccount -Credential $creds -TenantId $TenantId -SubscriptionId $SubscriptionId -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
             if (!$azureProfile) {
                 $exception = [Microsoft.Azure.Commands.Common.Exceptions.AzPSAuthenticationFailedException](Get-Error).Exception
@@ -119,8 +117,6 @@ function global:Update-AzureConfig {
                 Write-Host+ -NoTrace -NoTimestamp "    Invalid Tenant ID, Subscription ID or Azure Admin Credentials." -ForegroundColor Red
                 $TenantId = $SubscriptionId = $creds = $null
             }
-
-            Write-Host+
 
         } until ($azureProfile)
 
@@ -138,7 +134,7 @@ function global:Update-AzureConfig {
         # got the azure profile, therefore azure admin credentials are valid 
         $creds | Set-Credentials "$tenantKey-admin"
 
-        # Write-Host+ -MaxBlankLines 1
+        Write-Host+ 
         Write-Host+ -NoTrace -NoTimestamp "    Subscription: $subscriptionName ($SubscriptionId)"
         Write-Host+ -NoTrace -NoTimestamp "    Tenant: $tenantName ($TenantId)"
         Write-Host+ -NoTrace -NoTimestamp "    DefaultDomain: $tenantDomain"

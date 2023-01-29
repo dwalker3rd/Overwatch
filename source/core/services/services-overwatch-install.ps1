@@ -198,48 +198,30 @@ function script:Copy-File {
 
         . "$($global:Location.Scripts)\environ.ps1"
 
-        if (Test-Path -Path $($global:InstallSettings)) { Clear-Content -Path $($global:InstallSettings) }
+        if (Test-Path -Path $global:InstallSettings) { Clear-Content -Path $global:InstallSettings }
                 
-        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $($global:InstallSettings)
-        "Param()" | Add-Content -Path $($global:InstallSettings)
-        if (![string]::IsNullOrEmpty($overwatchInstallLocation)) {
-            "`$overwatchInstallLocation = ""$overwatchInstallLocation""" | Add-Content -Path $($global:InstallSettings)
-        }
-        if (![string]::IsNullOrEmpty($operatingSystemId)) {
-            "`$operatingSystemId = ""$operatingSystemId""" | Add-Content -Path $($global:InstallSettings)
-        }
-        if (![string]::IsNullOrEmpty($cloudId)) {
-            "`$cloudId = ""$cloudId""" | Add-Content -Path $($global:InstallSettings)
-        }
-        if (![string]::IsNullOrEmpty($platformId)) {
-            "`$platformId = ""$platformId""" | Add-Content -Path $($global:InstallSettings)
-        }
-        if (![string]::IsNullOrEmpty($platformInstallLocation)) {
-            "`$platformInstallLocation = ""$platformInstallLocation""" | Add-Content -Path $($global:InstallSettings)
-        }
-        if (![string]::IsNullOrEmpty($platformInstanceId)) {
-            "`$platformInstanceId = ""$platformInstanceId""" | Add-Content -Path $($global:InstallSettings)
-        }
+        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $global:InstallSettings
+        "Param()" | Add-Content -Path $global:InstallSettings
+        "`$overwatchInstallLocation = ""$($global:Location.Root)""" | Add-Content -Path $global:InstallSettings
+        "`$operatingSystemId = ""$($global:Environ.OS)""" | Add-Content -Path $global:InstallSettings
+        "`$cloudId = ""$($global:Environ.Cloud)""" | Add-Content -Path $global:InstallSettings
+        "`$platformId = ""$($global:Environ.Platform)""" | Add-Content -Path $global:InstallSettings
+        "`$platformInstanceId = ""$($global:Environ.Instance)""" | Add-Content -Path $global:InstallSettings
+        "`$platformInstallLocation = ""$($global:Platform.InstallPath)""" | Add-Content -Path $global:InstallSettings
+        "`$imagesUri = [System.Uri]::new(""$($global:Location.Images)"")" | Add-Content -Path $global:InstallSettings
+        "`$platformInstanceUri = [System.Uri]::new(""$($global:Platform.Uri)"")" | Add-Content -Path $global:InstallSettings
+        "`$platformInstanceDomain = ""$($global:Platform.Domain)""" | Add-Content -Path $global:InstallSettings
         if ($global:Environ.Product.Count -gt 0) {
-            "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $($global:InstallSettings)
+            "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $global:InstallSettings
         }
         if ($global:Environ.Provider.Count -gt 0) {
-            "`$providerIds = @('$($global:Environ.Provider -join "', '")')" | Add-Content -Path $($global:InstallSettings)
+            "`$providerIds = @('$($global:Environ.Provider -join "', '")')" | Add-Content -Path $global:InstallSettings
         }
-        if (![string]::IsNullOrEmpty($imagesUri)) {
-            "`$imagesUri = [System.Uri]::new(""$imagesUri"")" | Add-Content -Path $($global:InstallSettings)
+        if ($global:PlatformTopologyBase.Nodes.Count -gt 0) {
+            "`$platformInstanceNodes = @('$($global:PlatformTopologyBase.Nodes -join "', '")')" | Add-Content -Path $global:InstallSettings
         }
-        if (![string]::IsNullOrEmpty($platformInstanceUri)) {
-            "`$platformInstanceUri = [System.Uri]::new(""$platformInstanceUri"")" | Add-Content -Path $($global:InstallSettings)
-        }
-        if (![string]::IsNullOrEmpty($platformInstanceDomain)) {
-            "`$platformInstanceDomain = ""$platformInstanceDomain""" | Add-Content -Path $($global:InstallSettings)
-        }
-        if ($platformInstanceNodes.Count -gt 0) {
-            "`$platformInstanceNodes = @('$($platformInstanceNodes -join "', '")')" | Add-Content -Path $($global:InstallSettings)
-        }
-        if ($requiredPythonPackages.Count -gt 0) {
-            "`$requiredPythonPackages = @('$($requiredPythonPackages -join "', '")')" | Add-Content -Path $($global:InstallSettings)
+        if ($global:RequiredPythonPackages.Count -gt 0) {
+            "`$requiredPythonPackages = @('$($global:RequiredPythonPackages -join "', '")')" | Add-Content -Path $global:InstallSettings
         }
 
     }
@@ -559,6 +541,7 @@ function script:Uninstall-CatalogObject {
 
     Remove-CatalogObjectFiles -Type $Type -Id $Id -DeleteAllData:$DeleteAllData.IsPresent
     Update-Environ -Type $Type -Name $Id -Source "$($global:Location.Scripts)\environ.ps1"
+    Update-InstallSettings
 
     if ((Get-Command "Get-$($Type)").Parameters.Keys -contains "ResetCache") {
         $resetCacheResult = Invoke-Expression "Get-$($Type) $Id -ResetCache"

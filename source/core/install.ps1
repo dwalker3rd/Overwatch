@@ -1110,7 +1110,7 @@ $providerIds = @()
 
             $installedColor = "DarkGray"
             if (!(Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue)) {
-                Install-Module -Name $module.name -Force -ErrorAction SilentlyContinue | Out-Null
+                Install-Module -Name $module.name -Force -AllowClobber -ErrorAction SilentlyContinue | Out-Null
                 Import-Module -Name $module.name -ErrorAction SilentlyContinue | Out-Null
                 $installedColor = "DarkGreen"
             }
