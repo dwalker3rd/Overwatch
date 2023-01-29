@@ -415,6 +415,9 @@
 
         $catalogObject = @()
 
+        # "None" is a reserved word for an empty $global:Environ definition
+        if (![string]::IsNullOrEmpty($Id) -and $Id -eq "None") { return }
+
         if ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {
             foreach ($pkey in $global:Catalog.Keys) {
                 if ($global:Catalog.$pkey.$Id) {
@@ -477,6 +480,9 @@
             [switch]$Installed,
             [switch]$NotInstalled
         )
+
+        # "None" is a reserved word for an empty $global:Environ definition
+        if (![string]::IsNullOrEmpty($Id) -and $Id -eq "None") { return }
 
         if ([string]::IsNullOrEmpty($Type)) { 
             $searchResults = Search-Catalog -Id $Id
@@ -587,6 +593,9 @@
             [switch]$Installed,
             [switch]$NotInstalled
         )
+
+        # "None" is a reserved word for an empty $global:Environ definition
+        if (![string]::IsNullOrEmpty($Id) -and $Id -eq "None") { return }        
 
         if ([string]::IsNullOrEmpty($Type)) { 
             $searchResults = Search-Catalog -Id $Id
