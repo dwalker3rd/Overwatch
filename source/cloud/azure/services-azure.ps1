@@ -62,8 +62,6 @@ function global:Update-AzureConfig {
                 $creds = Get-Credentials $Credentials
             }
             else {
-                if(!$interaction) { Write-Host+ }
-                $interaction = $true
                 $creds = Request-Credentials -Message "    Enter Azure Admin Credentials" -Prompt1 "      Username" -Prompt2 "      Password"
             }
 
