@@ -31,30 +31,20 @@ if (!(Get-AzureTenantKeys -AzureADB2C)) {
 # TODO: this section of code is duplicated in install-product-azureadsyncb2c.ps1, install-product-azureadsyncts.ps1 and install-azure.ps1; convert to a function in services-azure.ps1
 if (!(Get-AzureTenantKeys -AzureAD)) {
 
-    # $overwatchRoot = $PSScriptRoot -replace "\\install",""
-    # $azureDefinitionsFile = "$overwatchRoot\definitions\definitions-cloud-azure.ps1"
-    # if (Get-Content -Path $azureDefinitionsFile | Select-String "<azureADTenantId>" -Quiet) {
+    $interaction = [string]::IsNullOrEmpty($subscriptionId) -or [string]::IsNullOrEmpty($tenantId) -or [string]::IsNullOrEmpty($azureAdmin)
 
-        $interaction = $true
-
-        Write-Host+; Write-Host+
-        # Write-Host+ -NoTrace -NoTimestamp "    Subscription and Tenant"
-        # Write-Host+ -NoTrace -NoTimestamp "    -----------------------"
-
-        Update-AzureConfig -TenantId $tenantId -SubscriptionId $subscriptionId -Sync
-
-        #region SAVE SETTINGS
-
-            if (Test-Path $azureADSyncInstallSettings) {Clear-Content -Path $azureADSyncInstallSettings}
-            '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $azureADSyncInstallSettings
-            "Param()" | Add-Content -Path $azureADSyncInstallSettings
-            "`$tenantId = `"$tenantId`"" | Add-Content -Path $azureADSyncInstallSettings
-            "`$subscriptionId = `"$subscriptionId`"" | Add-Content -Path $azureADSyncInstallSettings
-            # "`$azureADAdmin = `"$tenantKey-admin`"" | Add-Content -Path $azureSettings
-
-        #endregion SAVE SETTINGS
-
-    # }
+    $azConfigUpdate = Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credentials $azureADAdmin
+    
+    #region SAVE SETTINGS
+    
+        if (Test-Path $azureSettings) {Clear-Content -Path $azureSettings}
+        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $azureSettings
+        "Param()" | Add-Content -Path $azureSettings
+        "`$tenantId = `"$($azConfigUpdate.TenantId)`"" | Add-Content -Path $azureSettings
+        "`$subscriptionId = `"$($azConfigUpdate.SubscriptionId)`"" | Add-Content -Path $azureSettings
+        "`$azureADAdmin = `"$($azConfigUpdate.Credentials)`"" | Add-Content -Path $azureSettings
+    
+    #endregion SAVE SETTINGS
 
 }
 

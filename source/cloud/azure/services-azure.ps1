@@ -41,20 +41,26 @@ function global:Update-AzureConfig {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$TenantId,
-        [Parameter(Mandatory=$true)][string]$SubscriptionId,
+        [Parameter(Mandatory=$false)][string]$TenantId,
+        [Parameter(Mandatory=$false)][string]$SubscriptionId,
         [Parameter(Mandatory=$false)][string]$Credentials,
         [switch]$Sync
     )
 
     foreach ($tenantKey in (Get-AzureTenantKeys)) {
         if ($global:Azure.$tenantKey.Tenant.Id -eq $TenantId) {
-            if ($PSBoundParameters.ErrorAction -and $PSBoundParameters.ErrorAction -ne "SilentlyContinue") {
-                Write-Host+ -NoTimestamp "    Tenant id `"$($global:Azure.$tenantKey.Tenant.Id)`" has already been added."
+            # if ($PSBoundParameters.ErrorAction -and $PSBoundParameters.ErrorAction -ne "SilentlyContinue") {
+            #     Write-Host+ -NoTimestamp "    Tenant id `"$($global:Azure.$tenantKey.Tenant.Id)`" has already been added."
+            # }
+            return @{
+                SubscriptionId = $global:Azure.$tenantKey.Subscription.Id
+                TenantId = $global:Azure.$tenantKey.Tenant.Id
+                TenantKey = $tenantKey
             }
-            return
         }
     }
+
+    Write-Host+; Write-Host+
 
     do {
 
@@ -114,6 +120,8 @@ function global:Update-AzureConfig {
                 $TenantId = $SubscriptionId = $creds = $null
             }
 
+            Write-Host+
+
         } until ($azureProfile)
 
         $azTenant = Get-AzTenant -TenantId $TenantId
@@ -141,6 +149,18 @@ function global:Update-AzureConfig {
         $azureConfigurationResponse = Read-Host -Prompt "    Configure this Azure Subscription/Tenant? (Y/N)"
     
     } until ($azureConfigurationResponse.ToUpper().StartsWith("Y"))
+
+    foreach ($tenantKey in (Get-AzureTenantKeys)) {
+        if ($global:Azure.$tenantKey.Tenant.Id -eq $TenantId) {
+            # Write-Host+ -NoTrace -NoTimestamp "    Tenant id `"$($global:Azure.$tenantKey.Tenant.Id)`" has already been added." -ForegroundColor Red
+            return @{
+                SubscriptionId = $SubscriptionId
+                TenantId = $TenantId
+                TenantKey = $tenantKey
+                Credentials = "$tenantKey-admin"
+            }
+        }
+    }
 
     $_tenantTemplate = @{
         $tenantKey = @{
@@ -230,6 +250,13 @@ function global:Update-AzureConfig {
 
     . $azureDefinitionsFile
     Initialize-AzureConfig -Reinitialize
+
+    return @{
+        SubscriptionId = $SubscriptionId
+        TenantId = $TenantId
+        TenantKey = $tenantKey
+        Credentials = "$tenantKey-admin"
+    }
 
 }
 

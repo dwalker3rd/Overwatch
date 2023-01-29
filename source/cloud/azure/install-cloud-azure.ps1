@@ -18,18 +18,16 @@ if (Test-Path -Path $azureSettings) {
 
 $interaction = [string]::IsNullOrEmpty($subscriptionId) -or [string]::IsNullOrEmpty($tenantId) -or [string]::IsNullOrEmpty($azureAdmin)
 
-Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credentials $azureAdmin -ErrorAction SilentlyContinue
+$azConfigUpdate = Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credentials $azureAdmin
 
 #region SAVE SETTINGS
-
-    $tenantKey = Get-AzureTenantKeys | Where-Object {$global:Azure.$_.Tenant.Id -eq $TenantId}
 
     if (Test-Path $azureSettings) {Clear-Content -Path $azureSettings}
     '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $azureSettings
     "Param()" | Add-Content -Path $azureSettings
-    "`$tenantId = `"$tenantId`"" | Add-Content -Path $azureSettings
-    "`$subscriptionId = `"$subscriptionId`"" | Add-Content -Path $azureSettings
-    "`$azureAdmin = `"$tenantKey-admin`"" | Add-Content -Path $azureSettings
+    "`$tenantId = `"$($azConfigUpdate.TenantId)`"" | Add-Content -Path $azureSettings
+    "`$subscriptionId = `"$($azConfigUpdate.SubscriptionId)`"" | Add-Content -Path $azureSettings
+    "`$azureAdmin = `"$($azConfigUpdate.Credentials)`"" | Add-Content -Path $azureSettings
 
 #endregion SAVE SETTINGS
 
