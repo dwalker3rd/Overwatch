@@ -2,10 +2,10 @@
 
 $global:Platform = $global:Catalog.Platform.TableauServer
 $global:Platform.Image = "$($global:Location.Images)/tableau_sparkle.png"
-$global:Platform.Api = @{
-    TsRestApiVersion = $global:Catalog.Platform.TableauServer.Api.TableauServerRestApi.Version
-    TsmApiVersion = $global:Catalog.Platform.TableauServer.Api.TsmApi.Version
-}
+# $global:Platform.Api = @{
+#     TsRestApiVersion = $global:Catalog.Platform.TableauServer.Api.TableauServerRestApi.Version
+#     TsmApiVersion = $global:Catalog.Platform.TableauServer.Api.TsmApi.Version
+# }
 
 $global:PlatformStatusNotOK = @(
     'Unlicensed',
@@ -47,11 +47,6 @@ $global:TSSiteAdminRoles = @(
     "SiteAdministratorCreator",
     "ServerAdministrator"
 )
-
-$global:Backup = $null
-$global:Backup += @{
-    Path = $(. tsm configuration get -k basefilepath.backuprestore)
-}
 
 $global:Cleanup = $null
 $global:Cleanup += @{

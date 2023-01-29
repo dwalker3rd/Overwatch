@@ -2,42 +2,88 @@
 
 using namespace System.IO
 
-class Overwatch {
+class CatalogObject {
+
+    [string]$Type
     [string]$Id
     [string]$Name
     [string]$DisplayName
     [string]$Description
+    [string]$Publisher
+    [string]$Release
+    [string]$Suite
     [string]$Image
+    [object]$Initialization
+    [object]$Installation
+    hidden [string]$SortProperty
+    [bool]$Installed
+
+    CatalogObject() { $this.Init() }
+
+    [void]Init() {
+        $this.Type = $this.GetType().Name
+        $this.Refresh()
+    }
+
+    [void]Refresh() {
+        $this.Installed = $this.IsInstalled()
+        $this.SortProperty = $this.GetSortProperty()
+    }
+
+    [bool]IsInstalled() {
+        return $this.Id -in $global:Environ.$($this.Type)
+    }
+
+    hidden [string]GetSortProperty() {
+        $_typeSortOrder =  @{ CatalogObject = 0; Overwatch = 1; OS = 2; Cloud = 3; Platform = 4; Product = 5; Provider = 6 }
+        return "$($_typeSortOrder.($this.Type))$(![string]::IsNullOrEmpty($this.Id) ? ".$($this.Id)" : $null)"
+    }
+
+    [string[]]Properties() {
+
+        $_properties = @()
+
+        # get the base class properties
+        $_baseObjectProperties = @()
+        try { 
+            $_baseObjectProperties += ($this.GetType()).BaseType.GetProperties() | 
+                Where-Object {$_.CustomAttributes.AttributeType.Name -ne "HiddenAttribute"}
+            if ($_baseObjectProperties) { $_properties += $_baseObjectProperties }
+        } catch {}
+
+        # get properties in object that aren't in the base class
+        $_thisObjectProperties = @()
+        $_thisObjectProperties += ($this.GetType()).GetProperties() | 
+            Where-Object {$_.CustomAttributes.AttributeType.Name -ne "HiddenAttribute"} |
+                Where-Object {$_.Name -notin $_baseObjectProperties.Name}
+
+        $_properties += $_thisObjectProperties
+
+        return $_properties.Name
+
+    }
+
+}
+
+class Overwatch : CatalogObject {}
+
+class OS : CatalogObject {}
+
+class Cloud : CatalogObject {
     [string]$Version
+    [string]$Build
+    [System.Uri]$Uri
     [string]$Log
 }
 
-class OS {
-    [string]$Id
-    [string]$Name
-    [string]$DisplayName
-    [string]$Description
-    [string]$Image
-    [string]$Version
-    [string]$Log
-}
-
-class Platform {
-    [string]$Id
-    [string]$Name
-    [string]$DisplayName
-    [string]$Description
-    [string]$Image
+class Platform : CatalogObject {
     [string]$Instance
     [string]$Version
     [string]$Build
-    [string]$Log
     [System.Uri]$Uri
     [string]$Domain
-    [string]$Publisher
     [string]$InstallPath
-    [object]$Api
-    [object]$Installation
+    [string]$Log
 }
 
 class PlatformStatus {
@@ -99,55 +145,20 @@ class PlatformCim {
     [string[]]$Component
 }
 
-class Product {
-    [string]$Id
-    [string]$Name
-    [string]$DisplayName
-    [string]$Description
-    [string]$Image
-    [string]$Version
-    [string]$Log
-    [bool]$IsInstalled
-    [timespan]$ShutdownMax
+class Product : CatalogObject {
     [string]$Status
     [bool]$HasTask
     [string]$TaskName
-    [object]$Config
-    [string]$Publisher
-    [object]$Installation
-    [string]$Family
-}
-
-class Provider {
-    [string]$Id
-    [string]$Name
-    [string]$DisplayName
-    [string]$Description
-    [string]$Image
-    [string]$Category
-    [string]$SubCategory
-    [string]$Version
     [string]$Log
     [object]$Config
-    [string]$Publisher
-    [object]$Installation
-    [bool]$IsInstalled
+    [timespan]$ShutdownMax
 }
 
-class Service {
-    [string]$Id
-    [string]$Name
-    [string]$DisplayName
-    [string]$Description
-    [string]$Image
+class Provider : CatalogObject {
     [string]$Category
     [string]$SubCategory
-    [string]$Version
     [string]$Log
     [object]$Config
-    [string]$Publisher
-    [object]$Installation
-    [bool]$IsInstalled
 }
 
 class Heartbeat {

@@ -9,14 +9,16 @@
 . "$($global:Location.Services)\credentials.ps1"
 
 if (Test-Path -Path "$($global:Location.Services)\services-os-stubs.ps1") {. "$($global:Location.Services)\services-os-stubs.ps1"}
-if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.OS).ps1") {. "$($global:Location.Services)\services-$($global:Environ.OS).ps1"}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.OS.ToLower()).ps1") {. "$($global:Location.Services)\services-$($global:Environ.OS.ToLower()).ps1"}
+
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.Cloud.ToLower()).ps1") {. "$($global:Location.Services)\services-$($global:Environ.Cloud.ToLower()).ps1"}
 
 if (Test-Path -Path "$($global:Location.Services)\services-platform-stubs.ps1") {. "$($global:Location.Services)\services-platform-stubs.ps1"}
-if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.Platform)*.ps1") {
-    Get-Item "$($global:Location.Services)\services-$($global:Environ.Platform)*.ps1" | Sort-Object -Property Name | Foreach-Object {. "$($global:Location.Services)\$($_.Name)"}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.Platform.ToLower())*.ps1") {
+    Get-Item "$($global:Location.Services)\services-$($global:Environ.Platform.ToLower())*.ps1" | Sort-Object -Property Name | Foreach-Object {. "$($global:Location.Services)\$($_.Name.ToLower())"}
 }
 
-if (Test-Path -Path "$($global:Location.Services)\services-$($global:Overwatch.Name).ps1") {. "$($global:Location.Services)\services-$($global:Overwatch.Name).ps1"}
+if (Test-Path -Path "$($global:Location.Services)\services-$($global:Overwatch.Name.ToLower()).ps1") {. "$($global:Location.Services)\services-$($global:Overwatch.Name.ToLower()).ps1"}
 
 . "$($global:Location.Services)\heartbeat.ps1"
 . "$($global:Location.Services)\files.ps1"
@@ -30,7 +32,4 @@ if (Test-Path -Path "$($global:Location.Services)\services-$($global:Overwatch.N
 . "$($global:Location.Services)\python.ps1"
 . "$($global:Location.Services)\connectionstrings.ps1"
 . "$($global:Location.Services)\odbc.ps1"
-
-if (Test-Path -Path "$($global:Location.Services)\services-$($global:Product.Id).ps1") {. "$($global:Location.Services)\services-$($global:Product.Id).ps1"}
-if (Test-Path -Path "$($global:Location.Services)\services-$($global:Provider.Id).ps1") {. "$($global:Location.Services)\services-$($global:Provider.Id).ps1"}
 

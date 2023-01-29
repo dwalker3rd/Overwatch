@@ -1,3 +1,63 @@
+class TsmApiResponse {
+
+    [string]$Keys
+
+    TSRestApiResponse() { $this.Init() }
+
+    [void]Init() {}
+
+}
+
+class TsmApiMethodPrerequisite {
+
+    [string[]]$Platform
+    [object]$ApiVersion
+
+    TsmApiMethodPrerequisite() { $this.Init() }
+
+    [void]Init() {}
+
+    [void]Validate() {
+
+        if ($this.ApiVersion) {
+            if (![string]::IsNullOrEmpty($this.ApiVersion.Minimum) -or ![string]::IsNullOrEmpty($this.ApiVersion.Maximum)) {
+                $_apiVersion = $global:tsmApiConfig.ApiVersion
+                if ((![string]::IsNullOrEmpty($this.ApiVersion.Minimum) -and $_apiVersion -lt $this.ApiVersion.Minimum) -or
+                    (![string]::IsNullOrEmpty($this.ApiVersion.Maximum) -and $_apiVersion -gt $this.ApiVersion.Maximum))
+                {
+                    throw "Method `"($this.Name)`" is not supported for Tableau Server TSM API $($this.ApiVersion.Minimum)."
+                }
+            }
+        }
+
+        if (![string]::IsNullOrEmpty($this.Platform)) {
+            if ($this.Platform -notcontains $global:tsmApiConfig.Platform.Id) {
+                throw "Method `"($this.Name)`" is not supported for the $($global:tsmApiConfig.Platform.Name) platform."
+            }
+        }
+    }
+
+}
+
+class TsmApiMethod {
+
+    [string]$Name
+    [string]$Endpoint
+    # [uri]$Uri
+    [ValidateSet("GET","PUT","POST","DELETE")][string]$HttpMethod 
+    [object]$Headers
+    [string]$Body 
+    [TsmApiResponse]$Response
+    [TsmApiMethodPrerequisite]$Prerequisite
+
+    TsmApiMethod() { $this.Init() }
+
+    [void]Init() {}
+
+    [uri]Uri() { return "$($global:tsmApiConfig.ApiUri)/$($this.Endpoint)" }
+
+}
+
 function global:Initialize-TsmApiConfiguration {
 
     [CmdletBinding()]
@@ -6,10 +66,12 @@ function global:Initialize-TsmApiConfiguration {
         [switch]$ResetCache
     )
 
+    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi )) { return }
+
     $global:tsmApiConfig = @{
         Server = $Server ? $Server : "localhost"
         Port = "8850"
-        ApiVersion = "$($global:Catalog.Platform.$($global:Platform.Id).Api.TsmApi.Version)"
+        ApiVersion = "$($global:Catalog.Provider.TableauServerTsmApi.Initialization.Api.Version.Minimum)"
         Credentials = "localadmin-$($global:Platform.Instance)"
         Async = @{
             Status = @{
@@ -25,13 +87,13 @@ function global:Initialize-TsmApiConfiguration {
     }
     $global:tsmApiConfig.ApiUri = "https://$($global:tsmApiConfig.Server):$($global:tsmApiConfig.Port)/api/$($global:tsmApiConfig.ApiVersion)"
     $global:tsmApiConfig.Method = @{
-        Bootstrap = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/bootstrap"
+        Bootstrap = [TsmApiMethod]@{
+            Endpoint = "bootstrap"
             HttpMethod = "GET"
             Response = @{Keys = "initialBootstrapSettings"}
         }
-        Login = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/login"
+        Login = [TsmApiMethod]@{
+            Endpoint = "login"
             HttpMethod = "POST"
             Headers = @{"Content-Type" = "application/json"}
             Body = @{
@@ -52,13 +114,13 @@ function global:Initialize-TsmApiConfiguration {
     $global:tsmApiConfig.ApiUri = "https://$($global:tsmApiConfig.Server):$($global:tsmApiConfig.Port)/api/$($global:tsmApiConfig.ApiVersion)"
 
     $global:tsmApiConfig.Method = @{
-        Bootstrap = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/bootstrap"
+        Bootstrap = [TsmApiMethod]@{
+            Endpoint = "bootstrap"
             HttpMethod = "GET"
             Response = @{Keys = "initialBootstrapSettings"}
         }
-        Login = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/login"
+        Login = [TsmApiMethod]@{
+            Endpoint = "login"
             HttpMethod = "POST"
             Headers = @{"Content-Type" = "application/json"}
             Body = @{
@@ -69,12 +131,12 @@ function global:Initialize-TsmApiConfiguration {
             } | ConvertTo-Json
             Response = @{Keys = ""}
         }
-        Logout = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/logout"
+        Logout = [TsmApiMethod]@{
+            Endpoint = "logout"
             HttpMethod = "POST"
         }
-        TopologiesRequestedVersion = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/topologies/requested/version"
+        TopologiesRequestedVersion = [TsmApiMethod]@{
+            Endpoint = "topologies/requested/version"
             HttpMethod = "GET"
             Response = @{Keys = "version"}
         }
@@ -83,103 +145,103 @@ function global:Initialize-TsmApiConfiguration {
             HttpMethod = "GET"
             Response = @{Keys = "topologyVersion.nodes"}
         }
-        Nodes = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes"
+        Nodes = [TsmApiMethod]@{
+            Endpoint = "nodes"
             HttpMethod = "GET"
             Response = @{Keys = "clusterNodes.nodes"}
         }
-        NodeInfo = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes/<0>"
+        NodeInfo = [TsmApiMethod]@{
+            Endpoint = "nodes/<0>"
             HttpMethod = "GET"
             Response = @{Keys = "nodeInfo"}
         }            
-        NodeHost = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes/<0>"
+        NodeHost = [TsmApiMethod]@{
+            Endpoint = "nodes/<0>"
             HttpMethod = "GET"
             Response = @{Keys = "nodeInfo.address"}
         }
-        NodeCores = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/nodes/<0>"
+        NodeCores = [TsmApiMethod]@{
+            Endpoint = "nodes/<0>"
             HttpMethod = "GET"
             Response = @{Keys = "nodeInfo.processorCount"}
         }
-        RepositoryNodeInfo = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/repository/currentMaster"
+        RepositoryNodeInfo = [TsmApiMethod]@{
+            Endpoint = "repository/currentMaster"
             HttpMethod = "GET"
             Response = @{Keys = "repositoryNodeInfo"}
         }
-        CurrentConfigurationVersion = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/configurations/requested/version"
+        CurrentConfigurationVersion = [TsmApiMethod]@{
+            Endpoint = "configurations/requested/version"
             HttpMethod = "GET"
             Response = @{Keys = "version"}
         }
-        ConfigurationKeys = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/configurations/<0>/keys"
+        ConfigurationKeys = [TsmApiMethod]@{
+            Endpoint = "configurations/<0>/keys"
             HttpMethod = "GET"
             Response = @{Keys = "configKeys"}
         }
-        ConfigurationKey = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/configurations/<0>/keys/<1>"
+        ConfigurationKey = [TsmApiMethod]@{
+            Endpoint = "configurations/<0>/keys/<1>"
             HttpMethod = "GET"
             Response = @{Keys = "configKeys"}
         }
-        ExportConfigurationAndTopologySettings = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/export?includeBinaryVersion=true"
+        ExportConfigurationAndTopologySettings = [TsmApiMethod]@{
+            Endpoint = "export?includeBinaryVersion=true"
             HttpMethod = "GET"
             Response = @{Keys = ""}
         }
-        ClusterStatus = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/status"
+        ClusterStatus = [TsmApiMethod]@{
+            Endpoint = "status"
             HttpMethod = "GET"
             Response = @{Keys = "clusterStatus"}
         }
-        ProductKeys = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/licensing/productKeys"
+        ProductKeys = [TsmApiMethod]@{
+            Endpoint = "licensing/productKeys"
             HttpMethod = "GET"
             Response = @{Keys = "productKeys.items"}
         }
-        RebuildSearchIndex = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/reindex-search"
+        RebuildSearchIndex = [TsmApiMethod]@{
+            Endpoint = "reindex-search"
             HttpMethod = "POST"
             Response = @{Keys = "asyncJob"}
         }
-        AsyncJob = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/asyncJobs/<0>"
+        AsyncJob = [TsmApiMethod]@{
+            Endpoint = "asyncJobs/<0>"
             HttpMethod = "GET"
             Response = @{Keys = "asyncJob"}
         }                          
-        AsyncJobs = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/asyncJobs"
+        AsyncJobs = [TsmApiMethod]@{
+            Endpoint = "asyncJobs"
             HttpMethod = "GET"
             Response = @{Keys = "asyncJobs"}
         }   
-        CancelAsyncJob = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/asyncJobs/<0>/cancel"
+        CancelAsyncJob = [TsmApiMethod]@{
+            Endpoint = "asyncJobs/<0>/cancel"
             HttpMethod = "PUT"
             Response = @{Keys = "asyncJob"}
         } 
-        Backup = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/backupFixedFile?writePath=<0>"
+        Backup = [TsmApiMethod]@{
+            Endpoint = "backupFixedFile?writePath=<0>&skipVerification=true"
             HttpMethod = "POST"
             Response = @{Keys = "asyncJob"}
         }
-        Cleanup = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/cleanup?logFilesRetentionSeconds=<0>&deleteLogFiles=<1>&deleteTempFiles=<2>&clearRedisCache=<3>&deleteHttpRequests=<4>&clearSheetImageCache=<5>"
+        Cleanup = [TsmApiMethod]@{
+            Endpoint = "cleanup?logFilesRetentionSeconds=<0>&deleteLogFiles=<1>&deleteTempFiles=<2>&clearRedisCache=<3>&deleteHttpRequests=<4>&clearSheetImageCache=<5>"
             HttpMethod = "POST"
             Response = @{Keys = "asyncJob"}
         }
-        Restore = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/restoreFixedFile?fixedFile=<0>"
+        Restore = [TsmApiMethod]@{
+            Endpoint = "restoreFixedFile?fixedFile=<0>"
             HttpMethod = "POST"
             Response = @{Keys = "asyncJob"}
         }
-        Start = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/enable"
+        Start = [TsmApiMethod]@{
+            Endpoint = "enable"
             HttpMethod = "POST"
             Response = @{Keys = "asyncJob"}
         }
-        Stop = @{
-            Path = "$($global:tsmApiConfig.ApiUri)/disable"
+        Stop = [TsmApiMethod]@{
+            Endpoint = "disable"
             HttpMethod = "POST"
             Response = @{Keys = "asyncJob"}
         }
@@ -200,11 +262,11 @@ function global:New-TsmApiSession {
     $creds = Get-Credentials $global:tsmApiConfig.Credentials
     $headers = $global:tsmApiConfig.Method.Login.Headers
     $body = $global:tsmApiConfig.Method.Login.Body.replace("<0>",$creds.UserName).replace("<1>",$creds.GetNetworkCredential().Password)
-    $path = $global:tsmApiConfig.Method.Login.Path 
+    $uri = $global:tsmApiConfig.Method.Login.Uri() 
     $httpMethod = $global:tsmApiConfig.Method.Login.HttpMethod
 
     # must assign the response from this Invoke-Method to a variable or $session does not get set
-    $response = Invoke-RestMethod $path -Method $httpMethod -Headers $headers -Body $body -TimeoutSec $TimeoutSec -SkipCertificateCheck -SessionVariable session -Verbose:$false
+    $response = Invoke-RestMethod $uri -Method $httpMethod -Headers $headers -Body $body -TimeoutSec $TimeoutSec -SkipCertificateCheck -SessionVariable session -Verbose:$false
     $response | Out-Null
     return $session
 
@@ -230,22 +292,35 @@ function global:Invoke-TsmApiMethod {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
     )
 
-    $path = $global:tsmApiConfig.Method.$Method.Path 
+    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi )) { return }
+
+    # check method's prerequisites
+    try {
+        if ($global:tsmApiConfig.Method.$Method.Prerequisite) {
+            $global:tsmApiConfig.Method.$Method.Prerequisite.Validate()
+        }
+    }
+    catch {
+        Write-Host+ $_.Exception.Message -Foreground Red
+        return
+    }
+
+    $uri = $global:tsmApiConfig.Method.$Method.Uri()
     $httpMethod = $global:tsmApiConfig.Method.$Method.HttpMethod
     $keys = $global:tsmApiConfig.Method.$Method.Response.Keys
 
     for ($i = 0; $i -lt $params.Count; $i++) {
-        $path = $path -replace "<$($i)>",$Params[$i]
+        $uri = $uri -replace "<$($i)>",$Params[$i]
         $keys = $keys -replace "<$($i)>",$Params[$i]
-    }   
+    } 
     
     try {
-        $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec $TimeoutSec -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
+        $response = Invoke-RestMethod $uri -Method $httpMethod -TimeoutSec $TimeoutSec -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
     }
     catch {
         if ($_.Exception.Response.StatusCode -eq [System.Net.HttpStatusCode]::Unauthorized) {
             $global:tsmApiConfig.Session = New-TsmApiSession
-            $response = Invoke-RestMethod $path -Method $httpMethod -TimeoutSec $TimeoutSec -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
+            $response = Invoke-RestMethod $uri -Method $httpMethod -TimeoutSec $TimeoutSec -SkipCertificateCheck -WebSession $global:tsmApiConfig.Session -Verbose:$false
         }
         else {
             throw $_.Exception.Message
@@ -334,8 +409,8 @@ function global:Get-TableauServerStatus {
             if ($attempt -eq $maxAttempts) {
                 # Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor Red
                 # Write-Host+ -NoTrace "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure" -ForegroundColor Red
-                Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
-                Write-Log -Context "TableauServerStatus" -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
+                Write-Log -Context "Provider.TableauServerTsmApi" -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
+                Write-Log -Context "Provider.TableauServerTsmApi" -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
             }
             else {
                 # give the TSM API a moment to think it over

@@ -1,7 +1,9 @@
 #region ENVIRON
 
     $global:Environ = @{
+        Overwatch = "Overwatch"
         OS = "<operatingSystemId>"
+        Cloud = "<cloudId>"
         Platform = "<platformId>"
         Instance = "<platformInstanceId>"
         Product = @(<productIds>)

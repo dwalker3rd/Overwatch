@@ -1,35 +1,3 @@
-function global:Get-AzureADTenantKeys {
-
-    [CmdletBinding()]
-    param(
-        [switch]$All,
-        [switch]$AzureAD,
-        [switch]$AzureADB2C
-    )
-
-    if ($All -and $AzureAD) {
-        throw "The `"All`" switch cannot be used with the `"AzureAD`" switch"
-    }
-    if ($All -and $AzureADB2C) {
-        throw "The `"All`" switch cannot be used with the `"AzureADB2C`" switch"
-    }
-    if ($AzureAD -and $AzureADB2C) {
-        throw "The `"AzureAD`" and `"AzureADB2C`" switches cannot be used together"
-    }
-    if (!$AzureAD -and !$AzureADB2C) { $All = $true }
-
-    $tenantKeys = @()
-    $tenantKeys = foreach ($key in $global:AzureAD.Keys) {
-        if (![string]::IsNullOrEmpty($global:AzureAD.$key.Tenant)) {
-            if ($AzureAD -and $global:AzureAD.$key.Tenant.Type -eq "Azure AD") { $key }
-            if ($AzureADB2C -and $global:AzureAD.$key.Tenant.Type -eq "Azure AD B2C") { $key }
-            if ($All) { $key }
-        }
-    }
-    return $tenantKeys
-
-}
-
 function global:Connect-AzureAD {
 
     [CmdletBinding()]
@@ -38,19 +6,19 @@ function global:Connect-AzureAD {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $appCredentials = Get-Credentials $global:AzureAD.$tenantKey.MsGraph.Credentials
+    $appCredentials = Get-Credentials $global:Azure.$tenantKey.MsGraph.Credentials
     if (!$appCredentials) {
-        throw "Unable to find the MSGraph credentials `"$($global:AzureAD.$tenantKey.MsGraph.Credentials)`""
+        throw "Unable to find the MSGraph credentials `"$($global:Azure.$tenantKey.MsGraph.Credentials)`""
     }
     
     $appId = $appCredentials.UserName
     $appSecret = $appCredentials.GetNetworkCredential().Password
-    $scope = $global:AzureAD.$tenantKey.MsGraph.Scope
-    $tenantName = $global:AzureAD.$tenantKey.Tenant.Name
+    $scope = $global:Azure.$tenantKey.MsGraph.Scope
+    $tenantDomain = $global:Azure.$tenantKey.Tenant.Domain
 
-    $uri = "https://login.microsoftonline.com/$tenantName/oauth2/v2.0/token"
+    $uri = "https://login.microsoftonline.com/$tenantDomain/oauth2/v2.0/token"
 
     # Add-Type -AssemblyName System.Web
 
@@ -74,7 +42,7 @@ function global:Connect-AzureAD {
     #TODO: try/catch for expired secret with critical messaging
     
     # headers
-    $global:AzureAD.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
+    $global:Azure.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
 
     return
 
@@ -89,11 +57,11 @@ function global:Invoke-AzureADRestMethod {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     if ([string]::IsNullOrEmpty($params.Headers.Authorization)) {
         Connect-AzureAD -tenant $tenantKey
-        $params.Headers.Authorization = $global:AzureAD.$tenantKey.MsGraph.AccessToken
+        $params.Headers.Authorization = $global:Azure.$tenantKey.MsGraph.AccessToken
     }
 
     $retry = $false
@@ -105,7 +73,7 @@ function global:Invoke-AzureADRestMethod {
         $response.error = ((get-error).ErrorDetails | ConvertFrom-Json).error
         if ($response.error.code -eq "InvalidAuthenticationToken") {
             Connect-AzureAD -tenant $tenantKey
-            $params.Headers.Authorization = $global:AzureAD.$tenantKey.MsGraph.AccessToken
+            $params.Headers.Authorization = $global:Azure.$tenantKey.MsGraph.AccessToken
             $retry = $true
         }
     }
@@ -128,14 +96,14 @@ function global:Get-AzureADUser {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UserId","Email","Mail")][string]$User,
-        # [Parameter(Mandatory=$false)][string]$Email,
-        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
+        [Parameter(Mandatory=$false)][string[]]$Properties,
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $isUserId = $User -match $global:RegexPattern.Guid
     $isGuestUserPrincipalName = $User -match $global:RegexPattern.AzureAD.UserPrincipalName -and $User -like "*#EXT#*"
@@ -147,16 +115,18 @@ function global:Get-AzureADUser {
         throw "'$User' is not a valid object id, userPrincipalName or email address."
     }
 
-    $filter = $isEmail ? "mail eq '$User'" : $null
+    $filter = $isUserId ? "id eq '$User'" : $null
+    $filter = $isEmail ? "mail eq '$User'" : $filter
     $filter += $isMemberUserPrincipalName ? "$($filter ? " or " : $null)userPrincipalName eq '$User'" : $null
     $filter = $isGuestUserPrincipalName ? "userPrincipalName eq '$($User.Replace("#","%23"))'" : $filter
 
     $uri = "https://graph.microsoft.com/$graphApiVersion/users" 
     $uri += $filter ? "?`$filter=$filter" : "/$User"
+    $uri += ($Properties ? "&select=$($Properties -join ",")" : "")
 
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
-    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
 
     $restParams = @{
         ContentType = 'application/x-www-form-urlencoded'
@@ -165,16 +135,16 @@ function global:Get-AzureADUser {
         Uri = $uri
     }
 
-    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method GET -Headers $headers
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
     $azureADUser = $filter ? $response.value : $response
 
     # if $User can't be found in the mail or userPrincipalName properties, check the Identities collection
     if (!$azureADUser) {
-        $filter = "identities/any(c:c/issuerAssignedId eq '$User' and c/issuer eq '$($global:AzureAD.$tenantKey.Tenant.Name)')"
+        $filter = "identities/any(c:c/issuerAssignedId eq '$User' and c/issuer eq '$($global:Azure.$tenantKey.Tenant.Name)')"
         $restParams.Uri = "https://graph.microsoft.com/$graphApiVersion/users?`$filter=$filter"
         $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method GET -Headers $headers
         $azureADUser = $response.value
-        # $azureADB2CUserIdentity = $azureADUser.identities | where-object {$_.issuer -eq $global:AzureAD.$tenantKey.Tenant.Name -and $_.signInType -eq "emailAddress"}
+        # $azureADB2CUserIdentity = $azureADUser.identities | where-object {$_.issuer -eq $global:Azure.$tenantKey.Tenant.Name -and $_.signInType -eq "emailAddress"}
         # $azureADUser | Add-Member -NotePropertyName issuer -NotePropertyValue $azureADB2CUserIdentity.issuer
         # $azureADUser | Add-Member -NotePropertyName issuerAssignedId -NotePropertyValue $azureADB2CUserIdentity.issuerAssignedId
     }
@@ -198,12 +168,12 @@ function global:Reset-AzureADUserPassword {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("UserPrincipalName","UserId")][string]$User,
-        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     if ($User -notmatch $global:RegexPattern.Guid -and $User -notmatch $global:RegexPattern.AzureAD.UserPrincipalName) {
         throw "'$User' is not a valid AzureAD user id or userPrincipalName."
@@ -217,7 +187,7 @@ function global:Reset-AzureADUserPassword {
 
     $azureADUser = Get-AzureADUser @getParams 
     if (!$azureADUser) {
-        throw "User '$User' not found in tenant $($global:AzureAD.$tenantKey.Tenant.Name)"
+        throw "User '$User' not found in tenant $($global:Azure.$tenantKey.Tenant.Name)"
         return
     }
 
@@ -227,7 +197,7 @@ function global:Reset-AzureADUserPassword {
 
         $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
         $headers.Add("Content-Type", "application/json")
-        $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+        $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
 
         $restParams = @{
             ContentType = 'application/x-www-form-urlencoded'
@@ -249,11 +219,11 @@ function global:Reset-AzureADUserPassword {
     
         # MSAL.PS is required here
 
-        $appCredentials = Get-Credentials $global:AzureAD.$tenantKey.MsGraph.Credentials
+        $appCredentials = Get-Credentials $global:Azure.$tenantKey.MsGraph.Credentials
         $appId = $appCredentials.UserName
         # $appSecret = $appCredentials.Password
-        # $scope = $global:AzureAD.$tenantKey.MsGraph.Scope
-        $tenantId = $global:AzureAD.$tenantKey.Tenant.Id
+        # $scope = $global:Azure.$tenantKey.MsGraph.Scope
+        $tenantId = $global:Azure.$tenantKey.Tenant.Id
 
         # opens system default browser for interactive authentication
         $token = Get-MsalToken -TenantId $tenantId -ClientId $appId -Interactive #-ClientSecret $appSecret 
@@ -335,13 +305,13 @@ function global:Update-AzureADUserProperty {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
 
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
-    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
 
     $restParams = @{
         Headers = $headers
@@ -393,12 +363,12 @@ function global:Get-AzureADUser+ {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UserId")][string]$User,
-        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     if ($User -notmatch $global:RegexPattern.Guid -and $User -notmatch $global:RegexPattern.AzureAD.UserPrincipalName) {
         throw "'$User' is not a valid AzureAD user id or userPrincipalName."
@@ -415,7 +385,7 @@ function global:Get-AzureADUser+ {
     if ($azureADUser) {
         $azureADUserGroupMembership = Get-AzureADUserMembership -Tenant $tenantKey -AzureADUser $AzureADUser
         $azureADUser | Add-Member -NotePropertyName groupMembership -NotePropertyValue $azureADUserGroupMembership
-        $azureADUser | Add-Member -NotePropertyName tenant -NotePropertyValue $global:AzureAD.$tenantKey.Tenant
+        $azureADUser | Add-Member -NotePropertyName tenant -NotePropertyValue $global:Azure.$tenantKey.Tenant
     }
 
     $defaultView = ![string]::IsNullOrEmpty($azureADUser.issuer) ? $AzureADView.User.PlusWithIdentities : $AzureADView.User.Plus
@@ -429,13 +399,13 @@ function global:IsMember {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UserId","Email","Mail")][string]$User,
+        [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
         [Parameter(Mandatory=$false)][Alias("GroupId","GroupDisplayName","GroupName")][string]$Group,
         [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $getParams = @{
         Tenant = $tenantKey
@@ -465,7 +435,7 @@ function global:Get-AzureADUserMembership {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $azureADGroups, $cacheError = Get-AzureADGroups -Tenant $tenantKey -AsArray
     $azureADUserMembership = $azureADGroups | Where-Object {$_.members -contains $AzureADUser.id}
@@ -486,13 +456,13 @@ function global:Send-AzureADInvitation {
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $uri = "https://graph.microsoft.com/$($graphApiVersion)/invitations"
 
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
-    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
 
     $body = @{
         invitedUserDisplayName = $DisplayName
@@ -553,13 +523,13 @@ function global:Update-AzureADUserEmail {
     # Update user in Azure AD B2C
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
 
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
-    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
 
     $restParams = @{
         Headers = $headers
@@ -587,7 +557,7 @@ function global:Update-AzureADUserEmail {
         $message = "$mailOriginal > $($response.mail)"
         $entryType = $status -eq "Success" ? "Information" : "Error"
     }
-    Write-Log -Action "UpdateAzureADUserEmail" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
+    Write-Log -Context "Provider.AzureAD" -Action "UpdateAzureADUserEmail" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
 
     return $response
 
@@ -610,13 +580,13 @@ function global:Update-AzureADUserNames{
     $displayNameOriginal = $User.displayName ?? "None"
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
 
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
-    $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
 
     $restParams = @{
         Headers = $headers
@@ -639,7 +609,7 @@ function global:Update-AzureADUserNames{
         $message = "$givenNameOriginal > $($response.givenName), $surNameOriginal > $($response.surName), $displayNameOriginal > $($response.displayName)"
         $entryType = $status -eq "Success" ? "Information" : "Error"
     }
-    Write-Log -Action "AzureADUserNames" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
+    Write-Log -Context "Provider.AzureAD" -Action "AzureADUserNames" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
 
     return $response
 
@@ -651,7 +621,7 @@ function global:Get-AzureADObjects {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][ValidateSet("Groups","Users")][string]$Type,
-        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string[]]$Property,
         [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Delta,
@@ -661,9 +631,9 @@ function global:Get-AzureADObjects {
     if ($NoCache) {$Delta = $false}
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $AzureADB2C = $azureAD.$($tenantKey).tenant.type -eq "Azure AD B2C"
+    $AzureADB2C = $global:Azure.$($tenantKey).tenant.type -eq "Azure AD B2C"
     if ($AzureADB2C -and $Delta) {$Delta = $false} # Delta switch not valid for Azure AD B2C tenants
 
     # $typeTitleCase = (Get-Culture).TextInfo.ToTitleCase($Type)
@@ -682,7 +652,7 @@ function global:Get-AzureADObjects {
     }
     $queryParams += @{
         Users = @{
-            property = $Property ?? $AzureADB2C ? @("id","userPrincipalName","userType","displayName","mail","accountEnabled","identities") : $queryParams.default.Users.property
+            property = $Property ?? ($AzureADB2C ? @("id","userPrincipalName","userType","displayName","mail","accountEnabled","proxyAddresses","signInActivity","identities") : $queryParams.default.Users.property)
             select = ""
             # filter = $Filter
         }
@@ -726,7 +696,7 @@ function global:Get-AzureADObjects {
             #     "Users" {
             #         if ($azureADObjects.GetType().FullName -ne "System.Collections.Hashtable") {
             #             $cacheError = @{code = "CORRUPTED"; summary = "$($cache) cache object is not 'System.Collections.Hashtable'";}
-            #             Write-Log -Action "ReadAzureADCache" -Target $cache -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
+            #             Write-Log -Context "Provider.AzureAD" -Action "ReadAzureADCache" -Target $cache -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
             #             $Delta = $false
             #         }
             #     }
@@ -750,7 +720,7 @@ function global:Get-AzureADObjects {
 
         $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
         $headers.Add("Content-Type", "application/json")
-        $headers.Add("Authorization", $global:AzureAD.$tenantKey.MsGraph.AccessToken)
+        $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
 
         $restParams = @{
             ContentType = 'application/x-www-form-urlencoded'
@@ -790,7 +760,7 @@ function global:Get-AzureADObjects {
                     "Groups" {
 
                         if ((!$azureADObject.groupTypes -and $azureADObject.securityEnabled) -or 
-                            ($azureADObject.groupTypes -eq "DynamicMembership")) {#} -and $azureADObject.displayName -notin $azureAD.SpecialGroups)) {
+                            ($azureADObject.groupTypes -eq "DynamicMembership")) {#} -and $azureADObject.displayName -notin $global:Azure.SpecialGroups)) {
 
                             $newAzureADObject = @{
                                 id = $azureADObject.id
@@ -903,9 +873,9 @@ function global:Export-AzureADObjects {
     )
     
     $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    # $AzureADB2C = $azureAD.$($tenantKey).tenant.type -eq "Azure AD B2C"
+    # $AzureADB2C = $global:Azure.$($tenantKey).tenant.type -eq "Azure AD B2C"
 
     $typeLowerCase = $Type.ToLower()
     # $typeTitleCase = (Get-Culture).TextInfo.ToTitleCase($Type)
@@ -921,16 +891,16 @@ function global:Export-AzureADObjects {
             "Users" {
                 $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $tenantKey -AsArray
 
-                switch ($azureAD.$tenantKey.tenant.type) {
+                switch ($global:Azure.$tenantKey.tenant.type) {
                     "default" {
                         $azureADUsers | Sort-Object -property userPrincipalName | 
                             Select-Object -property @{name="User Id";expression={$_.id}},@{name="User Principal Name";expression={$_.userPrincipalName}},@{name="User Display Name";expression={$_.displayName}},@{name="User Mail";expression={$_.mail}},@{name="User Account Enabled";expression={$_.accountEnabled}},timestamp | 
-                                Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-users.csv"
+                                Export-Csv  "$($global:Azure.Location.Data)\$tenantKey-users.csv"
                     }
                     "Azure AD B2C" {
                         $azureADUsers | Sort-Object -property userPrincipalName | 
                             Select-Object -property @{name="User Id";expression={$_.id}},@{name="User Principal Name";expression={$_.userPrincipalName}},@{name="User Display Name";expression={$_.displayName}},@{name="User Mail";expression={($_.identities | where-object {$_.signInType -eq "emailAddress"}).issuerAssignedId}},@{name="User Account Enabled";expression={$_.accountEnabled}},timestamp | 
-                                Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-users.csv"
+                                Export-Csv  "$($global:Azure.Location.Data)\$tenantKey-users.csv"
                     }
                 }
 
@@ -938,7 +908,7 @@ function global:Export-AzureADObjects {
                 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
 
                 Write-Host+
-                Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-$typeLowerCase.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+                Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-$typeLowerCase.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
                 Write-Host+
 
             }
@@ -946,18 +916,18 @@ function global:Export-AzureADObjects {
                 $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $tenantKey -AsArray
                 $azureADGroups | Sort-Object -property displayName | 
                     Select-Object -property @{name="Group Id";expression={$_.id}},@{name="Group Display Name";expression={$_.displayName}},@{name="Group Security Enabled";expression={$_.securityEnabled}},@{name="Group Type";expression={$_.groupTypes}},timestamp  | 
-                        Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-groups.csv"
+                        Export-Csv  "$($global:Azure.Location.Data)\$tenantKey-groups.csv"
                 ($azureADGroups | Foreach-Object {$groupId = $_.id; $_.members | Foreach-Object { @{groupId = $groupId; userId=$_} } }) | 
                     Sort-Object -property groupId,userId -unique | 
                         Select-Object -property @{name="Group Id";expression={$_.groupId}}, @{name="User Id";expression={$_.userId}} | 
-                            Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-groupMembership.csv"
+                            Export-Csv  "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv"
 
                 $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen                             
 
                 Write-Host+
-                Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-groups.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
-                Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+                Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-groups.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+                Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
                 Write-Host+
             }
         }
@@ -965,7 +935,7 @@ function global:Export-AzureADObjects {
     catch {
 
         $status = "Error"
-        Write-Log -Context "AzureADCache" -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
+        Write-Log -Context "Provider.AzureAD" -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
         Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
     }
@@ -1080,19 +1050,19 @@ function global:Read-AzureADCache {
             }
             # catch [System.Xml.XmlException] {
             #     $errorMessage = $_.Exception.Message
-            #     Write-Log -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error" -Force
-            #     Write-Log -Action "ReadCache" -Target $cache -Status "Error" -Message "Attempt #$($retryAttempts): ERROR" -Data $retryAttempts -EntryType "Error" -Force
+            #     Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error" -Force
+            #     Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Error" -Message "Attempt #$($retryAttempts): ERROR" -Data $retryAttempts -EntryType "Error" -Force
             #     Start-Sleep -Milliseconds $retryDelay.TotalMilliseconds
             # }
             catch {
                 $errorMessage = $_.Exception.Message
-                Write-Log -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error"
+                Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error"
                 throw $Error[0]
             }
         } while (!$azureADObject)
 
         # if ($retryAttempts -gt 1) {
-        #     Write-Log -Action "ReadCache" -Target $cache -Status "Success" -Message "Attempt #$($retryAttempts): SUCCESS" -Data $retryAttempts -Force
+        #     Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Success" -Message "Attempt #$($retryAttempts): SUCCESS" -Data $retryAttempts -Force
         # }
 
         if ($After) {
@@ -1169,7 +1139,7 @@ function global:Get-AzureADGroups {
     $azureADGroups,$cacheError = Read-AzureADCache @cacheParams
 
     if ($cacheError) {
-        Write-Log -Action "GetAzureADGroups" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
+        Write-Log -Context "Provider.AzureAD" -Action "GetAzureADGroups" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
     }
 
     return $azureADGroups, $cacheError
@@ -1195,7 +1165,7 @@ function global:Get-AzureADUsers {
     $azureADUsers,$cacheError = Read-AzureADCache @cacheParams
 
     if ($cacheError) {
-        Write-Log -Action "GetAzureADUsers" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
+        Write-Log -Context "Provider.AzureAD" -Action "GetAzureADUsers" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
     }
 
     return $azureADUsers, $cacheError
@@ -1261,7 +1231,7 @@ function global:Find-AzureADObject {
             throw "Tenant is required when $obj object is not supplied."
         }
         $tenantKey = $Tenant.split(".")[0].ToLower()
-        if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
         
         $InputObject = Invoke-Expression "Get-AzureAD$($obj) -Tenant $tenantKey -AsArray"
         if (!$InputObject) {
@@ -1299,7 +1269,7 @@ function global:Find-AzureADUser {
             throw "Tenant is required when Users object is not supplied."
         }
         $tenantKey = $Tenant.split(".")[0].ToLower()
-        if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
         $Users, $cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray
 
@@ -1330,7 +1300,7 @@ function global:Find-AzureADGroup {
             throw "Tenant is required when Groups object is not supplied."
         }
         $tenantKey = $Tenant.split(".")[0].ToLower()
-        if (!$global:AzureAD.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
         $Groups, $cacheError = Get-AzureADGroups -Tenant $Tenant -AsArray
 

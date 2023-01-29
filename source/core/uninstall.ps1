@@ -2,7 +2,7 @@
 #Requires -Version 7
 
 param(
-    [Parameter(Mandatory=$false,Position=0)][ValidateSet("Provider","Product")][string]$Type,
+    [Parameter(Mandatory=$false,Position=0)][ValidateSet("Cloud","Provider","Product")][string]$Type,
     [Parameter(Mandatory=$false,Position=1)][string]$Id,
     [switch]$Force
 )
@@ -44,17 +44,16 @@ $global:Product = @{Id="Uninstall"}
         } 
 
     #endregion LOAD INSTALL SETTINGS
-    #region UNINSTALL PRODUCT/PROVIDER
+    #region UNINSTALL SINGLE CATALOG OBJECT
 
         if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {
 
-            # this ensures the case is correct
-            $Type = (Get-Culture).TextInfo.ToTitleCase($Type)
-            if ($Type -eq "Product") { $Id = $global:Catalog.Product.Keys | Where-Object {$_ -eq $Id} }
-            if ($Type -eq "Provider") { $Id = $global:Catalog.Provider.Keys | Where-Object {$_ -eq $Id} }
+            $Type = $global:Catalog.Keys | Where-Object {$_ -eq $Type}
+            $Id = $global:Catalog.$Type.$Id.Id
+            $catalogObject = Get-Catalog -Type $Type -Id $Id
 
             # This component is not installed
-            if (!(Invoke-Expression "Get-$Type $Id -ResetCache").IsInstalled) {
+            if (!$catalogObject.IsInstalled()) {
                 Write-Host+ -NoTrace "WARN: $Type `"$Id`" is NOT installed." -ForegroundColor DarkYellow
                 Write-Host+ -Iff $(!($Force.IsPresent)) -NoTrace "INFO: To force the uninstall, add the -Force switch." -ForegroundColor DarkYellow
                 Write-Host+ -Iff $($Force.IsPresent) -NoTrace "INFO: Uninstalling with FORCE." -ForegroundColor DarkYellow
@@ -76,7 +75,7 @@ $global:Product = @{Id="Uninstall"}
             # this component cannot be uninstalled if other installed components have dependencies on it
             $dependents = Get-CatalogDependents -Type $Type -Id $Id | 
                 ForEach-Object {Invoke-Expression "Get-$($_.Type) $($_.Id)"} | 
-                    Where-Object {$_.IsInstalled}
+                    Where-Object {$_.IsInstalled()}
             if ($dependents) {
                 Write-Host+ -NoTrace "ERROR: Unable to uninstall the $Id $($Type.ToLower())" -ForegroundColor Red
                 foreach ($dependent in $dependents) {
@@ -85,11 +84,18 @@ $global:Product = @{Id="Uninstall"}
                 Write-Host+
                 return
             }
+    
+            # delete/retain definitions, install setttings and data
+            $deleteAllData = $false
+            [console]::CursorVisible = $true
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Delete data for $Type $Id (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
+            $continue = Read-Host
+            [console]::CursorVisible = $false
+            $deleteAllData = $continue.ToUpper() -eq "Y"
 
             # the inevitable "Are you sure?" prompt
             [console]::CursorVisible = $true
-            $uninstallTarget = ![string]::IsNullOrEmpty($Type) ? $Type : "Overwatch"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Uninstall $($uninstallTarget.ToLower()) $Id (Y/N)? " -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Uninstall $Type $Id $($deleteAllData ? "and delete ALL data" : $null) (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
             $continue = Read-Host
             [console]::CursorVisible = $false
             if ($continue.ToUpper() -ne "Y") {
@@ -100,26 +106,27 @@ $global:Product = @{Id="Uninstall"}
 
             $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
-            Write-Host+
+            Write-Host+ 
 
             switch ($Type) {
-                "Provider" {
-                    $message = "    Provider            Publisher           Status"
+                default {
+                    $message = "    $($Type)$($emptyString.PadLeft(20-$Type.Length," "))Status"
                     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                    $message = "    --------            ---------           ------"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray    
+                    $message = "    $($emptyString.PadLeft($Type.Length,"-"))$($emptyString.PadLeft(20-$Type.Length," "))------"
+                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray                       
                 }
                 "Product" {
-                    $message = "    Product             Publisher           Task                Status"
+                    $message = "    Product             Task                Status"
                     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                    $message = "    -------             ---------           ----                ------"
+                    $message = "    -------             ----                ------"
                     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
                 }
             }
 
-            $expression = "Uninstall-$Type $Id"
-            $expression += $Force ? " -Force" : ""
-            Invoke-Expression $expression
+            Uninstall-CatalogObject -Type $Type -Id $Id -DeleteAllData:$DeleteAllData.IsPresent -Force:$Force.IsPresent
+            # $expression = "Uninstall-$Type $Id"
+            # $expression += $Force ? " -Force" : ""
+            # Invoke-Expression $expression
 
             Write-Host+
             $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
@@ -128,10 +135,29 @@ $global:Product = @{Id="Uninstall"}
 
         }
 
-    #endregion UNINSTALL PRODUCT/PROVIDER
+    #endregion UNINSTALL SINGLE CATALOG OBJECT
     #region UNINSTALL OVERWATCH
 
         else {
+
+            # delete/retain definitions, install setttings and data
+            $deleteAllData = $false
+            [console]::CursorVisible = $true
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Delete ALL data (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
+            $continue = Read-Host
+            [console]::CursorVisible = $false
+            $deleteAllData = $continue.ToUpper() -eq "Y"
+
+            # the inevitable "Are you sure?" prompt
+            [console]::CursorVisible = $true
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Uninstall Overwatch $($deleteAllData ? "and delete ALL data" : $null) (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
+            $continue = Read-Host
+            [console]::CursorVisible = $false
+            if ($continue.ToUpper() -ne "Y") {
+                Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
+                return
+            }
+            Write-Host+
 
             Write-Host+
             $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLING"
@@ -144,12 +170,12 @@ $global:Product = @{Id="Uninstall"}
                     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
                     Write-Host+
 
-                    $message = "    Provider            Publisher           Status"
+                    $message = "    Provider            Status"
                     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                    $message = "    --------            ---------           ------"
+                    $message = "    --------            ------"
                     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray            
 
-                    $global:Environ.Provider | ForEach-Object {Uninstall-Provider $_}
+                    $global:Environ.Provider | ForEach-Object {Uninstall-CatalogObject -Type Provider -Id $_}
                     
                     Write-Host+
                     $message = "<  Uninstalling providers <.>48> SUCCESS"
@@ -163,12 +189,12 @@ $global:Product = @{Id="Uninstall"}
                     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
                     Write-Host+
 
-                    $message = "    Product             Publisher           Task                Status"
+                    $message = "    Product             Task                Status"
                     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                    $message = "    -------             ---------           ----                ------"
+                    $message = "    -------             ----                ------"
                     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
 
-                    $global:Environ.Product | ForEach-Object {Uninstall-Product $_}
+                    $global:Environ.Product | ForEach-Object {Uninstall-CatalogObject -Type Provider -Id $_}
                     
                     Write-Host+
                     $message = "<  Uninstalling products <.>48> SUCCESS"
@@ -176,12 +202,24 @@ $global:Product = @{Id="Uninstall"}
                     Write-Host+
 
                 #endregion PRODUCTS    
+                #region CLOUD
+
+                    $message = "<  Uninstalling $($global:Environ.Cloud) Cloud <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+
+                    Uninstall-CatalogObject -Type Cloud -Id $global:Environ.Cloud
+
+                    $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+
+
+                #endregion OS 
                 #region PLATFORM
 
                     $message = "<  Uninstalling $($global:Environ.Platform) platform <.>48> PENDING"
                     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
-                    Uninstall-Platform
+                    Uninstall-CatalogObject -Type Platform -Id $global:Environ.Platform
 
                     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
                     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -193,7 +231,7 @@ $global:Product = @{Id="Uninstall"}
                     $message = "<  Uninstalling $($global:Environ.OS) OS <.>48> PENDING"
                     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
-                    Uninstall-OS
+                    Uninstall-CatalogObject -Type OS -$global:Environ.OS
 
                     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
                     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen

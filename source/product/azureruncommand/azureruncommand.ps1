@@ -99,3 +99,5 @@ if ($Command) {
     }
 
 }
+
+Remove-PSSession+

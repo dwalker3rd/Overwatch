@@ -32,7 +32,7 @@ function global:Send-Message {
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
     if (IsMessagingDisabled) {
-        Write-Log -Context "Messaging" -EntryType "Information" -Action "Send" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
+        Write-Log -EntryType "Information" -Action "Send" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
         return $global:PlatformMessageStatus.Disabled
     }
 

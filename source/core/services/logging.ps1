@@ -25,7 +25,7 @@ function global:Clear-Log {
     )
 
     foreach ($node in $ComputerName) {
-        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
         $rows = Import-Csv -Path ([LogObject]$log).Path | Select-Object -Last $($Tail) 
         $rows | Export-Csv -Path ([LogObject]$log).Path -QuoteFields $logFieldsQuoted -NoTypeInformation
@@ -64,7 +64,7 @@ function global:Get-Log {
     )
 
     $log = foreach ($node in $ComputerName) {
-        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         [LogObject]::new($Path, $node)
     }
 
@@ -83,7 +83,7 @@ function global:New-Log {
 
     $newLog = foreach ($node in $ComputerName){
         if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
-        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         [LogObject]::new($Path, $node).New($global:LogViewEntry.Raw)
     }
 
@@ -159,7 +159,7 @@ function global:Read-Log {
         if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
 
         # if $Path not specified, build the path with the node's $Location.Logs definition and $Name
-        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
 
         $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
         if ($log) {
@@ -613,7 +613,7 @@ function global:Remove-Log {
     foreach ($node in $ComputerName) {
 
         # if $Path not specified, build the path with the node's $Location.Logs definition and $Name
-        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
 
         $log += Get-Log -Name $Name -Path $Path -ComputerName $node | 
             Where-Object {([LogObject]$_event).Exists()} | ForEach-Object {
@@ -638,7 +638,7 @@ function global:Repair-Log {
 
         # if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
         if ([string]::IsNullOrEmpty($Name)) { $Name = "*" }
-        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log") 
+        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log") 
         $logs = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
 
         $logEntry = @()
@@ -686,8 +686,8 @@ function global:Merge-Log {
 
     foreach ($node in $ComputerName) {
 
-        $pathFrom = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($From ? "\$($From).log" : "\*.log")
-        $pathTo = (Get-EnvironConfig Location.Logs -ComputerName $node) + $($To ? "\$($To).log" : "\merged.log")  
+        $pathFrom = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($From ? "\$($From).log" : "\*.log")
+        $pathTo = (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($To ? "\$($To).log" : "\merged.log")  
         $logs = Get-Log -Name $From -Path $pathFrom -ComputerName $node | Where-Object {([LogObject]$_).Exists() -and ([LogObject]$_).Name -ne $Exclude}
 
         $logEntry = @()
@@ -731,7 +731,7 @@ function global:Test-Log {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $ComputerName) + $($Name ? "\$($Name).log" : "\*.log")
+    $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $ComputerName) + $($Name ? "\$($Name).log" : "\*.log")
 
     if (!(Test-Path $Path)) {return $false}
 
@@ -748,7 +748,7 @@ function global:Write-Log {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id,
+        [Parameter(Mandatory=$false)][string]$Context = $($global:Product.Id),
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
@@ -768,13 +768,12 @@ function global:Write-Log {
     if ([string]::IsNullOrEmpty($Name)) {
         # $Context can be something that is not a valid catalog object such as "Azure Update Management"
         # thus the need to append -ErrorAction SilentlyContinue to the call to Get-Catalog
-        $Name = (Get-Catalog $Context -ErrorAction SilentlyContinue).Log ? ((Get-Catalog $Context -ErrorAction SilentlyContinue).Log).ToLower() : $Platform.Instance
-        if (!(Test-Log -Name $Name)) {
-            New-Log -Name $Name | Out-Null
-        }
+        if ($Context -notmatch "\.") { $Context = "Product.$Context"}
+        $Name = (Get-Catalog -Uid $Context -ErrorAction SilentlyContinue).Log ?? $global:Platform.Instance
+        if (!(Test-Log -Name $Name)) { New-Log -Name $Name | Out-Null }
     }
 
-    # $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+    # $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
 
     $logEntry = 
         [LogEntry]@{
@@ -792,7 +791,7 @@ function global:Write-Log {
     foreach ($node in $ComputerName) {
 
         # if $Path not specified, build the path with the node's $Location.Logs definition and $Name
-        $Path = $Path ? $Path : (Get-EnvironConfig Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
         $log = Get-Log -Name $Name -Path $Path -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
 
         if ($log) {

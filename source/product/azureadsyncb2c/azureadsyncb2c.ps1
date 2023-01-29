@@ -13,13 +13,6 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="AzureADSyncB2C"}
 . $PSScriptRoot\definitions.ps1
 
-$sourceTenantKey = Get-AzureADTenantKeys -AzureAD
-$identityIssuer = $global:AzureAD.$sourceTenantKey.IdentityIssuer
-$targetTenantKey = Get-AzureADTenantKeys -AzureADB2C
-
-# $source = "$(($global:AzureAD.$sourceTenantKey.Tenant.Type).Replace(" ",$null))\$sourceTenantKey"
-# $target = "$(($global:AzureAD.$targetTenantKey.Tenant.Type).Replace(" ",$null))\$targetTenantKey"
-
 $action = $null; $target = $null; $status = $null
 
 function Assert-SyncError {
@@ -31,12 +24,12 @@ function Assert-SyncError {
         [Parameter(Mandatory=$true)][object]$ErrorDetail
     )
 
-    Write-Log -Context $Product.Id -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
+    Write-Log -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
     $message = "$($emptyString.PadLeft(8,"`b")) $($ErrorDetail.summary)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
     
     if ($ErrorDetail.Code -notin ("CACHE.NOTFOUND")) {
-        Send-TaskMessage -Id $Product.Id -Status $Status -Message $ErrorDetail.summary -MessageType $PlatformMessageType.Alert   
+        Send-TaskMessage -Id $Product.Id -Status $Status -Message $ErrorDetail.summary -MessageType $PlatformMessageType.Alert | Out-Null
     }
 
     Write-Host+
@@ -61,11 +54,11 @@ function Assert-SyncError {
     
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
-        $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
+        $action = "Sync"; $target = "$($targetTenantKey)"; $status = "Aborted"
         $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
@@ -74,48 +67,50 @@ function Assert-SyncError {
 
     # abort if a platform event is in progress
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
-        $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
+        $action = "Sync"; $target = "$($targetTenantKey)"; $status = "Aborted"
         $message = $platformStatus.IsStopped ? "Platform is STOPPED" : "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
     # abort if heartbeat indicates status is not ok
     If (!$heartbeat.IsOK) {
-        $action = "Sync"; $target = "AzureAD\$($targetTenantKey)"; $status = "Aborted"
+        $action = "Sync"; $target = "$($targetTenantKey)"; $status = "Aborted"
         $message = "$($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
 #endregion SERVER/PLATFORM CHECK
 
-# Send-TaskMessage -Id $($global:Product.Id)
+$targetTenantKey = Get-AzureTenantKeys -AzureADB2C
+$sourceTenantKey = $global:Azure.$targetTenantKey.Sync.Source
+$identityIssuer = $global:Azure.$sourceTenantKey.Sync.IdentityIssuer
 
 $action = $null; $target = $null; $status = $null
 try {
 
-    $action = "Initialize"; $target = "AzureAD\$($targetTenantKey)"
-    Initialize-AzureAD
+    $action = "Initialize"; $target = "$($targetTenantKey)"
+    Initialize-AzureConfig
 
     #region CONNECT SOURCE
 
         Write-Host+ -MaxBlankLines 1
-        Write-Host+ -NoTrace "Source", "AzureAD\$($sourceTenantKey)" -ForegroundColor Gray,DarkBlue -Separator ":  "
+        Write-Host+ -NoTrace "Source", "$($sourceTenantKey)" -ForegroundColor Gray,DarkBlue -Separator ":  "
 
-        $action = "Connect"; $target = "AzureAD\$($sourceTenantKey)"
+        $action = "Connect"; $target = "$($sourceTenantKey)"
         Connect-AzureAD -Tenant $sourceTenantKey
 
     #endregion CONNECT SOURCE        
     #region CONNECT TARGET
         
-        Write-Host+ -NoTrace "Target", "AzureAD\$($targetTenantKey)" -ForegroundColor Gray,DarkBlue -Separator ":  "
+        Write-Host+ -NoTrace "Target", "$($targetTenantKey)" -ForegroundColor Gray,DarkBlue -Separator ":  "
 
-        $action = "Connect"; $target = "AzureAD\$($targetTenantKey)"
+        $action = "Connect"; $target = "$($targetTenantKey)"
         Connect-AzureAD -Tenant $targetTenantKey
 
     #endregion CONNECT TARGET    
@@ -125,7 +120,7 @@ try {
 
     #region GET SOURCE USERS
 
-        $action = "Get"; $target = "AzureAD\$($sourceTenantKey)\Users"
+        $action = "Get"; $target = "$($sourceTenantKey)\Users"
         $message = "<$target <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -141,7 +136,7 @@ try {
     #endregion GET SOURCE USERS
     #region GET TARGET USERS
 
-        $action = "Get"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $action = "Get"; $target = "$($targetTenantKey)\Users"
         $message = "<$target <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -166,7 +161,7 @@ try {
     #endregion GET TARGET USERS
     #region TARGET USERS TO DISABLE
 
-        $action = "Disabled"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $action = "Disabled"; $target = "$($targetTenantKey)\Users"
         $message = "<$target\Disable <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -188,7 +183,7 @@ try {
     #endregion TARGET USERS TO DISABLE
     #region TARGET USERS TO ENABLE
 
-        $action = "Enabled"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $action = "Enabled"; $target = "$($targetTenantKey)\Users"
         $message = "<$target\Enable <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -225,7 +220,7 @@ try {
         $targetUsersUpdateEmail = $targetUsers | 
             Where-Object {$_.accountEnabled -and [string]::IsNullOrEmpty($_.mail) -and 
                 ![string]::IsNullOrEmpty(($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId) -and 
-                ($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId.endswith($global:AzureAD.$sourceTenantKey.Sync.Source)} | 
+                ($_.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId.endswith($global:Azure.$sourceTenantKey.Sync.Source)} | 
                     Where-Object {$_.id -notin $proxyAddressConflicts.id}
 
         $message = "<$target\Email\Update <.>60> $($targetUsersUpdateEmail.Count)"
@@ -236,7 +231,7 @@ try {
 
         # All Azure AD users' SMTP proxyAddresses which are not equal to the Azure AD user's 
         # UPN and end with the Azure AD tenant's source AD domain
-        $sourceUsersSmtpProxyAddresses = (Get-AzureADUserProxyAddresses -User $sourceUsers -Type SMTP -Domain $global:AzureAD.$sourceTenantKey.Sync.Source -NoUPN)
+        $sourceUsersSmtpProxyAddresses = (Get-AzureADUserProxyAddresses -User $sourceUsers -Type SMTP -Domain $global:Azure.$sourceTenantKey.Sync.Source -NoUPN)
 
         # Azure AD B2C users whose mail is in an Azure AD user's proxyAddresses (and is not the UPN)
         $targetUsersUpdateIdentity = $targetUsers | 
@@ -254,7 +249,7 @@ try {
 
             Write-Host+ -MaxBlankLines 1
 
-            $action = "DisableUser"; $target = "AzureAD\$($targetTenantKey)\Users"
+            $action = "DisableUser"; $target = "$($targetTenantKey)\Users"
             $message = "<Disabling $target users <.>60> PENDING"
             Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToDisable.Count -gt 0) {
@@ -270,7 +265,7 @@ try {
                 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 Disable-AzureADUser -Tenant $targetTenantKey -User $targetUserToDisable
-                Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$target\$targetSignInName" -Status "Disabled" -Force
+                Write-Log -Action $action -Target "$target\$targetSignInName" -Status "Disabled" -Force
 
                 $message = "$($emptyString.PadLeft(8,"`b")) DISABLED$($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
@@ -296,7 +291,7 @@ try {
 
             Write-Host+ -MaxBlankLines 1
 
-            $action = "EnableUser"; $target = "AzureAD\$($targetTenantKey)\Users"
+            $action = "EnableUser"; $target = "$($targetTenantKey)\Users"
             $message = "<Enabling $target users <.>60> PENDING"
             Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             if ($targetUsersToEnable.Count -gt 0) {
@@ -312,7 +307,7 @@ try {
                 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
                 Enable-AzureADUser -Tenant $targetTenantKey -User $targetUserToEnable
-                Write-Log -Context "AzureADSyncB2C" -Action $action -Target "$target\$targetSignInName" -Status "Enabled" -Force
+                Write-Log -Action $action -Target "$target\$targetSignInName" -Status "Enabled" -Force
 
                 $message = "$($emptyString.PadLeft(8,"`b")) ENABLED$($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -338,8 +333,8 @@ try {
 
             Write-Host+
 
-            $action = "UpdateEmail"; $target = "AzureAD\$($targetTenantKey)\Users"
-            $message = "<Updating $target user emails <.>60> PENDING"
+            $action = "UpdateEmail"; $target = "$($targetTenantKey)\Users"
+            $message = "<Updating $target email <.>60> PENDING"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             Write-Host+
 
@@ -354,10 +349,10 @@ try {
                 $response = Update-AzureADUserEmail -Tenant $targetTenantKey -User $targetUserUpdateEmail -mail $targetSignInName
                 if ($response.error) {
                     $status = "FAILURE"
-                    if ($response.error.details.code -contains "ProxyAddressConflict") {
+                    if ($response.error.details.code -contains "ObjectConflict") {
                         $status = "ProxyAddressConflict"; $entryType = "Warning"
                         $proxyAddressConflicts += $targetUserUpdateEmail
-                        Write-Log -Context "ProxyAddressConflict" -Action "Resolve" -Target "$tenantKey\Users\$($User.id)" -Message "$targetSignInName added as exclusion to ProxyAddressConflict list." -Status "Mitigated" -EntryType $entryType -Force
+                        Write-Log -Action "Resolve" -Target "$tenantKey\Users\$($User.id)" -Message "$targetSignInName added as exclusion to ProxyAddressConflict list." -Status "Mitigated" -EntryType $entryType -Force
                     }
                 }
 
@@ -376,7 +371,7 @@ try {
 
             Write-Host+
 
-            $message = "<Updating $target user emails <.>60> SUCCESS"
+            $message = "<Updating $target email <.>60> SUCCESS"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
         }
@@ -388,14 +383,14 @@ try {
 
         Write-Host+
 
-        $action = "UpdateIdentity"; $target = "AzureAD\$($targetTenantKey)\Users"
+        $action = "UpdateIdentity"; $target = "$($targetTenantKey)\Users"
         $message = "<Updating $target user names <.>60> PENDING"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
         foreach ($targetUserUpdateIdentity in $targetUsersUpdateIdentity) {
 
-            $sourceUser = Get-AzureADUser -Tenant $sourceTenantKey -UserPrincipalName ($sourceUsers | Where-Object {$_.proxyAddresses -and $targetUserUpdateIdentity.mail -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$sourceTenantKey.Sync.Source -NoUPN)}).userPrincipalName
+            $sourceUser = Get-AzureADUser -Tenant $sourceTenantKey -UserPrincipalName ($sourceUsers | Where-Object {$_.proxyAddresses -and $targetUserUpdateIdentity.mail -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:Azure.$sourceTenantKey.Sync.Source -NoUPN)}).userPrincipalName
             $targetSignInName = $sourceUser.mail
 
             $message = "<  $targetSignInName ($($targetUserUpdateIdentity.id)) <.>80> PENDING"
@@ -433,7 +428,7 @@ try {
 catch {
 
     $status = "Error"
-    Write-Log -Context "AzureADSyncB2C" -Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
+    Write-Log -Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
     Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
 }

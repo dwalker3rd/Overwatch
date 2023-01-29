@@ -59,7 +59,7 @@ function global:Send-MonitorMessage {
     $message = "<  Sending $($target.ToLower()) $($action.ToLower()) <.>48> PENDING"
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    Write-Log -Context $global:Product.Id -Action $action -Target $target -Status $PlatformStatus.RollupStatus -EntryType $entryType -Force
+    Write-Log -Action $action -Target $target -Status $PlatformStatus.RollupStatus -EntryType $entryType -Force
 
     # send platform status message
     $messagingStatus = Send-PlatformStatusMessage -PlatformStatus $PlatformStatus -MessageType $MessageType -NoThrottle:$ReportHeartbeat.IsPresent
@@ -82,9 +82,9 @@ Open-Monitor
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $status = "Aborted"
         $message = "$($Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
-        Write-Log -Context $($Product.Id) -Action "EventCheck" -Target "Server" -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Action "EventCheck" -Target "Server" -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
@@ -108,19 +108,23 @@ Open-Monitor
     # if stop has exceeded stop timeout, call for intervention, return
     if ($platformStatus.IsStopped) {
 
-        $message = "  $($platformStatus.Event.ToUpper()) requested at $($platformStatus.EventCreatedAt)"
-        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        $message = "  $($platformStatus.Event.ToUpper()) requested by $($platformStatus.EventCreatedBy)"
-        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        if ([datetime]::MinValue -ne $platformStatus.EventCreatedAt) {
+            $message = "  $($platformStatus.Event.ToUpper()) requested at $($platformStatus.EventCreatedAt)"
+            Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        }
+        if (![string]::IsNullOrEmpty($platformStatus.EventCreatedBy)) {
+            $message = "  $($platformStatus.Event.ToUpper()) requested by $($platformStatus.EventCreatedBy)"
+            Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        }
 
         $platformStatus.RollupStatus = "Stopped"
         Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null    
 
-        if ($platformStatus.IsStoppedTimeout) {           
-            Write-Log -Context $Product.Id -Action "STOP" -Target "Platform" -Status InterventionRequired -Message $platformStatus.InterventionReason -EntryType "Warning" -Force
-            $message = "<  $status <.>48> $($platformStatus.InterventionReason)"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-            Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason
+        if ($platformStatus.IsStoppedTimeout -and $platformStatus.Intervention -and ![string]::IsNullOrEmpty($platformStatus.InterventionReason)) {           
+            Write-Log -Action "STOP" -Target "Platform" -Status InterventionRequired -Message $platformStatus.InterventionReason -EntryType "Warning" -Force
+            $message = "  $($platformStatus.InterventionReason)"
+            Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+            Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason | Out-Null
         }
 
         Close-Monitor
@@ -144,7 +148,7 @@ Open-Monitor
         Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null   
         # $message = "$($global:Product.Id) $($platformStatus.RollupStatus.ToLower()) because "
         # $message += "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
-        # Write-Log -Context $($global:Product.Id) -Action "EventCheck" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType "Warning" -Force
+        # Write-Log -Action "EventCheck" -Target "Platform" -Status $platformStatus.RollupStatus -Message $message -EntryType "Warning" -Force
         # Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         Close-Monitor
         return
@@ -224,7 +228,7 @@ Open-Monitor
 
             if ($reportHeartbeat) {
                 Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true -Reported | Out-Null
-                Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat
+                Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat | Out-Null
             }
             else {
                 Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null        
@@ -289,7 +293,7 @@ Open-Monitor
 
             if ($reportHeartbeat) {
                 Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true -Reported | Out-Null
-                Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat
+                Send-MonitorMessage -PlatformStatus $platformStatus -ReportHeartbeat | Out-Null
             }
             else {
                 Set-Heartbeat -PlatformStatus $platformStatus -IsOK $true | Out-Null        
@@ -331,7 +335,7 @@ Open-Monitor
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($heartbeat.Alert ? "Red" : "DarkGreen" )
     }
 
-    Send-MonitorMessage -PlatformStatus $platformStatus -MessageType $messageType
+    Send-MonitorMessage -PlatformStatus $platformStatus -MessageType $messageType | Out-Null
 
     Close-Monitor
 

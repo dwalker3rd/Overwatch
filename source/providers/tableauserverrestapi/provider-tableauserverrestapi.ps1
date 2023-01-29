@@ -1,127 +1,120 @@
-#region DEFINITIONS
+class TSRestApiResponseError {
 
-$WorkbookPermissions = @(
-    "AddComment:Allow","AddComment:Deny",
-    "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
-    "ChangePermissions:Allow","ChangePermissions:Deny",
-    "Delete:Allow","Delete:Deny",
-    "ExportData:Allow","ExportData:Deny",
-    "ExportImage:Allow","ExportImage:Deny",
-    "ExportXml:Allow","ExportXml:Deny",
-    "Filter:Allow","Filter:Deny",
-    "Read:Allow","Read:Deny",
-    "ShareView:Allow","ShareView:Deny",
-    "ViewComments:Allow","ViewComments:Deny",
-    "ViewUnderlyingData:Allow","ViewUnderlyingData:Deny",
-    "WebAuthoring:Allow","WebAuthoring:Deny",
-    "Write:Allow","Write:Deny",
-    "RunExplainData:Allow","RunExplainData:Deny",
-    "CreateRefreshMetrics:Allow","CreateRefreshMetrics:Deny" 
-)
+    [string]$Code
+    [string]$Summary
+    [string]$Detail
+    [string]$Message
 
-$ViewPermissions = @(
-    "AddComment:Allow","AddComment:Deny",
-    "ChangePermissions:Allow","ChangePermissions:Deny",
-    "Delete:Allow","Delete:Deny",
-    "ExportData:Allow","ExportData:Deny",
-    "ExportImage:Allow","ExportImage:Deny",
-    "ExportXml:Allow","ExportXml:Deny",
-    "Filter:Allow","Filter:Deny",
-    "Read:Allow","Read:Deny",
-    "ShareView:Allow","ShareView:Deny",
-    "ViewComments:Allow","ViewComments:Deny",
-    "ViewUnderlyingData:Allow","ViewUnderlyingData:Deny",
-    "WebAuthoring:Allow","WebAuthoring:Deny",
-    "Write:Allow","Write:Deny"
-)
+    TSRestApiResponseError([object]$ResponseError) { $this.Init($ResponseError) }
 
-$DataSourcePermissions = @(
-    "ChangePermissions:Allow","ChangePermissions:Deny",
-    "Connect:Allow","Connect:Deny",
-    "Delete:Allow","Delete:Deny",
-    "ExportXml:Allow","ExportXml:Deny",
-    "Read:Allow","Read:Deny",
-    "Write:Allow","Write:Deny"
-)
+    [void]Init([object]$ResponseError) {
 
-$FlowPermissions = @(
-    "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
-    "ChangePermissions:Allow","ChangePermissions:Deny",
-    "Delete:Allow","Delete:Deny",
-    "ExportXml:Allow","ExportXml:Deny",
-    "Execute:Allow","Execute:Deny",
-    "Read:Allow","Read:Deny",
-    "WebAuthoring:Allow","WebAuthoring:Deny",
-    "Write:Allow","Write:Deny"
-)
+        switch ($this.EndpointVersioningType) {
+            "PerResourceVersioning" {
+                $this.Message = "$($ResponseError.Code) ($($ResponseError.Summary)): $($ResponseError.Detail)"
+            }
+            default {
+                $this.Message = $ResponseError
+            }
+        }
 
-$DataRolePermissions = @()
-$DatabasePermissions = @()
-$MetricPermissions = @()
-$LensPermissions = @()
+    }
 
-#endregion DEFINITIONS
-#region CONFIG
-
-$EndpointVersioningType = @{
-    RestApiVersioning = "RestApiVersioning"
-    PerResourceVersioning = "PerResourceVersioning"
-}
-$EndpointVersioningType.Default = $EndpointVersioningType.RestApiVersioning
-
-function Get-VersioningType {
-    param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Method
-    )
-    return $global:tsRestApiConfig.Method.$Method.VersioningType ?? $EndpointVersioningType.Default
 }
 
-function IsRestApiVersioning {
-    param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Method
-    )
-    return (Get-VersioningType -Method $Method) -eq $EndpointVersioningType.RestApiVersioning
+class TSRestApiResponse {
+
+    [string]$Root 
+    [string]$Keys
+
+    TSRestApiResponse() { $this.Init() }
+
+    [void]Init() {
+
+        switch ($this.EndpointVersioningType) {
+            "PerResourceVersioning" {
+                $this.Root = ""
+            }
+            default {
+                $this.Root = "tsResponse"
+            }
+        }
+
+    }
+
 }
 
-function IsPerResourceVersioning {
-    param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Method
-    )
-    return (Get-VersioningType -Method $Method) -eq $EndpointVersioningType.PerResourceVersioning
-}
 
-function Get-TSServerType {
-    param(
-        [Parameter(Mandatory=$false,Position=0)][string]$Server
-    )
-    $serverType = $global:tsRestApiConfig.Platform.Id ?? "TableauServer"
-    if (![string]::IsNullOrEmpty($Server)) {
-        if (IsTableauCloud -Server $Server) {
-            $serverType = "TableauCloud"
+class TSRestApiMethodPrerequisite {
+
+    [string[]]$Platform
+    [object]$ApiVersion
+
+    TSRestApiMethodPrerequisite() { $this.Init() }
+
+    [void]Init() {}
+
+    [void]Validate() {
+
+        if ($this.ApiVersion) {
+            if ($this.EndpointVersioningType -eq "RestApiVersioning") {
+                if (![string]::IsNullOrEmpty($this.ApiVersion.Minimum) -or ![string]::IsNullOrEmpty($this.ApiVersion.Maximum)) {
+                    $_apiVersion = $global:tsRestApiConfig.RestApiVersioning.ApiVersion
+                    if ((![string]::IsNullOrEmpty($this.ApiVersion.Minimum) -and $_apiVersion -lt $this.ApiVersion.Minimum) -or
+                        (![string]::IsNullOrEmpty($this.ApiVersion.Maximum) -and $_apiVersion -gt $this.ApiVersion.Maximum))
+                    {
+                        throw "Method `"($this.Name)`" is not supported for Tableau Server REST API $($this.ApiVersion.Minimum)."
+                    }
+                }
+            }
+        }
+
+        if (![string]::IsNullOrEmpty($this.Platform)) {
+            if ($this.Platform -notcontains $global:tsRestApiConfig.Platform.Id) {
+                throw "Method `"($this.Name)`" is not supported for $($global:tsRestApiConfig.Platform.Name)"
+            }
         }
     }
-    return $serverType
+
 }
 
-function IsTableauCloud {
-    param(
-        [Parameter(Mandatory=$false,Position=0)][string]$Server
-    )
-    $_isTableauCloud = $false
-    if (![string]::IsNullOrEmpty($Server)) {
-        $_isTableauCloud = $Server -like "*online.tableau.com"
-    }
-    elseif (![string]::IsNullOrEmpty($global:tsRestApiConfig.Platform.id)) {
-        $_isTableauCloud = $global:tsRestApiConfig.Platform.Id -eq "TableauCloud"
-    }
-    return $_isTableauCloud
-}
+class TSRestApiMethod {
 
-function IsPlatformServer {
-    param(
-        [Parameter(Mandatory=$false,Position=0)][string]$Server
-    )
-    return $Server -eq "localhost" -or $Server -eq $env:COMPUTERNAME -or $Server -eq $global:Platform.Uri.Host
+    [string]$Name
+    [string]$Endpoint
+    [ValidateSet("GET","PUT","POST","DELETE")][string]$HttpMethod 
+    [string]$Body 
+    [TSRestApiResponse]$Response 
+    [ValidateSet("RestApiVersioning","PerResourceVersioning")][string]$EndpointVersioningType 
+    [string]$Revision
+    [string]$ResourceString
+    [TSRestApiMethodPrerequisite]$Prerequisite
+
+    TSRestApiMethod() { $this.Init() }
+
+    [void]Init() {
+        if ([string]::IsNullOrEmpty($this.EndpointVersioningType)) {
+            $this.EndpointVersioningType = ![string]::IsNullOrEmpty($this.ResourceString) ? "PerResourceVersioning" : "RestApiVersioning"
+        }
+    }
+    
+    [uri]Uri() {
+
+        $_server = $global:tsRestApiConfig.Server
+        $_apiVersion = ""
+        switch ($this.EndpointVersioningType) {
+            "PerResourceVersioning" {
+                $_apiVersion = "-"
+            }
+            default {
+                $_apiVersion = $global:tsRestApiConfig.RestApiVersioning.ApiVersion
+            }
+        }
+
+        return "https://$_server/api/$_apiVersion/$($this.Endpoint)"
+        
+    }
+
 }
 
 function global:Initialize-TSRestApiConfiguration {
@@ -136,9 +129,13 @@ function global:Initialize-TSRestApiConfiguration {
         [switch]$Reset
     )
 
+    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi)) { return }
+
     if ($Reset) {
         $global:tsRestApiConfig = @{}
     }
+
+    $_provider = Get-Provider -Id "TableauServerRestApi"
 
     $global:tsRestApiConfig = @{
         Server = $Server ? $Server : $global:Platform.Uri.Host
@@ -146,16 +143,16 @@ function global:Initialize-TSRestApiConfiguration {
         Token = $null
         SiteId = $null
         ContentUrl = $ContentUrl
-        # ContentType = "application/xml;charset=utf-8"
         UserId = $null
         SpecialAccounts = @("guest","tableausvc","TabSrvAdmin","alteryxsvc")
         SpecialGroups = @("All Users")
         SpecialMethods = @("ServerInfo","Login")
+        Defaults = $_provider.Defaults
     }
 
     $global:tsRestApiConfig.RestApiVersioning = @{
         ApiUri = ""
-        ApiVersion = "3.15"
+        ApiVersion = $global:Catalog.Provider.TableauServerRestApi.Initialization.Api.Version.Minimum
         ContentType = "application/xml; charset=utf-8"
         Headers = @{
             "Accept" = "*/*"
@@ -166,26 +163,26 @@ function global:Initialize-TSRestApiConfiguration {
     $global:tsRestApiConfig.RestApiVersioning.Headers."Content-Type" = $global:tsRestApiConfig.RestApiVersioning.ContentType
 
     $global:tsRestApiConfig.PerResourceVersioning = @{
-        ApiUri = ""
-        ApiVersion = "-"
+        ApiUri = "https://$($global:tsRestApiConfig.Server)/api/-"
         ContentType = "application/vnd.<ResourceString>+json; charset=utf-8"
         Headers = @{
             "Accept" = "*/*"
             "X-Tableau-Auth" = $global:tsRestApiConfig.Token
         }
     }
-    $global:tsRestApiConfig.PerResourceVersioning.ApiUri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.PerResourceVersioning.ApiVersion)"
     $global:tsRestApiConfig.PerResourceVersioning.Headers."Content-Type" = $global:tsRestApiConfig.PerResourceVersioning.ContentType
     
     $global:tsRestApiConfig.Method = @{
-        Login = @{
-            Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/signin"
+        Login = [TSRestApiMethod]@{
+            Name = "Login"
+            Endpoint ="auth/signin"
             HttpMethod = "POST"
             Body = "<tsRequest><credentials name='<0>' password='<1>'><site contentUrl='<2>'/></credentials></tsRequest>"
-            Response = @{Keys = "credentials"}
+            Response = @{Keys = "credentials"} 
         } 
-        ServerInfo = @{
-            Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/serverinfo"
+        ServerInfo = [TSRestApiMethod]@{
+            Name = "ServerInfo"
+            Endpoint ="serverinfo"
             HttpMethod = "GET"
             Response = @{Keys = "serverinfo"}
         }
@@ -213,16 +210,22 @@ function global:Initialize-TSRestApiConfiguration {
 
     $serverInfo = Get-TsServerInfo
 
-    if (IsPlatformServer $global:tsRestApiConfig.Server) {
+    if ($global:Catalog.Provider.TableauServerRestApi.Initialization.Api.Version.AutoUpdate) {
+        $global:tsRestApiConfig.RestApiVersioning.ApiVersion = $serverinfo.restApiVersion
+        $global:tsRestApiConfig.PerResourceVersioning.ApiVersion = $serverinfo.restApiVersion
+    }
+
+    if ($Server -eq "localhost" -or $Server -eq $env:COMPUTERNAME -or $Server -eq $global:Platform.Uri.Host) {
         $global:tsRestApiConfig.Platform = $global:Platform
     }
     else {
-        $global:tsRestApiConfig.Platform = $global:Catalog.Platform.(Get-TSServerType -Server $Server) | Copy-Object
+        $_type = $global:tsRestApiConfig.Platform.Id ?? ($Server -match "online\.tableau\.com$" ? "TableauCloud" : "TableauOnline")
+        $global:tsRestApiConfig.Platform = $global:Catalog.Platform.$_type | Copy-Object
         $global:tsRestApiConfig.Platform.Uri = [System.Uri]::new("https://$Server")
         $global:tsRestApiConfig.Platform.Domain = $Server.Split(".")[-1]
         $global:tsRestApiConfig.Platform.Instance = "$($Server.Replace(".","-"))"
     }
-    $global:tsRestApiConfig.Platform.Api.TsRestApiVersion = $serverinfo.restApiVersion
+
     $global:tsRestApiConfig.Platform.Version = $serverinfo.productVersion.InnerText
     $global:tsRestApiConfig.Platform.Build = $serverinfo.productVersion.build
     $global:tsRestApiConfig.Platform.DisplayName = $global:tsRestApiConfig.Platform.Name + " " + $global:tsRestApiConfig.Platform.Version
@@ -230,7 +233,7 @@ function global:Initialize-TSRestApiConfiguration {
     $platformInfo = @{
         Version=$global:Platform.Version
         Build=$global:Platform.Build
-        TsRestApiVersion=$global:Platform.Api.TsRestApiVersion
+        # TsRestApiVersion=$global:Platform.Api.TsRestApiVersion
     }
     $platformInfo | Write-Cache platforminfo
 
@@ -250,32 +253,37 @@ function global:Update-TSRestApiMethods {
 
         #region SESSION METHODS
 
-            Login = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/signin"
+            Login = [TSRestApiMethod]@{
+                Name = "Login"
+                Endpoint ="auth/signin"
                 HttpMethod = "POST"
                 Body = "<tsRequest><credentials name='<0>' password='<1>'><site contentUrl='<2>'/></credentials></tsRequest>"
                 Response = @{Keys = "credentials"}
             } 
-            GetCurrentSession = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sessions/current"
+            GetCurrentSession = [TSRestApiMethod]@{
+                Name = "GetCurrentSession"
+                Endpoint ="sessions/current"
                 HttpMethod = "GET"
                 Response = @{Keys = "session"}
             }
-            Logout = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/signout"
+            Logout = [TSRestApiMethod]@{
+                Name = "Logout"
+                Endpoint ="auth/signout"
                 HttpMethod = "POST"
             }
 
         #endregion SESSION METHODS
         #region SERVER METHODS
 
-            ServerInfo = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/serverinfo"
+            ServerInfo = [TSRestApiMethod]@{
+                Name = "ServerInfo"
+                Endpoint ="serverinfo"
                 HttpMethod = "GET"
                 Response = @{Keys = "serverinfo"}
             }
-            GetDomains = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/domains"
+            GetDomains = [TSRestApiMethod]@{
+                Name = "GetDomains"
+                Endpoint ="domains"
                 HttpMethod = "GET"
                 Response = @{Keys = "domainList"}
             }
@@ -283,35 +291,41 @@ function global:Update-TSRestApiMethods {
         #endregion SERVER METHODS
         #region GROUP METHODS
 
-            GetGroups = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups"
+            GetGroups = [TSRestApiMethod]@{
+                Name = "GetGroups"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/groups"
                 HttpMethod = "GET"
                 Response = @{Keys = "groups.group"}
             }
-            AddGroupToSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups"
+            AddGroupToSite = [TSRestApiMethod]@{
+                Name = "AddGroupToSite"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/groups"
                 HttpMethod = "POST"
                 Body = "<tsRequest><group name='<0>'/></tsRequest>"
                 Response = @{Keys = "group"}
             }
-            RemoveGroupFromSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>"
+            RemoveGroupFromSite = [TSRestApiMethod]@{
+                Name = "RemoveGroupFromSite"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/groups/<0>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = "group"}
             }
-            GetGroupMembership = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
+            GetGroupMembership = [TSRestApiMethod]@{
+                Name = "GetGroupMembership"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
                 HttpMethod = "GET"
                 Response = @{Keys = "users.user"}
             }
-            AddUserToGroup = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
+            AddUserToGroup = [TSRestApiMethod]@{
+                Name = "AddUserToGroup"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users"
                 HttpMethod = "POST"
                 Body = "<tsRequest><user id='<1>'/></tsRequest>"
                 Response = @{Keys = "user"}
             }
-            RemoveUserFromGroup = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users/<1>"
+            RemoveUserFromGroup = [TSRestApiMethod]@{
+                Name = "RemoveUserFromGroup"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/groups/<0>/users/<1>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = ""}
             }
@@ -319,19 +333,22 @@ function global:Update-TSRestApiMethods {
         #endregion GROUP METHODS
         #region SITE METHODS
 
-            SwitchSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/auth/switchSite"
+            SwitchSite = [TSRestApiMethod]@{
+                Name = "SwitchSite"
+                Endpoint ="auth/switchSite"
                 HttpMethod = "POST"
                 Body = "<tsRequest><site contentUrl='<0>'/></tsRequest>"
                 Response = @{Keys = "credentials"}
             } 
-            GetSites = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites"
+            GetSites = [TSRestApiMethod]@{
+                Name = "GetSites"
+                Endpoint ="sites"
                 HttpMethod = "GET"
                 Response = @{Keys = "sites.site"}
             }
-            GetSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)"
+            GetSite = [TSRestApiMethod]@{
+                Name = "GetSite"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)"
                 HttpMethod = "GET"
                 Response = @{Keys = "site"}
             }
@@ -339,41 +356,48 @@ function global:Update-TSRestApiMethods {
         #endregion SITE METHODS
         #region USER METHODS
 
-            GetUsers = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users?fields=_all_"
+            GetUsers = [TSRestApiMethod]@{
+                Name = "GetUsers"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/users?fields=_all_"
                 HttpMethod = "GET"
                 Response = @{Keys = "users.user"}
             }
-            GetUser = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+            GetUser = [TSRestApiMethod]@{
+                Name = "GetUser"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "user"}
             }
-            AddUser = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users"
+            AddUser = [TSRestApiMethod]@{
+                Name = "AddUser"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/users"
                 HttpMethod = "POST"
                 Body = "<tsRequest><user name='<0>' siteRole='<1>' /></tsRequest>"
                 Response = @{Keys = "user"}
             }
-            RemoveUser = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+            RemoveUser = [TSRestApiMethod]@{
+                Name = "RemoveUser"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = ""}
             }
-            UpdateUser = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+            UpdateUser = [TSRestApiMethod]@{
+                Name = "UpdateUser"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><user fullName=`"<1>`" email=`"<2>`" siteRole=`"<3>`" /></tsRequest>"
                 Response = @{Keys = "user"}
             }
-            UpdateUserPassword = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
+            UpdateUserPassword = [TSRestApiMethod]@{
+                Name = "UpdateUserPassword"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/users/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><user password='<1>' /></tsRequest>"
                 Response = @{Keys = "user"}
             }
-            GetUserMembership = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/users/<0>/groups"
+            GetUserMembership = [TSRestApiMethod]@{
+                Name = "GetUserMembership"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/users/<0>/groups"
                 HttpMethod = "GET"
                 Response = @{Keys = "groups.group"}
             }
@@ -381,40 +405,47 @@ function global:Update-TSRestApiMethods {
         #endregion USER METHODS
         #region PROJECT METHODS 
             
-            GetProjects = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects"
+            GetProjects = [TSRestApiMethod]@{
+                Name = "GetProjects"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects"
                 HttpMethod = "GET"
                 Response = @{Keys = "projects.project"}
             }
-            GetProjectPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
+            GetProjectPermissions = [TSRestApiMethod]@{
+                Name = "GetProjectPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }
-            GetProjectDefaultPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
+            GetProjectDefaultPermissions = [TSRestApiMethod]@{
+                Name = "GetProjectDefaultPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }
-            AddProjectPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
+            AddProjectPermissions = [TSRestApiMethod]@{
+                Name = "AddProjectPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
-            AddProjectDefaultPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
+            AddProjectDefaultPermissions = [TSRestApiMethod]@{
+                Name = "AddProjectDefaultPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><2></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
-            RemoveProjectPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions/<1>/<2>/<3>/<4>"
+            RemoveProjectPermissions = [TSRestApiMethod]@{
+                Name = "RemoveProjectPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/permissions/<1>/<2>/<3>/<4>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = "permissions"}
             }
-            RemoveProjectDefaultPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>/<2>/<3>/<4>/<5>"
+            RemoveProjectDefaultPermissions = [TSRestApiMethod]@{
+                Name = "RemoveProjectDefaultPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>/default-permissions/<1>/<2>/<3>/<4>/<5>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = "permissions"}
             }
@@ -422,45 +453,53 @@ function global:Update-TSRestApiMethods {
         #endregion PROJECT METHODS
         #region WORKBOOK METHODS
 
-            GetWorkbooks = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks"
+            GetWorkbooks = [TSRestApiMethod]@{
+                Name = "GetWorkbooks"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks"
                 HttpMethod = "GET"
                 Response = @{Keys = "workbooks.workbook"}
             }
-            GetWorkbook = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>"
+            GetWorkbook = [TSRestApiMethod]@{
+                Name = "GetWorkbook"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "workbook"}
             }
-            UpdateWorkbook = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>"
+            UpdateWorkbook = [TSRestApiMethod]@{
+                Name = "UpdateWorkbook"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><workbook name='<1>' ><project id='<2>' /><owner id='<3>' /></workbook></tsRequest>"
                 Response = @{Keys = "workbook"}
             }
-            GetWorkbookConnections = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/connections"
+            GetWorkbookConnections = [TSRestApiMethod]@{
+                Name = "GetWorkbookConnections"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/connections"
                 HttpMethod = "GET"
                 Response = @{Keys = "connections.connection"}
             }
-            GetWorkbookRevisions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/revisions"
+            GetWorkbookRevisions = [TSRestApiMethod]@{
+                Name = "GetWorkbookRevisions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/revisions"
                 HttpMethod = "GET"
                 Response = @{Keys = "revisions.revision"}
             }
-            GetWorkbookRevision = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/revisions/<1>"
+            GetWorkbookRevision = [TSRestApiMethod]@{
+                Name = "GetWorkbookRevision"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/revisions/<1>"
                 HttpMethod = "GET"
                 Response = @{Keys = "revisions.revision"}
                 Revision = "<1>"
             }
-            GetWorkbookPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
+            GetWorkbookPermissions = [TSRestApiMethod]@{
+                Name = "GetWorkbookPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }   
-            AddWorkbookPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
+            AddWorkbookPermissions = [TSRestApiMethod]@{
+                Name = "AddWorkbookPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
@@ -469,28 +508,33 @@ function global:Update-TSRestApiMethods {
         #endregion WORKBOOK METHODS
         #region VIEW METHODS 
 
-            GetView = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views/<0>"
+            GetView = [TSRestApiMethod]@{
+                Name = "GetView"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/views/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "view"}
             }
-            GetViewsForSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views"
+            GetViewsForSite = [TSRestApiMethod]@{
+                Name = "GetViewsForSite"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/views"
                 HttpMethod = "GET"
                 Response = @{Keys = "views.view"}
             }
-            GetViewsForWorkbook = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/views"
+            GetViewsForWorkbook = [TSRestApiMethod]@{
+                Name = "GetViewsForWorkbook"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks/<0>/views"
                 HttpMethod = "GET"
                 Response = @{Keys = "views.view"}
             }
-            GetViewPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views/<0>/permissions"
+            GetViewPermissions = [TSRestApiMethod]@{
+                Name = "GetViewPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/views/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }   
-            AddViewPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/views/<0>/permissions"
+            AddViewPermissions = [TSRestApiMethod]@{
+                Name = "AddViewPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/views/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
@@ -499,76 +543,82 @@ function global:Update-TSRestApiMethods {
         #endregion VIEW METHODS 
         #region CUSTOMVIEW METHODS 
 
-            GetCustomView = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/customviews/<0>"
+            GetCustomView = [TSRestApiMethod]@{
+                Name = "GetCustomView"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/customviews/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "customview"}
-                Prerequisite = @(
-                    @{ 
-                        Platform = "TableauCloud"
-                        ApiVersion = @{
-                            Minimum = "3.18" 
-                        }
+                Prerequisite = @{ 
+                    Platform = "TableauCloud"
+                    ApiVersion = @{
+                        Minimum = "3.18" 
                     }
-                )
+                }
             }
-            GetCustomViewsForSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/customviews"
+            GetCustomViewsForSite = [TSRestApiMethod]@{
+                Name = "GetCustomViewsForSite"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/customviews"
                 HttpMethod = "GET"
                 Response = @{Keys = "customviews.customview"}
-                Prerequisite = @(
-                    @{ 
-                        Platform = "TableauCloud"
-                        ApiVersion = @{
-                            Minimum = "3.18" 
-                        }
+                Prerequisite = @{ 
+                    Platform = "TableauCloud"
+                    ApiVersion = @{
+                        Minimum = "3.18" 
                     }
-                )
+                }
             }
 
         #endregion VIEW METHODS         
         #region DATASOURCE METHODS 
 
-            GetDataSource = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>"
+            GetDatasource = [TSRestApiMethod]@{
+                Name = "GetDatasource"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "datasource"}
             }
-            GetDataSources = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources"
+            GetDatasources = [TSRestApiMethod]@{
+                Name = "GetDatasources"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources"
                 HttpMethod = "GET"
                 Response = @{Keys = "datasources.datasource"}
             }
-            UpdateDataSource = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>"
+            UpdateDatasource = [TSRestApiMethod]@{
+                Name = "UpdateDatasource"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><datasource name='<1>' ><project id='<2>' /><owner id='<3>' /></datasource></tsRequest>"
                 Response = @{Keys = "datasource"}
             }
-            GetDatasourcePermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
+            GetDatasourcePermissions = [TSRestApiMethod]@{
+                Name = "GetDatasourcePermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }
-            AddDataSourcePermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
+            AddDatasourcePermissions = [TSRestApiMethod]@{
+                Name = "AddDatasourcePermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
-            GetDataSourceRevisions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/revisions"
+            GetDatasourceRevisions = [TSRestApiMethod]@{
+                Name = "GetDatasourceRevisions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/revisions"
                 HttpMethod = "GET"
                 Response = @{Keys = "revisions.revision"}
             }
-            GetDatasourceRevision = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/revisions/<1>"
+            GetDatasourceRevision = [TSRestApiMethod]@{
+                Name = "GetDatasourceRevision"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/revisions/<1>"
                 HttpMethod = "GET"
                 Response = @{Keys = "revisions.revision"}
                 Revision = "<1>"
             }
-            GetDataSourceConnections = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/connections"
+            GetDatasourceConnections = [TSRestApiMethod]@{
+                Name = "GetDatasourceConnections"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources/<0>/connections"
                 HttpMethod = "GET"
                 Response = @{Keys = "connections.connection"}
             }
@@ -576,50 +626,59 @@ function global:Update-TSRestApiMethods {
         #endregion DATASOURCE METHODS
         #region FLOW METHODS
 
-            GetFlows = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows"
+            GetFlows = [TSRestApiMethod]@{
+                Name = "GetFlows"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows"
                 HttpMethod = "GET"
                 Response = @{Keys = "flows.flow"}
             }
-            GetFlowsForUser = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/<0>/flows"
+            GetFlowsForUser = [TSRestApiMethod]@{
+                Name = "GetFlowsForUser"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/<0>/flows"
                 HttpMethod = "GET"
                 Response = @{Keys = "flows.flow"}
             }
-            GetFlow = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>"
+            GetFlow = [TSRestApiMethod]@{
+                Name = "GetFlow"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "flow"}
             }
-            UpdateFlow = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>"
+            UpdateFlow = [TSRestApiMethod]@{
+                Name = "UpdateFlow"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><flow name='<1>' ><project id='<2>' /><owner id='<3>' /></flow></tsRequest>"
                 Response = @{Keys = "flow"}
             }
-            GetFlowPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/permissions"
+            GetFlowPermissions = [TSRestApiMethod]@{
+                Name = "GetFlowPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/permissions"
                 HttpMethod = "GET"
                 Response = @{Keys = "permissions"}
             }
-            AddFlowPermissions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/permissions"
+            AddFlowPermissions = [TSRestApiMethod]@{
+                Name = "AddFlowPermissions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/permissions"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><permissions><granteeCapabilities><1></granteeCapabilities></permissions></tsRequest>"
                 Response = @{Keys = "permissions"}
             }
-            GetFlowConnections = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/connections"
+            GetFlowConnections = [TSRestApiMethod]@{
+                Name = "GetFlowConnections"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/connections"
                 HttpMethod = "GET"
                 Response = @{Keys = "connections.connection"}
             }
-            GetFlowRevisions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/revisions"
+            GetFlowRevisions = [TSRestApiMethod]@{
+                Name = "GetFlowRevisions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/revisions"
                 HttpMethod = "GET"
                 Response = @{Keys = "revisions.revision"}
             }
-            GetFlowRevision = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/revisions/<1>"
+            GetFlowRevision = [TSRestApiMethod]@{
+                Name = "GetFlowRevision"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/flows/<0>/revisions/<1>"
                 HttpMethod = "GET"
                 Response = @{Keys = "revisions.revision"}
                 Revision = "<1>"
@@ -628,18 +687,21 @@ function global:Update-TSRestApiMethods {
         #endregion FLOW METHODS          
         #region METRIC METHODS
 
-            GetMetrics = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/metrics"
+            GetMetrics = [TSRestApiMethod]@{
+                Name = "GetMetrics"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/metrics"
                 HttpMethod = "GET"
                 Response = @{Keys = "metrics.metric"}
             }
-            GetMetric = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/metrics/<0>"
+            GetMetric = [TSRestApiMethod]@{
+                Name = "GetMetric"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/metrics/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "metrics.metric"}
             }
-            UpdateMetric = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/metrics/<0>"
+            UpdateMetric = [TSRestApiMethod]@{
+                Name = "UpdateMetric"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/metrics/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><metric name='<1>' ><project id='<2>' /><owner id='<3>' /></metric></tsRequest>"
                 Response = @{Keys = "metric"}
@@ -648,52 +710,53 @@ function global:Update-TSRestApiMethods {
         #endregion METRIC METHODS
         #region COLLECTION METHODS
 
-            GetCollections = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/collections/<0>"
+            GetCollections = [TSRestApiMethod]@{
+                Name = "GetCollections"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/collections/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "collections.collection"}
-                Prerequisite = @(
-                    @{
-                        ApiVersion = @{
-                            Minimum = "9.99"
-                        }
+                Prerequisite =  @{
+                    ApiVersion = @{
+                        Minimum = "9.99"
                     }
-                )
+                }
             }
 
         #endregion COLLECTION METHODS
         #region VIRTUALCONNECTION METHODS
 
-            GetVirtualConnections = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/virtualconnections"
+            GetVirtualConnections = [TSRestApiMethod]@{
+                Name = "GetVirtualConnections"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/virtualconnections"
                 HttpMethod = "GET"
                 Response = @{Keys = "virtualconnections.virtualconnection"}
-                Prerequisite = @(
-                    @{ 
-                        Platform = "TableauCloud"
-                        ApiVersion = @{
-                            Minimum = "3.18" 
-                        }
+                Prerequisite = @{ 
+                    Platform = "TableauCloud"
+                    ApiVersion = @{
+                        Minimum = "3.18" 
                     }
-                )
+                }
             }
 
         #endregion VIRTUALCONNECTION METHODS
         #region FAVORITE METHODS
 
-            GetFavorites = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
+            GetFavorites = [TSRestApiMethod]@{
+                Name = "GetFavorites"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "favorites.favorite"}
             }
-            AddFavorite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
+            AddFavorite = [TSRestApiMethod]@{
+                Name = "AddFavorite"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>"
                 HttpMethod = "PUT"
                 Body = "<tsRequest><favorite label='<1>'><<2> id='<3>'/></favorite></tsRequest>"
                 Response = @{Keys = "favorites.favorite"}
             }
-            RemoveFavorite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>/<1>/<2>"
+            RemoveFavorite = [TSRestApiMethod]@{
+                Name = "RemoveFavorite"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/favorites/<0>/<1>/<2>"
                 HttpMethod = "DELETE"
                 Response = @{Keys = "favorites.favorite"}
             }
@@ -701,13 +764,15 @@ function global:Update-TSRestApiMethods {
         #endregion FAVORITE METHODS
         #region SCHEDULES
 
-            GetSchedules = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/schedules"
+            GetSchedules = [TSRestApiMethod]@{
+                Name = "GetSchedules"
+                Endpoint ="schedules"
                 HttpMethod = "GET"
                 Response = @{Keys = "schedules.schedule"}
             }
-            GetSchedule = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/schedules/<0>"
+            GetSchedule = [TSRestApiMethod]@{
+                Name = "GetSchedule"
+                Endpoint ="schedules/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "schedule"}
             }
@@ -715,13 +780,15 @@ function global:Update-TSRestApiMethods {
         #endregion SCHEDULES
         #region SUBSCRIPTIONS
 
-            GetSubscriptions = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/subscriptions"
+            GetSubscriptions = [TSRestApiMethod]@{
+                Name = "GetSubscriptions"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/subscriptions"
                 HttpMethod = "GET"
                 Response = @{Keys = "subscriptions.subscription"}
             }
-            GetSubscription = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/subscriptions/<0>"
+            GetSubscription = [TSRestApiMethod]@{
+                Name = "GetSubscription"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/subscriptions/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "subscription"}
             }
@@ -729,23 +796,27 @@ function global:Update-TSRestApiMethods {
         #endregion SUBSCRIPTIONS
         #region NOTIFICATIONS
             
-            GetDataAlerts = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/dataAlerts"
+            GetDataAlerts = [TSRestApiMethod]@{
+                Name = "GetDataAlerts"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/dataAlerts"
                 HttpMethod = "GET"
                 Response = @{Keys = "dataAlerts.dataAlert"}
             }
-            GetWebhooks = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/webhooks"
+            GetWebhooks = [TSRestApiMethod]@{
+                Name = "GetWebhooks"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/webhooks"
                 HttpMethod = "GET"
                 Response = @{Keys = "webhooks.webhook"}
             }
-            GetWebhook = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/webhooks/<0>"
+            GetWebhook = [TSRestApiMethod]@{
+                Name = "GetWebhook"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/webhooks/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "webhook"}
             }
-            GetUserNotificationPreferences = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/settings/notifications"
+            GetUserNotificationPreferences = [TSRestApiMethod]@{
+                Name = "GetUserNotificationPreferences"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/settings/notifications"
                 HttpMethod = "GET"
                 Response = @{Keys = "userNotificationsPreferences.userNotificationsPreference"}
             }
@@ -753,59 +824,61 @@ function global:Update-TSRestApiMethods {
         #endregion NOTIFICATIONS
         #region ANALYTICS EXTENSIONS
 
-            GetAnalyticsExtensionsConnectionsForSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/analytics/connections"
+            GetAnalyticsExtensionsConnectionsForSite = [TSRestApiMethod]@{
+                Name = "GetAnalyticsExtensionsConnectionsForSite"
+                Endpoint ="settings/site/extensions/analytics/connections"
                 HttpMethod = "GET"
                 Response = @{Keys = "connectionList"}
                 ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
-                VersioningType = $EndpointVersioningType.PerResourceVersioning
             }
-            GetAnalyticsExtensionsEnabledStateForSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/analytics"
+            GetAnalyticsExtensionsEnabledStateForSite = [TSRestApiMethod]@{
+                Name = "GetAnalyticsExtensionsEnabledStateForSite"
+                Endpoint ="settings/site/extensions/analytics"
                 HttpMethod = "GET"
                 Response = @{Keys = "enabled"}
                 ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
-                VersioningType = $EndpointVersioningType.PerResourceVersioning
             }  
 
         #endregion ANALYTICS EXTENSIONS
         #region DASHBOARD EXTENSIONS
 
-            GetDashboardExtensionSettingsForServer = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/-/settings/server/extensions/dashboard"
+            GetDashboardExtensionSettingsForServer = [TSRestApiMethod]@{
+                Name = "GetDashboardExtensionSettingsForServer"
+                Endpoint ="settings/server/extensions/dashboard"
                 HttpMethod = "GET"
                 ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
-                VersioningType = $EndpointVersioningType.PerResourceVersioning
             } 
-            GetBlockedDashboardExtensionsForServer = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/-/settings/server/extensions/dashboard/blockListItems"
+            GetBlockedDashboardExtensionsForServer = [TSRestApiMethod]@{
+                Name = "GetBlockedDashboardExtensionsForServer"
+                Endpoint ="settings/server/extensions/dashboard/blockListItems"
                 HttpMethod = "GET"
                 ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
-                VersioningType = $EndpointVersioningType.PerResourceVersioning
             }  
-            GetDashboardExtensionSettingsForSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/dashboard"
+            GetDashboardExtensionSettingsForSite = [TSRestApiMethod]@{
+                Name = "GetDashboardExtensionSettingsForSite"
+                Endpoint ="settings/site/extensions/dashboard"
                 HttpMethod = "GET"
                 ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
-                VersioningType = $EndpointVersioningType.PerResourceVersioning
             } 
-            GetAllowedDashboardExtensionsForSite = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/-/settings/site/extensions/dashboard/safeListItems"
+            GetAllowedDashboardExtensionsForSite = [TSRestApiMethod]@{
+                Name = "GetAllowedDashboardExtensionsForSite"
+                Endpoint ="settings/site/extensions/dashboard/safeListItems"
                 HttpMethod = "GET"
                 ResourceString = "tableau.analyticsextensions.v1.ConnectionMetadataList"
-                VersioningType = $EndpointVersioningType.PerResourceVersioning
             }
 
         #endregion DASHBOARD EXTENSIONS
         #region CONNECTED APPLICATIONS
 
-            GetConnectedApplications = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/connected-applications"
+            GetConnectedApplications = [TSRestApiMethod]@{
+                Name = "GetConnectedApplications"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/connected-applications"
                 HttpMethod = "GET"
                 Response = @{Keys = "connectedApplications.connectedApplication"}
             }
-            GetConnectedApplication = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/connected-applications/<0>"
+            GetConnectedApplication = [TSRestApiMethod]@{
+                Name = "GetConnectedApplication"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/connected-applications/<0>"
                 HttpMethod = "GET"
                 Response = @{Keys = "connectedApplications.connectedApplication"}
             }
@@ -813,33 +886,39 @@ function global:Update-TSRestApiMethods {
         #endregion CONNECTED APPLICATIONS
         #region PUBLISH
 
-            PublishWorkbook = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks?overwrite=true"
+            PublishWorkbook = [TSRestApiMethod]@{
+                Name = "PublishWorkbook"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks?overwrite=true"
                 HttpMethod = "POST"
                 Response = @{Keys = "workbook"}
             }
-            PublishDatasource = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources?overwrite=true"
+            PublishDatasource = [TSRestApiMethod]@{
+                Name = "PublishDatasource"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources?overwrite=true"
                 HttpMethod = "POST"
                 Response = @{Keys = "datasource"}
             }
-            InitiateFileUpload = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/fileUploads/"
+            InitiateFileUpload = [TSRestApiMethod]@{
+                Name = "InitiateFileUpload"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/fileUploads/"
                 HttpMethod = "POST"
                 Response = @{Keys = "fileUpload.uploadSessionId"}
             }
-            AppendToFileUpload = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/fileUploads/<0>"
+            AppendToFileUpload = [TSRestApiMethod]@{
+                Name = "AppendToFileUpload"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/fileUploads/<0>"
                 HttpMethod = "PUT"
                 Response = @{Keys = "fileUpload"}
             }
-            PublishWorkbookMultipart = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/workbooks?uploadSessionId=<0>&workbookType=<1>&overwrite=<2>"
+            PublishWorkbookMultipart = [TSRestApiMethod]@{
+                Name = "PublishWorkbookMultipart"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/workbooks?uploadSessionId=<0>&workbookType=<1>&overwrite=<2>"
                 HttpMethod = "POST"
                 Response = @{Keys = "workbook"}
             }
-            PublishDatasourceMultipart = @{
-                Uri = "https://$($global:tsRestApiConfig.Server)/api/$($global:tsRestApiConfig.RestApiVersioning.ApiVersion)/sites/$($global:tsRestApiConfig.SiteId)/datasources?uploadSessionId=<0>&datasourceType=<1>&overwrite=<2>"
+            PublishDatasourceMultipart = [TSRestApiMethod]@{
+                Name = "PublishDatasourceMultipart"
+                Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/datasources?uploadSessionId=<0>&datasourceType=<1>&overwrite=<2>"
                 HttpMethod = "POST"
                 Response = @{Keys = "datasource"}
             }
@@ -866,6 +945,8 @@ function global:Invoke-TSRestApiMethod {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 0
     )
 
+    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi)) { return }
+
     if ($Method -notin $global:tsRestApiConfig.SpecialMethods -and !$global:tsRestApiConfig.Token) {
 
         $creds = Get-Credentials $global:tsRestApiConfig.Credentials
@@ -888,38 +969,30 @@ function global:Invoke-TSRestApiMethod {
     }
 
     # check method's prerequisites
-    $prerequisite = $global:tsRestApiConfig.Method.$Method.Prerequisite
-    if ($prerequisite) {
-        $prerequisiteError = "$Method not available "
-        if ($prerequisite.ApiVersion) {
-            $currentApiVersion = ([regex]::Matches($global:tsRestApiConfig.Method.$Method.Uri,"/api/(\d+\.\d+)/")).Groups[1].Value
-            if ($currentApiVersion -lt $prerequisite.ApiVersion.Minimum -or $currentApiVersion -gt $prerequisite.ApiVersion.Maximum) {
-                $prerequisiteError += " in API $currentVersion"
-            }
+    try {
+        if ($global:tsRestApiConfig.Method.$Method.Prerequisite) {
+            $global:tsRestApiConfig.Method.$Method.Prerequisite.Validate()
         }
-        if (![string]::IsNullOrEmpty($prerequisite.Platform)) {
-            if ($prerequisite.Platform -contains $tsRestApiConfig.Platform.Id) {
-                $prerequisiteError += " for $($tsRestApiConfig.Platform.Name)"
-            }
-        }
-        Write-Log -EntryType "Error" -Action $Method -Status "NotAvailable" -Message $prerequisiteError
-        throw $prerequisiteError 
     }
-
-    $responseRoot = (IsRestApiVersioning -Method $Method) ? "tsResponse" : $null
+    catch {
+        Write-Host+ $_.Exception.Message -Foreground Red
+        return
+    }
+    
+    $responseRoot = $global:tsRestApiConfig.Method.$Method.Response.Root
     
     $pageFilter = "pageNumber=$($PageNumber)&pageSize=$($PageSize)"
     $_filter = $Filter ? "filter=$($Filter)&$($pageFilter)" : "$($pageFilter)"
 
     $httpMethod = $global:tsRestApiConfig.Method.$Method.HttpMethod
 
-    $uri = "$($global:tsRestApiConfig.Method.$Method.Uri)"
+    $uri = "$($global:tsRestApiConfig.Method.$Method.Uri())"
     $questionMarkOrAmpersand = $uri.Contains("?") ? "&" : "?"
-    $uri += (IsRestApiVersioning -Method $Method) -and $httpMethod -eq "GET" ? "$($questionMarkOrAmpersand)$($_filter)" : $null
+    $uri += ($global:tsRestApiConfig.Method.$Method.EndpointVersioningType -Eq "RestApiVersioning") -and $httpMethod -eq "GET" ? "$($questionMarkOrAmpersand)$($_filter)" : $null
 
     $body = $global:tsRestApiConfig.Method.$Method.Body
 
-    $headers = $global:tsRestApiConfig.(Get-VersioningType -Method $Method).Headers | Copy-Object
+    $headers = $global:tsRestApiConfig.$($global:tsRestApiConfig.Method.$Method.EndpointVersioningType).Headers | Copy-Object
     $headers."Content-Type" = $headers."Content-Type".Replace("<ResourceString>",$global:tsRestApiConfig.Method.$Method.ResourceString)
     foreach ($key in $global:tsRestApiConfig.Method.$Method.Headers.Keys) {
         if ($key -in $headers.Keys) { $headers.Remove($key) }
@@ -938,9 +1011,9 @@ function global:Invoke-TSRestApiMethod {
     if ($headers.ContentLength) { $headers.ContentLength = $body.Length }
     
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method $httpMethod -Headers $headers -Body $body -ContentType $global:tsRestApiConfig.(Get-VersioningType -Method $Method).ContentType -TimeoutSec $TimeoutSec -ResponseHeadersVariable responseHeaders
-        if (IsRestApiVersioning -Method $Method) {
-            $responseError = $response.$responseRoot.error 
+        $response = Invoke-RestMethod -Uri $uri -Method $httpMethod -Headers $headers -Body $body -ContentType $global:tsRestApiConfig.$($global:TsRestApiConfig.Method.$Method.EndpointVersioningType).ContentType -TimeoutSec $TimeoutSec -ResponseHeadersVariable responseHeaders
+        if ($global:tsRestApiConfig.Method.$Method.EndpointVersioningType -Eq "RestApiVersioning") {
+            $responseError = $response.$responseRoot.error
         }
         else {
             if ($response.httpErrorCode) {
@@ -999,7 +1072,7 @@ function global:Download-TSObject {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Method,
-        [Parameter(Mandatory=$true)][Alias("Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject,
+        [Parameter(Mandatory=$true)][Alias("Workbook","View","Datasource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject,
         [Parameter(Mandatory=$false)][string[]]$Params = @($InputObject.Id),
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 0
     )
@@ -1011,13 +1084,15 @@ function global:Download-TSObject {
             detail = "Invalid authentication credentials were provided"
         }
         $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
+        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
         return $null, $null, $responseError
     }
 
     if (!$InputObject -and !$Params) {
         throw "ERROR: `"InputObject`" or `"Params`" parameters must be specified"
     }
+
+    $responseRoot = $global:tsRestApiConfig.Method.$Method.Response.Root
 
     $objectType = $global:tsRestApiConfig.Method.$Method.Response.Keys.Split(".")[-1]
 
@@ -1033,15 +1108,15 @@ function global:Download-TSObject {
     $contentUrl = ![string]::IsNullOrEmpty($global:tsRestApiConfig.ContentUrl) ? $global:tsRestApiConfig.ContentUrl : "default"
 
     $httpMethod = $global:tsRestApiConfig.Method.$Method.HttpMethod
-    $uri = "$($global:tsRestApiConfig.Method.$Method.Uri)/content"
-    $revision = $global:tsRestApiConfig.Method.$Method.Revision 
+    $uri = "$($global:tsRestApiConfig.Method.$Method.Uri())/content"
+    $revision = $global:tsRestApiConfig.Method.$Method.Revision
 
     for ($i = 0; $i -lt $Params.Count; $i++) {
         $uri = $uri -replace "<$($i)>",$Params[$i]
         $revision = $revision -replace "<$($i)>",$Params[$i]
     }
     
-    $headers = $global:tsRestApiConfig.(Get-VersioningType -Method $Method).Headers | Copy-Object
+    $headers = $global:tsRestApiConfig.$($global:TsRestApiConfig.Method.$Method.EndpointVersioningType).Headers | Copy-Object
     $headers."Content-Type" = $headers."Content-Type".Replace("<ResourceString>",$global:tsRestApiConfig.Method.$Method.ResourceString)
 
     $tempOutFileDirectory = "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentUrl\.temp"
@@ -1052,7 +1127,7 @@ function global:Download-TSObject {
     try {
         $response = Invoke-RestMethod -Uri $uri -Method $httpMethod -Headers $headers -TimeoutSec $TimeoutSec -SkipCertificateCheck -SkipHttpErrorCheck -OutFile $tempOutFile -ResponseHeadersVariable responseHeaders
         $responseError = $null
-        if (IsRestApiVersioning -Method $Method) {
+        if ($global:tsRestApiConfig.Method.$Method.EndpointVersioningType -Eq "RestApiVersioning") {
             if ($response.$responseRoot.error) { return @{ error = $response.$responseRoot.error } }
         }
         else {
@@ -1205,7 +1280,7 @@ function global:Download-TSObject {
 
                     $errorMessage = "Error at AppendToFileUpload (Chunk# $chunkCount): "
                     if ($responseError.code) {
-                        $errorMessage += "$($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
+                        $errorMessage += $responseError.summary
                     }
                     else {
                         $errorMessage += $responseError
@@ -1268,7 +1343,7 @@ function global:Download-TSObject {
             if ($responseError) {
                 $errorMessage = "Error at Publish$((Get-Culture).TextInfo.ToTitleCase($Type)): "
                 if ($responseError.code) {
-                    $errorMessage = "$($responseError.code)$((IsRestApiVersioning -Method $Method) ? " $($responseError.summary)" : $null): $($responseError.detail)"
+                    $errorMessage = $responseError.summary
                 }
                 else {
                     $errorMessage = $responseError
@@ -1370,7 +1445,7 @@ function global:Get-TSObjects {
         if ($responseError) {
             $errorMessage = !$responseError.code ? $responseError : "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
             Write-Host+ $errorMessage -ForegroundColor Red
-            Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+            Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
             return
         }
         if (!$response) { break }
@@ -1383,7 +1458,7 @@ function global:Get-TSObjects {
             $response = Download-TSObject -Method ($Method -replace "s$","") -InputObject $object
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $object.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
@@ -1409,7 +1484,7 @@ function global:Invoke-TSMethod {
     if ($responseError) {
         $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
         Write-Host+ $errorMessage -ForegroundColor Red
-        Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
         return
     }
 
@@ -1433,7 +1508,7 @@ function global:Find-TSObject {
         [Parameter(Mandatory=$true,ParameterSetName="ByName")]
         [Parameter(Mandatory=$true,ParameterSetName="ByContentUrl")]
         [Parameter(Mandatory=$false,ParameterSetName="ByOwnerId")]
-        [ValidateSet("Site","Project","Group","User","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection","Favorite")]
+        [ValidateSet("Site","Project","Group","User","Workbook","View","Datasource","Flow","Metric","Collection","VirtualConnection","Favorite")]
         [string]
         $Type,
 
@@ -1497,12 +1572,10 @@ function global:Switch-TSSite {
         [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = ""
     )
 
-    # if (IsTableauCloud) { return }
-
     if ($ContentUrl -notin (Get-TSSites).contentUrl) {    
         $message = "Site `"$ContentUrl`" is not a valid contentURL for a site on $($global:tsRestApiConfig.Server)"
         Write-Host+ $message -ForegroundColor Red
-        Write-Log -Message $message -EntryType "Error" -Action "SwitchSite" -Target $ContentUrl -Status "Error"
+        Write-Log -Context "Provider.TableauServerRestApi" -Message $message -EntryType "Error" -Action "SwitchSite" -Target $ContentUrl -Status "Error"
         return
     }
 
@@ -1702,12 +1775,12 @@ function global:Add-TSUser {
 
     if ([string]::IsNullOrEmpty($FullName)) {
         $errorMessage = "$($Site.contentUrl)\$Username : FullName is missing or invalid."
-        Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
+        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
         return
     }
     if ([string]::IsNullOrEmpty($Email)) {
         $errorMessage = "$($Site.contentUrl)\$Username : Email is missing or invalid."
-        Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
+        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
         return
     }
 
@@ -1721,7 +1794,7 @@ function global:Add-TSUser {
     }
     else {
         $tsSiteUser = $response # $response is a user object
-        Write-Log -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Message "$($tsSiteUser.name) | $($tsSiteUser.siteRole)" -Status "Success" -Force 
+        Write-Log -Context "Provider.TableauServerRestApi" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Message "$($tsSiteUser.name) | $($tsSiteUser.siteRole)" -Status "Success" -Force 
         
         # $response is an update object (NOT a user object) or an error object
         $response = Update-TSSiteUser -User $tsSiteUser -FullName $FullName -Email $Email -SiteRole $SiteRole
@@ -1770,7 +1843,7 @@ function global:Update-TSUser {
         return
     }
     else {
-        Write-Log -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Message $update -Status "Success" -Force 
+        Write-Log -Context "Provider.TableauServerRestApi" -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Message $update -Status "Success" -Force 
     }
 
     # $response is an update object or an error object
@@ -1795,7 +1868,7 @@ function global:Update-TSUserPassword {
         return
     }
     else {
-        Write-Log -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
+        Write-Log -Context "Provider.TableauServerRestApi" -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
     }
 
     # $response is an update object or an error object
@@ -1816,7 +1889,7 @@ function global:Remove-TSUser {
         # do nothing
     }
     else {
-        Write-Log -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
+        Write-Log -Context "Provider.TableauServerRestApi" -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
     }
 
     return $response, $responseError
@@ -1896,7 +1969,7 @@ function global:Add-TSUserToGroup {
             return
         }
         else {
-            Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
+            Write-Log -Context "Provider.TableauServerRestApi" -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
 
     }
@@ -1919,7 +1992,7 @@ function global:Remove-TSUserFromGroup {
             return
         }
         else {
-            Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
+            Write-Log -Context "Provider.TableauServerRestApi" -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
     }
 
@@ -2193,13 +2266,13 @@ function global:Add-TSProjectDefaultPermissions {
     )
 
     switch ($Type) {
-        "workbooks" { $Capabilities | Foreach-Object { if ($_ -notin $workbookPermissions) { throw "$($_) is not a valid capability" } } }
-        "datasources" { $Capabilities | Foreach-Object { if ($_ -notin $datasourcePermissions) { throw "$($_) is not a valid capability" } } }
-        "dataroles" { $Capabilities | Foreach-Object { if ($_ -notin $datarolePermissions) { throw "$($_) is not a valid capability" } } }
-        "lenses" { $Capabilities | Foreach-Object { if ($_ -notin $lensPermissions) { throw "$($_) is not a valid capability" } } }
-        "flows" {$Capabilities | Foreach-Object { if ($_ -notin $flowPermissions) { throw "$($_) is not a valid capability" } } }
-        "metrics" { $Capabilities | Foreach-Object { if ($_ -notin $metricPermissions) { throw "$($_) is not a valid capability" } } }
-        "databases" { $Capabilities | Foreach-Object { if ($_ -notin $databasePermissions) { throw "$($_) is not a valid capability" } } }
+        "workbooks" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Workbook) { throw "$($_) is not a valid capability" } } }
+        "datasources" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Datasource) { throw "$($_) is not a valid capability" } } }
+        "dataroles" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.DataRole) { throw "$($_) is not a valid capability" } } }
+        "lenses" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Lens) { throw "$($_) is not a valid capability" } } }
+        "flows" {$Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Flow) { throw "$($_) is not a valid capability" } } }
+        "metrics" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Metric) { throw "$($_) is not a valid capability" } } }
+        "databases" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Database) { throw "$($_) is not a valid capability" } } }
     }
     
     if (!($Group -or $User) -or ($Group -and $User)) {
@@ -2234,13 +2307,13 @@ function global:Remove-TSProjectDefaultPermissions {
     )
 
     switch ($Type) {
-        "workbooks" { $Capabilities | Foreach-Object { if ($_ -notin $workbookPermissions) { throw "$($_) is not a valid capability" } } }
-        "datasources" { $Capabilities | Foreach-Object { if ($_ -notin $datasourcePermissions) { throw "$($_) is not a valid capability" } } }
-        "dataroles" { $Capabilities | Foreach-Object { if ($_ -notin $datarolePermissions) { throw "$($_) is not a valid capability" } } }
-        "lenses" { $Capabilities | Foreach-Object { if ($_ -notin $lensPermissions) { throw "$($_) is not a valid capability" } } }
-        "flows" {$Capabilities | Foreach-Object { if ($_ -notin $flowPermissions) { throw "$($_) is not a valid capability" } } }
-        "metrics" { $Capabilities | Foreach-Object { if ($_ -notin $metricPermissions) { throw "$($_) is not a valid capability" } } }
-        "databases" { $Capabilities | Foreach-Object { if ($_ -notin $databasePermissions) { throw "$($_) is not a valid capability" } } }
+        "workbooks" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Workbook) { throw "$($_) is not a valid capability" } } }
+        "datasources" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Datasource) { throw "$($_) is not a valid capability" } } }
+        "dataroles" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.DataRole) { throw "$($_) is not a valid capability" } } }
+        "lenses" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Lens) { throw "$($_) is not a valid capability" } } }
+        "flows" {$Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Flow) { throw "$($_) is not a valid capability" } } }
+        "metrics" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Metric) { throw "$($_) is not a valid capability" } } }
+        "databases" { $Capabilities | Foreach-Object { if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Database) { throw "$($_) is not a valid capability" } } }
     }
     
     if (!($Group -or $User) -or ($Group -and $User)) {
@@ -2409,7 +2482,7 @@ function global:Get-TSWorkbookPermissions {
 
     if ($Workbook.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetWorkbookPermissions' is not authorized for workbooks in a personal space."
-        Write-Log -EntryType "Error" -Action "GetWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
         return
     }
     
@@ -2429,7 +2502,7 @@ function global:Add-TSWorkbookPermissions {
 
     if ($Workbook.location.type -eq "PersonalSpace") {
         $responseError = "Method 'AddWorkbookPermissions' is not authorized for workbooks in a personal space."
-        Write-Log -EntryType "Error" -Action "AddWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "AddWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -2438,7 +2511,7 @@ function global:Add-TSWorkbookPermissions {
     }
 
     $Capabilities | Foreach-Object {
-        if ($_ -notin $WorkbookPermissions) {
+        if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Workbook) {
             throw "$($_) is not a valid capability"
         }
     }        
@@ -2487,7 +2560,7 @@ function global:Get-TSWorkbookRevisions {
             $response = Download-TSObject -Method GetWorkbookRevision -InputObject $Workbook -Params @($Workbook.Id, $workbookRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $workbookRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
@@ -2653,7 +2726,7 @@ function global:Get-TSViewPermissions {
 
     if ($View.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetViewPermissions' is not authorized for views in a personal space."
-        Write-Log -EntryType "Error" -Action "GetViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -2672,7 +2745,7 @@ function global:Add-TSViewPermissions {
 
     if ($View.location.type -eq "PersonalSpace") {
         $responseError = "Method 'AddViewPermissions' is not authorized for views in a personal space."
-        Write-Log -EntryType "Error" -Action "AddViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "AddViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -2681,7 +2754,7 @@ function global:Add-TSViewPermissions {
     }
 
     $Capabilities | Foreach-Object {
-        if ($_ -notin $ViewPermissions) {
+        if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.View) {
             throw "$($_) is not a valid capability"
         }
     }  
@@ -2751,7 +2824,7 @@ function global:Get-TSDatasource+ {
 
 }
 
-function global:Get-TSDataSources {
+function global:Get-TSDatasources {
 
     [CmdletBinding()]
     param(
@@ -2763,7 +2836,7 @@ function global:Get-TSDataSources {
 
 }
 
-function global:Get-TSDataSource {
+function global:Get-TSDatasource {
 
     [CmdletBinding()]
     param(
@@ -2771,19 +2844,19 @@ function global:Get-TSDataSource {
         [switch]$Download
     )
 
-    return Get-TSObjects -Method GetDataSource -Params @($Id) -Download:$Download.IsPresent | ConvertTo-PSCustomObject
+    return Get-TSObjects -Method GetDatasource -Params @($Id) -Download:$Download.IsPresent | ConvertTo-PSCustomObject
 }
 
-function global:Update-TSDataSource {
+function global:Update-TSDatasource {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][object]$DataSource,
-        [Parameter(Mandatory=$false)][object]$Project = $DataSource.Project,
-        [Parameter(Mandatory=$false)][object]$Owner = $DataSource.Owner
+        [Parameter(Mandatory=$true)][object]$Datasource,
+        [Parameter(Mandatory=$false)][object]$Project = $Datasource.Project,
+        [Parameter(Mandatory=$false)][object]$Owner = $Datasource.Owner
     )
 
-    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateDataSource -Params @($DataSource.Id, $DataSource.Name, $Project.Id, $Owner.Id) 
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateDatasource -Params @($Datasource.Id, $Datasource.Name, $Project.Id, $Owner.Id) 
 
     return $response, $responseError
 
@@ -2806,7 +2879,7 @@ function global:Get-TSDatasourceRevisions {
             $response = Download-TSObject -Method GetDatasourceRevision -InputObject $Datasource -Params @($Datasource.Id, $datasourceRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $datasourceRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
@@ -2832,14 +2905,14 @@ function global:Get-TSDatasourceRevision {
 
 }
 
-function global:Get-TSDataSourceConnections {
+function global:Get-TSDatasourceConnections {
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Id
     )
 
-    return Get-TSObjects -Method GetDataSourceConnections -Params @($Id) | ConvertTo-PSCustomObject
+    return Get-TSObjects -Method GetDatasourceConnections -Params @($Id) | ConvertTo-PSCustomObject
 }
 
 function global:Find-TSDatasource {
@@ -2906,18 +2979,18 @@ function global:Get-TSDatasourcePermissions {
 
     if ($Datasource.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetDatasourcePermissions' is not authorized for datasources in a personal space."
-        Write-Log -EntryType "Error" -Action "GetDatasourcePermissions" -Target "datasources\$($Datasource.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetDatasourcePermissions" -Target "datasources\$($Datasource.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
     return Get-TSObjects -Method GetDatasourcePermissions -Params @($Datasource.Id) | ConvertTo-PSCustomObject
 }
 
-function global:Add-TSDataSourcePermissions {
+function global:Add-TSDatasourcePermissions {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][object]$DataSource,
+        [Parameter(Mandatory=$true)][object]$Datasource,
         [Parameter(Mandatory=$false)][object]$Group,
         [Parameter(Mandatory=$false)][object]$User,
         [Parameter(Mandatory=$false)][string[]]$Capabilities 
@@ -2929,7 +3002,7 @@ function global:Add-TSDataSourcePermissions {
 
     
     $Capabilities | Foreach-Object {
-        if ($_ -notin $DataSourcePermissions) {
+        if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Datasource) {
             throw "$($_) is not a valid capability"
         }
     }  
@@ -2945,7 +3018,7 @@ function global:Add-TSDataSourcePermissions {
     }
     $capabilityXML += "</capabilities>"
 
-    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddDataSourcePermissions" -Params @($DataSource.id,$capabilityXML)
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddDatasourcePermissions" -Params @($Datasource.id,$capabilityXML)
     
     return $response,$responseError
 }
@@ -3135,7 +3208,7 @@ function global:Get-TSFlowPermissions {
 
     if ($Flow.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetFlowPermissions' is not authorized for flows in a personal space."
-        Write-Log -EntryType "Error" -Action "GetFlowPermissions" -Target "flows\$($Flow.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetFlowPermissions" -Target "flows\$($Flow.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -3159,7 +3232,7 @@ function global:Add-TSFlowPermissions {
 
     
     $Capabilities | Foreach-Object {
-        if ($_ -notin $FlowPermissions) {
+        if ($_ -notin $global:tsRestApiConfig.Defaults.Permissions.Flow) {
             throw "$($_) is not a valid capability"
         }
     }  
@@ -3208,7 +3281,7 @@ function global:Get-TSFlowRevisions {
             $response = Download-TSObject -Method GetFlowRevision -InputObject $Flow -Params @($Flow.Id, $flowRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $flowRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
@@ -3503,8 +3576,8 @@ function global:Add-TSFavorite {
     param(
         [Parameter(Mandatory=$true)][object]$User,
         [Parameter(Mandatory=$true)][string]$Label,
-        [Parameter(Mandatory=$true)][ValidateSet("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][string]$Type,
-        [Parameter(Mandatory=$true)][Alias("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject,
+        [Parameter(Mandatory=$true)][ValidateSet("Project","Workbook","View","Datasource","Flow","Metric","Collection","VirtualConnection")][string]$Type,
+        [Parameter(Mandatory=$true)][Alias("Project","Workbook","View","Datasource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject,
         [switch]$ShowIsEmpty
     )
 
@@ -3550,8 +3623,8 @@ function global:Remove-TSFavorite {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][object]$User,
-        [Parameter(Mandatory=$true)][ValidateSet("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][string]$Type,
-        [Parameter(Mandatory=$true)][Alias("Project","Workbook","View","DataSource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject
+        [Parameter(Mandatory=$true)][ValidateSet("Project","Workbook","View","Datasource","Flow","Metric","Collection","VirtualConnection")][string]$Type,
+        [Parameter(Mandatory=$true)][Alias("Project","Workbook","View","Datasource","Flow","Metric","Collection","VirtualConnection")][object]$InputObject
     )
 
     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "RemoveFavorite" -Params @($User.id,"$($Type)s",$InputObject.id)
@@ -3854,7 +3927,7 @@ function global:Sync-TSGroups {
     $message = "<Syncing Tableau Server groups <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
+    foreach ($contentUrl in $global:AzureSyncTS.Sites.ContentUrl) {
 
         Switch-TSSite $contentUrl
         $tsSite = Get-TSSite
@@ -3884,7 +3957,7 @@ function global:Sync-TSGroups {
 
             # add the Azure AD group member if neither the UPN nor any of the SMTP proxy addresses are a username on Tableau Server
             $azureADUsersToAddToSite = $azureADGroupMembership | 
-                # Where-Object {(Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN) -notin $tsUsers.name} | 
+                # Where-Object {(Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:Azure.$Tenant.Sync.Source -NoUPN) -notin $tsUsers.name} | 
                     Where-Object {$_.userPrincipalName -notin $tsUsers.name} | 
                         Sort-Object -Property userPrincipalName
                         
@@ -3895,7 +3968,7 @@ function global:Sync-TSGroups {
                     Username = $azureADUser.userPrincipalName
                     FullName = $azureADUser.displayName
                     Email = $azureADUser.mail
-                    SiteRole = $global:TSSiteRoles.IndexOf($tsGroup.import.siteRole) -ge $global:TSSiteRoles.IndexOf($global:AzureADSyncTS.$($contentUrl).SiteRoleMinimum) ? $tsGroup.import.siteRole : $global:AzureADSyncTS.$($contentUrl).SiteRoleMinimum
+                    SiteRole = $global:TSSiteRoles.IndexOf($tsGroup.import.siteRole) -ge $global:TSSiteRoles.IndexOf($global:AzureSyncTS.$($contentUrl).SiteRoleMinimum) ? $tsGroup.import.siteRole : $global:AzureSyncTS.$($contentUrl).SiteRoleMinimum
                 }
 
                 $newUser = Add-TSUserToSite @params
@@ -3971,7 +4044,7 @@ function global:Sync-TSUsers {
 
     $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray -After ($Delta ? $lastStartTime : [datetime]::MinValue)
     if ($cacheError) {
-        Write-Log -Context "AzureADSyncTS" -Action "Get-AzureADUsers" -Target ($Delta ? "Delta" : "Full") -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+        Write-Log -Context "Provider.TableauServerRestApi" -Action "Get-AzureADUsers" -Target ($Delta ? "Delta" : "Full") -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
         $message = "  $($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Red
         $message = "<    Error $($cacheError.code) <.>48> $($($cacheError.summary))"
@@ -3996,11 +4069,11 @@ function global:Sync-TSUsers {
         Write-Host+
     }    
 
-    Write-Host+
+    Write-Host+ -MaxBlankLines 1
     $message = "<Syncing Tableau Server users <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    foreach ($contentUrl in $global:AzureADSyncTS.Sites.ContentUrl) {
+    foreach ($contentUrl in $global:AzureSyncTS.Sites.ContentUrl) {
 
         Switch-TSSite $contentUrl
         $tsSite = Get-TSSite
@@ -4010,7 +4083,7 @@ function global:Sync-TSUsers {
         $message = "<    $($tssite.name) <.>48> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-        $tsUsers = Get-TSUsers | Where-Object {$_.name.EndsWith($global:AzureAD.$Tenant.Sync.Source) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
+        $tsUsers = Get-TSUsers | Where-Object {$_.name.EndsWith($global:Azure.$Tenant.Sync.Source) -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
 
         # check for Tableau Server user names in the Azure AD users' UPN and SMTP proxy addresses
         # $tsUsers = Get-TSUsers | Where-Object {$_.name -in $azureADUsers.userPrincipalName -and $_.name -notin $global:tsRestApiConfig.SpecialAccounts} | Sort-Object -Property name
@@ -4072,7 +4145,7 @@ function global:Sync-TSUsers {
                 # no azureADUser account exists with a UPN that matches the tsUser name, and 
                 # the tsUser name exists in an azureADUser account's smtp proxy addresses
                 
-                $azureADUser = $azureADUsers | Where-Object {$tsUser.name -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:AzureAD.$Tenant.Sync.Source -NoUPN)}
+                $azureADUser = $azureADUsers | Where-Object {$tsUser.name -in (Get-AzureADUserProxyAddresses -User $_ -Type SMTP -Domain $global:Azure.$Tenant.Sync.Source -NoUPN)}
                 if ($azureADUser) {
 
                     # found the new azureADUser, but don't replace the user until the tsNewUser is created 
@@ -4130,7 +4203,7 @@ function global:Sync-TSUsers {
                                 $message = "See the following Azure AD account: $Tenant\$($azureADUser.userPrincipalName)."
                             }
 
-                            Write-Log -Action "IsOrphan" -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Message $message -Force 
+                            Write-Log -Context "Provider.TableauServerRestApi" -Action "IsOrphan" -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Message $message -Force 
                         }
 
                     }
@@ -4157,7 +4230,7 @@ function global:Sync-TSUsers {
                 Get-TSFlows -Filter "ownerName:eq:$($tsUser.fullName)" | Foreach-Object {Update-TSFlow -Flow $_ -Owner $tsNewUser | Out-Null }
                 Get-TSMetrics -Filter "ownerEmail:eq:$($tsUser.email)" | Foreach-Object {Update-TSMetric -Metric $_ -Owner $tsNewUser | Out-Null }
 
-                Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force
+                Write-Log -Context "Provider.TableauServerRestApi" -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force
                 Write-Host+ -NoTrace "      $($azureADUserAccountAction): $($tsSite.contentUrl)\$($tsNewUser.name) << $($tsSite.contentUrl)\$($tsUser.name)" -ForegroundColor DarkBlue
 
                 # set action/state for tsUser to be disabled below
@@ -4182,12 +4255,12 @@ function global:Sync-TSUsers {
                 # update the user
                 $response, $responseError = Update-TSUser -User $tsUser -FullName $fullName -Email $email -SiteRole $siteRole | Out-Null
                 if ($responseError) {
-                    Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
+                    Write-Log -Context "Provider.TableauServerRestApi" -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
                     Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                 }
                 else {
                     Write-Host+ -NoTrace "      $($azureADUserAccountAction): $($tsSite.contentUrl)\$($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor $azureADUserAccountStateColor
-                    # Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force 
+                    # Write-Log -Context "Provider.TableauServerRestApi" -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force 
                 }
             }
 

@@ -79,12 +79,20 @@ $global:WriteHostPlusPreference = "Continue"
 
 # Clear-Host
 
-#region CHECK INSTALLUPDATERESTART
+$disabledProductIds = @()
+$impactedIds = @()
+$impactedProductIds = @()
+$impactedProductIdsWithTasks = @()
+$impactedProductIdsWithEnabledTasks = @()
+$productIds = @()
+$providerIds = @()
 
-    $installUpdateRestart = (read-cache installUpdateRestart).installUpdateRestart
+#region INSTALLER UPDATE CHECK
+
+    $installUpdateRestartData = (read-cache installUpdateRestart).installUpdateRestart
     if ($installUpdateRestart) { $UseDefaultResponses = $true }
 
-#endregion CHECK INSTALLUPDATERESTART
+#endregion INSTALLER UPDATE CHECK
 #region DISCOVERY
 
     Write-Host+
@@ -98,7 +106,7 @@ $global:WriteHostPlusPreference = "Continue"
     $installOverwatch = $true
     try {
 
-        $message = "<Control <.>24> SEARCHING"
+        $message = "<Overwatch <.>24> SEARCHING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         # try{
@@ -111,8 +119,8 @@ $global:WriteHostPlusPreference = "Continue"
             # $global:WriteHostPlusPreference = "Continue"
         # }
 
-        $installedProducts = Get-Product #-ResetCache
-        $installedProviders = Get-Provider #-ResetCache
+        $installedProducts = Get-Catalog -Type Product -Installed
+        $installedProviders = Get-Catalog -Type Provider -Installed
         $installOverwatch = $false
 
         $global:WriteHostPlusPreference = "Continue"
@@ -201,6 +209,36 @@ $global:WriteHostPlusPreference = "Continue"
     Write-Host+ -NoTrace -NoTimestamp "Overwatch Install Location: $overwatchInstallLocation" -IfDebug -ForegroundColor Yellow
 
 #endregion OVERWATCH INSTALL LOCATION
+
+    $dependencies = @()
+
+#region CLOUD
+
+    $supportedCloudProviderIds = @()
+    $supportedCloudProviderIds += $global:Catalog.Cloud.Keys
+    # Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Supported Cloud Providers: ", "$($supportedCloudProviderIds -join ", ")" -ForegroundColor Gray, Blue 
+    if ([string]::IsNullOrEmpty($cloudId)) { $cloudId = "None" }
+    do {
+        $cloudIdResponse = $null
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Cloud Provider ", "[$($supportedCloudProviderIds -join ", ")]", " or enter `"None`" ", "[$cloudId]", ": " -ForegroundColor Gray, Blue, Gray, Blue, Gray 
+        if (!$UseDefaultResponses) {
+            $cloudIdResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
+        $cloudId = ![string]::IsNullOrEmpty($cloudIdResponse) ? $cloudIdResponse : $cloudId
+        Write-Host+ -NoTrace -NoTimestamp "Cloud ID: $cloudId" -IfDebug -ForegroundColor Yellow
+        if ($supportedCloudProviderIds -notcontains $cloudId -and $cloudId -ne "None") {
+            Write-Host+ -NoTrace -NoTimestamp "Cloud provider must be one of the following: $($supportedCloudProviderIds -join ", ")" -ForegroundColor Red
+            $cloudId = $null
+        }
+    } until ($supportedCloudProviderIds -contains $cloudId -or $cloudId -eq "None")
+    if (![string]::IsNullOrEmpty($cloudId) -and $cloudId -ne "None") {
+        $dependencies += Get-CatalogDependencies -Type Cloud -Id $cloudId -Include Product,Provider -NotInstalled
+    }
+
+#endregion CLOUD
 #region PLATFORM ID
 
     $platformId = $installedPlatforms[0]
@@ -219,6 +257,7 @@ $global:WriteHostPlusPreference = "Continue"
             Write-Host+ -NoTrace -NoTimestamp "Platform must be one of the following: $($installedPlatforms -join ", ")" -ForegroundColor Red
         }
     } until ($installedPlatforms -contains $platformId)
+    $dependencies += Get-CatalogDependencies -Type Platform -Id $platformId -Include Cloud,Product,Provider -NotInstalled
 
 #endregion PLATFORM ID
 #region PLATFORM INSTALL LOCATION
@@ -438,8 +477,8 @@ $global:WriteHostPlusPreference = "Continue"
 #region PRODUCTS
     
     $productsSelected = @()
-    $productSpecificServices = @()
-    $productDependencies = @()
+    # $productSpecificServices = @()
+    # $productDependencies = @()
     $productHeaderWritten = $false
 
     foreach ($key in $global:Catalog.Product.Keys) {
@@ -448,7 +487,7 @@ $global:WriteHostPlusPreference = "Continue"
         
         if ([string]::IsNullOrEmpty($product.Installation.Prerequisite.Platform) -or $product.Installation.Prerequisite.Platform -contains $platformId) {
 
-            if ($product.Id -notin $installedProducts.Id) {
+            if ($product.Id -notin $installedProducts.Id -and $product.Id -notin $dependencies.Id) {
 
                 $productResponse = $null
 
@@ -479,38 +518,7 @@ $global:WriteHostPlusPreference = "Continue"
                 }
 
                 if ($productResponse -eq "Y") {
-                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Product)) {
-                        foreach ($prerequisiteProduct in $product.Installation.Prerequisite.Product) {
-                            if ($prerequisiteProduct -notin $installedProducts.Id) {
-                                if ($prerequisiteProduct -notin $productsSelected) {
-                                    $productsSelected += $prerequisiteProduct
-                                    $productDependencies += @{
-                                        Product = $product.id
-                                        Dependency = $prerequisiteProduct
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
-                        foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
-                            $productSpecificServices += @{
-                                Product = $product.id
-                                Service = $prerequisiteService
-                            }
-                        }
-                    }
-                }
-            }
-            else {
-                # code repeat necessary to catch product service prerequisites when using -Update switch
-                if (![string]::IsNullOrEmpty($product.Installation.Prerequisite.Service)) {
-                    foreach ($prerequisiteService in $product.Installation.Prerequisite.Service) {
-                        $productSpecificServices += @{
-                            Product = $product.id
-                            Service = $prerequisiteService
-                        }
-                    }
+                    $dependencies += Get-CatalogDependencies -Type Product -Id $product.id -Include Product,Provider -NotInstalled
                 }
             }
 
@@ -521,16 +529,6 @@ $global:WriteHostPlusPreference = "Continue"
 
     Write-Host+ -Iff $productHeaderWritten
 
-    if ($productDependencies) {
-        Write-Host+ -MaxBlankLines 1
-        Write-Host+ -NoTrace -NoTimestamp "Other Products" -ForegroundColor DarkGray
-        Write-Host+ -NoTrace -NoTimestamp "--------------" -ForegroundColor DarkGray
-        foreach ($productDependency in $productDependencies) {
-            Write-Host+ -NoTrace -NoTimestamp $($productDependency.Dependency),"(required by $($productDependency.Product))" -ForegroundColor Gray,DarkGray
-        }
-        Write-Host+
-    }
-
 #endregion PRODUCTS
 #region PROVIDERS
 
@@ -539,7 +537,7 @@ $global:WriteHostPlusPreference = "Continue"
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
         if ([string]::IsNullOrEmpty($provider.Installation.Prerequisite.Platform) -or $provider.Installation.Prerequisite.Platform -contains $platformId) {
-            if ($provider.Id -notin $installedProviders.Id) {
+            if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $dependencies.Id) {
                 if ($provider.Installation.Flag -contains "AlwaysInstall") {
                     $_providerIds += $provider.Id
                 }
@@ -562,6 +560,7 @@ $global:WriteHostPlusPreference = "Continue"
                     if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
                     if ($providerResponse -eq "Y") {
                         $_providerIds += $provider.Id
+                        $dependencies += Get-CatalogDependencies -Type Provider -Id $provider.id -Include Product,Provider -NotInstalled
                     }
                 }
 
@@ -574,6 +573,25 @@ $global:WriteHostPlusPreference = "Continue"
     Write-Host+ -Iff $providerHeaderWritten
 
 #endregion PROVIDERS
+#region DEPENDENCIES 
+
+    if ($dependencies) {
+        Write-Host+ -MaxBlankLines 1
+        Write-Host+ -NoTrace -NoTimestamp "Dependencies" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "------------" -ForegroundColor DarkGray
+        foreach ($dependency in $dependencies) {
+            $dependentType = ($dependency.Dependent -split "\.")[0]
+            $dependentId = ($dependency.Dependent -split "\.")[1]
+            Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentType) $($dependentId))" -ForegroundColor Gray,DarkGray
+            switch ($dependency.Type) {
+                "Product" { $productIds += $dependency.Id }
+                "Provider" { $ProviderIds += $dependency.Id }
+            }
+        }
+        Write-Host+
+    }
+
+#endregion DEPENDENCIES 
 #region UPDATES
 
     if (!$installOverwatch) {
@@ -585,6 +603,42 @@ $global:WriteHostPlusPreference = "Continue"
 
         $updatedFiles = @()
 
+        #region ENVIRON
+
+            $sourceEnvironFile = "$PSScriptRoot\source\environ\environ-template.ps1"
+            $tempEnvironFile = "$PSScriptRoot\temp\environ.ps1"
+            $destinationEnvironFile = "$PSScriptRoot\environ.ps1"
+
+            Update-Environ -Source $sourceEnvironFile -Destination $tempEnvironFile
+
+            $environFile = Copy-File $tempEnvironFile $destinationEnvironFile -WhatIf -Quiet
+
+            $environFileUpdated = $false
+            if ($environFile) {
+
+                $environFile.Component = "Core"
+                $environFile.$($environFile.Component) = "Environ"
+                $environFile += @{ Flag = "NOCOPY" }
+                $environFileUpdated = $true
+                Write-Host+ -NoTrace -NoTimestamp "  [$($environFile.Component)`:$($environFile.$($environFile.Component))] $($environFile.Destination)" -ForegroundColor DarkGray
+
+                $environFileImpacts = @()
+                foreach ($cloudImpact in (Compare-Object (Get-EnvironConfig -Key Environ.Cloud -Path $destinationEnvironFile) (Get-EnvironConfig -Key Environ.Cloud -Path $tempEnvironFile) -PassThru)) {
+                    $environFileImpacts += "Cloud.$cloudImpact"
+                }
+                foreach ($productImpact in (Compare-Object (Get-EnvironConfig -Key Environ.Product -Path $destinationEnvironFile) (Get-EnvironConfig -Key Environ.Product -Path $tempEnvironFile) -PassThru)) {
+                    $environFileImpacts += "Product.$productImpact"
+                }
+                foreach ($providerImpact in (Compare-Object (Get-EnvironConfig -Key Environ.Provider -Path $destinationEnvironFile) (Get-EnvironConfig -Key Environ.Provider -Path $tempEnvironFile) -PassThru)) {
+                    $environFileImpacts += "Provider.$providerImpact"
+                }
+
+                $updatedFiles += $environFile
+
+            }
+            Remove-Files -Path $tempEnvironFile
+
+        #endregion ENVIRON
         #region CORE
 
             $coreFiles = @()
@@ -633,25 +687,6 @@ $global:WriteHostPlusPreference = "Continue"
                 }
             }
 
-            $sourceEnvironFile = "$PSScriptRoot\source\environ\environ-template.ps1"
-            $tempEnvironFile = "$PSScriptRoot\temp\environ.ps1"
-            $destinationEnvironFile = "$PSScriptRoot\environ.ps1"
-
-            Update-Environ -Source $sourceEnvironFile -Destination $tempEnvironFile
-
-            $environFile = Copy-File $tempEnvironFile $destinationEnvironFile -WhatIf -Quiet
-
-            $environFileUpdated = $false
-            if ($environFile) {
-                $environFile.Component = "Core"
-                $environFile.$($environFile.Component) = "Environ"
-                $environFile += @{ Flag = "NOCOPY" }
-                $environFileUpdated = $true
-                $coreFiles += $environFile
-                Write-Host+ -NoTrace -NoTimestamp "  [$($environFile.Component)`:$($environFile.$($environFile.Component))] $($environFile.Destination)" -ForegroundColor DarkGray
-            }
-            Remove-Files -Path $tempEnvironFile
-
             $updatedfiles += $coreFiles
 
             $installUpdate = $false
@@ -660,14 +695,19 @@ $global:WriteHostPlusPreference = "Continue"
             }
 
         #endregion CORE
-        #region PowerShell
+        #region CLOUD
 
-            # $psFiles = @()
-            # $psFiles += Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions -WhatIf
-            # $psFiles += Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config -WhatIf
-            # $updatedFiles += $psFiles
+            $cloudFiles = @()
+            $cloudInstallUpdate = $Null
+            $cloudFiles += Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\definitions-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-cloud-$($cloudId.ToLower()).ps1 -WhatIf
+            $cloudFiles += Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\services-$($cloudId.ToLower())*.ps1 $PSScriptRoot\services -WhatIf
+            $cloudInstallUpdate = Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\install-cloud-$($cloudId.ToLower()).ps1 $PSScriptRoot\install\install-cloud-$($cloudId.ToLower()).ps1 -WhatIf
+            $cloudFiles += $cloudInstallUpdate
+            $cloudFiles += Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\config-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\config\config-cloud-$($cloudId.ToLower()).ps1 -WhatIf
+            $cloudFiles += Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\initialize-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-cloud-$($cloudId.ToLower()).ps1 -WhatIf
+            $updatedFiles += $cloudFiles
 
-        #endregion PowerShell
+        #endregion CLOUD
         #region OS
 
             $osFiles = @()
@@ -697,23 +737,12 @@ $global:WriteHostPlusPreference = "Continue"
         #region PRODUCT
 
             $productFiles = @()
-
-            $productSpecificServiceFiles = @()
-            foreach ($productSpecificService in $productSpecificServices.Service | Sort-Object -Unique) {
-                if (Test-Path "$PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1") {
-                    $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1 -WhatIf
-                }
-                $productSpecificServiceFiles += Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\services-$($productSpecificService.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1 -WhatIf
-            }
-            foreach ($productSpecificServiceFile in $productSpecificServiceFiles) {
-                if ($productSpecificServiceFile.Source.FullName -notin $productFiles.Source.FullName) {
-                    $productfiles += $productSpecificServiceFile
-                }
-            }
-
+            $productIdsToReinstall = @()
             foreach ($product in $global:Environ.Product + $productIds) {
                 $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\install-product-$($product.ToLower()).ps1 $PSScriptRoot\install\install-product-$($product.ToLower()).ps1 -WhatIf
-                $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\definitions-product-$($product.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-product-$($product.ToLower()).ps1 -WhatIf
+                $productTemplateFile = Copy-File $PSScriptRoot\source\product\$($product.ToLower())\definitions-product-$($product.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-product-$($product.ToLower()).ps1 -WhatIf
+                if ($productTemplateFile) { $productIdsToReinstall += $productTemplateFile.Product }
+                $productFiles += $productTemplateFile
                 $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\$($product.ToLower()).ps1 $PSScriptRoot\$($product.ToLower()).ps1 -WhatIf
             }
 
@@ -723,45 +752,26 @@ $global:WriteHostPlusPreference = "Continue"
         #region PROVIDER                    
 
             $providerFiles = @()
-
+            $providerIdsToReinstall = @()
             foreach ($provider in $global:Environ.Provider + $providerIds) {
                 $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\install-provider-$($provider.ToLower()).ps1 $PSScriptRoot\install\install-provider-$($provider.ToLower()).ps1 -WhatIf
-                $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\definitions-provider-$($provider.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-provider-$($provider.ToLower()).ps1 -WhatIf
+                $providerTemplateFile = Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\definitions-provider-$($provider.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-provider-$($provider.ToLower()).ps1 -WhatIf
+                if ($providerTemplateFile) { $providerIdsToReinstall += $providerTemplateFile.Provider }
+                $providerFiles += $providerTemplateFile
                 $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\provider-$($provider.ToLower()).ps1 $PSScriptRoot\providers\provider-$($provider.ToLower()).ps1 -WhatIf
             }
 
             $updatedFiles += $providerFiles
 
         #endregion PROVIDER
-        #region DEFINITIONS-SERVICES
-
-            $definitionsServicesFile = "$PSScriptRoot\definitions\definitions-services.ps1"
-
-            $definitionsServicesUpdated = $false
-            foreach ($productSpecificService in $productSpecificServices.Service) {
-                if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1") {
-                    $contentLine = ". `"`$(`$global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1`""
-                    if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
-                        $definitionsServicesUpdated = $true
-                    }
-                }
-                $contentLine = ". `"`$(`$global:Location.Services)\services-$($productSpecificService.ToLower()).ps1`""
-                if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
-                    $definitionsServicesUpdated = $true
-                }
-            }
-
-            if ($definitionsServicesUpdated) {
-                Write-Host+ -NoTrace -NoTimestamp "  [Core:Definitions] $definitionsServicesFile" -ForegroundColor DarkGray
-                $updatedFiles += $definitionsServicesFile
-            }
-
-        #endregion DEFINITIONS-SERVICES
-
 
         if (!$updatedFiles) {
+            Write-Host+ -MaxBlankLines 1
             $message = "<Updated Files <.>48> NONE    "
             Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed 2 -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        }
+        else {
+            $updatedFiles = $updatedFiles | Where-Object {!$_.NoClobber}
         }
 
     }
@@ -769,53 +779,78 @@ $global:WriteHostPlusPreference = "Continue"
 #endregion UPDATES
 #region IMPACT
 
-    $impactedIds = @()
-    if ($coreFiles) {
-        $impactedIds += "Overwatch.Overwatch"
+    $_impactedIds = @()
+
+    $productIds += $productIdsToReinstall
+    $providerIds += $providerIdsToReinstall
+
+    if ($environFile) {
+        $_impactedIds += $environFileImpacts
+        foreach ($environFileImpact in $environFileImpacts) {
+            $_impactedDependentId = (Get-CatalogDependents -Uid $environFileImpact -Installed).Uid
+            if ($_impactedDependentId) { $_impactedIds += $_impactedDependentId }
+        }
     }
+    if ($coreFiles) {
+        $_impactedIds += (Get-Catalog -Installed).Uid
+    }
+    if ($osFiles) {
+        foreach ($osFile in $osFiles) { $_impactedIds += "OS.$($osFile.OS)"}
+        foreach ($osId in $osIds) {
+            $_impactedDependentId = (Get-CatalogDependents -Type OS $osId -Installed).Uid
+            if ($_impactedDependentId) { $_impactedIds += $_impactedDependentId }
+        }
+    }
+    if ($cloudFiles) {
+        foreach ($cloudFile in $cloudFiles) { $_impactedIds += "Cloud.$($cloudFile.Cloud)"}
+        foreach ($cloudId in $cloudIds) {
+            $_impactedDependentId = (Get-CatalogDependents -Type Cloud $cloudId -Installed).Uid
+            if ($_impactedDependentId) { $_impactedIds += $_impactedDependentId }
+        }
+    }    
     if ($platformFiles) {
-        $impactedIds += "Platform.$platformId"
+        foreach ($platformFile in $platformFiles) { $_impactedIds += "Platform.$($platformFile.Platform)"}
+        foreach ($platformId in $platformIds) {
+            $_impactedDependentId = (Get-CatalogDependents -Type Platform $platformId -Installed).Uid
+            if ($_impactedDependentId) { $_impactedIds += $_impactedDependentId }
+        }
     }
     if ($productFiles) {
-        $productIds += ($productFiles.Product -split ",") | Where-Object {$_ -notin $productIds} | Sort-Object -Unique
-        $impactedIds += foreach ($productId in $productIds) { "Product.$productId" }
+        foreach ($productFile in $productFiles) { $_impactedIds += "Product.$($productFile.Product)"}
+        foreach ($productId in $productIds) {
+            $_impactedDependentId = (Get-CatalogDependents -Type Product $productId -Installed).Uid
+            if ($_impactedDependentId) { $_impactedIds += $_impactedDependentId }
+        }
     }
     if ($providerFiles) {
-        $providerIds += ($providerFiles.Provider -split ",") | Where-Object {$_ -notin $providerIds} | Sort-Object -Unique
-        $impactedIds += foreach ($providerId in $providerIds) { "Provider.$providerId" }
-    }
-    if ($coreFiles -or $osFiles -or $platformFiles) {
-        $productIds += $global:Environ.Product | Where-Object {$_ -notin $productIds}
-        $providerIds += $global:Environ.Provider | Where-Object {$_ -notin $providerIds}
-    }
-
-    if ($installUpdateRestart) {
-        $impactedProductIds = @()
-        $productIds = (Get-Product).Id 
-    }
-    else {
-        $disabledProductIDS = @()
-        $impactedProductIds = $productIds | Where-Object {$_ -in $global:Environ.Product}
+        foreach ($providerFile in $providerFiles) { $_impactedIds += "Provider.$($providerFile.Provider)"}
+        foreach ($providerId in $providerIds) {
+            $_impactedDependentId = (Get-CatalogDependents -Type Provider $providerId -Installed).Uid
+            if ($_impactedDependentId) { $_impactedIds += $_impactedDependentId }
+        }
     }
 
-    if ($impactedProductIds) {
+    $impactedIds = $_impactedIds | Select-Object -Unique
+    $impactedProductIds = $impactedIds | Where-Object { $_.StartsWith("Product.") } | Where-Object { ($_ -split "\.")[1] -notin $productIds}
+    $impactedProductIdsWithTasks = $impactedProductIds | Where-Object { (Get-Catalog -Uid $_).HasTask }
+    $disabledProductIds += "Product.$((Get-PlatformTask -Disabled).ProductID)"
+    $impactedProductIdsWithEnabledTasks = $impactedProductIdsWithTasks | Where-Object {$_ -notin $disabledProductIds}
+    $impactedProviderIds = $impactedIds | Where-Object { $_.StartsWith("Provider.") } | Where-Object { ($_ -split "\.")[1] -notin $providerIds}
 
-        $disabledProductIds += (Get-PlatformTask -Disabled).ProductID
+    if ($impactedProductIdsWithEnabledTasks) {
 
         Write-Host+ -MaxBlankLines 1
         $message = "<Impacted Products <.>48> DISABLING"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
         Write-Host+
 
-        $message = "  Product             Publisher           Status              Task"
+        $message = "  Product             Status              Task"
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
-        $message = "  -------             ---------           ------              ----"
+        $message = "  -------             ------              ----"
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
-        foreach ($impactedProductId in $impactedProductIds) {
-            if ((Get-Product -Id $impactedProductId).HasTask) {
-                Disable-Product $impactedProductId
-            }
+        foreach ($impactedProductIdsWithEnabledTask in $impactedProductIdsWithEnabledTasks) {
+            Disable-Product $impactedProductIdsWithEnabledTask
         }
 
         Write-Host+
@@ -847,12 +882,19 @@ $global:WriteHostPlusPreference = "Continue"
             . $PSScriptRoot\environ.ps1
 
         #endregion ENVIRON
-        #region PowerShell
+        #region CLOUD
 
-            # Copy-File $PSScriptRoot\source\powershell\definitions-ps-*.ps1 $PSScriptRoot\definitions
-            # Copy-File $PSScriptRoot\source\powershell\config-ps-*.ps* $PSScriptRoot\config
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\definitions-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-cloud-$($cloudId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\services-$($cloudId.ToLower())*.ps1 $PSScriptRoot\services
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\install-cloud-$($cloudId.ToLower()).ps1 $PSScriptRoot\install\install-cloud-$($cloudId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\config-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\config\config-cloud-$($cloudId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\initialize-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-cloud-$($cloudId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\preflightchecks-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightchecks-cloud-$($cloudId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\preflightupdates-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\preflight\preflightupdates-cloud-$($cloudId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\posttflightchecks-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\posttflight\postflightchecks-cloud-$($cloudId.ToLower()).ps1
+            Copy-File $PSScriptRoot\source\cloud\$($cloudId.ToLower())\postflightupdates-cloud-$($cloudId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-cloud-$($cloudId.ToLower()).ps1
 
-        #endregion PowerShell
+        #endregion CLOUD
         #region OS
 
             Copy-File $PSScriptRoot\source\os\$($operatingSystemId.ToLower())\definitions-os-$($operatingSystemId.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-os-$($operatingSystemId.ToLower()).ps1
@@ -931,11 +973,6 @@ $global:WriteHostPlusPreference = "Continue"
                 Copy-File $PSScriptRoot\source\product\$($product.ToLower())\$($product.ToLower()).ps1 $PSScriptRoot\$($product.ToLower()).ps1
             }    
 
-            foreach ($productSpecificService in $productSpecificServices.Service) {
-                Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\definitions-service-$($productSpecificService.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1
-                Copy-File $PSScriptRoot\source\services\$($productSpecificService.ToLower())\services-$($productSpecificService.ToLower()).ps1 $PSScriptRoot\services\services-$($productSpecificService.ToLower()).ps1
-            }
-
         #endregion PRODUCT             
         #region PROVIDER
 
@@ -950,37 +987,30 @@ $global:WriteHostPlusPreference = "Continue"
 
     }
 
-    # always ensure definitions/definitions-services.ps1 has product-specific service entries
-    $definitionsServicesUpdated = $false
-    foreach ($productSpecificService in $productSpecificServices.Service) {
-        if (Test-Path "$PSScriptRoot\definitions\definitions-service-$($productSpecificService.ToLower()).ps1") {
-            $contentLine = ". `"`$(`$global:Location.Definitions)\definitions-service-$($productSpecificService.ToLower()).ps1`""
-            if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
-                Add-Content -Path $definitionsServicesFile -Value $contentLine
-                $definitionsServicesUpdated = $true
-            }
-        }
-        $contentLine = ". `"`$(`$global:Location.Services)\services-$($productSpecificService.ToLower()).ps1`""
-        if (!(Select-String -Path $definitionsServicesFile -Pattern $contentLine -SimpleMatch -Quiet)) {
-            Add-Content -Path $definitionsServicesFile -Value $contentLine
-            $definitionsServicesUpdated = $true
-        }
-    }
-
-    if ($definitionsServicesUpdated) {
-        Write-Host+ -Iff $($definitionsServicesUpdated) -NoTrace -NoTimestamp "  Updated $definitionsServicesFile with product-specific services." -ForegroundColor DarkGreen
-    }
-
     Write-Host+ -MaxBlankLines 1
 
 #endregion FILES
-#region INSTALL UPDATE
+#region CLOUD INSTALL
+
+    if ($cloudInstallUpdate) {
+        . $PSScriptRoot\install\install-cloud-$($cloudId.ToLower()).ps1
+    }
+
+#endregion CLOUD INSTALL
+#region INSTALLER UPDATE
 
     if ($installUpdate) {
 
         $installUpdateRestartData = [PSCustomObject]@{
             installUpdateRestart = $true
+            productIds = $productIds
+            providerIds = $providerIds
+            impactedIds = $impactedIds
+            impactedProductIds = $impactedProductIds
+            impactedProvidverIds = $impactedProviderIds
             disabledProductIds = $disabledProductIds
+            impactedProductIdsWithTasks = $impactedProductIdsWithTasks
+            impactedProductIdsWithEnabledTasks = $impactedProductIdsWithEnabledTasks
         }  
         
         $installUpdateRestartData | Write-Cache installUpdateRestart
@@ -995,7 +1025,7 @@ $global:WriteHostPlusPreference = "Continue"
         return
     }
 
-#endregion INSTALL UPDATE
+#endregion INSTALLER UPDATE
 
     . $PSScriptRoot\definitions\definitions-sysinternals.ps1
     . $PSScriptRoot\definitions\definitions-powershell.ps1
@@ -1007,6 +1037,21 @@ $global:WriteHostPlusPreference = "Continue"
     . $PSScriptRoot\services\services-overwatch-install.ps1
     . $PSScriptRoot\services\cache.ps1
 
+#region INSTALLER UPDATED
+
+    if ($installUpdateRestart) {
+        $installUpdateRestartData = read-cache installUpdateRestart
+        $productIds = $installUpdateRestartData.productIds
+        $providerIds = $installUpdateRestartData.providerIds
+        $impactedIds = $installUpdateRestartData.impactedIds
+        $impactedProductIds = $installUpdateRestartData.impactedProductIds
+        $impactedProviderIds = $installUpdateRestartData.impactedProviderIds
+        $disabledProductIds = $installUpdateRestartData.disabledProductIds
+        $impactedProductIdsWithTasks = $installUpdateRestartData.impactedProductIdsWithTasks
+        $impactedProductIdsWithEnabledTasks = $installUpdateRestartData.impactedProductIdsWithEnabledTasks
+    }
+
+#endregion INSTALLER UPDATED
 #region POWERSHELL MODULES-PACKAGES
 
     if (!$SkipPowerShell) {
@@ -1019,8 +1064,8 @@ $global:WriteHostPlusPreference = "Continue"
         $requiredPackages = @()
 
         foreach ($impactedId in $impactedIds) {
-            $dependencies = Get-CatalogDependencies -Type ($impactedId -split "\.")[0] -Id ($impactedId -split "\.")[1]  -Recurse
-            foreach ($dependency in ($dependencies | Where-Object {$_.Type -eq "PowerShell"})) {
+            $dependencies = Get-CatalogDependencies -Uid $impactedId -IncludeDependency PowerShell
+            foreach ($dependency in $dependencies) {
                 if ($dependency.Id -eq "Module") { 
                     $requiredModules +=  @{ Name = $dependency.Object.Name }
                 }
@@ -1270,6 +1315,7 @@ $global:WriteHostPlusPreference = "Continue"
             }
 
             if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1" }
+            if (Test-Path "$PSScriptRoot\config\config-os-$($cloudId.ToLower()).ps1") {. "$PSScriptRoot\config\config-cloud-$($cloudId.ToLower()).ps1" }
             if (Test-Path "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1") {. "$PSScriptRoot\config\config-platform-$($platformId.ToLower()).ps1" }
             if (Test-Path "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower()).ps1") {. "$PSScriptRoot\config\config-platforminstance-$($platformInstanceId.ToLower()).ps1" }
 
@@ -1283,12 +1329,12 @@ $global:WriteHostPlusPreference = "Continue"
                 Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
                 Write-Host+
 
-                $message = "  Provider            Publisher           Status"
+                $message = "  Provider            Status"
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
-                $message = "  --------            ---------           ------"
+                $message = "  --------            ------"
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
 
-                $providerIds | ForEach-Object { Install-Provider $_ -UseDefaultResponses:$UseDefaultResponses }
+                $providerIds | ForEach-Object { Install-CatalogObject -Type Provider -Id $_ -UseDefaultResponses:$UseDefaultResponses }
                 
                 Write-Host+
 
@@ -1297,13 +1343,6 @@ $global:WriteHostPlusPreference = "Continue"
         #endregion PROVIDERS        
         #region PRODUCTS
 
-            if ($installUpdateRestart) {
-                $disabledProductIds = (read-cache installUpdateRestart).disabledProductIds
-                if ($disabledProductIds) {
-                    $productIds += $disabledProductIds | Where-Object {$_ -notin $productIds}
-                }
-            }
-
             if ($productIds) {
 
                 Write-Host+ -MaxBlankLines 1
@@ -1311,17 +1350,17 @@ $global:WriteHostPlusPreference = "Continue"
                 Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
                 Write-Host+
 
-                $message = "  Product             Publisher           Status              Task"
+                $message = "  Product             Status              Task"
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
-                $message = "  -------             ---------           ------              ----"
+                $message = "  -------             ------              ----"
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
                 foreach ($productId in $productIds) {
 
-                    if ((Get-Product -Id $productId).HasTask) {
-                        Install-Product $productId -NoNewLine
+                    if ((Get-Catalog -Uid "Product.$productId").HasTask) {
+                        Install-CatalogObject -Type Product -Id $productId -NoNewLine
                         if (!$SkipProductStart -and !$installOverwatch) {
-                            if ($productId -notin $disabledProductIDs) {
+                            if ("Product.$productId" -notin $disabledProductIDs) {
                                 Enable-Product $productId -NoNewLine
                             }
                             else {
@@ -1333,7 +1372,7 @@ $global:WriteHostPlusPreference = "Continue"
                         }
                     }
                     else {
-                        Install-Product $productId -UseDefaultResponses:$UseDefaultResponses
+                        Install-CatalogObject -Type Product -Id $productId -UseDefaultResponses:$UseDefaultResponses
                     }
 
                 }
@@ -1341,6 +1380,26 @@ $global:WriteHostPlusPreference = "Continue"
                 Write-Host+
 
             }
+
+            if (!$installOverwatch -and $impactedProductIdsWithEnabledTasks) {
+
+                Write-Host+ -MaxBlankLines 1
+                $message = "<Products <.>48> STARTING"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+                Write-Host+
+
+                $message = "  Product             Status              Task"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+                $message = "  -------             ------              ----"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+
+                foreach ($impactedProductIdsWithEnabledTask in $impactedProductIdsWithEnabledTasks) {
+                    Enable-Product $impactedProductIdsWithEnabledTask -NoNewLine
+                }
+
+                Write-Host+
+
+            }            
 
         #endregion PRODUCTS
         #region SAVE SETTINGS
@@ -1397,5 +1456,3 @@ $global:WriteHostPlusPreference = "Continue"
     [console]::CursorVisible = $true
 
 #endregion MAIN
-
-#tag you're it

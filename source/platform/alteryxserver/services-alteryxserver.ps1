@@ -825,7 +825,7 @@ function global:Request-Platform {
 
         Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
         
-        Write-Log -Context $Context -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
+        Write-Log -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
         Write-Host+ -NoTrace  "$($global:Platform.Name)","$($Command.ToUpper())","$($commandStatus)" -ForegroundColor Gray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
         # Write-Host+ -NoTrace  "$($global:Platform.Name)","$($Command.ToUpper())","$($commandStatus)" -ForegroundColor Gray,($Command -eq $PlatformDictionary.Start ? "Green" : "Red"),($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
         
@@ -922,8 +922,8 @@ function global:Backup-Platform {
     [CmdletBinding()] param()
     
     Write-Host+ -NoTrace "Backup Running ..."
-    Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running" -Message "Running" -Force
-    Send-TaskMessage -Id "Backup" -Status "Running"
+    Write-Log -Context "Product.Backup" -Action "Backup" -Target "Platform" -Status "Running" -Message "Running" -Force
+    Send-TaskMessage -Id "Backup" -Status "Running" | Out-Null
 
     # flag indicating that an error/exception has occurred
     $fail = $false
@@ -939,7 +939,7 @@ function global:Backup-Platform {
     catch {
         $fail = $true
         Write-Error "$step Failed"
-        Write-Log -Context "Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+        Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
     }
 
     if (!$fail) {
@@ -947,18 +947,18 @@ function global:Backup-Platform {
         $step = "MongoDB Backup"
 
         Write-Verbose "$step PENDING"
-        Write-Log -Context "Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
+        Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
 
         try {
             Invoke-AlteryxService "emongodump=$(Get-BackupFileName)"
             Write-Verbose "$step COMPLETED"
-            Write-Log -Context "Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
         }
         catch {
             $fail = $true
             Write-Error "$($_.Exception.Message)"
             Write-Error "$step FAILED"
-            Write-Log -Context "Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
         } 
 
     }
@@ -970,7 +970,7 @@ function global:Backup-Platform {
     catch {
         $fail = $true
         Write-Error "$step failed"
-        Write-Log -Context "Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+        Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
     }
 
     # enable Monitor
@@ -979,15 +979,15 @@ function global:Backup-Platform {
     if ($fail) {
         $message = "Backup failed at $step"
         Write-Error $message
-        Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -EntryType "Error" -Status "Failure" -Message $message -Force
-        Send-TaskMessage -Id "Backup" -Status "Failure" -MessageType $PlatformMessageType.Alert
+        Write-Log -Context "Product.Backup" -Action "Backup" -Target "Platform" -EntryType "Error" -Status "Failure" -Message $message -Force
+        Send-TaskMessage -Id "Backup" -Status "Failure" -MessageType $PlatformMessageType.Alert | Out-Null
 
     } 
     else {       
 
         Write-Host+ -NoTrace "Backup Completed"
-        Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Success" -Message "Completed" -Force
-        Send-TaskMessage -Id "Backup" -Status "Completed"
+        Write-Log -Context "Product.Backup" -Action "Backup" -Target "Platform" -Status "Success" -Message "Completed" -Force
+        Send-TaskMessage -Id "Backup" -Status "Completed" | Out-Null
         
     }        
 
@@ -1019,7 +1019,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         if (!$BackupFiles -and !$LogFiles) {
             $message = "You must specify at least one of the following switches: -All, -BackupFiles or -LogFiles."
             Write-Host+ $message -ForegroundColor Red
-            Write-Log -Context "Cleanup" -Action "NONE" -EntryType "Error" -Status "Failure" -Message $message
+            Write-Log -Context "Product.Cleanup" -Action "NONE" -EntryType "Error" -Status "Failure" -Message $message
             return
         }
 
@@ -1028,7 +1028,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
-        # Write-Log -Context "Cleanup" -Action "Cleanup" -Status "Running" -Force
+        # Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status "Running" -Force
         # $result = Send-TaskMessage -Id "Cleanup" -Status "Running"
         # $result | Out-Null
 
@@ -1048,13 +1048,13 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                 Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Backup.Extension)" -Recurse -Force
 
-                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Force
+                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Force
                 Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
 
             }
             catch {
 
-                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
 
                 Write-Host+
                 Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
@@ -1176,7 +1176,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,$color
         Write-Host+
     
-        Write-Log -Context "Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
+        Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
         $result = Send-TaskMessage -Id "Cleanup" -Status "Completed" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
         $result | Out-Null
     

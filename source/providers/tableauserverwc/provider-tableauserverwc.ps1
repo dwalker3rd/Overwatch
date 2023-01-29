@@ -26,7 +26,7 @@ function global:Send-TableauServerWC {
     # enable the show welcome banner preference for any user that has disabled it 
     Update-PostgresData -Database workgroup -Table site_user_prefs -Column show_welcome_screen -Value true -Filter "show_welcome_screen = '0'" -ErrorAction SilentlyContinue
     
-    Write-Log -Name $provider.Id -Context "TableauServerWC" -Message $Message.Summary -Status $global:PlatformMessageStatus.Transmitted -Force
+    Write-Log -Context "Provider.TableauServerWC" -Name $provider.Id -Context "TableauServerWC" -Message $Message.Summary -Status $global:PlatformMessageStatus.Transmitted -Force
 
     return $global:PlatformMessageStatus.Transmitted
 

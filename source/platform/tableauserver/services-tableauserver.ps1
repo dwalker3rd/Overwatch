@@ -37,8 +37,6 @@ function global:Get-PlatformStatusRollup {
     }
 
     Write-Verbose "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)"
-    # Write-Log -Context "$($MyInvocation.MyCommand)" -Action "Get-TableauServerStatus" -EntryType "Information" -Message "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)" -Force  
-    
     return $PlatformStatusOK.Contains($tableauServerStatus.rollupStatus), $tableauServerStatus.rollupStatus, $issues, $tableauServerStatus
 }
 
@@ -136,7 +134,7 @@ if (!$ResetCache) {
     if ($(get-cache platforminfo).Exists()) {
         $platformInfo = Read-Cache platforminfo 
         if ($platformInfo) {
-            $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
+            # $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
             $global:Platform.Version = $platformInfo.Version
             $global:Platform.Build = $platformInfo.Build
             $global:Platform.DisplayName = $global:Platform.Name + " " + $platformInfo.Version
@@ -147,7 +145,7 @@ if (!$ResetCache) {
 
 $serverInfo = Get-TSServerInfo
 
-$global:Platform.Api.TsRestApiVersion = $serverinfo.restApiVersion
+# $global:Platform.Api.TsRestApiVersion = $serverinfo.restApiVersion
 $global:Platform.Version = $serverinfo.productVersion.InnerText
 $global:Platform.Build = $serverinfo.productVersion.build
 $global:Platform.DisplayName = $global:Platform.Name + " " + $global:Platform.Version
@@ -155,9 +153,8 @@ $global:Platform.DisplayName = $global:Platform.Name + " " + $global:Platform.Ve
 $platformInfo = @{
     Version=$global:Platform.Version
     Build=$global:Platform.Build
-    TsRestApiVersion=$global:Platform.Api.TsRestApiVersion
+    # TsRestApiVersion=$global:Platform.Api.TsRestApiVersion
 }
-
 $platformInfo | Write-Cache platforminfo
 
 return
@@ -253,7 +250,7 @@ function global:Request-Platform {
     $message = "<  Reason <.>25> $Reason"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkBlue
 
-    Write-Log -Context $Context -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
+    Write-Log -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
 
     $commandStatus = $PlatformEventStatus.InProgress
     Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
@@ -271,18 +268,18 @@ function global:Request-Platform {
 
         if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
             $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) has $($platformJob.status). $($platformJob.errorMessage)"
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
+            Write-Log -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
             throw
         } 
         elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
             $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was $($platformJob.status). $($platformJob.errorMessage)"
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
+            Write-Log -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }
         elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
             $message = "Timeout waiting for platform $($Command.ToUpper()) (Job id: $($platformJob.id)) to complete. $($platformJob.statusMessage)"
-            Write-Log -Context $Context -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
+            Write-Log -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
             Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
         }
 
@@ -305,7 +302,7 @@ function global:Request-Platform {
 
     Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
 
-    Write-Log -Context $Context -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
+    Write-Log -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
 
     if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
 
@@ -389,7 +386,7 @@ function global:Cleanup-Platform {
     if (!$BackupFiles -and !$LogFiles -and !$SheetImageCache -and !$HttpRequestsTable -and !$RedisCache -and !$TempFiles) {
         $message = "You must specify at least one of the following switches: -All, -BackupFiles, -LogFiles, -HttpRequestsTable, -TempFiles, -SheetImageCache or -RedisCache."
         Write-Host+ $message -ForegroundColor Red
-        Write-Log -Context "Cleanup" -Action "NONE" -EntryType "Error" -Status "Failure" -Message $message
+        Write-Log -Context "Product.Cleanup" -Action "NONE" -EntryType "Error" -Status "Failure" -Message $message
         return
     }
 
@@ -406,23 +403,23 @@ function global:Cleanup-Platform {
         $message = "<  Backup files <.>48> PENDING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-        $backupFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.$($global:Backup.Extension)").fileInfo.Count
-        $configFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.json").fileInfo.Count
+        $backupFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.$($global:Product.Config.Backup.Extension)").fileInfo.Count
+        $configFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.json").fileInfo.Count
 
         if ($backupFileCount -gt $BackupFilesRetention -or $configFileCount -gt $BackupFilesRetention) {
 
             try{
                 $fileCountBeforePurge = $backupFileCount + $configFileCount
-                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Backup.Extension)"
-                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.json"
-                $backupFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.$($global:Backup.Extension)").fileInfo.Count
-                $configFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.json").fileInfo.Count
+                Remove-Files -Path $global:Product.Config.Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Product.Config.Backup.Extension)"
+                Remove-Files -Path $global:Product.Config.Backup.Path -Keep $BackupFilesRetention -Filter "*.json"
+                $backupFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.$($global:Product.Config.Backup.Extension)").fileInfo.Count
+                $configFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.json").fileInfo.Count
                 $fileCountAfterPurge = $backupFileCount + $configFileCount
-                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Message "$($fileCountBeforePurge-$fileCountAfterPurge) backup files purged." -Force
+                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Message "$($fileCountBeforePurge-$fileCountAfterPurge) backup files purged." -Force
                 Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
             }
             catch {
-                Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
                 Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
                 $message = "<  Backup files <.>48> FAILURE"
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Red
@@ -431,11 +428,11 @@ function global:Cleanup-Platform {
 
         }
         elseif ($backupFileCount -gt 0 -or $configFileCount -gt 0) {
-            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "NoPurge" -Message "Backup files found. No purge required." -EntryType Warning -Force
+            Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -Status "NoPurge" -Message "Backup files found. No purge required." -EntryType Warning -Force
             Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) NOPURGE" -ForegroundColor DarkYellow
         }
         else {
-            Write-Log -Context "Cleanup" -Action "Purge" -Target "Backup Files" -Status "NoFiles" -Message "Backup files not found." -EntryType Warning -Force
+            Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -Status "NoFiles" -Message "Backup files not found." -EntryType Warning -Force
             Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) NOFILES" -ForegroundColor DarkYellow
         }
 
@@ -480,7 +477,7 @@ function global:Cleanup-Platform {
             $message = "<  TSM Maintenance Cleanup <.>48> SUCCESS"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
-            Write-Log -Context "Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Force # -Data $cleanupPlatformJob.args
+            Write-Log -Context "Product.Cleanup" -Action "CleanupJob" -Target "Platform job $($cleanupPlatformJob.id)" -Status $cleanupPlatformJob.status -Message $cleanupPlatformJob.statusMessage -Force # -Data $cleanupPlatformJob.args
             # $result = Send-PlatformJobMessage -Context "Cleanup" -Id $cleanupPlatformJob.Id -NoThrottle
             # $result | Out-Null
 
@@ -493,8 +490,8 @@ function global:Cleanup-Platform {
             $message = "<  TSM Maintenance Cleanup <.>48> FAILURE"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
             
-            Write-Log -Context "Cleanup" -Action "CleanupJob" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
-            # $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message
+            Write-Log -Context "Product.Cleanup" -Action "CleanupJob" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+            # $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message | Out-Null
             # $result | Out-Null
 
             $tsmCleanupJobSuccess = $false
@@ -528,9 +525,8 @@ function global:Cleanup-Platform {
     Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,$color
     Write-Host+
 
-    Write-Log -Context "Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
-    $result = Send-TaskMessage -Id "Cleanup" -Status "Completed" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
-    $result | Out-Null
+    Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
+    Send-TaskMessage -Id "Cleanup" -Status "Completed" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.") | Out-Null
 
     return
 
@@ -539,63 +535,65 @@ function global:Cleanup-Platform {
 #endregion CLEANUP
 #region BACKUP
 
-function global:Get-BackupFileName {
-
-$global:Backup.Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-$global:Backup.File = "$($global:Backup.Name).$($global:Backup.Extension)"
-
-return $global:Backup.File
-
-}
-
 function global:Backup-Platform {
 
-[CmdletBinding()] param()
+    [CmdletBinding()] param()  
 
-Write-Log -Context "Backup" -Action "Backup" -Target "Platform" -Status "Running"
-Write-Information "Running"
-Send-TaskMessage -Id "Backup" -Status "Running"
+    #region EXPORT
 
-    # export configuration and topology
-    Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Running"
-    Write-Information "ExportConfigurationAndTopologySettings: Running"
-    
-    try {
-
-        $response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings"
-        $response | ConvertTo-Json -Depth 99 | Out-File "$($global:Backup.Path)\$($global:Backup.File).json" 
-
-        Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -Status "Completed"
-        Write-Information "ExportConfigurationAndTopologySettings: Completed"
-
-    }
-    catch {
-
-        Write-Log -EntryType "Warning" -Context "Backup" -Action "Export" -Target "Configuration" -Status "Error" -Message $_.Exception.Message
-        Write-Warning "ExportConfigurationAndTopologySettings: $($_.Exception.Message)"
-
-    }
-
-    # backup
-    try {
-
-        $backupPlatformJob = Invoke-TsmApiMethod -Method "Backup" -Params @(Get-BackupFileName)
-        Watch-PlatformJob -Id $backupPlatformJob.id -Context "Backup" # -Callback "Invoke-PlatformJobCallback"
-
-        Write-Log -Context "Backup" -Action "Backup" -Target "platformJob $($backupPlatformJob.id)" -Status $backupPlatformJob.status -Message $backupPlatformJob.statusMessage
-        Write-Information "platformJob $($backupPlatformJob.id): $($backupPlatformJob.statusMessage)"
-
-    }
-    catch {
-
-        Write-Log -EntryType "Error" -Action "Backup" -Status "Error" -Message $_.Exception.Message
-        Write-Error "$($_.Exception.Message)"
-
-        Send-TaskMessage -Id "Backup" -Status "Error" -Message $_.Exception.Message -MessageType $PlatformMessageType.Alert
+        $message = "<Export Settings <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         
-    }
+        try {
 
-return
+            $response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings"
+            $exportFile = "$($global:Product.Config.Backup.Path)/$($global:Product.Config.Backup.Name).json" -replace "\/","\"
+            $response | ConvertTo-Json -Depth 99 | Out-File $exportFile
+
+            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
+
+        }
+        catch {
+
+            Write-Log -EntryType "Warning" -Context "Backup" -Action "Export" -Target "Configuration" -Status "Error" -Message $_.Exception.Message
+
+            $message = "$($emptyString.PadLeft(8,"`b")) FAILURE$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red 
+
+        }
+
+    #endregion EXPORT
+
+    #region BACKUP JOB
+
+        $message = "<Creating Backup Job <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+        
+        try {
+
+            $backupFile = "$($global:Product.Config.Backup.Name).$($global:Product.Config.Backup.Extension)"
+            $backupPlatformJob = Invoke-TsmApiMethod -Method "Backup" -Params @($backupFile)
+            Watch-PlatformJob -Id $backupPlatformJob.id -Context "Backup" -Callback "Invoke-PlatformJobCallback"
+
+            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
+
+            Send-TaskMessage -Id "Backup" -Status "Running" | Out-Null
+
+        }
+        catch {
+
+            Write-Log -EntryType "Error" -Action "Backup" -Status "Error" -Message $_.Exception.Message
+           
+            $message = "$($emptyString.PadLeft(8,"`b")) FAILURE$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red 
+            
+        }
+
+    #endregion BACKUP JOB
+
+    return
 }
 
 #endregion BACKUP
@@ -738,7 +736,7 @@ function global:Watch-PlatformJob {
             # send alerts for new entries
             if (!$prevPlatformJob) {
                 if (!$NoMessaging) {
-                    Send-PlatformJobMessage $platformJob.id -Context $Context
+                    Send-PlatformJobMessage $platformJob.id -Context $Context | Out-Null
                 }
             } 
 
@@ -764,7 +762,7 @@ function global:Watch-PlatformJob {
             if ($platformJob.updatedAt -gt $prevPlatformJob.updatedAt) {
                 if ($platformJob.status -ne $prevPlatformJob.status -or $platformJob.progress -gt $prevPlatformJob.progress) {
                     if (!$NoMessaging) {
-                        Send-PlatformJobMessage $platformJob.id -Context ($Context ? $Context : $prevPlatformJob.context)
+                        Send-PlatformJobMessage $platformJob.id -Context ($Context ? $Context : $prevPlatformJob.context) | Out-Null
                     }
                 }
             }
@@ -853,7 +851,7 @@ function global:Write-PlatformJobStatusToLog {
         $message = "This job completed successfully at $($epoch.AddSeconds($platformJob.completedAt/1000).ToString('u'))."
     }
 
-    Write-Log -Context "PlatformJob" -Action $platformJob.jobType -Target $platformJob.id -Status $platformJob.status -Message $message -Force # -Data $data 
+    Write-Log -Action $platformJob.jobType -Target $platformJob.id -Status $platformJob.status -Message $message -Force # -Data $data 
 
 }
 
@@ -907,7 +905,7 @@ if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
 
     Write-Log -EntryType "Warning" -Context $platformJobProduct.Id -Action $platformJobProduct.Id -Target "platformJob $($platformJob.id)" -Status $platformJob.status -Message $platformJob.statusMessage
     Write-Warning "platformJob $($platformJob.id): $($platformJob.statusMessage)"
-    Send-TaskMessage -Id $platformJobProduct.Id -Status "Warning" -Message $platformJob.statusMessage -MessageType $PlatformMessageType.Warning
+    Send-TaskMessage -Id $platformJobProduct.Id -Status "Warning" -Message $platformJob.statusMessage -MessageType $PlatformMessageType.Warning | Out-Null
 
     return
 
@@ -916,14 +914,14 @@ elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
 
     Write-Log -EntryType "Error" -Context $platformJobProduct.Id -Action $platformJobProduct.Id -Target "platformJob $($platformJob.id)" -Status $platformJob.status -Message $platformJob.statusMessage
     Write-Error "platformJob $($platformJob.id): $($platformJob.statusMessage)"
-    Send-TaskMessage -Id $platformJobProduct.Id -Status "Error" -Message $platformJob.statusMessage -MessageType $PlatformMessageType.Alert
+    Send-TaskMessage -Id $platformJobProduct.Id -Status "Error" -Message $platformJob.statusMessage -MessageType $PlatformMessageType.Alert | Out-Null
 
     return
 
 } 
 else {
 
-    Send-TaskMessage -Id $platformJobProduct.Id -Status "Completed"
+    Send-TaskMessage -Id $platformJobProduct.Id -Status "Completed" | Out-Null
     
     return
 } 
@@ -1247,7 +1245,7 @@ function global:Confirm-PlatformLicenses {
             $summary = "$($Platform.Instance) has $($clusterCores) cores but is only licensed for $($licensedCores) cores."
 
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -ForeGroundColor DarkRed $indent,"$($subject.ToUpper()): $($message)"
-            Send-LicenseMessage -License $coreLicenses -MessageType $PlatformMessageType.Alert -Subject $subject -Summary $summary
+            Send-LicenseMessage -License $coreLicenses -MessageType $PlatformMessageType.Alert -Subject $subject -Summary $summary | Out-Null
         }
 
     #endregion CORE-LICENSING
@@ -1273,7 +1271,7 @@ function global:Confirm-PlatformLicenses {
         $subject = "License Issue"
         $summary = "A license, maintenance contract or subscription has expired or is expiring soon."
 
-        Send-LicenseMessage -License $licenseWarning -MessageType $PlatformMessageType.Warning -Subject $subject -Summary $summary
+        Send-LicenseMessage -License $licenseWarning -MessageType $PlatformMessageType.Warning -Subject $subject -Summary $summary | Out-Null
         Write-Host+ # in case anything is written to the console during Send-LicenseMessage
 
     }
@@ -1327,14 +1325,14 @@ function global:Test-TsmController {
     if ($fail) {
 
         Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
-        Write-Log -Context "Preflight" -Action "Test" -Target "TSMController" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
+        Write-Log -Action "Test" -Target "TSMController" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
         # throw "$($_.Exception.Message)"
 
     }
     else {
 
         Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen 
-        Write-Log -Context "Preflight" -Action "Test" -Target "TSMController" -Status "PASS"
+        Write-Log -Action "Test" -Target "TSMController" -Status "PASS"
     
     }
 
@@ -1402,7 +1400,7 @@ function global:Test-RepositoryAccess {
             }
 
             Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen
-            Write-Log -Context "Preflight" -Action "Test" -Target "pg_hba.conf.ftl" -Status "PASS"
+            Write-Log -Action "Test" -Target "pg_hba.conf.ftl" -Status "PASS"
 
             Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
             Write-Host+ -NoTimestamp -NoTrace  " PASS" -ForegroundColor DarkGreen
@@ -1411,7 +1409,7 @@ function global:Test-RepositoryAccess {
         else {
             
             Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed 
-            Write-Log -Context "Preflight" -Action "Test" -Target "pg_hba.conf.ftl" -Status "FAIL" -EntryType "Error" -Message "Invalid format"
+            Write-Log -Action "Test" -Target "pg_hba.conf.ftl" -Status "FAIL" -EntryType "Error" -Message "Invalid format"
             # throw "Invalid format"
 
             Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
@@ -1423,7 +1421,7 @@ function global:Test-RepositoryAccess {
     catch {
     
         Write-Host+ -NoTimestamp -NoTrace  " FAIL" -ForegroundColor DarkRed 
-        Write-Log -Context "Preflight" -Action "Test" -Target "pg_hba.conf.ftl" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
+        Write-Log -Action "Test" -Target "pg_hba.conf.ftl" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
         # throw "$($_.Exception.Message)"
     
     }

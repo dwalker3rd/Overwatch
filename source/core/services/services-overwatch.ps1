@@ -1,3 +1,5 @@
+. "$($global:Location.Definitions)\classes.ps1"
+
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls11  
 
 #region OVERWATCH
@@ -11,42 +13,34 @@
             [Parameter(Mandatory=$false)][string]$Path = "$($global:Location.Root)\environ.ps1"
         )
 
+        if ($ComputerName -eq $env:COMPUTERNAME -and $Path -eq "$($global:Location.Root)\environ.ps1") {
+            Invoke-Expression "`$$Key"
+            return
+        }
+
         # find the environ.ps1 file on the remote node
         $environFile = [FileObject]::new($Path,$ComputerName)
 
-        # if node is not an overwatch controller, use the settings from the overwatch controller
-        # note: for now, the overwatch controller is assumed to be the local machine
-        if (!$environFile.Exists()) { 
+        # if the node is not an overwatch controller but is a member of the current topology,
+        # then use the settings from this topology's controller
+        # note: for now, this local machine is assumed to be the overwatch controller
+        if (!$environFile.Exists() -and $ComputerName -in (pt nodes -k)) { 
             $ComputerName = $env:COMPUTERNAME
             $environFile = [FileObject]::new($Path,$ComputerName)
         }
 
-        # get the content from the environ.ps1 file, mod the content to not be global, execute the content
-        $environFileContent = Get-Content $environFile.Path
-        $environFileContent = $environFileContent.Replace("global:","")
-        $environLocationRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')
-        $environFileContent = $environFileContent.Replace($environLocationRoot, ([FileObject]::new($environLocationRoot,$ComputerName)).Path)
-        Invoke-Expression ($environFileContent | Out-String)
-
-        # see if the key is defined in environ.ps1
-        $result = Invoke-Expression "`$$Key"
-
-        # if key not defined in environ.ps1, search definition files (/definitions/definition-*.ps1)
-        if (!$result) {
-            # search must result in a SINGLE file
-            $definitionFile = (Select-String -Pattern $Key -SimpleMatch -Path "$($Location.Definitions)\definitions-*.ps1" -List)[0]
-            if ($definitionFile) {
-                $definitionFileContent = Get-Content $definitionFile.Path
-                $definitionFileContent = $definitionFileContent.Replace("global:","")
-                Invoke-Expression ($definitionFileContent | Out-String)
-            }
-
+        $remoteOverwatchRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')
+        
+        # this is a sandbox, so instead of the usual pssession reuse pattern,
+        # create a new session, make the remoting call, and delete the session
+        $psSession = New-PSSession+ -ComputerName $ComputerName
+        $result = Invoke-Command -Session $psSession -ScriptBlock {
+            Set-Location $using:remoteOverwatchRoot
+            . $using:Path
+            Invoke-Expression "`$$using:Key"
         }
-
-        $result = Invoke-Expression "`$$Key"
-        Remove-Variable -Scope Local Environ
-        Remove-Variable -Scope Local Location
-
+        Remove-PSSession+ -Session $psSession
+        
         return $result
 
     }
@@ -58,9 +52,13 @@
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
         )
 
-        Get-EnvironConfig -Key Overwatch.Overwatch -ComputerName $ComputerName
+        (Get-EnvironConfig -Key Environ.Overwatch -ComputerName $ComputerName) | Select-Object -Property $($View ? $CatalogView.$($View) : $CatalogView.Default)
 
     }
+
+#endregion OVERWATCH
+#region OS
+
     function global:Get-OS {
 
         [CmdletBinding()] 
@@ -68,9 +66,40 @@
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
         )
 
-        Get-EnvironConfig -Key OS $Id -ComputerName $ComputerName
+        return (Get-EnvironConfig -Key Environ.OS -ComputerName $ComputerName) | Select-Object -Property $($View ? $OSView.$($View) : $OSView.Default)
 
     }
+
+#endregion OS
+#region CLOUD
+
+    function global:Get-Cloud {
+
+        [CmdletBinding()] 
+        param (
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        )
+
+        (Get-EnvironConfig -Key Environ.Cloud -ComputerName $ComputerName) | Select-Object -Property $($View ? $CloudView.$($View) : $CloudView.Default)
+
+    }
+
+#endregion CLOUD
+#region PLATFORM
+
+    function global:Get-Platform {
+
+        [CmdletBinding()] 
+        param (
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        )
+
+        return (Get-EnvironConfig -Key Environ.Platform -ComputerName $ComputerName) | Select-Object -Property $($View ? $PlatformView.$($View) : $PlatformView.Default)
+
+    }
+
+#endregion PLATFORM
+#region PROVIDERS
 
     function global:Get-Product {
 
@@ -115,7 +144,8 @@
                         $params.ScriptBlock = { . $using:productDefinitionFile -MinimumDefinitions }
                     }
                     $_product = Invoke-Command @params
-                    $_product.IsInstalled = $true
+                    # $global:Product.Product.($_product.id).IsInstalled = $true
+                    # $_product.IsInstalled = $true
                     $products += $_product
                 }
             }
@@ -131,10 +161,13 @@
         # reset $global:Product with clone
         $global:Product = $productClone
 
-        return $products
+        return $products | Select-Object -Property $($View ? $ProductView.$($View) : $ProductView.Default)
     }
 
-    $global:logLockObject = $false
+    # $global:logLockObject = $false
+
+#endregion PROVIDERS
+#region PROVIDERS
 
     function global:Get-Provider {
 
@@ -175,7 +208,8 @@
                         $params.ScriptBlock = { . $using:providerDefinitionFile -MinimumDefinitions }
                     }
                     $_provider = Invoke-Command @params
-                    $_provider.IsInstalled = $true
+                    # $global:Provider.Provider.($_provider.id).IsInstalled = $true
+                    # $_provider.IsInstalled = $true
                     $providers += $_provider
                 }
             }
@@ -189,41 +223,175 @@
         if ($Name) {$providers = $providers | Where-Object {$_.Name -eq $Name}}
         if ($Id) {$providers = $providers | Where-Object {$_.Id -eq $Id}}
 
-        return $providers
+        return $providers | Select-Object -Property $($View ? $ProviderView.$($View) : $ProviderView.Default)
     }
 
+#endregion PROVIDERS
 #region CATALOG
 
     function global:Get-Catalog {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service")][string]$Type,
-            [Parameter(Mandatory=$false,Position=0)][string]$Id,
-            [switch]$Duplicates
+            
+            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
+            [Parameter(Mandatory=$false)][string]$Uid,
+            
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            
+            [Parameter(Mandatory=$false,Position=0)]
+            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
+            
+            [switch]$AllowDuplicates,
+            [switch]$Installed,
+            [switch]$NotInstalled,
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+            [Parameter(Mandatory=$false)][string]$Path = "$($global:Location.Root)\environ.ps1"
         )
 
-        $catalogObjects = @()
+        $remoteQuery = $ComputerName -ne $env:COMPUTERNAME
+        
+        $catalogObjectExpressions = @()
 
+        $catalogObjectExpressionsUid = ""
         if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {
-            $catalogObjects += $global:Catalog.$Type.$Id
+            $catalogObjectExpressions += "`$global:Catalog.$Type.$Id"
+            $catalogObjectExpressionsUid = "Type.Id"
         }
         elseif (![string]::IsNullOrEmpty($Type) -and [string]::IsNullOrEmpty($Id)) { 
-            $catalogObjects += $global:Catalog.$Type.values
+            $catalogObjectExpressions += "`$global:Catalog.$Type"
+            $catalogObjectExpressionsUid = "Type"
         }
         elseif ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) { 
-            $params = @{
-                Id = $Id
-                Duplicates = $Duplicates.IsPresent
-            }
+            $params = @{ Id = $Id; AllowDuplicates = $AllowDuplicates.IsPresent }
             if ($PSBoundParameters.ErrorAction) {$params += @{ ErrorAction = $PSBoundParameters.ErrorAction }}
-            $catalogObjects += (Search-Catalog @params).object
+            $catalogObjectExpressions += "`$global:Catalog.$((Search-Catalog @params).object).Type).$Id"
+            $catalogObjectExpressionsUid = "Type.Id"
         }
         else {
-            $global:Catalog
+            $catalogObjectExpressions += "`$global:Catalog"
+            $catalogObjectExpressionsUid = "Catalog"
         }
 
+        $_catalogObjects = @()
+
+        if ($remoteQuery) {
+
+            # find the environ.ps1 file on the remote node
+            $environFile = [FileObject]::new($Path,$ComputerName)
+
+            # if the node is not an overwatch controller but is a member of the current topology,
+            # then use the settings from this topology's controller
+            # note: for now, this local machine is assumed to be the overwatch controller
+            if (!$environFile.Exists() -and $ComputerName -in (pt nodes -k)) { 
+                $ComputerName = $env:COMPUTERNAME
+                $environFile = [FileObject]::new($Path,$ComputerName)
+            }
+
+            $remoteOverwatchRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')
+
+            # this is a sandbox, so instead of the usual pssession reuse pattern,
+            # create a new session, make the remoting call, and delete the session
+            $psSession = New-PSSession+ -ComputerName $ComputerName
+            foreach ($catalogObjectExpression in $catalogObjectExpressions) {
+                $_catalogObjects += Invoke-Command -Session $psSession -ScriptBlock {
+                    Set-Location $using:remoteOverwatchRoot
+                    . $using:remoteOverwatchRoot/definitions.ps1 -MinimumDefinitions
+                    Invoke-Expression $using:catalogObjectExpression
+                }
+            }
+            Remove-PSSession+ -Session $psSession
+            
+        }
+        else {
+            foreach ($catalogObjectExpression in $catalogObjectExpressions) {
+                $_catalogObjects += Invoke-Expression $catalogObjectExpression
+            }
+        }
+
+        $__catalogObjects = @()
+        switch ($catalogObjectExpressionsUid) {
+            "Type" {
+                foreach ($skey in $_catalogObjects.Keys) {
+                    $__catalogObjects += $_catalogObjects.$skey
+                }
+            }
+            "Catalog" {
+                foreach ($pkey in $_catalogObjects.Keys) {
+                    foreach ($skey in $_catalogObjects.$pkey.Keys) {
+                        $__catalogObjects += $_catalogObjects.$pkey.$skey
+                    }
+                }
+            }
+            default {
+                $__catalogObjects += $_catalogObjects
+            }
+        }
+
+        $catalogObjects = @()
+        if ($remoteQuery) {
+            # remote objects are returned as pscustomobjects, so retype
+            foreach ($__catalogObject in $__catalogObjects) {
+                $catalogObjects += Invoke-Expression "`$__catalogObject -as [$($__catalogObject.Type)]"
+            }
+        }
+        else {
+            $catalogObjects += $__catalogObjects
+        }
+
+        if ($Installed) { $catalogObjects = $catalogObjects | Where-Object {$_.IsInstalled()} }
+        if ($NotInstalled) { $catalogObjects = $catalogObjects | Where-Object {!$_.IsInstalled()} }
+
         return $catalogObjects
+
+    }
+
+    function global:Format-Catalog {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(ValueFromPipeline)][object]$InputObject,
+            [Parameter(Mandatory=$false)][string]$View
+        )
+
+        begin {
+            $OutputObject = @()
+        }
+        process {
+            $OutputObject += $InputObject
+        }
+        end {
+            return $OutputObject | Sort-Object -Property SortProperty | Select-Object -Property $($View ? $CatalogView.CatalogObject.$($View) : $CatalogView.CatalogObject.Default)
+        }
+
+    }
+
+    function global:Show-Catalog {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][string]$View = "Min",
+            [switch]$Installed,
+            [switch]$NotInstalled
+        )
+
+        Get-Catalog -Installed:$Installed.IsPresent -NotInstalled:$NotInstalled.IsPresent | 
+            Format-Catalog -View Min | 
+                Format-Table
+
+    }
+
+    function global:Update-Catalog {
+
+        [CmdletBinding()]
+        param ()
+
+        foreach ($_type in $global:Catalog.Keys) {
+            foreach ($_id in $global:Catalog.$_type.Keys) {
+                $global:Catalog.$_type.$_id.Refresh()
+            }
+        }
 
     }
 
@@ -231,9 +399,18 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service")][string]$Type,
-            [Parameter(Mandatory=$true,Position=0)][string]$Id,
-            [switch]$Duplicates
+
+            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
+            [Parameter(Mandatory=$false)][string]$Uid,
+            
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            
+            [Parameter(Mandatory=$false,Position=0)]
+            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
+
+            [switch]$AllowDuplicates
+
         )
 
         $catalogObject = @()
@@ -250,12 +427,17 @@
             }
         }
 
-        if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) { 
+        if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {         
+            
+            # ensure same case as catalog keys
+            $Type = $global:Catalog.Keys | Where-Object {$_ -eq $Type}
+
             $catalogObject += [PSCustomObject]@{
                 Type = $Type
                 Id = $global:Catalog.$Type.$Id.Id
                 Object = $global:Catalog.$Type.$Id
             }
+
         }       
 
         if ($catalogObject.Count -eq 0) {
@@ -264,7 +446,7 @@
             }
             return
         }
-        if (!$Duplicates -and $catalogObject.Count -gt 1) {
+        if (!$AllowDuplicates -and $catalogObject.Count -gt 1) {
             Write-Host+ -NoTimestamp "Multiple objects with the id `"$($catalogObject[0].Id)`" were found in the catalog." -ForegroundColor Red
             Write-Host+ -NoTimestamp "Use the -Type parameter to specify the object type or the -Duplicates switch to return all the objects with the id `"$($Id)`"." -ForegroundColor Red
             return
@@ -278,11 +460,22 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service","PowerShell")][string]$Type,
-            [Parameter(Mandatory=$true,Position=0)][string]$Id,            
+
+            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
+            [Parameter(Mandatory=$false)][string]$Uid,
             
-            [switch]$Recurse,
-            [Parameter(Mandatory=$false)][int]$RecurseLevel = 0
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            
+            [Parameter(Mandatory=$false,Position=0)]
+            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),   
+
+            [Parameter(Mandatory=$false)][string[]]$History = @(),      
+            [switch]$DoNotRecurse,
+            [Parameter(Mandatory=$false)][int]$RecurseLevel = 0,
+            [switch]$AllowDuplicates,
+            [switch]$Installed,
+            [switch]$NotInstalled
         )
 
         if ([string]::IsNullOrEmpty($Type)) { 
@@ -291,45 +484,77 @@
             $Type = $searchResults.Type
         }
 
+        # ensure same case as catalog keys
+        $Type = $global:Catalog.Keys | Where-Object {$_ -eq $Type}
+
         $catalogObject = $global:Catalog.$Type.$Id
         if (!$catalogObject) {
             Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
             return
         }
 
+        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider") -join ","
+        $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"(\w*,$Type),?.*$")
+        $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
+        $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
+
         $RecurseLevel--
 
         $dependents = @()
         $dependency = "$($Type).$($global:Catalog.$Type.$Id.Id)"
-        foreach ($pkey in $global:Catalog.Keys) {
+
+        # if ($Type -in ("Overwatch","OS")) {
+        #     foreach ($pkey in $global:Catalog.Keys | Where-Object {$_ -notin ("Overwatch","OS")}) {
+        #         foreach ($skey in $global:Catalog.$pkey.keys) {
+        #             if ([string]::IsNullOrEmpty($global:Catalog.$pkey.$skey.Installation.Prerequisite.$Type) -or ($global:Catalog.$pkey.$skey.Installation.Prerequisite.$Type -contains $environ.$Type)) {
+        #                 $dependents += [PSCustomObject]@{ Uid = "$pkey.$skey"; Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $global:Catalog.$pkey.$skey; Dependency = $dependency }
+        #             }
+        #         }
+        #     }
+        #     return $dependents
+        # }        
+
+        # foreach ($pkey in $global:Catalog.Keys) {
+        foreach ($pkey in $validCatalogObjectsToRecurse) {
             foreach ($skey in $global:Catalog.$pkey.Keys) {
+                if ($Installed -and !$global:Catalog.$pkey.$skey.IsInstalled()) { continue }
+                if ($NotInstalled -and $global:Catalog.$pkey.$skey.IsInstalled()) { continue }
                 if ([array]$global:Catalog.$pkey.$skey.Installation.Prerequisite.$Type -contains $Id) { 
-                    $_dependents = @()
-                    switch ($pkey) {
-                        "PowerShell" {
-                            foreach ($tkey in $skey.Keys) {
-                                foreach ($_psObject in $skey.$tkey) {
-                                    $_dependents += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $tkey; Object = [PSCustomObject]$_psObject; Dependency = $dependency }
+
+                    if ("$pkey.$skey" -notin $History) {
+
+                        $History += "$pkey.$skey"
+
+                        $_dependents = @()
+                        $_dependents += [PSCustomObject]@{ Uid = "$pkey.$skey"; Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $global:Catalog.$pkey.$skey; Dependency = $dependency }
+
+                        if (!$DoNotRecurse) {
+                            foreach ($dependent in $_dependents) {
+                                $params = @{
+                                    Type = $dependent.Type
+                                    Id = $dependent.Id
+                                    DoNotRecurse = $DoNotRecurse.IsPresent
+                                    RecurseLevel = $RecurseLevel
+                                    AllowDuplicates = $AllowDuplicates.IsPresent
+                                    History = $History
+                                }
+                                $_dependents += Get-CatalogDependents @params
+                            }
+                        }
+        
+                        if ($AllowDuplicates) {
+                            $dependents += $_dependents
+                        }
+                        else {
+                            foreach ($_dependent in $_dependents) {
+                                if ($_dependent.Uid -notin $dependents.Uid) {
+                                    $dependents += $_dependent
                                 }
                             }
                         }
-                        default { 
-                            $_dependents += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $catalogObject; Dependency = $dependency }
-                            if ($Recurse) {
-                                foreach ($dependent in $_dependents) {
-                                    $params = @{
-                                        Type = $dependent.Type
-                                        Id = $dependent.Id
-                                        Recurse = $Recurse.IsPresent
-                                        RecurseLevel = $RecurseLevel
-                                    }
-                                    $_dependents += Get-CatalogDependents @params
-                                }
-                            }
-                        }
+
                     }
-    
-                    $dependents += $_dependents
+
                 }
             }
         }
@@ -342,11 +567,25 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","OS","Platform","Product","Provider","Service","PowerShell")][string]$Type,
-            [Parameter(Mandatory=$true,Position=0)][string]$Id,
 
-            [switch]$Recurse,
-            [Parameter(Mandatory=$false)][int]$RecurseLevel = 0
+            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
+            [Parameter(Mandatory=$false)][string]$Uid,
+            
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            
+            [Parameter(Mandatory=$false,Position=0)]
+            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}), 
+                    
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell")][string[]]$IncludeDependencyType,
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell")][string[]]$ExcludeDependencyType,
+            [Parameter(Mandatory=$false)][string[]]$History = @(),
+            [switch]$DoNotRecurse,
+            [Parameter(Mandatory=$false)][int]$RecurseLevel = 0,
+            [switch]$AllowDuplicates,
+            [switch]$CatalogObjectsOnly,
+            [switch]$Installed,
+            [switch]$NotInstalled
         )
 
         if ([string]::IsNullOrEmpty($Type)) { 
@@ -355,54 +594,126 @@
             $Type = $searchResults.Type
         }
 
+        # ensure same case as catalog keys
+        $Type = $global:Catalog.Keys | Where-Object {$_ -eq $Type}
+
         $catalogObject = $global:Catalog.$Type.$Id
         if (!$catalogObject) {
             Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
             return
         }
 
+        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider") -join ","
+        $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"^.*?($Type,?.*)$")
+        $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
+        $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
+
         $RecurseLevel++
 
         $dependencies = @()
-        $dependent = "$($Type).$($global:Catalog.$Type.$Id.Id)"
-        foreach ($pkey in $global:Catalog.$Type.$Id.Installation.Prerequisite.Keys) {
-            foreach ($skey in $global:Catalog.$Type.$Id.Installation.Prerequisite.$pkey) {
-                $_dependencies = @()
-                switch ($pkey) {
-                    "PowerShell" {
-                        foreach ($tkey in $skey.Keys) {
-                            foreach ($_psObject in $skey.$tkey) {
-                                $_dependencies += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $tkey; Object = [PSCustomObject]$_psObject; Dependent = $dependent }
-                            }
-                        }
-                    }
-                    default { 
-                        $_dependencies += [PSCustomObject]@{ Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $catalogObject; Dependent = $dependent }
-                        if ($Recurse) {
-                            foreach ($dependency in $_dependencies) {
-                                $params = @{
-                                    Type = $dependency.Type
-                                    Id = $dependency.Id
-                                    Recurse = $Recurse.IsPresent
-                                    RecurseLevel = $RecurseLevel
-                                }
-                                $_dependencies += Get-CatalogDependencies @params
-                            }
-                        }
-                    }
-                }
+        $dependent = "$($Type).$($global:Catalog.$Type.$Id.Id)" 
 
-                $dependencies += $_dependencies
+        # $dependencies += [PSCustomObject]@{ Uid = "Overwatch.Overwatch"; Level = $RecurseLevel; Type = "Overwatch"; Id = "Overwatch"; Object = $global:Catalog.Overwatch.Overwatch; Dependent = $dependent }
+        # if ([string]::IsNullOrEmpty($catalogObject.Installation.Prerequisite.OS) -or ($catalogObject.Installation.Prerequisite.OS -contains $environ.OS)) {
+        #     $dependencies += [PSCustomObject]@{ Uid = "OS.$($environ.OS)"; Level = $RecurseLevel; Type = "OS"; Id = "$($environ.OS)"; Object = $global:Catalog.OS.$($environ.OS); Dependent = $dependent }
+        # }
+
+        foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisite.Keys | Where-Object {$_ -in $validCatalogObjectsToRecurse})) {
+        # foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisite.Keys)) {
+            foreach ($skey in $global:Catalog.$Type.$Id.Installation.Prerequisite.$pkey) {
+                if ($Installed -and !$global:Catalog.$pkey.$skey.IsInstalled()) { continue }
+                if ($NotInstalled -and $global:Catalog.$pkey.$skey.IsInstalled()) { continue }
+                if ("$pkey.$skey" -notin $History) {
+
+                    $History += "$pkey.$skey"
+
+                    $_dependencies = @()
+                    switch ($pkey) {
+                        "PowerShell" {
+                            foreach ($tkey in $skey.Keys) {
+                                foreach ($_psObject in $skey.$tkey) {
+                                    $_dependencies += [PSCustomObject]@{ Uid = "$pkey.$tkey.$($_psObject.Name)"; Level = $RecurseLevel; Type = $pkey; Id = $tkey; Object = [PSCustomObject]$_psObject; Dependent = $dependent }
+                                }
+                            }
+                        }
+                        default { 
+                            $_dependencies += [PSCustomObject]@{ Uid = "$pkey.$skey"; Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $catalogObject; Dependent = $dependent }
+                            if (!$DoNotRecurse) {
+                                foreach ($dependency in $_dependencies) {
+                                    $params = @{
+                                        Type = $dependency.Type
+                                        Id = $dependency.Id
+                                        DoNotRecurse = $DoNotRecurse.IsPresent
+                                        RecurseLevel = $RecurseLevel
+                                        AllowDuplicates = $AllowDuplicates.IsPresent
+                                        CatalogObjectsOnly = $CatalogObjectsOnly.IsPresent
+                                        History = $History
+                                    }
+                                    if (![string]::IsNullOrEmpty($IncludeDependencyType)) { $params += @{ IncludeDependencyType = $IncludeDependencyType }}
+                                    if (![string]::IsNullOrEmpty($ExcludeDependencyType)) { $params += @{ ExcludeDependencyType = $ExcludeDependencyType }}
+                                    $_dependencies += Get-CatalogDependencies @params
+                                }
+                            }
+                        }
+                    }
+
+                    if ($AllowDuplicates) {
+                        $dependencies += $_dependencies
+                    }
+                    else {
+                        foreach ($_dependency in $_dependencies) {
+                            if ($_dependency.Uid -notin $dependencies.Uid) {
+                                $dependencies += $_dependency
+                            }
+                        }                    
+                    }
+
+                }
             }
+        }
+        
+        if ($CatalogObjectsOnly) {
+            $dependencies = $dependencies | Where-Object {$_.Type -in $global:Catalog.Keys}
+        }
+        elseif (![string]::IsNullOrEmpty($IncludeDependencyType)) {
+            $dependencies = $dependencies | Where-Object {$_.Type -in $IncludeDependencyType}
+        }
+        elseif (![string]::IsNullOrEmpty($ExcludeDependencyType)) {
+            $dependencies = $dependencies | Where-Object {$_.Type -notin $ExcludeDependencyType}
         }
 
         return $dependencies
 
     }
 
-#endregion CATALOG
+    function global:Confirm-CatalogInitializationPrerequisites {
 
-#endregion OVERWATCH
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][ValidateSet("Product","Provider")][string]$Type,
+            [Parameter(Mandatory=$false)][string]$Id,
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+            [switch]$Quiet,
+            [switch]$ThrowError
+        )
+
+        $prerequisitesOK = $true
+        foreach ($prerequisite in $global:Catalog.$Type.$Id.Initialization.Prerequisite) {
+            $prerequisiteIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -Name $($prerequisite.$($prerequisite.Type)) -Status $($prerequisite.Status) -TimeoutInSeconds 15"
+            if (!$prerequisiteIsRunning) {
+                $prerequisitesOK = $false
+                $errormessage = "The prerequisite $($prerequisite.Type) `"$($prerequisite.$($prerequisite.Type))`" is NOT $($prerequisite.Status.ToUpper())"
+                Write-Log -Target "$Type.$Id" -Action "Initialize" -Status "NotReady" -Message $errorMessage -EntryType Error -Force
+                Write-Host+ -Iff $(!$Quiet) $errorMessage -ForegroundColor Red
+                if ($ThrowError) { throw $errorMessage }
+            }
+        }
+
+        return $prerequisitesOK
+
+    }
+
+#endregion CATALOG
 #region PLATFORM
 
     #region STATUS
@@ -461,20 +772,20 @@
 
             if (!$isOK) {
                 if ($platformStatus.IsStopped) {
+                    if ([datetime]::MinValue -ne $platformStatus.EventCreatedAt) {
+                        $productShutdownTimeout = $(Get-Product -Id $platformStatus.EventCreatedBy).ShutdownMax
+                        $shutdownTimeout = $productShutdownTimeout.TotalMinutes -gt 0 ? $productShutdownTimeout : $PlatformShutdownMax
+                        $stoppedDuration = New-TimeSpan -Start $platformStatus.EventCreatedAt
+                        $IsStoppedTimeout = $stoppedDuration.TotalMinutes -gt $shutdownTimeout.TotalMinutes
 
-                    $productShutdownTimeout = $(Get-Product -Id $platformStatus.EventCreatedBy).ShutdownMax
-                    $shutdownTimeout = $productShutdownTimeout.TotalMinutes -gt 0 ? $productShutdownTimeout : $PlatformShutdownMax
-                    $stoppedDuration = New-TimeSpan -Start $platformStatus.EventCreatedAt
-                    $IsStoppedTimeout = $stoppedDuration.TotalMinutes -gt $shutdownTimeout.TotalMinutes
+                        $isOK = !$IsStoppedTimeout
+                        $platformStatus.IsStoppedTimeout = $IsStoppedTimeout
 
-                    $isOK = !$IsStoppedTimeout
-                    $platformStatus.IsStoppedTimeout = $IsStoppedTimeout
-
-                    if ($IsStoppedTimeout) {
-                        $platformStatus.Intervention = $true
-                        $platformStatus.InterventionReason = "Platform STOP duration $($stoppedDuration.TotalMinutes) minutes."
+                        if ($IsStoppedTimeout) {
+                            $platformStatus.Intervention = $true
+                            $platformStatus.InterventionReason = "Platform STOP duration $([math]::Round($stoppedDuration.TotalMinutes,0)) minutes."
+                        }
                     }
-            
                 }
             }         
 
@@ -830,7 +1141,7 @@
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$expiryColor
 
             if ($thisWarn -or $thisFail) {
-                Send-SSLCertificateExpiryMessage -Certificate $ProtocolStatus.Certificate
+                Send-SSLCertificateExpiryMessage -Certificate $ProtocolStatus.Certificate | Out-Null
             }
 
             $thisWarn = $false
@@ -1095,6 +1406,62 @@
             $oHash
         }
     } 
+
+    function global:ConvertTo-PowerShell {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(ValueFromPipeline)][object]$InputObject,
+            [Parameter(Mandatory=$false)][int]$Indent = 0
+        )
+        begin {}
+        process {
+            
+            $OutputObject = $InputObject | ConvertTo-Json -Depth 10
+
+            $OutputObject = $OutputObject -replace """(.*)"":",'$1:' 
+            $OutputObject = $OutputObject -replace ": \{",' = @{'
+            $OutputObject = $OutputObject -replace ": \[",' = @('
+            $OutputObject = $OutputObject -replace "\]",")"
+            $OutputObject = $OutputObject -replace ": ",' = '
+            $OutputObject = $OutputObject -replace "\},",'}'
+            $OutputObject = $OutputObject -replace "\),",')'
+            $OutputObject = $OutputObject -replace "null",'$null'
+            $OutputObject = $OutputObject -replace "true",'$true'
+            $OutputObject = $OutputObject -replace "false",'$false'
+
+            foreach ($match in ([regex]::Matches($OutputObject,"@\(.*?\)",[System.Text.RegularExpressions.RegexOptions]::SingleLine).Groups.Value)) {
+                $substitution = $match -replace ",","__,__"
+                $OutputObject = $OutputObject -replace [regex]::Escape($match), $substitution
+            }
+
+            # foreach ($match in ([regex]::Matches($OutputObject,"@\{.*?\}",[System.Text.RegularExpressions.RegexOptions]::SingleLine).Groups.Value)) {
+            #     $substitution = $match -replace ",",""
+            #     $OutputObject = $OutputObject -replace [regex]::Escape($match), $substitution
+            # }
+
+            $OutputObject = $OutputObject -replace ",",""
+
+            foreach ($match in ([regex]::Matches($OutputObject,"@\(.*?\)",[System.Text.RegularExpressions.RegexOptions]::SingleLine).Groups.Value)) {
+                $substitution = $match -replace "__,__",","
+                $OutputObject = $OutputObject -replace [regex]::Escape($match), $substitution
+            }
+
+            # get rid of outer curly brackets
+            $OutputObject = ([regex]::Matches($OutputObject,"^\{\s*\n(.*)\n\s*\}$",[System.Text.RegularExpressions.RegexOptions]::SingleLine)).Groups[1].Value
+
+            # replace two-space indent to four-space indent
+            $OutputObject = $OutputObject -replace "  ", "    "
+
+            # if $Indent, prepend $Indent number of spaces (minus the four already there)
+            $outputObject = ($outputObject -split '\r?\n' | Foreach-Object {"$($emptyString.PadLeft($Indent-4," "))$_"}) | Out-String
+
+        }
+        end {
+            return $OutputObject
+        }
+
+    }
 
     function global:Get-CmdletParameterAliasUsed {
 

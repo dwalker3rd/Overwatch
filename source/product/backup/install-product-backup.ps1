@@ -5,15 +5,65 @@ param (
 
 $product = Get-Product "Backup"
 $Name = $product.Name 
-$Publisher = $product.Publisher
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+$interaction = $false
+
+$cursorVisible = [console]::CursorVisible
+[console]::CursorVisible = $true
+
+$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
-Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\definitions-product-$($product.Id.ToLower())-template.ps1" "$($global:Location.Root)\definitions\definitions-product-$($product.Id.ToLower()).ps1" -Quiet
+#region PRODUCT-SPECIFIC INSTALLATION
 
-$backupPath = . tsm configuration get -k basefilepath.backuprestore
-if (!(Test-Path -Path $backupPath)) {New-Item -ItemType Directory -Path $backupPath}
+    if ($global:Platform.Id -eq "TableauServer") {
+        $backuparchivelocation = . tsm configuration get -k basefilepath.backuprestore
+    }
+
+    $backupSettings = "$PSScriptRoot\data\backupInstallSettings.ps1"
+    if (Test-Path -Path $backupSettings) {
+        . $backupSettings
+    }
+
+    $overwatchRoot = $PSScriptRoot -replace "\\install",""
+    if (Get-Content -Path $overwatchRoot\definitions\definitions-product-backup.ps1 | Select-String "<backuparchivelocation>" -Quiet) {
+
+        $interaction = $true
+
+        Write-Host+; Write-Host+
+
+        do {
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Backup Archive Location ", "$($backuparchivelocation ? "[$backuparchivelocation] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            if (!$UseDefaultResponses) {
+                $backuparchivelocationResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
+            $backuparchivelocation = ![string]::IsNullOrEmpty($backuparchivelocationResponse) ? $backuparchivelocationResponse : $backuparchivelocation
+            if ([string]::IsNullOrEmpty($backuparchivelocation)) {
+                Write-Host+ -NoTrace -NoTimestamp "NULL: Backup archive location is required" -ForegroundColor Red
+                $backuparchivelocation = $null
+            }
+        } until ($backuparchivelocation)
+        if (!(Test-Path -Path $backuparchivelocation)) {New-Item -ItemType Directory -Path $backuparchivelocation}
+
+        $backupDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-product-backup.ps1
+        $backupDefinitionsFile = $backupDefinitionsFile -replace "<backuparchivelocation>", $backuparchivelocation
+        $backupDefinitionsFile | Set-Content -Path $overwatchRoot\definitions\definitions-product-backup.ps1
+
+        #region SAVE SETTINGS
+
+            if (Test-Path $backupSettings) {Clear-Content -Path $backupSettings}
+            '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $backupSettings
+            "Param()" | Add-Content -Path $backupSettings
+            "`$backuparchivelocation = `"$backuparchivelocation`"" | Add-Content -Path $backupSettings
+
+        #endregion SAVE SETTINGS
+
+    }
+
+#endregion PRODUCT-SPECIFIC INSTALLATION
 
 $productTask = Get-PlatformTask -Id "Backup"
 if (!$productTask) {
@@ -24,5 +74,14 @@ if (!$productTask) {
     $productTask = Get-PlatformTask -Id "Backup"
 }
 
-$message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
-Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "DarkRed")
+if ($interaction) {
+    Write-Host+
+    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
+    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
+}
+else {
+    $message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "DarkRed")
+}
+
+[console]::CursorVisible = $cursorVisible

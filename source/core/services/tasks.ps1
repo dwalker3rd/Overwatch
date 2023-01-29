@@ -136,6 +136,8 @@ function global:Get-PlatformTask {
         $_taskName = $TaskName
         if ($Id -and !$TaskName) {$_taskName = $(Get-Product -Id $Id -ComputerName $node).TaskName}  
 
+        # if ([string]::IsNullOrEmpty($_taskName)) { continue }
+
         $psSession = Use-PSSession+ -ComputerName $node
         $tasks = $_taskName ? $(Invoke-Command -Session $psSession {Get-ScheduledTask -TaskName $using:_taskName -ErrorAction SilentlyContinue}) : $(Invoke-Command -Session $psSession {Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {$_.TaskName -like "*$($using:Overwatch.Name)*"}})
         if (!$tasks) { continue }
@@ -264,7 +266,7 @@ function global:Disable-PlatformTask {
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "PlatformTask"
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "null"
     )
 
     if ($PlatformTask) {
@@ -333,7 +335,7 @@ function global:Enable-PlatformTask {
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "PlatformTask"
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "null"
     )
 
     if ($PlatformTask) {
@@ -446,7 +448,6 @@ function global:Start-PlatformTask {
 
     # start task
     $PlatformTask.Instance = Start-ScheduledTask -TaskName $TaskName
-    $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
 
     # wait for PlatformTask to be enabled
     $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Started -OutputType PlatformTask -Timeout $Timeout
@@ -501,7 +502,7 @@ function global:Stop-PlatformTask {
 
 }
 
-function global:Show-PlatformTask {
+function global:Show-PlatformTasks {
 
     [CmdletBinding()]
     param (

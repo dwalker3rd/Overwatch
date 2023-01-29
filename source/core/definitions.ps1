@@ -51,13 +51,14 @@
 #endregion OVERWATCH DEFINITIONS
 #region OS DEFINITIONS
 
-    if (Test-Path -Path "$($global:Location.Definitions)\definitions-OS-$($global:Environ.OS).ps1") {. "$($global:Location.Definitions)\definitions-OS-$($global:Environ.OS).ps1"}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-os-$($global:Environ.OS.ToLower()).ps1") {. "$($global:Location.Definitions)\definitions-OS-$($global:Environ.OS.ToLower()).ps1"}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-cloud-$($global:Environ.Cloud.ToLower()).ps1") {. "$($global:Location.Definitions)\definitions-cloud-$($global:Environ.Cloud.ToLower()).ps1"}
 
 #endregion OS DEFINITIONS
 #region PLATFORM DEFINITIONS
     
-    if (Test-Path -Path "$($global:Location.Definitions)\definitions-Platform-$($global:Environ.Platform).ps1") {. "$($global:Location.Definitions)\definitions-Platform-$($global:Environ.Platform).ps1"}
-    if (Test-Path -Path "$($global:Location.Definitions)\definitions-PlatformInstance-$($global:Environ.Instance).ps1") {. "$($global:Location.Definitions)\definitions-PlatformInstance-$($global:Environ.Instance).ps1"}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-platform-$($global:Environ.Platform.ToLower()).ps1") {. "$($global:Location.Definitions)\definitions-platform-$($global:Environ.Platform.ToLower()).ps1"}
+    if (Test-Path -Path "$($global:Location.Definitions)\definitions-platformInstance-$($global:Environ.Instance.ToLower()).ps1") {. "$($global:Location.Definitions)\definitions-platformInstance-$($global:Environ.Instance.ToLower()).ps1"}
 
 #endregion PLATFORM DEFINITIONS
 #region MINIMUM DEFINITIONS RETURN
@@ -75,6 +76,13 @@
     . "$($global:Location.Definitions)\definitions-services.ps1"
 
 #endregion SERVICES
+#region UPDATE CATALOG
+
+    # once environ, catalog and services have all been loaded,
+    # refresh/update each catalog object's installation status
+    Update-Catalog
+
+#endregion UPDATE CATALOG
 #region PRODUCTS
 
     if (!$global:Environ.Product) {return}
@@ -152,16 +160,16 @@
     if ($_platformTasksDisabled.Count -gt 0) {
         Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
         Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
-        $_platformTasksDisabled | Show-PlatformTask
+        $_platformTasksDisabled | Show-PlatformTasks
         Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Include -SetTraceGlobal Include
     }
 
-    Write-Host+ -Iff ($_warnings) -MaxBlankLines 1
+    Write-Host+ -Iff ($_warnings)
 
 #endregion WARNINGS
 #region CLOSE
 
-    Write-Host+ -MaxBlankLines 1
+    Write-Host+ -Iff (!$_warnings)
     $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
     Write-Host+

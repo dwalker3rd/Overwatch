@@ -23,6 +23,11 @@ The message object used by the Overwatch messaging service.
 The message object used by the Overwatch messaging service serialized into JSON.
 #>
 
+$mailKit = Get-Package -Name MailKit
+$mimeKit = Get-Package -Name MimeKit
+Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mailKit.Name).$($mailKit.Version)\lib\net48\MailKit.dll"
+Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mimeKit.Name).$($mimeKit.Version)\lib\net48\MimeKit.dll"
+
 function global:Send-SMTP {
  
     [CmdletBinding()]
@@ -70,7 +75,7 @@ function global:Send-SMTP {
         $SMTP.Dispose()
     }
     
-    Write-Log -Name $provider.Id -Context "SMTP" -Action $To -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
+    Write-Log -Context "Provider.SMTP" -Name $provider.Id -Action $To -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
 
     return $throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted
 

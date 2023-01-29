@@ -5,9 +5,13 @@
 
     #region IncompletePreflightChecks
 
+        $trustedHosts = @("")
+
         if (!$global:PreflightChecksCompleted) {
 
-            Test-RepositoryAccess $trustedHosts -SSL
+            if ($trustedHosts) {
+                Test-RepositoryAccess $trustedHosts -SSL
+            }
 
         }
         else {

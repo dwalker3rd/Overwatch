@@ -87,21 +87,6 @@ If using the Microsoft Teams provider, it must be configured here.
         $global:PrincipalContextName = $env:COMPUTERNAME
 
     #endregion PRINCIPAL-CONTEXT
-    #region BACKUPS
-
-        # The following line indicates a post-installation configuration to the installer
-        # Manual Configuration > Product > Backup > Customization
-
-        # $global:Backup = $null
-        # $global:Backup += @{
-        #     Path = "<backupArchiveLocation>"
-        #     Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-        #     Extension = "bak"
-        #     MaxRunTime = New-Timespan -Minutes 15
-        # }
-        # $global:Backup += @{File = "$($global:Backup.Path)\$($global:Backup.Name).$($global:Backup.Extension)"}
-
-    #endregion BACKUPS
     #region CLEANUP
 
         # The following line indicates a post-installation configuration to the installer

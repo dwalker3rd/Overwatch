@@ -18,7 +18,7 @@
     $SmtpCredentials = Get-Credentials smtp
     $SmtpConfig = 
         @{
-            Server = “<server>”
+            Server = "<server>"
             Port = "<port>"
             UseSsl = "<useSsl>"
             MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear)

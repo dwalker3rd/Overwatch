@@ -13,7 +13,7 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="AzureADSyncTS"}
 . $PSScriptRoot\definitions.ps1
 
-$tenantKey = Get-AzureADTenantKeys -AzureAD
+$tenantKey = Get-AzureTenantKeys -AzureAD
 $action = $null; $target = $null; $status = $null
 
 function Assert-SyncError {
@@ -25,12 +25,12 @@ function Assert-SyncError {
         [Parameter(Mandatory=$true)][object]$ErrorDetail
     )
 
-    Write-Log -Context $Product.Id -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
+    Write-Log -Action "Sync" -Target $Target -Status $ErrorDetail.code -Message $ErrorDetail.summary -EntryType "Error"
     $message = "$($emptyString.PadLeft(8,"`b")) $($ErrorDetail.summary)$($emptyString.PadLeft(8," "))"
     Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkRed
     
     if ($ErrorDetail.Code -notin ("CACHE.NOTFOUND")) {
-        Send-TaskMessage -Id $Product.Id -Status $Status -Message $ErrorDetail.summary -MessageType $PlatformMessageType.Alert   
+        Send-TaskMessage -Id $Product.Id -Status $Status -Message $ErrorDetail.summary -MessageType $PlatformMessageType.Alert | Out-Null
     }
 
     Write-Host+
@@ -57,9 +57,9 @@ function Assert-SyncError {
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
         $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
@@ -70,9 +70,9 @@ function Assert-SyncError {
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
         $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
         $message = $platformStatus.IsStopped ? "Platform is STOPPED" : "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
@@ -80,25 +80,25 @@ function Assert-SyncError {
     If (!$heartbeat.IsOK) {
         $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
         $message = "$($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
 #endregion SERVER/PLATFORM CHECK
 
-# Send-TaskMessage -Id $($global:Product.Id)
+
 
 $action = $null; $target = $null; $status = $null
 try {
 
     $action = "Initialize"; $target = "AzureAD\$tenantKey"
-    Initialize-AzureAD
+    Initialize-AzureConfig
 
     Write-Host+ -MaxBlankLines 1
-    Write-Host+ -NoTrace "Tenant Type",$global:AzureAD.$tenantKey.Tenant.Type -ForegroundColor Gray,DarkBlue -Separator ":  "
-    Write-Host+ -NoTrace "Tenant Name",$global:AzureAD.$tenantKey.Tenant.Name -ForegroundColor Gray,DarkBlue -Separator ":  "
+    Write-Host+ -NoTrace "Tenant Type",$global:Azure.$tenantKey.Tenant.Type -ForegroundColor Gray,DarkBlue -Separator ":  "
+    Write-Host+ -NoTrace "Tenant Name",$global:Azure.$tenantKey.Tenant.Name -ForegroundColor Gray,DarkBlue -Separator ":  "
     Write-Host+
 
     $action = "Connect"; $target = "AzureAD\$tenantKey"
@@ -132,7 +132,7 @@ try {
 
     $azureADSyncLog = read-log -context $global:Product.Id
     if ($azureADSyncLog.Count -gt 0) {
-        $azureADSyncLog | Export-Log "$($AzureAD.Location.Data)\AzureADSyncLog.csv"
+        $azureADSyncLog | Export-Log "$($global:Azure.Location.Data)\AzureADSyncLog.csv"
     }
 
     $azureADSyncTransactionCount = $azureADSyncLog.Count -gt 0 ? ($azureADSyncLog.Count).ToString() : "None"
@@ -141,7 +141,7 @@ try {
 
     if ($azureADSyncLog.Count -gt 0) {
         Write-Host+
-        Copy-Files -Path "$($AzureAD.Location.Data)\AzureADSyncLog.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+        Copy-Files -Path "$($global:Azure.Location.Data)\AzureADSyncLog.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
         Write-Host+   
     }
 
@@ -149,12 +149,13 @@ try {
 catch {
 
     $status = "Error"
-    Write-Log -Context $Product.Id-Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
+    Write-Log-Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
     Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
 }
 finally {
 
+    Write-Host+ -MaxBlankLines 1
     Remove-PSSession+
 
 }

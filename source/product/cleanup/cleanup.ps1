@@ -13,22 +13,49 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="Cleanup"}
 . $PSScriptRoot\definitions.ps1
 
-#region SERVER
+#region SERVER/PLATFORM CHECK
+
+    # Do NOT continue if ...
+    #   1. the host server is starting up or shutting down
+    #   2. the platform is not running or is not ok
 
     # check for server shutdown/startup events
-    $return = $false
     $serverStatus = Get-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
-    $return = switch (($serverStatus -split ",")[1]) {
-        "InProgress" {$true}
-    }
-    if ($return) {
-        $message = "Exiting due to server status: $serverStatus"
+    
+    # abort if a server startup/reboot/shutdown is in progress
+    if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
+        $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
+        $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        Write-Log -Action "Monitor" -Message $message -EntryType "Warning" -Status "Exiting" -Force
+        
         return
     }
 
-#endregion SERVER
+    $platformStatus = Get-PlatformStatus 
+    $heartbeat = Get-Heartbeat
+
+    # abort if a platform event is in progress
+    if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
+        $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
+        $message = $platformStatus.IsStopped ? "Platform is STOPPED" : "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        
+        return
+    }
+
+    # abort if heartbeat indicates status is not ok
+    If (!$heartbeat.IsOK) {
+        $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
+        $message = "$($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        
+        return
+    }
+
+#endregion SERVER/PLATFORM CHECK
 #region PLATFORM
 
     $platformStatus = Get-PlatformStatus 
@@ -37,7 +64,7 @@ $global:Product = @{Id="Cleanup"}
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
         $action = "Cleanup"; $target = $global.Platform.Id; $status = "Aborted"
         $message = $platformStatus.IsStopped ? "Platform is STOPPED" : "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
         return
     }

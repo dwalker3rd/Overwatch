@@ -1,8 +1,7 @@
 $Provider = Get-Provider -Id 'Views'
 $Name = $Provider.Name 
-$Publisher = $Provider.Publisher
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))$Publisher$($emptyString.PadLeft(20-$Publisher.Length," "))","PENDING"
+$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","PENDING"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
 
 $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED"

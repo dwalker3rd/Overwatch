@@ -52,7 +52,7 @@ function global:Send-TwilioSMS {
             $result += Invoke-WebRequest $providerRestEndpoint -Method Post -Credential $providerCredentials -Body $params | ConvertFrom-Json 
         }
         
-        Write-Log -Name $Provider.Id -Context "SMS" -Action $t -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
+        Write-Log -Context "Provider.TwilioSMS" -Name $Provider.Id -Action $t -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
     
     }
 

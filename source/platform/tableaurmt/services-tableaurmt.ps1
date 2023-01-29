@@ -464,7 +464,7 @@ function global:Request-RMTService {
         $result = $response.StartType -eq $StartupType ? "Success" : "Failure"
 
         $logEntryType = $result -eq "Success" ? "Information" : "Error" 
-        Write-Log -Context $Context -Action $command -Target "$node\$Alias" -EntryType $logEntryType -Status $result -Force # -Data $Name 
+        Write-Log -Action $command -Target "$node\$Alias" -EntryType $logEntryType -Status $result -Force # -Data $Name 
 
         $message = "$($emptyString.PadLeft(8,"`b")) $($result.ToUpper())$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($result -eq "SUCCESS" ? "DarkGreen" : "DarkRed" )
@@ -519,7 +519,7 @@ function global:Request-Platform {
         $result = ($response | Select-String -Pattern $successPattern -Quiet) ? "Success" : "Failure"
 
         $logEntryType = $result -eq "Success" ? "Information" : "Error" 
-        Write-Log -Context $Context -Action $Command -Target "$node\RMT $Target" -EntryType $logEntryType -Status $result -Force
+        Write-Log -Action $Command -Target "$node\RMT $Target" -EntryType $logEntryType -Status $result -Force
 
         $message = "$($emptyString.PadLeft(8,"`b")) $($result.ToUpper())$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($result -eq "SUCCESS" ? "DarkGreen" : "DarkRed" )
@@ -829,7 +829,7 @@ function global:Start-RMTAgent {
     )
 
     if ($Context -and $Context -like "Azure*") {
-        Write-Log -Context $Context -Action "Start-PlatformTask -Id StartRMTAgents" -Target "Platform" -Message $Reason -Force
+        Write-Log -Action "Start-PlatformTask -Id StartRMTAgents" -Target "Platform" -Message $Reason -Force
         $isStarted = Start-PlatformTask -Id StartRMTAgents -Quiet
         $isStarted | Out-Null
         return

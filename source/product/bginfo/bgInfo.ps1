@@ -13,7 +13,27 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="BgInfo"}
 . $PSScriptRoot\definitions.ps1
 
-function global:Update-BgInfoCustomContent {
+#region SERVER CHECK
+
+    # Do NOT continue if ...
+    #   1. the host server is starting up or shutting down
+
+    # check for server shutdown/startup events
+    $serverStatus = Get-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
+    
+    # abort if a server startup/reboot/shutdown is in progress
+    if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
+        $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
+        $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+        
+        return
+    }
+
+#endregion SERVER CHECK
+
+function Update-BgInfoCustomContent {
 
     param(
         [Parameter(Mandatory=$false)][string]$Path = $global:Product.Config.Content,
@@ -85,6 +105,4 @@ $Product = Get-Product $Product.Id -NoCache
 # update bginfofile
 Update-BgInfoCustomContent -Path $Product.Config.Content -ComputerName (pt nodes -k)
 
-# run bginfo to update background
-$commandLineExpression = ". `"$($Product.Config.Executable)`" `"$($Product.Config.Config)`" $($Product.Config.Options -join ' ')"
-Invoke-Expression $commandLineExpression
+Remove-PSSession+

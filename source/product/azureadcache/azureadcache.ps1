@@ -13,7 +13,7 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="AzureADCache"}
 . $PSScriptRoot\definitions.ps1
 
-$tenantKeys = Get-AzureADTenantKeys
+$tenantKeys = Get-AzureTenantKeys
 $action = $null; $target = $null; $status = $null
 
 #region SERVER/PLATFORM CHECK
@@ -29,9 +29,9 @@ $action = $null; $target = $null; $status = $null
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $action = "Cache"; $target = "AzureAD\$($tenantKeys[0])"; $status = "Aborted"
         $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
@@ -42,9 +42,9 @@ $action = $null; $target = $null; $status = $null
     if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
         $action = "Cache"; $target = "AzureAD\$($tenantKeys[0])"; $status = "Aborted"
         $message = $platformStatus.IsStopped ? "Platform is STOPPED" : "Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
@@ -52,9 +52,9 @@ $action = $null; $target = $null; $status = $null
     If (!$heartbeat.IsOK) {
         $action = "Cache"; $target = "AzureAD\$($tenantKeys[0])"; $status = "Aborted"
         $message = "$($Platform.Name) status is $($platformStatus.RollupStatus.ToUpper())"
-        Write-Log -Context $($global:Product.Id) -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
+        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        # Send-TaskMessage -Id $($global:Product.Id) -Status $status -MessageType $PlatformMessageType.Warning -Message $message
+        
         return
     }
 
@@ -62,23 +62,23 @@ $action = $null; $target = $null; $status = $null
 
 foreach ($tenantKey in $tenantKeys) {
 
-    # Send-TaskMessage -Id $($global:Product.Id)
+    
 
     $action = $null; $target = $null; $status = $null
     try {
 
         $action = "Initialize"; $target = "AzureAD\$tenantKey"
-        Initialize-AzureAD
+        Initialize-AzureConfig
 
         Write-Host+ -MaxBlankLines 1
-        Write-Host+ -NoTrace "Tenant Type",$global:AzureAD.$tenantKey.Tenant.Type -ForegroundColor Gray,DarkBlue -Separator ":  "
-        Write-Host+ -NoTrace "Tenant Name",$global:AzureAD.$tenantKey.Tenant.Name -ForegroundColor Gray,DarkBlue -Separator ":  "
+        Write-Host+ -NoTrace "Tenant Type",$global:Azure.$tenantKey.Tenant.Type -ForegroundColor Gray,DarkBlue -Separator ":  "
+        Write-Host+ -NoTrace "Tenant Name",$global:Azure.$tenantKey.Tenant.Name -ForegroundColor Gray,DarkBlue -Separator ":  "
         Write-Host+
 
         $action = "Connect"; $target = "AzureAD\$tenantKey"
         Connect-AzureAD -Tenant $tenantKey
 
-        if ($global:AzureAD.$tenantKey.Tenant.Type -eq "Azure AD B2C") {
+        if ($global:Azure.$tenantKey.Tenant.Type -eq "Azure AD B2C") {
             Write-Host+ -NoTrace "Delta switch ignored for Azure AD B2C tenants." -ForegroundColor DarkYellow
             Write-Host+
         }
@@ -95,13 +95,13 @@ foreach ($tenantKey in $tenantKeys) {
         $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $tenantKey -AsArray
         $azureADUsers | Sort-Object -property userPrincipalName | 
             Select-Object -property @{name="User Id";expression={$_.id}},@{name="User Principal Name";expression={$_.userPrincipalName}},@{name="User Display Name";expression={$_.displayName}},@{name="User Mail";expression={$_.mail}},@{name="User Account Enabled";expression={$_.accountEnabled}},timestamp | 
-                Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-users.csv"
+                Export-Csv  "$($global:Azure.Location.Data)\$tenantKey-users.csv"
 
         $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
 
         Write-Host+
-        Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-users.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+        Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-users.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
         Write-Host+
 
         $action = "Export"; $target = "AzureAD\$tenantKey\Groups"
@@ -111,30 +111,31 @@ foreach ($tenantKey in $tenantKeys) {
         $azureADGroups,$cacheError = Get-AzureADGroups -Tenant $tenantKey -AsArray
         $azureADGroups | Sort-Object -property displayName | 
             Select-Object -property @{name="Group Id";expression={$_.id}},@{name="Group Display Name";expression={$_.displayName}},@{name="Group Security Enabled";expression={$_.securityEnabled}},@{name="Group Type";expression={$_.groupTypes}},timestamp  | 
-                Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-groups.csv"
+                Export-Csv  "$($global:Azure.Location.Data)\$tenantKey-groups.csv"
         ($azureADGroups | Foreach-Object {$groupId = $_.id; $_.members | Foreach-Object { @{groupId = $groupId; userId=$_} } }) | 
             Sort-Object -property groupId,userId -unique | 
                 Select-Object -property @{name="Group Id";expression={$_.groupId}}, @{name="User Id";expression={$_.userId}} | 
-                    Export-Csv  "$($AzureAD.Location.Data)\$tenantKey-groupMembership.csv"
+                    Export-Csv  "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv"
 
         $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
 
         Write-Host+
-        Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-groups.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
-        Copy-Files -Path "$($AzureAD.Location.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+        Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-groups.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+        Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
         Write-Host+
 
     }
     catch {
 
         $status = "Error"
-        Write-Log -Context "AzureADCache" -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
+        Write-Log -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
         Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
     }
     finally {
 
+        Write-Host+ -MaxBlankLines 1
         Remove-PSSession+
 
     }

@@ -55,7 +55,7 @@
 # Write-Host+ -NoTrace -NoTimestamp -Parse "<isMaintenanceWindow <.>32> $isMaintenanceWindow" -ForegroundColor Blue,DarkGray,Gray
 
 # if ($isNotificationWindow) {
-#     # Send-UserNotification -Message 
+#     # Send-UserNotification -Message  | Out-Null
 # }
 
 # Write-Host+
