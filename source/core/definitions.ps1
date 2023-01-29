@@ -120,15 +120,15 @@
     $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
     Write-Host+
-    Write-Host+ "  Environ","$($Overwatch.DisplayName)" -ForegroundColor Gray,DarkBlue -Separator ":    "
-    Write-Host+ "  Product","$($Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+    Write-Host+ "  Control","$($global:Overwatch.DisplayName) $($global:Overwatch.Release)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+    Write-Host+ "  Product","$($global:Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
     Write-Host+ "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
     Write-Host+ "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
     if ($global:Platform.Version) {
         Write-Host+ "  Version","$($global:Platform.Version)" -ForegroundColor Gray,DarkBlue -Separator ":    "
     }
     if ($global:Platform.Build) {
-        Write-Host+ "  Build","$($Platform.Build)" -ForegroundColor Gray,DarkBlue -Separator ":      "
+        Write-Host+ "  Build","$($global:Platform.Build)" -ForegroundColor Gray,DarkBlue -Separator ":      "
     }
     Write-Host+ "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
     Write-Host+ "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
