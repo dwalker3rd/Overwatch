@@ -612,7 +612,7 @@
             return
         }
 
-        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider") -join ","
+        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell") -join ","
         $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"^.*?($Type,?.*)$")
         $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
         $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
@@ -630,8 +630,6 @@
         foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisite.Keys | Where-Object {$_ -in $validCatalogObjectsToRecurse})) {
         # foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisite.Keys)) {
             foreach ($skey in $global:Catalog.$Type.$Id.Installation.Prerequisite.$pkey) {
-                if ($Installed -and !$global:Catalog.$pkey.$skey.IsInstalled()) { continue }
-                if ($NotInstalled -and $global:Catalog.$pkey.$skey.IsInstalled()) { continue }
                 if ("$pkey.$skey" -notin $History) {
 
                     $History += "$pkey.$skey"
@@ -646,6 +644,8 @@
                             }
                         }
                         default { 
+                            if ($Installed -and !$global:Catalog.$pkey.$skey.IsInstalled()) { continue }
+                            if ($NotInstalled -and $global:Catalog.$pkey.$skey.IsInstalled()) { continue }
                             $_dependencies += [PSCustomObject]@{ Uid = "$pkey.$skey"; Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $catalogObject; Dependent = $dependent }
                             if (!$DoNotRecurse) {
                                 foreach ($dependency in $_dependencies) {
