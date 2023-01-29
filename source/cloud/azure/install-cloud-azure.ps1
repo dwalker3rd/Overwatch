@@ -16,7 +16,7 @@ if (Test-Path -Path $azureSettings) {
     . $azureSettings
 }
 
-$interaction = ![string]::IsNullOrEmpty($subscriptionId) -or ![string]::IsNullOrEmpty($tenantId) -or ![string]::IsNullOrEmpty($azureAdmin)
+$interaction = [string]::IsNullOrEmpty($subscriptionId) -or [string]::IsNullOrEmpty($tenantId) -or [string]::IsNullOrEmpty($azureAdmin)
 
 Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credentials $azureAdmin -ErrorAction SilentlyContinue
 
