@@ -774,7 +774,7 @@ $providerIds = @()
             $updatedFiles = $updatedFiles | Where-Object {!$_.NoClobber}
         }
 
-        Write-Host+ -MaxBlankLines 1
+        Write-Host+
 
     }
 
