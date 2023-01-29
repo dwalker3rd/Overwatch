@@ -102,7 +102,7 @@ function global:Send-MicrosoftTeams {
         }
     }
     
-    Write-Log -Context "Provider.MicrosoftTeams" -Name $Provider.Id -Context "MicrosoftTeams" -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
+    Write-Log -Context "Provider.MicrosoftTeams" -Name $Provider.Id -Message $Message.Summary -Status $($throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted) -Force
 
     return $throttle ? $global:PlatformMessageStatus.Throttled : $global:PlatformMessageStatus.Transmitted
 }
