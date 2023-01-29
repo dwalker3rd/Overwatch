@@ -138,7 +138,7 @@ function global:Update-AzureConfig {
         # got the azure profile, therefore azure admin credentials are valid 
         $creds | Set-Credentials "$tenantKey-admin"
 
-        Write-Host+ -MaxBlankLines 1
+        # Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "    Subscription: $subscriptionName ($SubscriptionId)"
         Write-Host+ -NoTrace -NoTimestamp "    Tenant: $tenantName ($TenantId)"
         Write-Host+ -NoTrace -NoTimestamp "    DefaultDomain: $tenantDomain"
