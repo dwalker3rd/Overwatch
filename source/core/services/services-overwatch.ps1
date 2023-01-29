@@ -612,10 +612,12 @@
             return
         }
 
-        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell") -join ","
-        $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"^.*?($Type,?.*)$")
-        $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
-        $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
+        if ($RecurseLevel -eq 0) { $History += "$Type.$Id" }
+
+        # $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell") -join ","
+        # $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"^.*?($Type,?.*)$")
+        # $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
+        # $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
 
         $RecurseLevel++
 
@@ -627,7 +629,7 @@
         #     $dependencies += [PSCustomObject]@{ Uid = "OS.$($environ.OS)"; Level = $RecurseLevel; Type = "OS"; Id = "$($environ.OS)"; Object = $global:Catalog.OS.$($environ.OS); Dependent = $dependent }
         # }
 
-        foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisite.Keys | Where-Object {$_ -in $validCatalogObjectsToRecurse})) {
+        foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisite.Keys)) { # | Where-Object {$_ -in $validCatalogObjectsToRecurse})) {
         # foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisite.Keys)) {
             foreach ($skey in $global:Catalog.$Type.$Id.Installation.Prerequisite.$pkey) {
                 if ("$pkey.$skey" -notin $History) {
