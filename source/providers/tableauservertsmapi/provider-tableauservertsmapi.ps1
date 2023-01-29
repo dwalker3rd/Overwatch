@@ -62,11 +62,11 @@ function global:Initialize-TsmApiConfiguration {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string]$Server, # TODO: Validate $Server
+        [Parameter(Mandatory=$false)][string]$Server = $env:COMPUTERNAME, # TODO: Validate $Server
         [switch]$ResetCache
     )
 
-    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi )) { return }
+    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi -ComputerName $Server)) { return }
 
     $global:tsmApiConfig = @{
         Server = $Server ? $Server : "localhost"
@@ -292,7 +292,7 @@ function global:Invoke-TsmApiMethod {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
     )
 
-    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi )) { return }
+    # if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi)) { return }
 
     # check method's prerequisites
     try {

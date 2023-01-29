@@ -699,7 +699,7 @@
 
         $prerequisitesOK = $true
         foreach ($prerequisite in $global:Catalog.$Type.$Id.Initialization.Prerequisite) {
-            $prerequisiteIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -Name $($prerequisite.$($prerequisite.Type)) -Status $($prerequisite.Status) -TimeoutInSeconds 15"
+            $prerequisiteIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -ComputerName $ComputerName -Name $($prerequisite.$($prerequisite.Type)) -Status $($prerequisite.Status) -TimeoutInSeconds 5 -WaitTimeInSeconds 20"
             if (!$prerequisiteIsRunning) {
                 $prerequisitesOK = $false
                 $errormessage = "The prerequisite $($prerequisite.Type) `"$($prerequisite.$($prerequisite.Type))`" is NOT $($prerequisite.Status.ToUpper())"
@@ -863,21 +863,38 @@
             [CmdletBinding()]
             param (
                 [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
-                [Parameter(Mandatory=$true)][string]$Name,
+                [Parameter(Mandatory=$true,Position=0)][string]$Name,
                 [Parameter(Mandatory=$false)][string]$Status = "Running",
                 [Parameter(Mandatory=$false)][int]$WaitTimeInSeconds = 60,
                 [Parameter(Mandatory=$false)][int]$TimeOutInSeconds = 0
             )
             
             $totalWaitTimeInSeconds = 0
-            $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+            
+            if ($ComputerName -ne $env:COMPUTERNAME) {
+                $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+            }
+
+            if ($ComputerName -eq $env:COMPUTERNAME) {
+                $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+            }
+            else {
+                $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
+            }
+            if (!$service) { return $false }
+
             while ($service.Status -ne $Status) {
                 Start-Sleep -Seconds $WaitTimeInSeconds
                 $totalWaitTimeInSeconds += $WaitTimeInSeconds
                 if ($TimeOutInSeconds -gt 0 -and $totalWaitTimeInSeconds -ge $TimeOutInSeconds) {
                     return $false
                 }
-                $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+                if ($ComputerName -eq $env:COMPUTERNAME) {
+                    $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+                }
+                else {
+                    $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue}
+                }
             }
         
             return $true

@@ -129,7 +129,7 @@ function global:Initialize-TSRestApiConfiguration {
         [switch]$Reset
     )
 
-    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi)) { return }
+    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi -ComputerName $Server)) { return }
 
     if ($Reset) {
         $global:tsRestApiConfig = @{}
@@ -219,7 +219,7 @@ function global:Initialize-TSRestApiConfiguration {
         $global:tsRestApiConfig.Platform = $global:Platform
     }
     else {
-        $_type = $global:tsRestApiConfig.Platform.Id ?? ($Server -match "online\.tableau\.com$" ? "TableauCloud" : "TableauOnline")
+        $_type = $global:tsRestApiConfig.Platform.Id ?? ($Server -match "online\.tableau\.com$" ? "TableauCloud" : "TableauServer")
         $global:tsRestApiConfig.Platform = $global:Catalog.Platform.$_type | Copy-Object
         $global:tsRestApiConfig.Platform.Uri = [System.Uri]::new("https://$Server")
         $global:tsRestApiConfig.Platform.Domain = $Server.Split(".")[-1]
@@ -945,7 +945,7 @@ function global:Invoke-TSRestApiMethod {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 0
     )
 
-    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi)) { return }
+    # if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi)) { return }
 
     if ($Method -notin $global:tsRestApiConfig.SpecialMethods -and !$global:tsRestApiConfig.Token) {
 
