@@ -1,4 +1,4 @@
-$rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\rmtAdmin"
+$global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\rmtAdmin"
 
 #region DATABASE
 
