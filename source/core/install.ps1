@@ -5,6 +5,7 @@
 
 param (
     [switch]$SkipProductStart,
+    [switch]$SkipPython,
     [switch]$SkipPowerShell,
     [switch]$UseDefaultResponses,
     [switch][Alias("PostInstall")]$PostInstallation
@@ -598,7 +599,7 @@ $providerIds = @()
 
         Write-Host+ -MaxBlankLines 1
         $message = "<Updated Files <.>48> CHECKING"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
         Write-Host+
 
         $updatedFiles = @()
@@ -843,7 +844,7 @@ $providerIds = @()
 
         Write-Host+ -MaxBlankLines 1
         $message = "<Impacted Products <.>48> DISABLING"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,Red
         Write-Host+
 
         $message = "  Product             Status              Task"
@@ -866,7 +867,7 @@ $providerIds = @()
 
         Write-Host+ -MaxBlankLines 1
         $message = $installOverwatch ? "<Source Files <.>48> COPYING" : "<Updated Files <.>48> COPYING"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
         Write-Host+
 
         #region CORE
@@ -995,7 +996,24 @@ $providerIds = @()
 #region CLOUD INSTALL
 
     if ($cloudInstallUpdate) {
-        . $PSScriptRoot\install\install-cloud-$($cloudId.ToLower()).ps1
+
+        Write-Host+ -MaxBlankLines 1
+        $message = "<Clouds <.>48> INSTALLING"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        Write-Host+
+
+        $message = "  Cloud               Status"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+        $message = "  -----               ------"
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
+
+        $cloudId | ForEach-Object { Install-CatalogObject -Type Cloud -Id $_ -UseDefaultResponses:$UseDefaultResponses }
+        
+        Write-Host+
+        $message = "<Clouds <.>48> INSTALLED"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+        Write-Host+
+
     }
 
 #endregion CLOUD INSTALL
@@ -1127,21 +1145,23 @@ $providerIds = @()
 #endregion POWERSHELL MODULES-PACKAGES
 #region PYTHON-PACKAGES
 
-    switch ($platformId) {
-        "AlteryxServer" {
-            if ($requiredPythonPackages) {
+    if (!$SkipPython) {
+        switch ($platformId) {
+            "AlteryxServer" {
+                if ($requiredPythonPackages) {
 
-                $message = "<Python Packages <.>48> INSTALLING"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+                    $message = "<Python Packages <.>48> INSTALLING"
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-                Install-PythonPackage -Package $requiredPythonPackages -Pip $pythonPipLocation -ComputerName $platformInstanceNodes -Quiet
+                    Install-PythonPackage -Package $requiredPythonPackages -Pip $pythonPipLocation -ComputerName $platformInstanceNodes -Quiet
 
-                $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
-                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
+                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
+                }
             }
+            default {}
         }
-        default {}
     }
 
 #region PYTHON-PACKAGES
@@ -1339,6 +1359,9 @@ $providerIds = @()
                 $providerIds | ForEach-Object { Install-CatalogObject -Type Provider -Id $_ -UseDefaultResponses:$UseDefaultResponses }
                 
                 Write-Host+
+                $message = "<Providers <.>48> INSTALLED "
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+                Write-Host+
 
             }
 
@@ -1380,6 +1403,9 @@ $providerIds = @()
                 }
 
                 Write-Host+
+                $message = "<Products <.>48> INSTALLED "
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+                Write-Host+
 
             }
 
@@ -1399,6 +1425,9 @@ $providerIds = @()
                     Enable-Product $impactedProductIdsWithEnabledTask -NoNewLine
                 }
 
+                Write-Host+
+                $message = "<Products <.>48> STARTED "
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
                 Write-Host+
 
             }            
