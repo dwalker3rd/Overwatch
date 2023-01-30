@@ -210,7 +210,7 @@ function global:ConvertTo-PSCustomObject {
         $outputObject = @() 
     }
     process { 
-        $outputObject = [PSCustomObject]$InputObject 
+        $outputObject += [PSCustomObject]$InputObject 
     }
     end { 
         return $outputObject 
