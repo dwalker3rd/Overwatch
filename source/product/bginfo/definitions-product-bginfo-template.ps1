@@ -17,28 +17,39 @@ $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name)
 $global:Product.TaskName = $global:Product.DisplayName
 
 $azVmContext = Get-AzVmContext
-$_x = Get-AzVMExtension -ResourceGroupName $azVmContext.ResourceGroupName -VMName $env:COMPUTERNAME -Name $global:Product.Id
+$azVmExtension = Get-AzVMExtension -ResourceGroupName $azVmContext.ResourceGroupName -VMName $env:COMPUTERNAME -Name $global:Product.Id
 
 $global:Product.Config = @{}
 $global:Product.Config += @{
-    Extension = $_x
+    Extension = $azVmExtension
     Registry = @{
         Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
         Key = "BGInfo"
     }
     Location = @{
         Data = "$($global:Location.Data)\bgInfo"
-        Extension = "C:\Packages\Plugins"
+        Plugins = "C:\Packages\Plugins"
     }
-
 }
-$_c = $global:Product.Config
-$_l = $_c.Location
+$global:Product.Config.Location += @{ 
+    VmExtension = "$($global:Product.Config.Location.Plugins)\$($azVmExtension.Publisher).$($azVmExtension.ExtensionType)\$($azVmExtension.TypeHandlerVersion)" 
+}
+$global:Product.Config.Location += @{
+    Files = @{
+        Destination = @{
+            ConfigBgi = "$($global:Product.Config.Location.VmExtension)\config.bgi"
+            ConfigTxt = "$($global:Product.Config.Location.VmExtension)\config.txt"
+        }
+        Source = @{
+            ConfigBgi = "$($global:Product.Config.Location.Data)\config.bgi"
+        }
+    }
+}
 $global:Product.Config += @{
-    Config = "$($_l.Data)\bgInfo.bgi"
-    Content = "$($_l.Data)\bgInfo.txt"
-    Executable = "$($_l.Extension)\$($_x.Publisher).$($_x.ExtensionType)\$($_x.TypeHandlerVersion)\bgInfo.exe"
-    Options = @("/nolicprompt","/timer:0")
+    CommandLine = @{
+        Executable = "$($global:Product.Config.Location.VmExtension)\bgInfo.exe"
+        Options = @("/nolicprompt","/timer:0")
+    }
 }
 
 return $global:Product

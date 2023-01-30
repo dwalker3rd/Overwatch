@@ -36,7 +36,7 @@ $global:Product = @{Id="BgInfo"}
 function Update-BgInfoCustomContent {
 
     param(
-        [Parameter(Mandatory=$false)][string]$Path = $global:Product.Config.Content,
+        [Parameter(Mandatory=$false)][string]$Path = $global:Product.Config.Files.Destination.ConfigTxt,
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME
     )
 
@@ -103,6 +103,6 @@ function Update-BgInfoCustomContent {
 $Product = Get-Product $Product.Id -NoCache
 
 # update bginfofile
-Update-BgInfoCustomContent -Path $Product.Config.Content -ComputerName (pt nodes -k)
+Update-BgInfoCustomContent -Path $Product.Config.Files.Destination.ConfigTxt -ComputerName (pt nodes -k)
 
 Remove-PSSession+
