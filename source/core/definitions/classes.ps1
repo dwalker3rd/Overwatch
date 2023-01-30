@@ -4,8 +4,8 @@ using namespace System.IO
 
 class CatalogObject {
 
-    [string]$Type
-    [string]$Id
+    [ValidateNotNullOrEmpty()][string]$Type
+    [ValidateNotNullOrEmpty()][string]$Id
     [string]$Name
     [string]$DisplayName
     [string]$Description
@@ -21,13 +21,17 @@ class CatalogObject {
     CatalogObject() { $this.Init() }
 
     [void]Init() {
-        $this.Type = $this.GetType().Name
         $this.Refresh()
     }
 
     [void]Refresh() {
+        $this.Type = $this.GetType().Name
         $this.Installed = $this.IsInstalled()
         $this.SortProperty = $this.GetSortProperty()
+    }
+
+    [string]Uid() {
+        return "$($this.Type).$($this.Id)"
     }
 
     [bool]IsInstalled() {
