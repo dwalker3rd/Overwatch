@@ -458,6 +458,22 @@ function global:Summarize-Log {
 
         if (![string]::IsNullOrEmpty($ShowDetails) -and $ShowDetails -ne "None") {
 
+            $locationLogs = $global:Location.Logs
+            if ($node -ne $env:COMPUTERNAME) {
+                $locationLogs = ([FileObject]::new((Get-EnvironConfig -Key Location.Logs -ComputerName $node), $node)).FullPathName
+            }
+    
+            $logs = @() 
+            if (![string]::IsNullOrEmpty($Name)) {
+                $log = Get-Log -Path "$locationLogs\$Name.log" | Where-Object {([LogObject]$_).Exists()}
+                if ($log) { $logs += $log }
+            }
+            else {
+                foreach ($logFileInfo in (Get-Log -Path "$locationLogs\*.log").FileInfo) {
+                    $logs += Get-Log -Path $logfileInfo.FullName
+                }
+            }
+
             foreach ($log in $logs) {
 
                 $params = @{
