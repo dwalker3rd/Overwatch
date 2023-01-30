@@ -1,3 +1,6 @@
+$definitionsPath = $global:Location.Definitions
+. $definitionsPath\classes.ps1
+
 $global:logOptimalRecordCount = 5000
 $global:logMaxRecordCount = 10000
 $global:logMinRecordCount = 1000
@@ -152,11 +155,24 @@ function global:Read-Log {
     if ($ToIndex -and $ToIndex -eq 0) {throw "Invalid ToIndex"}
     if ($FromIndex -and $ToIndex -and $FromIndex -ge $ToIndex) {throw "Invalid FromIndex:ToIndex"}
 
+    # if $Path specifies a node, replace $ComputerName with the node in $Path
+    if (![string]::IsNullOrEmpty($Path) -and $Path -match "^\\\\(.*?)\\") { 
+        $ComputerName = $matches[1]
+    }
+
     $logEntry = @()
     foreach ($node in $ComputerName) {
 
-        # if $Name not specified, get the node's platform instance
-        if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+        if ([string]::IsNullOrEmpty($Name)) {
+            # if $Name wasn't specified and $Path specifies a FileName, then set $Name to the FileName in $Path
+            if (![string]::IsNullOrEmpty($Path) -and ![string]::IsNullOrEmpty([Path]::GetFileNameWithoutExtension($Path))) {
+                $Name = [Path]::GetFileNameWithoutExtension($Path)
+            }
+            # if $Name not specified, get the node's platform instance
+            else {
+                $Name = Get-EnvironConfig Environ.Instance -ComputerName $node
+            }
+        }
 
         # if $Path not specified, build the path with the node's $Location.Logs definition and $Name
         $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
@@ -225,7 +241,7 @@ function global:Summarize-Log {
         [Parameter(Mandatory=$false)][int32]$Hours,
         [Parameter(Mandatory=$false)][int32]$Minutes,
         [Parameter(Mandatory=$false)][Alias("Until")][object]$Before,
-        [Parameter(Mandatory=$false)][object]$During,
+        # [Parameter(Mandatory=$false)][object]$During,
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$UseDefaultView,
         [switch]$Today,
@@ -292,25 +308,36 @@ function global:Summarize-Log {
     $summaryFormatted = @()
 
     foreach ($node in $ComputerName) {
+
+        $locationLogs = $global:Location.Logs
+        if ($node -ne $env:COMPUTERNAME) {
+            $locationLogs = ([FileObject]::new((Get-EnvironConfig -Key Location.Logs -ComputerName $node), $node)).FullPathName
+        }
+
         $logs = @() 
         if (![string]::IsNullOrEmpty($Name)) {
-            $log = Get-Log -Name $Name -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
+            $log = Get-Log -Path "$locationLogs\$Name.log" | Where-Object {([LogObject]$_).Exists()}
             if ($log) { $logs += $log }
         }
         else {
-            foreach ($logFileInfo in (Get-Log -ComputerName $node).FileInfo) {
-                $logName = [Path]::GetFileNameWithoutExtension($logFileInfo.Name)
-                $logs += Get-Log -Name $logName -ComputerName $node
+            foreach ($logFileInfo in (Get-Log -Path "$locationLogs\*.log").FileInfo) {
+                $logs += Get-Log -Path $logfileInfo.FullName
             }
         }
 
         foreach ($log in $logs) {
 
-            $logEntry = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
+            $params = @{
+                Path = $log.FullPathName
+            }
+            if ($After) {$params += @{ After = $After } }
+            if ($Before) {$params += @{ Before = $Before } }
+
+            $logEntry = Read-Log @params
             $logEntry = $logEntry | Sort-Object -Property Timestamp
 
-            if ($After) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -gt $After}}
-            if ($Before) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -lt $Before}}
+            # if ($After) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -gt $After}}
+            # if ($Before) {$logEntry = $logEntry | Where-Object {$_.TimeStamp -lt $Before}}
 
             if ($logEntry.Count -gt 0) {
 
@@ -424,17 +451,6 @@ function global:Summarize-Log {
     $summaryDetailsFormatted = @()
 
     foreach ($node in $ComputerName) {
-        $logs = @() 
-        if (![string]::IsNullOrEmpty($Name)) {
-            $log = Get-Log -Name $Name -ComputerName $node | Where-Object {([LogObject]$_).Exists()}
-            if ($log) { $logs += $log }
-        }
-        else {
-            foreach ($logFileInfo in (Get-Log -ComputerName $node).FileInfo) {
-                $logName = [Path]::GetFileNameWithoutExtension($logFileInfo.Name)
-                $logs += Get-Log -Name $logName -ComputerName $node
-            }
-        }
 
         $platformEventHistory = Get-PlatformEventHistory -ComputerName $node
         if ($After) {$platformEventHistory = $platformEventHistory | Where-Object {$_.TimeStamp -gt $After}}
@@ -444,7 +460,13 @@ function global:Summarize-Log {
 
             foreach ($log in $logs) {
 
-                $logEntries = Read-Log -Name $log.FileNameWithoutExtension.ToLower() -ComputerName $node.ToLower()
+                $params = @{
+                    Path = $log.FullPathName
+                }
+                if ($After) {$params += @{ After = $After } }
+                if ($Before) {$params += @{ Before = $Before } }
+    
+                $logEntries = Read-Log @params
                 $logEntries = $logEntries |  Where-Object {$_.EntryType -in $ShowDetails} | Sort-Object -Property Timestamp
 
                 if ($After) {$logEntries = $logEntries | Where-Object {$_.TimeStamp -gt $After}}
@@ -769,7 +791,8 @@ function global:Write-Log {
         # $Context can be something that is not a valid catalog object such as "Azure Update Management"
         # thus the need to append -ErrorAction SilentlyContinue to the call to Get-Catalog
         if ($Context -notmatch "\.") { $Context = "Product.$Context"}
-        $Name = (Get-Catalog -Uid $Context -ErrorAction SilentlyContinue).Log ?? $global:Platform.Instance
+        $_catalogObjectLogFileName = (Get-Catalog -Uid $Context -ErrorAction SilentlyContinue).Log
+        $Name = ![string]::IsNullOrEmpty($_catalogObjectLogFileName) ? $_catalogObjectLogFileName : $global:Platform.Instance
         if (!(Test-Log -Name $Name)) { New-Log -Name $Name | Out-Null }
     }
 
