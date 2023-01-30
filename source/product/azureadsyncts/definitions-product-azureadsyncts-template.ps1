@@ -26,6 +26,12 @@
                 Minute = @(0..14)
             }
         }
+        Sites = @{
+            ContentUrl = @("PathOperations")
+        }
+        PathOperations = @{
+            SiteRoleMinimum = "ExplorerCanPublish"
+        }
     }
 
     $global:imgAzureADSync = "$($global:Location.Images)/AzureADSync.png"

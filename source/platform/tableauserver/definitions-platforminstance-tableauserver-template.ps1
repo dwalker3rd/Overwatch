@@ -126,22 +126,6 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #endregion MICROSOFT-TEAMS
 
-    #region AZUREADSYNC
-
-        # The following line indicates a post-installation configuration to the installer
-        # Manual Configuration > Product > AzureADSyncTS > Data
-
-        $global:AzureSyncTS = @{
-            Sites = @{
-                ContentUrl = @()
-            }
-            PathOperations = @{
-                SiteRoleMinimum = "Viewer"
-            }
-        }
-    
-    #endregion AZUREADSYNC
-
     #region PLATFORM TOPOLOGY ALIASES
 
         # The following line indicates a post-installation configuration to the installer
