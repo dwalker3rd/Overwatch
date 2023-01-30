@@ -526,7 +526,8 @@ try {
     $message = "<Exporting sync transactions <.>48> PENDING"
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    $azureADSyncLog = read-log -context $global:Product.Id
+    # context now uses UID format:  temporarily replace it with just the product id so the tableau server vizs keep working
+    $azureADSyncLog = Read-Log -Context $global:Product.Id,"Product.$($global:Product.Id)" | ForEach-Object {$_.Context = $global:Product.Id}
     if ($azureADSyncLog.Count -gt 0) {
         $azureADSyncLog | Export-Log "$($global:Azure.Location.Data)\AzureADSyncLog.csv"
     }
