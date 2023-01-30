@@ -4,10 +4,9 @@ param (
 )
 
 $_product = Get-Product "BgInfo"
-$Name = $_product.Name 
-$Publisher = $_product.Publisher
+$Id = $_product.Id
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
 $sourceBgInfoConfigFile = ([FileObject]::new($_product.Config.Config))
@@ -58,7 +57,7 @@ else {
     Write-Host+ -NoTrace -NoTimestamp "    Could not find the config file '$($sourceBgInfoConfigFile.Path)'." -ForegroundColor Red
     Write-Host+ -NoTrace -NoTimestamp "    Use Sysinternals BgInfo to create/save the config file '$($sourceBgInfoConfigFile.Path)'." -ForegroundColor Red
 
-    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","ERROR $($emptyString.PadLeft(13," "))","PENDING$($emptyString.PadLeft(13," "))"
+    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","ERROR $($emptyString.PadLeft(13," "))","PENDING$($emptyString.PadLeft(13," "))"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message[0],$message[1],$message[2] -ForegroundColor Gray,Red,DarkGray
 
 }

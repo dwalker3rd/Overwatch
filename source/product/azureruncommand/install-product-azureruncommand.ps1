@@ -4,10 +4,10 @@ param (
 )
 
 $product = Get-Product "AzureRunCommand"
-$Name = $product.Name 
+$Id = $product.Id 
 
 if (!$NoNewLine) {
-    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 }
 

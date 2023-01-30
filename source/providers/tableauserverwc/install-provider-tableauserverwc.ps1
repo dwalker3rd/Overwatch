@@ -3,14 +3,14 @@ param (
 )
 
 $Provider = Get-Provider -Id 'TableauServerWC'
-$Name = $Provider.Name 
+$Id = $Provider.Id 
 
 $interaction = $false
 
 $cursorVisible = [console]::CursorVisible
 [console]::CursorVisible = $true
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","PENDING"
+$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
 
 
@@ -26,7 +26,7 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0]
 
 if ($interaction) {
     Write-Host+
-    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","INSTALLED"
+    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","INSTALLED"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGreen
 }
 else {

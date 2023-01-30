@@ -4,12 +4,12 @@ param (
 )
 
 $product = Get-Product "AzureADSyncB2C"
-$Name = $product.Name 
+$Id = $product.Id 
 
 $cursorVisible = [console]::CursorVisible
 [console]::CursorVisible = $true
 
-$message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
 Remove-Variable subscriptionId -ErrorAction SilentlyContinue
@@ -65,7 +65,7 @@ if (!$productTask) {
 
 if ($interaction) {
     Write-Host+
-    $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
+    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 }
 else {
