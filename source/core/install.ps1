@@ -1083,15 +1083,16 @@ $providerIds = @()
         $requiredModules = @()
         $requiredPackages = @()
 
+        $psDependencies = @()
         foreach ($impactedId in $impactedIds) {
-            $dependencies = Get-CatalogDependencies -Uid $impactedId -IncludeDependency PowerShell
-            foreach ($dependency in $dependencies) {
-                if ($dependency.Id -eq "Module") { 
-                    $requiredModules +=  @{ Name = $dependency.Object.Name }
-                }
-                if ($dependency.Id -eq "Package") { 
-                    $requiredPackages +=  @{ Name = $dependency.Object.Name }
-                }
+            $psDependencies = Get-CatalogDependencies -Uid $impactedId -IncludeDependency PowerShell | Where-Object {$_.Uid -notin $psDependencies.Uid}
+        }
+        foreach ($psDependency in $psDependencies) {
+            if ($psDependency.Id -eq "Module") { 
+                $requiredModules +=  @{ Name = $psDependency.Object.Name }
+            }
+            if ($psDependency.Id -eq "Package") { 
+                $requiredPackages +=  @{ Name = $psDependency.Object.Name }
             }
         }
 
@@ -1110,7 +1111,7 @@ $providerIds = @()
 
             $installedColor = "DarkGray"
             if (!(Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue)) {
-                Install-Module -Name $module.name -Force -AllowClobber -ErrorAction SilentlyContinue | Out-Null
+                Install-Module -Name $module.name -Force -ErrorAction SilentlyContinue | Out-Null
                 Import-Module -Name $module.name -ErrorAction SilentlyContinue | Out-Null
                 $installedColor = "DarkGreen"
             }
