@@ -896,7 +896,7 @@ param (
 )
 
 $platformJob = Get-PlatformJob -Id $Id
-$platformJobProduct = Get-Product -Name $(switch ($platformJob.jobtype) {
+$platformJobProduct = Get-Product -Id $(switch ($platformJob.jobtype) {
         "GenerateBackupJob" { "Backup" }
         "CleanupJob" { "Cleanup" }
     })
