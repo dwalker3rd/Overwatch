@@ -3,37 +3,48 @@ param (
     [switch]$NoNewLine
 )
 
-$_product = Get-Product "BgInfo"
+$definitionsPath = $global:Location.Definitions
+. $definitionsPath\classes.ps1
+
+$_product = Get-Product "BgInfo" -NoCache
 $Id = $_product.Id
 
 $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
-$sourceBgInfoConfigFile = ([FileObject]::new($_product.Config.Config))
-if ($sourceBgInfoConfigFile.Exists()) {
+# BgInfo config files
+Expand-Archive "$($global:Location.Root)\source\product\$($_product.Id)\bgInfo.config.zip" $_product.Config.Location.Data -Force
+
+$sourceBgInfoConfigFile = $_product.Config.Location.Files.Source.ConfigBgi
+if (Test-Path $sourceBgInfoConfigFile) {
 
     foreach ($node in (Get-PlatformTopology nodes -Keys)) {
 
         # if not installed, install BGInfo Azure VM extension
         $azVmContext = Get-AzVmContext -VmName $node
-        Install-AzVmExtension -Name "BgInfo" -ResourceGroupName $azVmContext.ResourceGroupName -VmName $azVMContext.Name -Publisher "Microsoft.Compute" -ExtensionType "BgInfo" -TypeHandlerVersion "2.1"
+        Install-AzVmExtension -Name "BgInfo" -ResourceGroupName $azVmContext.ResourceGroupName -VmName $azVMContext.Name `
+            -Publisher $_product.Config.Extension.Publisher -ExtensionType $_product.Config.Extension.ExtensionType -TypeHandlerVersion $_product.Config.Extension.TypeHandlerVersion
 
-        # create bgInfo data directory on each node
-        $bgInfoDir = [DirectoryObject]::New($_product.Config.Location.Data, $node)
-        $bgInfoDir.CreateDirectory()
+        # # create bgInfo data directory on each node
+        # $bgInfoDir = [DirectoryObject]::New($_product.Config.Location.Data, $node)
+        # $bgInfoDir.CreateDirectory()
 
-        # copy bginfo config files to other nodes
-        $destinationBgInfoConfigFile = ([FileObject]::new($_product.Config.Config, $node))
-        if (!$destinationBgInfoConfigFile.Exists()) {
-            Copy-Files -Path $sourceBgInfoConfigFile.Path $destinationBgInfoConfigFile.Path -Verbose:$true
-        }
+        # copy bginfo config files to VmExtension directory on other nodes
+        $destinationBgInfoConfigFile = $_product.Config.Location.Files.Destination.ConfigBgi
+        Copy-Files -Path $sourceBgInfoConfigFile $destinationBgInfoConfigFile -ComputerName $node -Overwrite -Quiet
+
+        # # copy bginfo config files to Overwatch directory on other nodes
+        # $destinationBgInfoConfigFile = $_product.Config.Files.BgInfoBgi
+        # if (!$destinationBgInfoConfigFile.Exists()) {
+        #     Copy-Files -Path $sourceBgInfoConfigFile $destinationBgInfoConfigFile -ComputerName $node -Verbose:$true
+        # }
 
         # modify registry key for BGInfo Azure VM extension to use new config file
         $psSession = Use-PSSession+ -ComputerName $node
         Invoke-Command -Session $psSession -ScriptBlock { 
             $currentBgInfoRegKeyValue = (Get-ItemProperty -Path $using:_product.Config.Registry.Path -Name $using:_product.Config.Registry.Key).$($using:_product.Config.Registry.Key)
             $currentBgInfoRegKeyConfigFile = $currentBgInfoRegKeyValue.Split(" ")[1]
-            $newBgInfoRegKeyValue = $currentBgInfoRegKeyValue.Replace($currentBgInfoRegKeyConfigFile,$using:destinationBgInfoConfigFile.Path)
+            $newBgInfoRegKeyValue = $currentBgInfoRegKeyValue.Replace($currentBgInfoRegKeyConfigFile,$using:destinationBgInfoConfigFile)
             Set-ItemProperty -Path $using:_product.Config.Registry.Path -Name $using:_product.Config.Registry.Key -Value $newBgInfoRegKeyValue
         }
 

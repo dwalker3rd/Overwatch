@@ -86,10 +86,14 @@ function global:Copy-Files {
         [Parameter(Mandatory=$true,Position=0)][string]$Path,
         [Parameter(Mandatory=$false,Position=1)][string]$Destination,
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName=$env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName,
         [switch]$Overwrite,
         [switch]$Quiet
     )
+
+    if ($Path -eq $Destination) {
+        $ExcludeComputerName = ![string]::IsNullOrEmpty($ExcludeComputerName) ? $ExcludeComputerName : $env:COMPUTERNAME
+    }
 
     foreach ($node in $ComputerName) {
 
@@ -103,7 +107,7 @@ function global:Copy-Files {
 
                 Copy-Item -Path $file.FullName -Destination "\\$node\$Destination" -Force:$Overwrite.IsPresent
 
-                Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ",$file," -Destination ",$Destination -ForegroundColor DarkGray,Gray,DarkGray,Gray
+                Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ",$file," -Destination ", "\\$node\$Destination" -ForegroundColor DarkGray,Gray,DarkGray,Gray
 
             }
 
