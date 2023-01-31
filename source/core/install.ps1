@@ -795,7 +795,7 @@ $providerIds = @()
         }
     }
     if ($coreFiles) {
-        $_impactedIds += (Get-Catalog -Installed).Uid
+        $_impactedIds += (Get-Catalog -Installed).Uid()
     }
     if ($osFiles) {
         foreach ($osFile in $osFiles) { $_impactedIds += "OS.$($osFile.OS)"}
