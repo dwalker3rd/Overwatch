@@ -205,7 +205,7 @@ $global:Product = @{Id="AzureADSyncTS"}
 
         $azureADUsers,$cacheError = Get-AzureADUsers -Tenant $Tenant -AsArray -After ($Delta ? $lastStartTime : [datetime]::MinValue)
         if ($cacheError) {
-            Write-Log -Context "Provider.TableauServerRestApi" -Action "Get-AzureADUsers" -Target ($Delta ? "Delta" : "Full") -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
+            Write-Log -Action "Get-AzureADUsers" -Target ($Delta ? "Delta" : "Full") -Status $cacheError.code -Message $cacheError.summary -EntryType "Error"
             $message = "  $($emptyString.PadLeft(8,"`b")) ERROR$($emptyString.PadLeft(8," "))"
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Red
             $message = "<    Error $($cacheError.code) <.>48> $($($cacheError.summary))"
@@ -364,7 +364,7 @@ $global:Product = @{Id="AzureADSyncTS"}
                                     $message = "See the following Azure AD account: $Tenant\$($azureADUser.userPrincipalName)."
                                 }
 
-                                Write-Log -Context "Provider.TableauServerRestApi" -Action "IsOrphan" -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Message $message -Force 
+                                Write-Log -Action "IsOrphan" -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Message $message -Force 
                             }
 
                         }
@@ -391,7 +391,7 @@ $global:Product = @{Id="AzureADSyncTS"}
                     Get-TSFlows -Filter "ownerName:eq:$($tsUser.fullName)" | Foreach-Object {Update-TSFlow -Flow $_ -Owner $tsNewUser | Out-Null }
                     Get-TSMetrics -Filter "ownerEmail:eq:$($tsUser.email)" | Foreach-Object {Update-TSMetric -Metric $_ -Owner $tsNewUser | Out-Null }
 
-                    Write-Log -Context "Provider.TableauServerRestApi" -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force
+                    Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force
                     Write-Host+ -NoTrace "      $($azureADUserAccountAction): $($tsSite.contentUrl)\$($tsNewUser.name) << $($tsSite.contentUrl)\$($tsUser.name)" -ForegroundColor DarkBlue
 
                     # set action/state for tsUser to be disabled below
@@ -416,12 +416,12 @@ $global:Product = @{Id="AzureADSyncTS"}
                     # update the user
                     $response, $responseError = Update-TSUser -User $tsUser -FullName $fullName -Email $email -SiteRole $siteRole | Out-Null
                     if ($responseError) {
-                        Write-Log -Context "Provider.TableauServerRestApi" -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
+                        Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($tsSite.contentUrl)\$($tsUser.name)" -Message "$($responseError.detail)" -EntryType "Error" -Status "Error"
                         Write-Host+ "      $($response.error.detail)" -ForegroundColor Red
                     }
                     else {
                         Write-Host+ -NoTrace "      $($azureADUserAccountAction): $($tsSite.contentUrl)\$($tsUser.name) << $fullName | $email | $siteRole" -ForegroundColor $azureADUserAccountStateColor
-                        # Write-Log -Context "Provider.TableauServerRestApi" -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force 
+                        # Write-Log -Action ((Get-Culture).TextInfo.ToTitleCase($azureADUserAccountAction)) -Target "$($global:tsRestApiConfig.ContentUrl)\$($tsUser.name)" -Status $azureADUserAccountActionResult -Force 
                     }
                 }
 
@@ -527,7 +527,8 @@ try {
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     # context now uses UID format:  temporarily replace it with just the product id so the tableau server vizs keep working
-    $azureADSyncLog = Read-Log -Context $global:Product.Id,"Product.$($global:Product.Id)" | ForEach-Object {$_.Context = $global:Product.Id}
+    $azureADSyncLog = Read-Log -Context $Product.Id,"Product.$($Product.Id)" 
+    $azureADSyncLog | ForEach-Object {$_.Context = $Product.Id}
     if ($azureADSyncLog.Count -gt 0) {
         $azureADSyncLog | Export-Log "$($global:Azure.Location.Data)\AzureADSyncLog.csv"
     }

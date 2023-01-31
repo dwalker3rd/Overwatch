@@ -557,7 +557,7 @@ function global:Update-AzureADUserEmail {
         $message = "$mailOriginal > $($response.mail)"
         $entryType = $status -eq "Success" ? "Information" : "Error"
     }
-    Write-Log -Context "Provider.AzureAD" -Action "UpdateAzureADUserEmail" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
+    Write-Log -Action "UpdateAzureADUserEmail" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
 
     return $response
 
@@ -609,7 +609,7 @@ function global:Update-AzureADUserNames{
         $message = "$givenNameOriginal > $($response.givenName), $surNameOriginal > $($response.surName), $displayNameOriginal > $($response.displayName)"
         $entryType = $status -eq "Success" ? "Information" : "Error"
     }
-    Write-Log -Context "Provider.AzureAD" -Action "AzureADUserNames" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
+    Write-Log -Action "AzureADUserNames" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
 
     return $response
 
@@ -696,7 +696,7 @@ function global:Get-AzureADObjects {
             #     "Users" {
             #         if ($azureADObjects.GetType().FullName -ne "System.Collections.Hashtable") {
             #             $cacheError = @{code = "CORRUPTED"; summary = "$($cache) cache object is not 'System.Collections.Hashtable'";}
-            #             Write-Log -Context "Provider.AzureAD" -Action "ReadAzureADCache" -Target $cache -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
+            #             Write-Log -Action "ReadAzureADCache" -Target $cache -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
             #             $Delta = $false
             #         }
             #     }
@@ -935,7 +935,7 @@ function global:Export-AzureADObjects {
     catch {
 
         $status = "Error"
-        Write-Log -Context "Provider.AzureAD" -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
+        Write-Log -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
         Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
 
     }
@@ -1050,19 +1050,19 @@ function global:Read-AzureADCache {
             }
             # catch [System.Xml.XmlException] {
             #     $errorMessage = $_.Exception.Message
-            #     Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error" -Force
-            #     Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Error" -Message "Attempt #$($retryAttempts): ERROR" -Data $retryAttempts -EntryType "Error" -Force
+            #     Write-Log -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error" -Force
+            #     Write-Log -Action "ReadCache" -Target $cache -Status "Error" -Message "Attempt #$($retryAttempts): ERROR" -Data $retryAttempts -EntryType "Error" -Force
             #     Start-Sleep -Milliseconds $retryDelay.TotalMilliseconds
             # }
             catch {
                 $errorMessage = $_.Exception.Message
-                Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error"
+                Write-Log -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error"
                 throw $Error[0]
             }
         } while (!$azureADObject)
 
         # if ($retryAttempts -gt 1) {
-        #     Write-Log -Context "Provider.AzureAD" -Action "ReadCache" -Target $cache -Status "Success" -Message "Attempt #$($retryAttempts): SUCCESS" -Data $retryAttempts -Force
+        #     Write-Log -Action "ReadCache" -Target $cache -Status "Success" -Message "Attempt #$($retryAttempts): SUCCESS" -Data $retryAttempts -Force
         # }
 
         if ($After) {
@@ -1139,7 +1139,7 @@ function global:Get-AzureADGroups {
     $azureADGroups,$cacheError = Read-AzureADCache @cacheParams
 
     if ($cacheError) {
-        Write-Log -Context "Provider.AzureAD" -Action "GetAzureADGroups" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
+        Write-Log -Action "GetAzureADGroups" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
     }
 
     return $azureADGroups, $cacheError
@@ -1165,7 +1165,7 @@ function global:Get-AzureADUsers {
     $azureADUsers,$cacheError = Read-AzureADCache @cacheParams
 
     if ($cacheError) {
-        Write-Log -Context "Provider.AzureAD" -Action "GetAzureADUsers" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
+        Write-Log -Action "GetAzureADUsers" -Target "$($cacheParams.Tenant)\$($cacheParams.Type)" -Status $cacheError.code -Message $cacheError.Summary -EntryType "Error"
     }
 
     return $azureADUsers, $cacheError

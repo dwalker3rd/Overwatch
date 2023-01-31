@@ -409,8 +409,8 @@ function global:Get-TableauServerStatus {
             if ($attempt -eq $maxAttempts) {
                 # Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor Red
                 # Write-Host+ -NoTrace "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure" -ForegroundColor Red
-                Write-Log -Context "Provider.TableauServerTsmApi" -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
-                Write-Log -Context "Provider.TableauServerTsmApi" -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
+                Write-Log -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
+                Write-Log -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
             }
             else {
                 # give the TSM API a moment to think it over

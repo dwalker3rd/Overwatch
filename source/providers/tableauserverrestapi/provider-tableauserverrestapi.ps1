@@ -1084,7 +1084,7 @@ function global:Download-TSObject {
             detail = "Invalid authentication credentials were provided"
         }
         $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
-        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
+        Write-Log -Message $errorMessage -EntryType "Error" -Action "TSRestApiMethod" -Target $Method -Status "Error"
         return $null, $null, $responseError
     }
 
@@ -1445,7 +1445,7 @@ function global:Get-TSObjects {
         if ($responseError) {
             $errorMessage = !$responseError.code ? $responseError : "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
             Write-Host+ $errorMessage -ForegroundColor Red
-            Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+            Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
             return
         }
         if (!$response) { break }
@@ -1458,7 +1458,7 @@ function global:Get-TSObjects {
             $response = Download-TSObject -Method ($Method -replace "s$","") -InputObject $object
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $object.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
@@ -1484,7 +1484,7 @@ function global:Invoke-TSMethod {
     if ($responseError) {
         $errorMessage = "Error $($responseError.code) ($($responseError.summary)): $($responseError.detail)"
         Write-Host+ $errorMessage -ForegroundColor Red
-        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+        Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
         return
     }
 
@@ -1575,7 +1575,7 @@ function global:Switch-TSSite {
     if ($ContentUrl -notin (Get-TSSites).contentUrl) {    
         $message = "Site `"$ContentUrl`" is not a valid contentURL for a site on $($global:tsRestApiConfig.Server)"
         Write-Host+ $message -ForegroundColor Red
-        Write-Log -Context "Provider.TableauServerRestApi" -Message $message -EntryType "Error" -Action "SwitchSite" -Target $ContentUrl -Status "Error"
+        Write-Log -Message $message -EntryType "Error" -Action "SwitchSite" -Target $ContentUrl -Status "Error"
         return
     }
 
@@ -1775,12 +1775,12 @@ function global:Add-TSUser {
 
     if ([string]::IsNullOrEmpty($FullName)) {
         $errorMessage = "$($Site.contentUrl)\$Username : FullName is missing or invalid."
-        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
+        Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
         return
     }
     if ([string]::IsNullOrEmpty($Email)) {
         $errorMessage = "$($Site.contentUrl)\$Username : Email is missing or invalid."
-        Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
+        Write-Log -Message $errorMessage.Split(":")[1].Trim() -EntryType "Error" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Status "Error" 
         return
     }
 
@@ -1794,7 +1794,7 @@ function global:Add-TSUser {
     }
     else {
         $tsSiteUser = $response # $response is a user object
-        Write-Log -Context "Provider.TableauServerRestApi" -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Message "$($tsSiteUser.name) | $($tsSiteUser.siteRole)" -Status "Success" -Force 
+        Write-Log -Action "AddUser" -Target "$($Site.contentUrl)\$($tsSiteUser.name)" -Message "$($tsSiteUser.name) | $($tsSiteUser.siteRole)" -Status "Success" -Force 
         
         # $response is an update object (NOT a user object) or an error object
         $response = Update-TSSiteUser -User $tsSiteUser -FullName $FullName -Email $Email -SiteRole $SiteRole
@@ -1843,7 +1843,7 @@ function global:Update-TSUser {
         return
     }
     else {
-        Write-Log -Context "Provider.TableauServerRestApi" -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Message $update -Status "Success" -Force 
+        Write-Log -Action $action -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Message $update -Status "Success" -Force 
     }
 
     # $response is an update object or an error object
@@ -1868,7 +1868,7 @@ function global:Update-TSUserPassword {
         return
     }
     else {
-        Write-Log -Context "Provider.TableauServerRestApi" -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
+        Write-Log -Action "UpdateUserPassword" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
     }
 
     # $response is an update object or an error object
@@ -1889,7 +1889,7 @@ function global:Remove-TSUser {
         # do nothing
     }
     else {
-        Write-Log -Context "Provider.TableauServerRestApi" -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
+        Write-Log -Action "RemoveUser" -Target "$($global:tsRestApiConfig.ContentUrl)\$($User.name)" -Status "Success" -Force 
     }
 
     return $response, $responseError
@@ -1969,7 +1969,7 @@ function global:Add-TSUserToGroup {
             return
         }
         else {
-            Write-Log -Context "Provider.TableauServerRestApi" -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
+            Write-Log -Action "AddUserToGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
 
     }
@@ -1992,7 +1992,7 @@ function global:Remove-TSUserFromGroup {
             return
         }
         else {
-            Write-Log -Context "Provider.TableauServerRestApi" -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
+            Write-Log -Action "RemoveUserFromGroup" -Target "$($global:tsRestApiConfig.ContentUrl)\$($Group.name)\$($_.Name)" -Status "Success" -Force
         }
     }
 
@@ -2482,7 +2482,7 @@ function global:Get-TSWorkbookPermissions {
 
     if ($Workbook.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetWorkbookPermissions' is not authorized for workbooks in a personal space."
-        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -EntryType "Error" -Action "GetWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
         return
     }
     
@@ -2502,7 +2502,7 @@ function global:Add-TSWorkbookPermissions {
 
     if ($Workbook.location.type -eq "PersonalSpace") {
         $responseError = "Method 'AddWorkbookPermissions' is not authorized for workbooks in a personal space."
-        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "AddWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -EntryType "Error" -Action "AddWorkbookPermissions" -Target "workbooks\$($Workbook.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -2560,7 +2560,7 @@ function global:Get-TSWorkbookRevisions {
             $response = Download-TSObject -Method GetWorkbookRevision -InputObject $Workbook -Params @($Workbook.Id, $workbookRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $workbookRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
@@ -2726,7 +2726,7 @@ function global:Get-TSViewPermissions {
 
     if ($View.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetViewPermissions' is not authorized for views in a personal space."
-        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -EntryType "Error" -Action "GetViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -2745,7 +2745,7 @@ function global:Add-TSViewPermissions {
 
     if ($View.location.type -eq "PersonalSpace") {
         $responseError = "Method 'AddViewPermissions' is not authorized for views in a personal space."
-        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "AddViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -EntryType "Error" -Action "AddViewPermissions" -Target "views\$($View.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -2879,7 +2879,7 @@ function global:Get-TSDatasourceRevisions {
             $response = Download-TSObject -Method GetDatasourceRevision -InputObject $Datasource -Params @($Datasource.Id, $datasourceRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $datasourceRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
@@ -2979,7 +2979,7 @@ function global:Get-TSDatasourcePermissions {
 
     if ($Datasource.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetDatasourcePermissions' is not authorized for datasources in a personal space."
-        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetDatasourcePermissions" -Target "datasources\$($Datasource.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -EntryType "Error" -Action "GetDatasourcePermissions" -Target "datasources\$($Datasource.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -3208,7 +3208,7 @@ function global:Get-TSFlowPermissions {
 
     if ($Flow.location.type -eq "PersonalSpace") {
         $responseError = "Method 'GetFlowPermissions' is not authorized for flows in a personal space."
-        Write-Log -Context "Provider.TableauServerRestApi" -EntryType "Error" -Action "GetFlowPermissions" -Target "flows\$($Flow.id)" -Status "Forbidden" -Message $responseError 
+        Write-Log -EntryType "Error" -Action "GetFlowPermissions" -Target "flows\$($Flow.id)" -Status "Forbidden" -Message $responseError 
         return
     }
 
@@ -3281,7 +3281,7 @@ function global:Get-TSFlowRevisions {
             $response = Download-TSObject -Method GetFlowRevision -InputObject $Flow -Params @($Flow.Id, $flowRevision.revisionNumber)
             if ($response.error) {
                 $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
-                Write-Log -Context "Provider.TableauServerRestApi" -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
                 $flowRevision.SetAttribute("error", ($response | ConvertTo-Json -Compress))
             }
             else {
