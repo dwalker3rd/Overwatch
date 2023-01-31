@@ -17,6 +17,7 @@ class CatalogObject {
     [object]$Installation
     hidden [string]$SortProperty
     [bool]$Installed
+    [string]$ComputerName
 
     CatalogObject() { $this.Init() }
 
@@ -28,6 +29,7 @@ class CatalogObject {
         $this.Type = $this.GetType().Name
         $this.Installed = $this.IsInstalled()
         $this.SortProperty = $this.GetSortProperty()
+        $this.ComputerName = $env:COMPUTERNAME
     }
 
     [string]Uid() {
