@@ -508,7 +508,16 @@ function global:Show-PlatformTasks {
     param (
         [Parameter(ValueFromPipeline,Position=0)][Object]$InputObject,
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
-        [switch]$Disabled
+        [switch]$Disabled,
+        [switch]$Refresh,
+
+        [ValidateRange(5,300)]
+        [Parameter(Mandatory=$false)]
+        [Alias("Interval","IntervalSeconds")]
+        [int]$RefreshIntervalSeconds = 5,
+
+        [ValidateRange(0,3600)]
+        [Parameter(Mandatory=$false)][int]$MaxRefreshPeriodSeconds = 600
     ) 
 
     begin {
@@ -521,6 +530,9 @@ function global:Show-PlatformTasks {
 
         # WriteHostPlusPreference is set to SilentlyContinue/Quiet.  nothing to write/output, so return
         if ($global:WriteHostPlusPreference -ne "Continue") { return }
+
+        # restrict refresh feature to non-pipelined data for the local machine (for now)
+        # if ((![string]::IsNullOrEmpty($ComputerName) -and $ComputerName -ne $env:COMPUTERNAME) -or $platformTasks) { $Refresh = $false }
 
         if (!$ComputerName) {
             if (!$platformTasks) {
@@ -552,7 +564,7 @@ function global:Show-PlatformTasks {
         $_defaultColor = $global:consoleSequence.Default
 
         $formatData = [ordered]@{}
-        $platformTaskSummaryFormatData = Get-FormatData -TypeName Overwatch.PlatformTask.Summary
+        $platformTaskSummaryFormatData = Get-FormatData -TypeName OverWatch.PlatformTask.Summary
         $formatDataDisplayEntries = $platformTaskSummaryFormatData.FormatViewDefinition.Control.Rows.Columns.DisplayEntry.Value
         $formatDataHeaders = $platformTaskSummaryFormatData.FormatViewDefinition.Control.Headers
         for ($i = 0; $i -lt $formatDataDisplayEntries.Count; $i++) {
@@ -561,95 +573,127 @@ function global:Show-PlatformTasks {
             }
         }
 
-        $platformTasksFormatted = @()
-        foreach ($platformTask in $platformTasks) {
+        try {
 
-            $_node = $platformTask.Node.ToLower()
-            $_product = $platformTask.ProductID + " "
-            $_productPadRight = $emptyString.PadLeft($formatData.PlatformTask.Width-1-$_product.Length," ")
-            $_status = $platformTask.Status + " "
-            $_statusPadRight = $emptyString.PadLeft($formatData.Status.Width-1-$_status.Length," ")
-            $_nextRunTime = ""
-            if ($platformTask.ScheduledTaskInfo.NextRunTime) {
-                $_nextRunTime = ($platformTask.ScheduledTaskInfo.NextRunTime).ToString('u') + " "
-            }
-            $_nextRunTimePadRight = $emptyString.PadLeft($formatData.NextRunTime.Width-1-$_nextRunTime.Length," ")
-            $_lastRunTime = ""
-            if ($platformTask.ScheduledTaskInfo.LastRunTime) {
-                $_lastRunTime = ($platformTask.ScheduledTaskInfo.LastRunTime).ToString('u') + " "
-            }
-            $_lastRunTimePadRight = $emptyString.PadLeft($formatData.LastRunTime.Width-1-$_lastRunTime.Length," ")
-            $_lastTaskResult = (New-Object System.ComponentModel.Win32Exception([int]$platformTask.ScheduledTaskInfo.LastTaskResult)).Message + " "
+            [console]::CursorVisible = $false
 
-            $_platformTaskColor = $global:consoleSequence.ForegroundWhite
-            $_statusColor = $global:consoleSequence.ForegroundDarkGray
-            $_nextRunTimeColor = $global:consoleSequence.ForegroundDarkGray
-            $_lastRunTimeColor = $global:consoleSequence.ForegroundDarkGray
-            $_lastTaskResultColor = $global:consoleSequence.ForegroundDarkGray
+            $RefreshPeriodSecondsTotal = 0
+            do {
+                $platformTasksFormatted = @()
+                foreach ($platformTask in $platformTasks) {
 
-            if ($platformTask.Status -in $global:PlatformTaskState.Running) {
-                $_statusColor = $global:consoleSequence.BrightForegroundGreen + $global:consoleSequence.Negative
-                $_lastTaskResultColor = $platformTask.ScheduledTaskInfo.LastTaskResult -ne 0 ? $global:consoleSequence.ForegroundGreen + $global:consoleSequence.Negative : $_lastTaskResultColor
-            }
-            elseif ($platformTask.Status -in $global:PlatformTaskState.Enabled) {
-                $_statusColor = $global:consoleSequence.ForegroundDarkGray
-            }
-            elseif ($platformTask.Status -in $global:PlatformTaskState.Disabled) {
-                $_statusColor = $global:consoleSequence.BrightForegroundRed + $global:consoleSequence.Negative
-                $_lastRunTimeColor = $global:consoleSequence.BrightForegroundRed
-                $_lastTaskResultColor = $platformTask.ScheduledTaskInfo.LastTaskResult -ne 0 ? $global:consoleSequence.BrightForegroundRed + $global:consoleSequence.Negative : $_lastTaskResultColor
-            }
-            elseif ($platformTask.Status -in $global:PlatformTaskState.Unknown) {
-                $_statusColor = $global:consoleSequence.BrightForegroundYellow + $global:consoleSequence.Negative
-                $_lastTaskResultColor = $platformTask.ScheduledTaskInfo.LastTaskResult -ne 0 ? $global:consoleSequence.ForegroundYellow + $global:consoleSequence.Negative : $_lastTaskResultColor
-            }
+                    $_node = $platformTask.Node.ToLower()
+                    $_product = $platformTask.ProductID + " "
+                    $_productPadRight = $emptyString.PadLeft($formatData.PlatformTask.Width-1-$_product.Length," ")
+                    $_status = $platformTask.Status + " "
+                    $_statusPadRight = $emptyString.PadLeft($formatData.Status.Width-1-$_status.Length," ")
+                    $_nextRunTime = ""
+                    if ($platformTask.ScheduledTaskInfo.NextRunTime) {
+                        $_nextRunTime = ($platformTask.ScheduledTaskInfo.NextRunTime).ToString('u') + " "
+                    }
+                    $_nextRunTimePadRight = $emptyString.PadLeft($formatData.NextRunTime.Width-1-$_nextRunTime.Length," ")
+                    $_lastRunTime = ""
+                    if ($platformTask.ScheduledTaskInfo.LastRunTime) {
+                        $_lastRunTime = ($platformTask.ScheduledTaskInfo.LastRunTime).ToString('u') + " "
+                    }
+                    $_lastRunTimePadRight = $emptyString.PadLeft($formatData.LastRunTime.Width-1-$_lastRunTime.Length," ")
+                    $_lastTaskResult = (New-Object System.ComponentModel.Win32Exception([int]$platformTask.ScheduledTaskInfo.LastTaskResult)).Message + " "
+                    $_lastTaskResultPadRight = $emptyString.PadLeft($formatData.LastTaskResult.Width-1-$_lastTaskResult.Length," ")
 
-            # format summary rows with console sequences to control color
-            $platformTasksFormatted += [PSCustomObject]@{
-                # these fields are NOT displayed
-                PSTypeName = "Overwatch.PlatformTask.Summary"
-                Node = $_node
-                # these fields ARE displayed
-                PlatformTask = "$($_platformTaskColor)$($_product)$($_defaultColor)$($_productPadRight)"
-                Status = "$($_statusColor)$($_status)$($_defaultColor)$($_statusPadRight)"
-                NextRunTime = "$($_nextRunTimeColor)$($_nextRunTime)$($_defaultColor)$($_nextRunTimePadRight)"
-                LastRunTime = "$($_lastRunTimeColor)$($_lastRunTime)$($_defaultColor)$($_lastRunTimePadRight)"
-                LastTaskResult = "$($_lastTaskResultColor)$($_lastTaskResult)$($_defaultColor)"
-            }
-        }
+                    $_platformTaskColor = $global:consoleSequence.ForegroundWhite
+                    $_statusColor = $global:consoleSequence.ForegroundDarkGray
+                    $_nextRunTimeColor = $global:consoleSequence.ForegroundDarkGray
+                    $_lastRunTimeColor = $global:consoleSequence.ForegroundDarkGray
+                    $_lastTaskResultColor = $global:consoleSequence.ForegroundDarkGray
 
-        if ($platformTasksFormatted) { Write-Host+ }
+                    if ($platformTask.Status -in $global:PlatformTaskState.Running) {
+                        $_statusColor = $global:consoleSequence.BrightForegroundGreen + $global:consoleSequence.Negative
+                        $_lastTaskResultColor = $platformTask.ScheduledTaskInfo.LastTaskResult -ne 0 ? $global:consoleSequence.ForegroundGreen + $global:consoleSequence.Negative : $_lastTaskResultColor
+                    }
+                    elseif ($platformTask.Status -in $global:PlatformTaskState.Enabled) {
+                        $_statusColor = $global:consoleSequence.ForegroundDarkGray
+                    }
+                    elseif ($platformTask.Status -in $global:PlatformTaskState.Disabled) {
+                        $_statusColor = $global:consoleSequence.BrightForegroundRed + $global:consoleSequence.Negative
+                        $_lastRunTimeColor = $global:consoleSequence.BrightForegroundRed
+                        $_lastTaskResultColor = $platformTask.ScheduledTaskInfo.LastTaskResult -ne 0 ? $global:consoleSequence.BrightForegroundRed + $global:consoleSequence.Negative : $_lastTaskResultColor
+                    }
+                    elseif ($platformTask.Status -in $global:PlatformTaskState.Unknown) {
+                        $_statusColor = $global:consoleSequence.BrightForegroundYellow + $global:consoleSequence.Negative
+                        $_lastTaskResultColor = $platformTask.ScheduledTaskInfo.LastTaskResult -ne 0 ? $global:consoleSequence.ForegroundYellow + $global:consoleSequence.Negative : $_lastTaskResultColor
+                    }
 
-        foreach ($node in $ComputerName) {
-
-            $platformTasksFormattedByNode = $platformTasksFormatted | Where-Object {$_.Node -eq $node}
-            if ($platformTasksFormattedByNode) {
-    
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " 
-                Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Darkgray
-                Write-Host+
-
-                # write column labels
-                foreach ($key in $formatData.Keys) {
-                    $columnWidth = $formatData.$key.Width+1
-                    $header = "$($global:consoleSequence.ForegroundDarkGray)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($_defaultColor)"
-                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $header
-                }
-                Write-Host+
-    
-                # underline column labels
-                foreach ($key in $formatData.Keys) {
-                    $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
-                    $columnWidth = $formatData.$key.Width+1
-                    $header = "$($global:consoleSequence.ForegroundDarkGray)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($_defaultColor)"
-                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $header
+                    # format summary rows with console sequences to control color
+                    $platformTasksFormatted += [PSCustomObject]@{
+                        # these fields are NOT displayed
+                        PSTypeName = "OverWatch.PlatformTask.Summary"
+                        Node = $_node
+                        # these fields ARE displayed
+                        PlatformTask = "$($_platformTaskColor)$($_product)$($_defaultColor)$($_productPadRight)"
+                        Status = "$($_statusColor)$($_status)$($_defaultColor)$($_statusPadRight)"
+                        NextRunTime = "$($_nextRunTimeColor)$($_nextRunTime)$($_defaultColor)$($_nextRunTimePadRight)"
+                        LastRunTime = "$($_lastRunTimeColor)$($_lastRunTime)$($_defaultColor)$($_lastRunTimePadRight)"
+                        LastTaskResult = "$($_lastTaskResultColor)$($_lastTaskResult)$($_defaultColor)$($_lastTaskResultPadRight)"
+                    }
                 }
 
-                $platformTasksFormattedByNode | Format-Table -HideTableHeaders
+                if ($platformTasksFormatted) { Write-Host+ }
 
-            }
+                foreach ($node in $ComputerName) {
 
+                    $platformTasksFormattedByNode = $platformTasksFormatted | Where-Object {$_.Node -eq $node}
+                    if ($platformTasksFormattedByNode) {
+            
+                        Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " 
+                        Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Darkgray
+                        Write-Host+
+
+                        # write column labels
+                        foreach ($key in $formatData.Keys) {
+                            $columnWidth = $formatData.$key.Width+1
+                            $header = "$($global:consoleSequence.ForegroundDarkGray)$($formatData.$key.Label)$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length))$($_defaultColor)"
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $header
+                        }
+                        Write-Host+
+            
+                        # underline column labels
+                        foreach ($key in $formatData.Keys) {
+                            $underlineChar = $formatData.$key.Label.Trim().Length -gt 0 ? "-" : " "
+                            $columnWidth = $formatData.$key.Width+1
+                            $header = "$($global:consoleSequence.ForegroundDarkGray)$($emptyString.PadLeft($formatData.$key.Label.Length,$underlineChar))$($emptyString.PadLeft($columnWidth-$formatData.$key.Label.Length," "))$($_defaultColor)"
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $header
+                        }
+
+                        $platformTasksFormattedByNode | Format-Table -HideTableHeaders
+
+                    }
+
+                }
+
+                $RefreshPeriodSecondsTotal += $RefreshIntervalSeconds
+                if ($RefreshPeriodSecondsTotal -gt $MaxRefreshPeriodSeconds) {
+                    Write-Host+ -NoTrace -NoTimestamp "   Maximum refresh period of $MaxRefreshPeriodSeconds seconds has been reached." -ForegroundColor DarkGray
+                    Write-Host+
+                    $Refresh = $false
+                }
+                elseif ($Refresh) {
+                    Write-Host+ -NoTrace -NoTimestamp "   Refreshed at $((Get-Date -AsUTC).ToString('u'))" -ForegroundColor DarkGray
+                    Start-Sleep -Seconds $RefreshIntervalSeconds
+                    Write-Host+ -ReverseLineFeed $($platformTasksFormatted.Count + ($ComputerName.Count * 5) + 2)
+                    Write-Host+
+                    $platformTasks = Get-PlatformTask -ComputerName $ComputerName
+                }
+
+            } until (!$Refresh)
         }
+        catch {
+            throw
+        }
+        finally {
+            [console]::CursorVisible = $true
+        }
+
+        Remove-PSSession+
 
     }
 
