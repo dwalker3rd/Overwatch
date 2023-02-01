@@ -79,6 +79,8 @@ function global:Format-Leader {
 
 function global:Write-Host+ {
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][object[]]$Object="",
@@ -143,7 +145,6 @@ function global:Write-Host+ {
     if ($returnAfterSettings) { return }
 
     if (!$Iff) {return}
-    if ($Clear) { Clear-Host; return }
 
     if ($global:WriteHostPlusTimestampGlobal) { 
         switch ($global:WriteHostPlusTimestampGlobal) {
@@ -163,7 +164,13 @@ function global:Write-Host+ {
         throw "The `"NoSeparator`" switch cannot be used with the `"Parse`" switch"
     }
 
-    if ($NoIndent -or !$global:WriteHostPlusEndOfLine) {$Indent = 0}
+    if ($NoIndent) {$Indent = 0}
+
+    if ($Clear) { Clear-Host }
+    if ([console]::GetCursorPosition().Item2 -eq 1) { Write-Host "`e[2J" }
+    if ($ReverseLineFeed -gt 0) { 
+        Write-Host -NoNewline "`e[$($ReverseLineFeed)F" 
+    }
 
     if ([string]::IsNullOrEmpty($Object)) {
         if ($MaxBlankLines -and $MaxBlankLines -le $global:WriteHostPlusBlankLineCount) { return }
@@ -179,10 +186,10 @@ function global:Write-Host+ {
     $caller = $callstack[1] ? ($callstack[1].FunctionName -eq "<ScriptBlock>" ? "" : "$($callstack[1].FunctionName.replace('global:','')): ") : ""
 
     if ($Object -ne "") {
+        Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Indent ? $emptyString.PadLeft($Indent," ") : "")
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Prefix ? $Prefix : "")
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($NoTimestamp ? "" : "[$([datetime]::Now.ToString('u'))] ")
         Write-Host -NoNewLine -ForegroundColor $DefaultForeGroundColor[0] ($NoTrace ? "" : "$($caller)")
-        Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Indent ? $emptyString.PadLeft($Indent," ") : "")
 
         #+++
         # Object Parser
@@ -203,8 +210,6 @@ function global:Write-Host+ {
         }
 
     }
-
-    if ($ReverseLineFeed -gt 0) { Write-Host -NoNewline "`e[$($ReverseLineFeed)F" }
 
     $i = 0
     foreach ($obj in $Object) {
