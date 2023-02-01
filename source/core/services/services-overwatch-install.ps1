@@ -198,7 +198,38 @@ function script:Copy-File {
 
         . "$($global:Location.Scripts)\environ.ps1"
 
-        if (Test-Path -Path $global:InstallSettings) { Clear-Content -Path $global:InstallSettings }
+        if (Test-Path -Path $global:InstallSettings) { 
+
+            $lockRetryDelay = New-Timespan -Seconds 1
+            $lockRetryMaxAttempts = 5
+
+            $lockRetryAttempts = 0
+            $FileStream = $null
+            while (!$FileStream.CanWrite -and $lockRetryAttempts -lt $lockRetryMaxAttempts) {
+                try {
+                    $lockRetryAttempts++
+                    $FileStream = [System.IO.File]::Open($global:InstallSettings, 'OpenOrCreate', 'ReadWrite', 'Read')
+                }
+                catch {
+                    Start-Sleep -Milliseconds $lockRetryDelay.TotalMilliseconds
+                }
+            }
+            if ($FileStream) {
+                $FileStream.Close()
+                $FileStream.Dispose()
+            }
+            else {
+                $message = "The process cannot lock the file `'$($global:InstallSettings)`' because it is being used by another process."
+                Write-Log -Action "Update-InstallSettings" -Target $global:InstallSettings -Status "Error" -Message $message -EntryType "Error"
+                Write-Host+ -NoTimestamp $message -ForegroundColor Red
+                $message = "Unable to save install settings to file `'$($global:InstallSettings)`'."
+                Write-Host+ -NoTimeStamp $message -ForegroundColor Red
+                return
+            }
+            
+            Clear-Content -Path $global:InstallSettings
+        
+        }
                 
         '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $global:InstallSettings
         "Param()" | Add-Content -Path $global:InstallSettings
@@ -503,7 +534,8 @@ function script:Uninstall-CatalogObject {
         [Parameter(Mandatory=$true,Position=0)][string]$Type,
         [Parameter(Mandatory=$true,Position=1)][string]$Id,
         [switch]$Force,
-        [switch]$DeleteAllData
+        [switch]$DeleteAllData,
+        [switch]$Quiet
     )
 
     $Type = $global:Catalog.Keys | Where-Object {$_ -eq $Type}
@@ -514,11 +546,11 @@ function script:Uninstall-CatalogObject {
 
     if ($catalogObject.HasTask) {
         $message = "    $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
     }
     else {
         $message = "    $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
     }
     
     if (Test-Path -Path "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1") {. "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"}
@@ -527,15 +559,19 @@ function script:Uninstall-CatalogObject {
             
         $platformTask = Get-PlatformTask -Id $Id
 
-        $message = "$($emptyString.PadLeft(40,"`b"))STOPPING$($emptyString.PadLeft(12," "))PENDING$($emptyString.PadLeft(13," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor DarkYellow
+        if ($platformTask) {
 
-        $platformTask = Stop-PlatformTask -PlatformTask $platformTask -OutputType PlatformTask
+            $message = "$($emptyString.PadLeft(40,"`b"))STOPPING$($emptyString.PadLeft(12," "))PENDING$($emptyString.PadLeft(13," "))"
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor DarkYellow
 
-        $message = "$($emptyString.PadLeft(40,"`b"))STOPPED$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor Red
+            $platformTask = Stop-PlatformTask -PlatformTask $platformTask -OutputType PlatformTask
 
-        Unregister-PlatformTask -Id $Id | Out-Null
+            $message = "$($emptyString.PadLeft(40,"`b"))STOPPED$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor Red
+
+            Unregister-PlatformTask -Id $Id | Out-Null
+
+        }
 
     }
 
@@ -551,7 +587,7 @@ function script:Uninstall-CatalogObject {
     $catalogObject.Refresh()
 
     $message = "$($emptyString.PadLeft(20,"`b"))UNINSTALLED$($emptyString.PadLeft(9," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
 }
 

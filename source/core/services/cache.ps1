@@ -176,6 +176,7 @@ function global:Lock-Cache {
     $lockFile = $Cache.FullPathName -replace $Cache.Extension,".lock"
     
     $lockRetryAttempts = 0
+    $FileStream = [System.IO.File]::Open($lockFile, $Mode, $Access, $Share)
     while (!($Access -eq "ReadWrite" -and $FileStream.CanWrite) -and !($Access -eq "Read" -and $FileStream.CanRead)) {
         # if (!(Test-Path -Path $lockFile)) {
         #     Set-Content -Path $lockFile -Value (Get-Date -AsUTC)

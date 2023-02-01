@@ -7,8 +7,6 @@ param(
     [switch]$Force
 )
 
-Remove-PSSession+
-
 $global:DebugPreference = "SilentlyContinue"
 $global:InformationPreference = "Continue"
 $global:VerbosePreference = "SilentlyContinue"
