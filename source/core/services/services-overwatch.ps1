@@ -109,7 +109,7 @@
 
         $products = @()
         if (!$ResetCache -and !$NoCache) {
-            if ($(get-cache products -ComputerName $ComputerName).Exists()) {
+            if ($(Get-Cache products -ComputerName $ComputerName).Exists()) {
                 $products = Read-Cache products -ComputerName $ComputerName #-MaxAge $(New-Timespan -Minutes 2)
             }
         }
@@ -143,9 +143,9 @@
                 }
             }
 
-            if (!$remoteQuery) {
+            # if (!$remoteQuery) {
                 $products | Write-Cache products -ComputerName $ComputerName
-            }
+            # }
         }
 
         # reset $global:Product with clone
