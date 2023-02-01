@@ -53,4 +53,4 @@
     $global:ContactsDB = "$($global:Location.Data)\contacts.csv"
     $global:InstallSettings = "$($global:Location.Install)\data\installSettings.ps1"
 
-#enregion FILES   
+#endregion FILES  

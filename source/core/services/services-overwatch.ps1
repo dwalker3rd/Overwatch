@@ -10,95 +10,84 @@
         param (
             [Parameter(Mandatory=$true,Position=0)][string]$Key,
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
-            [Parameter(Mandatory=$false)][string]$Path = "$($global:Location.Root)\environ.ps1"
+            [Parameter(Mandatory=$false)][string]$Path
         )
 
-        if ($ComputerName -eq $env:COMPUTERNAME -and $Path -eq "$($global:Location.Root)\environ.ps1") {
+        if ($ComputerName -eq $env:COMPUTERNAME -and [string]::IsNullOrEmpty($Path)) {
             Invoke-Expression "`$$Key"
             return
         }
 
-        # find the environ.ps1 file on the remote node
-        $environFile = [FileObject]::new($Path,$ComputerName)
+        try {
 
-        # if the node is not an overwatch controller but is a member of the current topology,
-        # then use the settings from this topology's controller
-        # note: for now, this local machine is assumed to be the overwatch controller
-        if (!$environFile.Exists() -and $ComputerName -in (pt nodes -k)) { 
-            $ComputerName = $env:COMPUTERNAME
+            # this is a sandbox, so instead of the usual pssession reuse pattern,
+            # create a new session, make the remoting call, and delete the session
+            $psSession = New-PSSession+ -ComputerName $ComputerName
+
+            if ([string]::IsNullOrEmpty($Path)) {
+                $overwatchRegistryPath = (Get-Catalog -Uid Overwatch.Overwatch).Installation.Registry.Path
+                $overwatchRegistryKey = "InstallLocation"
+                $overwatchRoot = Invoke-Command -Session $psSession -ErrorAction SilentlyContinue -ScriptBlock {
+                    Get-ItemPropertyValue -Path $using:overwatchRegistryPath -Name $using:overwatchRegistryKey
+                } 
+                if ([string]::IsNullOrEmpty($overwatchRoot)) { 
+                    $errorMessage = (Get-Error).Exception.Message -replace [regex]::Escape($overwatchRegistryPath), "\\$ComputerName\$overwatchRegistryPath"
+                    throw $errorMessage
+                }
+                $Path = "$overwatchRoot\environ.ps1"
+            }
+            
+            # find the environ.ps1 file on the remote node
             $environFile = [FileObject]::new($Path,$ComputerName)
+            if (!$environFile.Exists()) {
+                throw "Cannot find path `'$($environFile.FullPathName)`' because it does not exist."
+             }
+            
+            $result = Invoke-Command -Session $psSession -ScriptBlock {
+                . $using:environFile.FullPathName
+                Invoke-Expression "`$$using:Key"
+            }
+
+        }
+        catch {
+
+            Write-Host+ -IfDebug -NoTimestamp "$($_.Exception.Message)" -Foreground Red
+            $result = $null
+
+        }
+        finally {
+
+            Remove-PSSession+ -Session $psSession
+
         }
 
-        $remoteOverwatchRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')
-        
-        # this is a sandbox, so instead of the usual pssession reuse pattern,
-        # create a new session, make the remoting call, and delete the session
-        $psSession = New-PSSession+ -ComputerName $ComputerName
-        $result = Invoke-Command -Session $psSession -ScriptBlock {
-            Set-Location $using:remoteOverwatchRoot
-            . $using:Path
-            Invoke-Expression "`$$using:Key"
-        }
-        Remove-PSSession+ -Session $psSession
-        
+
         return $result
 
     }
 
-    function global:Get-Overwatch { 
+    function global:Find-OverwatchControllers {
 
         [CmdletBinding()] 
         param (
-            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+            [Parameter(Mandatory=$false)][string[]]$ComputerName
         )
 
-        (Get-EnvironConfig -Key Environ.Overwatch -ComputerName $ComputerName) | Select-Object -Property $($View ? $CatalogView.$($View) : $CatalogView.Default)
+        if (!$ComputerName) {
+            $ComputerName = (Get-WsManTrustedHosts).Value -split "," #| Where-Object {$_ -notin (pt nodes -k) -or $_ -eq $env:COMPUTERNAME}
+        }
+
+        $controllers = @()
+        foreach ($node in $ComputerName) {
+            $_overwatch = Get-Catalog -Uid Overwatch.Overwatch -ComputerName $node
+            if ($_overwatch.Installed) { $controllers += $node }
+        }
+
+        return $controllers
 
     }
 
 #endregion OVERWATCH
-#region OS
-
-    function global:Get-OS {
-
-        [CmdletBinding()] 
-        param (
-            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
-        )
-
-        return (Get-EnvironConfig -Key Environ.OS -ComputerName $ComputerName) | Select-Object -Property $($View ? $OSView.$($View) : $OSView.Default)
-
-    }
-
-#endregion OS
-#region CLOUD
-
-    function global:Get-Cloud {
-
-        [CmdletBinding()] 
-        param (
-            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
-        )
-
-        (Get-EnvironConfig -Key Environ.Cloud -ComputerName $ComputerName) | Select-Object -Property $($View ? $CloudView.$($View) : $CloudView.Default)
-
-    }
-
-#endregion CLOUD
-#region PLATFORM
-
-    function global:Get-Platform {
-
-        [CmdletBinding()] 
-        param (
-            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
-        )
-
-        return (Get-EnvironConfig -Key Environ.Platform -ComputerName $ComputerName) | Select-Object -Property $($View ? $PlatformView.$($View) : $PlatformView.Default)
-
-    }
-
-#endregion PLATFORM
 #region PROVIDERS
 
     function global:Get-Product {
@@ -106,7 +95,6 @@
         [CmdletBinding()] 
         param (
             [Parameter(Mandatory=$false,Position=0)][string]$Id,
-            [Parameter(Mandatory=$false)][string]$Name,
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
             [switch]$ResetCache,
             [switch]$NoCache
@@ -125,27 +113,32 @@
                 $products = Read-Cache products -ComputerName $ComputerName #-MaxAge $(New-Timespan -Minutes 2)
             }
         }
+        if ($Id) {$products = $products | Where-Object {$_.Id -eq $Id}}
 
         # persist $global:Product
         $productClone = $global:Product ? $($global:Product | Copy-Object) : $null
 
         # this method overwrites $global:Product so clone $global:Product
         if (!$products) {
+            
+            $definitionsPath = $global:Location.Definitions
+            if ($ComputerName -ne $env:COMPUTERNAME) {
+                $definitionsPath = Get-EnvironConfig -Key Location.Definitions -ComputerName $ComputerName
+            }
+
+            $_installedProducts = ![string]::IsNullOrEmpty($Id) ? $Id : (Get-EnvironConfig -Key Environ.Product -ComputerName $ComputerName)
 
             $products = @()
-            (Get-EnvironConfig -Key Environ.Product -ComputerName $ComputerName) | ForEach-Object {
-                Write-Host+ -IfDebug -NoTrace $_
-                $productDefinitionFile = "$(Get-EnvironConfig -Key Location.Definitions -ComputerName $ComputerName)\definitions-product-$($_).ps1"
-                if (Test-Path -Path $productDefinitionFile) {
+            foreach ($_product in $_installedProducts) {
+                $productDefinitionFilePath = ([FileObject]::new("$definitionsPath\definitions-product-$($_product).ps1", $ComputerName)).FullPathName
+                if (Test-Path -Path $productDefinitionFilePath) {
                     $params = @{}
-                    $params.ScriptBlock = { . $productDefinitionFile }
+                    $params.ScriptBlock = { . $productDefinitionFilePath }
                     if ($remoteQuery) {
                         $params.Session = Use-PSSession+ -ComputerName $ComputerName
-                        $params.ScriptBlock = { . $using:productDefinitionFile -MinimumDefinitions }
+                        $params.ScriptBlock = { $__product = . $using:productDefinitionFilePath -MinimumDefinitions; $__product.Refresh(); $__product }
                     }
                     $_product = Invoke-Command @params
-                    # $global:Product.Product.($_product.id).IsInstalled = $true
-                    # $_product.IsInstalled = $true
                     $products += $_product
                 }
             }
@@ -154,9 +147,6 @@
                 $products | Write-Cache products -ComputerName $ComputerName
             }
         }
-
-        if ($Name) {$products = $products | Where-Object {$_.Name -eq $Name}}
-        if ($Id) {$products = $products | Where-Object {$_.Id -eq $Id}}
 
         # reset $global:Product with clone
         $global:Product = $productClone
@@ -193,23 +183,28 @@
                 $providers = Read-Cache providers # -MaxAge $(New-Timespan -Minutes 2)
             }
         }
+        if ($Id) {$providers = $providers | Where-Object {$_.Id -eq $Id}}
         
         if (!$providers) {
 
+            $definitionsPath = $global:Location.Definitions
+            if ($ComputerName -ne $env:COMPUTERNAME) {
+                $definitionsPath = Get-EnvironConfig -Key Location.Definitions -ComputerName $ComputerName
+            }
+
+            $_installedProviders = ![string]::IsNullOrEmpty($Id) ? $Id : (Get-EnvironConfig -Key Environ.Provider -ComputerName $ComputerName)
+
             $providers = @()
-            (Get-EnvironConfig -Key Environ.Provider -ComputerName $ComputerName) | ForEach-Object {
-                Write-Host+ -IfDebug -NoTrace $_
-                $providerDefinitionFile = "$(Get-EnvironConfig -Key Location.Definitions -ComputerName $ComputerName)\definitions-provider-$($_).ps1"
-                if (Test-Path -Path $providerDefinitionFile) {
+            foreach ($_provider in $_installedProviders) {
+                $providerDefinitionFilePath = ([FileObject]::new("$definitionsPath\definitions-provider-$($_provider).ps1", $ComputerName)).FullPathName
+                if (Test-Path -Path $providerDefinitionFilePath) {
                     $params = @{}
-                    $params.ScriptBlock = { . $providerDefinitionFile }
+                    $params.ScriptBlock = { . $providerDefinitionFilePath }
                     if ($remoteQuery) {
                         $params.Session = Use-PSSession+ -ComputerName $ComputerName
-                        $params.ScriptBlock = { . $using:providerDefinitionFile -MinimumDefinitions }
+                        $params.ScriptBlock = { $__provider = . $using:providerDefinitionFilePath -MinimumDefinitions; $__provider.Refresh(); $__provider }
                     }
                     $_provider = Invoke-Command @params
-                    # $global:Provider.Provider.($_provider.id).IsInstalled = $true
-                    # $_provider.IsInstalled = $true
                     $providers += $_provider
                 }
             }
@@ -219,9 +214,6 @@
             }
 
         }
-
-        if ($Name) {$providers = $providers | Where-Object {$_.Name -eq $Name}}
-        if ($Id) {$providers = $providers | Where-Object {$_.Id -eq $Id}}
 
         return $providers | Select-Object -Property $($View ? $ProviderView.$($View) : $ProviderView.Default)
     }
@@ -237,7 +229,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Provider","Provider")]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
@@ -246,8 +238,7 @@
             [switch]$AllowDuplicates,
             [switch]$Installed,
             [switch]$NotInstalled,
-            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
-            [Parameter(Mandatory=$false)][string]$Path = "$($global:Location.Root)\environ.ps1"
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
         )
 
         $remoteQuery = $ComputerName -ne $env:COMPUTERNAME
@@ -278,30 +269,29 @@
 
         if ($remoteQuery) {
 
-            # find the environ.ps1 file on the remote node
-            $environFile = [FileObject]::new($Path,$ComputerName)
+            $remoteOverwatchRoot = Get-EnvironConfig -Key Location.Root -ComputerName $ComputerName
+            if (![string]::IsNullOrEmpty($remoteOverwatchRoot)) {
 
-            # if the node is not an overwatch controller but is a member of the current topology,
-            # then use the settings from this topology's controller
-            # note: for now, this local machine is assumed to be the overwatch controller
-            if (!$environFile.Exists() -and $ComputerName -in (pt nodes -k)) { 
-                $ComputerName = $env:COMPUTERNAME
-                $environFile = [FileObject]::new($Path,$ComputerName)
-            }
+                # this is a sandbox, so instead of the usual pssession reuse pattern,
+                # create a new session, make the remoting call, and delete the session
+                $psSession = New-PSSession+ -ComputerName $ComputerName
 
-            $remoteOverwatchRoot = (Select-String $environFile.Path -Pattern "Root = " -Raw).Trim().Split(" = ")[1].Replace('"','')
-
-            # this is a sandbox, so instead of the usual pssession reuse pattern,
-            # create a new session, make the remoting call, and delete the session
-            $psSession = New-PSSession+ -ComputerName $ComputerName
-            foreach ($catalogObjectExpression in $catalogObjectExpressions) {
-                $_catalogObjects += Invoke-Command -Session $psSession -ScriptBlock {
-                    Set-Location $using:remoteOverwatchRoot
-                    . $using:remoteOverwatchRoot/definitions.ps1 -MinimumDefinitions
-                    Invoke-Expression $using:catalogObjectExpression
+                foreach ($catalogObjectExpression in $catalogObjectExpressions) {
+                    try {
+                        $_catalogObjects += Invoke-Command -Session $psSession -ScriptBlock {
+                            Set-Location $using:remoteOverwatchRoot
+                            . $using:remoteOverwatchRoot/definitions.ps1 -MinimumDefinitions
+                            $catalogObject = Invoke-Expression $using:catalogObjectExpression
+                            # $catalogObject.Refresh()
+                            $catalogObject
+                        }
+                    }
+                    catch {}                    
                 }
+
+                Remove-PSSession+ -Session $psSession
+
             }
-            Remove-PSSession+ -Session $psSession
             
         }
         else {
@@ -340,6 +330,8 @@
             $catalogObjects += $__catalogObjects
         }
 
+        $catalogObjects | Foreach-Object {$_.Refresh()}
+
         if ($Installed) { $catalogObjects = $catalogObjects | Where-Object {$_.IsInstalled()} }
         if ($NotInstalled) { $catalogObjects = $catalogObjects | Where-Object {!$_.IsInstalled()} }
 
@@ -371,12 +363,13 @@
 
         [CmdletBinding()]
         param (
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
             [Parameter(Mandatory=$false)][string]$View = "Min",
             [switch]$Installed,
             [switch]$NotInstalled
         )
 
-        Get-Catalog -Installed:$Installed.IsPresent -NotInstalled:$NotInstalled.IsPresent | 
+        Get-Catalog -ComputerName $ComputerName -Installed:$Installed.IsPresent -NotInstalled:$NotInstalled.IsPresent | 
             Format-Catalog -View Min | 
                 Format-Table
 
@@ -445,13 +438,13 @@
 
         if ($catalogObject.Count -eq 0) {
             if ($PSBoundParameters.ErrorAction -and $PSBoundParameters.ErrorAction -ne "SilentlyContinue") {
-                Write-Host+ -NoTimestamp "A $($Type ? "$Type " : $null ) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
+                Write-Host+ -NoTimestamp "A $($Type ? "$Type " : $null ) object with the id `'$($Id)`' was not found in the catalog." -ForegroundColor Red
             }
             return
         }
         if (!$AllowDuplicates -and $catalogObject.Count -gt 1) {
-            Write-Host+ -NoTimestamp "Multiple objects with the id `"$($catalogObject[0].Id)`" were found in the catalog." -ForegroundColor Red
-            Write-Host+ -NoTimestamp "Use the -Type parameter to specify the object type or the -Duplicates switch to return all the objects with the id `"$($Id)`"." -ForegroundColor Red
+            Write-Host+ -NoTimestamp "Multiple objects with the id `'$($catalogObject[0].Id)`' were found in the catalog." -ForegroundColor Red
+            Write-Host+ -NoTimestamp "Use the -Type parameter to specify the object type or the -Duplicates switch to return all the objects with the id `'$($Id)`'." -ForegroundColor Red
             return
         }
         
@@ -495,7 +488,7 @@
 
         $catalogObject = $global:Catalog.$Type.$Id
         if (!$catalogObject) {
-            Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
+            Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `'$($Id)`' was not found in the catalog." -ForegroundColor Red
             return
         }
 
@@ -608,7 +601,7 @@
 
         $catalogObject = $global:Catalog.$Type.$Id
         if (!$catalogObject) {
-            Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `"$($Id)`" was not found in the catalog." -ForegroundColor Red
+            Write-Host+ -NoTimestamp -NoTrace "A $($Type) object with the id `'$($Id)`' was not found in the catalog." -ForegroundColor Red
             return
         }
 
@@ -713,7 +706,7 @@
             $prerequisiteIsRunning = Invoke-Expression "Wait-$($prerequisite.Type) -ComputerName $ComputerName -Name $($prerequisite.$($prerequisite.Type)) -Status $($prerequisite.Status) -TimeoutInSeconds 5 -WaitTimeInSeconds 20"
             if (!$prerequisiteIsRunning) {
                 $prerequisitesOK = $false
-                $errormessage = "The prerequisite $($prerequisite.Type) `"$($prerequisite.$($prerequisite.Type))`" is NOT $($prerequisite.Status.ToUpper())"
+                $errormessage = "The prerequisite $($prerequisite.Type) `'$($prerequisite.$($prerequisite.Type))`' is NOT $($prerequisite.Status.ToUpper())"
                 Write-Log -Target "$Type.$Id" -Action "Initialize" -Status "NotReady" -Message $errorMessage -EntryType Error -Force
                 Write-Host+ -Iff $(!$Quiet) $errorMessage -ForegroundColor Red
                 if ($ThrowError) { throw $errorMessage }
@@ -850,7 +843,7 @@
             $totalWaitTimeInSeconds = 0
             $service = Get-PlatformService -ComputerName $ComputerName | Where-Object {$_.Name -eq $Name}
             if (!$service) {
-                throw "`"$Name`" is not a valid $($global:Platform.Name) platform service name."
+                throw "`'$Name`' is not a valid $($global:Platform.Name) platform service name."
             }
 
             $currentStatus = $service.Status | Sort-Object -Unique
@@ -858,7 +851,7 @@
                 Start-Sleep -Seconds $WaitTimeInSeconds
                 $totalWaitTimeInSeconds += $WaitTimeInSeconds
                 if ($TimeOutInSeconds -gt 0 -and $totalWaitTimeInSeconds -ge $TimeOutInSeconds) {
-                    # throw "ERROR: Timeout ($totalWaitTimeInSeconds seconds) waiting for platform service `"$Name`" to transition from status `"$currentStatus`" to `"$Status`""
+                    # throw "ERROR: Timeout ($totalWaitTimeInSeconds seconds) waiting for platform service `'$Name`' to transition from status `'$currentStatus`' to `'$Status`'"
                     return $false
                 }
                 $service = Get-PlatformService -ComputerName $ComputerName | Where-Object {$_.Name -eq $Name}
