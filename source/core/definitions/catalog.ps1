@@ -15,6 +15,11 @@ $global:Catalog.Overwatch += @{ Overwatch =
         Description = ""
         Release = "2.1"
         Publisher = "Walker Analytics Consulting"
+        Installation = @{
+            Registry = @{
+                Path = "HKLM:\SOFTWARE\Overwatch"
+            }
+        }
     }
 }
 
@@ -37,6 +42,7 @@ $global:Catalog.Cloud += @{ Azure =
         Id = "Azure"
         Name = "Azure"
         DisplayName = "Microsoft Azure"
+        Image = "../img/azure_logo.png"
         Description = "Overwatch services for the Microsoft Azure cloud"
         Publisher = "Walker Analytics Consulting"
         Log = "Azure"

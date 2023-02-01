@@ -208,6 +208,17 @@ $providerIds = @()
     } until ($overwatchInstallLocation)
     Write-Host+ -NoTrace -NoTimestamp "Overwatch Install Location: $overwatchInstallLocation" -IfDebug -ForegroundColor Yellow
 
+    #region REGISTRY
+
+        $overwatchRegistryPath = (Get-Catalog -Uid Overwatch.Overwatch).Installation.Registry.Path
+        $overwatchRegistryKey = "InstallLocation"
+        if (!(Test-Path $overwatchRegistryPath)) {
+            New-Item -Path $overwatchRegistryPath -Force | Out-Null
+        }
+        Set-ItemProperty -Path $overwatchRegistryPath -Name $overwatchRegistryKey -Value $overwatchInstallLocation 
+
+    #endregion REGISTRY
+
 #endregion OVERWATCH INSTALL LOCATION
 
     $dependencies = @()
