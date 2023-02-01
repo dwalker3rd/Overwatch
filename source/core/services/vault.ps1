@@ -183,6 +183,7 @@ function global:Lock-Vault {
     $lockFile = $vault.FullPathName -replace $vault.Extension,".lock"
     
     $lockRetryAttempts = 0
+    $FileStream = [System.IO.File]::Open($lockFile, 'OpenOrCreate', 'ReadWrite', $Share)
     while (!$FileStream.CanWrite) {
         # if (!(Test-Path -Path $lockFile)) {
         #     Set-Content -Path $lockFile -Value (Get-Date -AsUTC)
