@@ -229,7 +229,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Provider","Provider")]
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
