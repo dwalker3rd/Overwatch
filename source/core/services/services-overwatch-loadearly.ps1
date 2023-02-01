@@ -204,7 +204,7 @@ function global:Write-Host+ {
 
     }
 
-    Write-Host -NoNewline "`e[$($ReverseLineFeed)F"
+    if ($ReverseLineFeed -gt 0) { Write-Host -NoNewline "`e[$($ReverseLineFeed)F" }
 
     $i = 0
     foreach ($obj in $Object) {
