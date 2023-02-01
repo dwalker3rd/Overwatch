@@ -134,7 +134,9 @@ function global:Get-PlatformTask {
     foreach ($node in $ComputerName) {
 
         $_taskName = $TaskName
-        if ($Id -and !$TaskName) {$_taskName = $(Get-Product -Id $Id -ComputerName $node).TaskName}  
+        if ($Id -and !$TaskName) {
+            $_taskName = $(Get-Product -Id $Id -ComputerName $node).TaskName
+        }
 
         # if ([string]::IsNullOrEmpty($_taskName)) { continue }
 
@@ -142,11 +144,26 @@ function global:Get-PlatformTask {
         $tasks = $_taskName ? $(Invoke-Command -Session $psSession {Get-ScheduledTask -TaskName $using:_taskName -ErrorAction SilentlyContinue}) : $(Invoke-Command -Session $psSession {Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {$_.TaskName -like "*$($using:Overwatch.Name)*"}})
         if (!$tasks) { continue }
 
+        $products = @()
+        $maxGetProductAttempts = 3
+        $productAttempts = 0
+        do {
+            $productAttempts++
+            try {
+                $products += Get-Product -ComputerName $node
+                if (!$products) { throw }
+            }
+            catch {
+                # Start-Sleep -Seconds 1
+                
+            }
+        } until ($products -or $productAttempts -gt $maxGetProductAttempts)
+
         $cimSession = New-CimSession -ComputerName $node
 
         $tasks | ForEach-Object {
             $task = $_
-            $taskProduct = Get-Product -ComputerName $node | Where-Object {$_.TaskName -eq $task.TaskName}
+            $taskProduct = $products | Where-Object {$_.TaskName -eq $task.TaskName}
             $platformTask = [PlatformCim]@{
                 Class = "Task"
                 Name = $task.TaskName
@@ -679,7 +696,7 @@ function global:Show-PlatformTasks {
                 elseif ($Refresh) {
                     Write-Host+ -NoTrace -NoTimestamp "   Refreshed at $((Get-Date -AsUTC).ToString('u'))" -ForegroundColor DarkGray
                     Start-Sleep -Seconds $RefreshIntervalSeconds
-                    Write-Host+ -ReverseLineFeed $($platformTasksFormatted.Count + ($ComputerName.Count * 5) + 2)
+                    Write-Host+ -ReverseLineFeed $($platformTasksFormatted.Count + ($ComputerName.Count * 5) + 4)
                     Write-Host+
                     $platformTasks = Get-PlatformTask -ComputerName $ComputerName
                 }
