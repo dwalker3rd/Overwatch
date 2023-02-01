@@ -12,8 +12,9 @@ $Id = $_product.Id
 $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
 
-# BgInfo config files
-Expand-Archive "$($global:Location.Root)\source\product\$($_product.Id)\bgInfo.config.zip" $_product.Config.Location.Data -Force
+# create bgInfo data directory on local node
+$bgInfoDir = [DirectoryObject]::New($_product.Config.Location.Data)
+$bgInfoDir.CreateDirectory()
 
 $sourceBgInfoConfigFile = $_product.Config.Location.Files.Source.ConfigBgi
 if (Test-Path $sourceBgInfoConfigFile) {
@@ -25,9 +26,9 @@ if (Test-Path $sourceBgInfoConfigFile) {
         Install-AzVmExtension -Name "BgInfo" -ResourceGroupName $azVmContext.ResourceGroupName -VmName $azVMContext.Name `
             -Publisher $_product.Config.Extension.Publisher -ExtensionType $_product.Config.Extension.ExtensionType -TypeHandlerVersion $_product.Config.Extension.TypeHandlerVersion
 
-        # # create bgInfo data directory on each node
-        # $bgInfoDir = [DirectoryObject]::New($_product.Config.Location.Data, $node)
-        # $bgInfoDir.CreateDirectory()
+        # create bgInfo data directory on each node
+        $bgInfoDir = [DirectoryObject]::New($_product.Config.Location.Data, $node)
+        $bgInfoDir.CreateDirectory()
 
         # copy bginfo config files to VmExtension directory on other nodes
         $destinationBgInfoConfigFile = $_product.Config.Location.Files.Destination.ConfigBgi
@@ -64,11 +65,31 @@ if (Test-Path $sourceBgInfoConfigFile) {
 }
 else {
 
-    Write-Host+ -MaxBlankLines 1
-    Write-Host+ -NoTrace -NoTimestamp "    Could not find the config file '$($sourceBgInfoConfigFile.Path)'." -ForegroundColor Red
-    Write-Host+ -NoTrace -NoTimestamp "    Use Sysinternals BgInfo to create/save the config file '$($sourceBgInfoConfigFile.Path)'." -ForegroundColor Red
+    Write-Host+ # end previous -NoNewLine
+    Write-Host+
+    Write-Host+ -NoTimestamp -Indent 4 "Could not find the config file `'$sourceBgInfoConfigFile`'." -ForegroundColor Red
+    Write-Host+ -NoTimestamp -Indent 4 "Use command alias `'bgInfoExe`' to create/save a new configuration file, then re-install BgInfo." -ForegroundColor Red
+    Write-Host+
 
-    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","ERROR $($emptyString.PadLeft(13," "))","PENDING$($emptyString.PadLeft(13," "))"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message[0],$message[1],$message[2] -ForegroundColor Gray,Red,DarkGray
+    Uninstall-CatalogObject -Type Product -Id $_product.Id -DeleteAllData -Force -Quiet
+
+    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","FAILURE$($emptyString.PadLeft(13," "))","FAILURE$($emptyString.PadLeft(13," "))"
+    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message[0],$message[1],$message[2] -ForegroundColor Gray,Red,Red
 
 }
+
+function global:Invoke-BgInfoCommandLine {
+
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$ConfigurationFile = $global:Product.Config.Location.Files.Destination.ConfigCgi
+    )
+
+    $_product = Get-Product BgInfo -NoCache
+    $_expression = ". "
+    $_expression += $_product ? $_product.Config.CommandLine.Executable : "C:\Packages\Plugins\Microsoft.Compute.BGInfo\2.1\bgInfo.exe"
+    $_expression += ![string]::IsNullOrEmpty($ConfigurationFile) ? " $ConfigurationFile" : ""
+    $_expression += " /NOLICPROMPT"
+    Invoke-Expression $_expression
+
+}
+Set-Alias -Name bgInfoExe -Value Invoke-BgInfoCommandLine -Scope Global

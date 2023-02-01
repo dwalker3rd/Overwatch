@@ -36,7 +36,7 @@ $global:Product = @{Id="BgInfo"}
 function Update-BgInfoCustomContent {
 
     param(
-        [Parameter(Mandatory=$false)][string]$Path = $global:Product.Config.Files.Destination.ConfigTxt,
+        [Parameter(Mandatory=$false)][string]$Path = $global:Product.Config.Location.Files.Destination.ConfigTxt,
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME
     )
 
@@ -99,10 +99,26 @@ function Update-BgInfoCustomContent {
 
 }
 
+function global:Invoke-BgInfoCommandLine {
+
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$ConfigurationFile = $global:Product.Config.Location.Files.Destination.ConfigCgi
+    )
+
+    $_product = Get-Product BgInfo -NoCache
+    $_expression = ". "
+    $_expression += $_product ? $_product.Config.CommandLine.Executable : "C:\Packages\Plugins\Microsoft.Compute.BGInfo\2.1\bgInfo.exe"
+    $_expression += ![string]::IsNullOrEmpty($ConfigurationFile) ? " $ConfigurationFile" : ""
+    $_expression += " /NOLICPROMPT"
+    Invoke-Expression $_expression
+
+}
+Set-Alias -Name bgInfoExe -Value Invoke-BgInfoCommandLine -Scope Global
+
 # required! reload product using -nocache
-$Product = Get-Product $Product.Id -NoCache
+$global:Product = Get-Product $Product.Id -NoCache
 
 # update bginfofile
-Update-BgInfoCustomContent -Path $Product.Config.Files.Destination.ConfigTxt -ComputerName (pt nodes -k)
+Update-BgInfoCustomContent -ComputerName (pt nodes -k)
 
 Remove-PSSession+
