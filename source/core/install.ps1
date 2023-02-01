@@ -4,7 +4,6 @@
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
 param (
-    [switch]$SkipProductStart,
     [switch]$SkipPython,
     [switch]$SkipPowerShell,
     [switch]$UseDefaultResponses,
@@ -1385,7 +1384,7 @@ $providerIds = @()
 
                     if ((Get-Catalog -Uid "Product.$productId").HasTask) {
                         Install-CatalogObject -Type Product -Id $productId -NoNewLine
-                        if (!$SkipProductStart -and !$installOverwatch) {
+                        if (!$installOverwatch) {
                             if ("Product.$productId" -notin $disabledProductIDs) {
                                 Enable-Product $productId -NoNewLine
                             }
