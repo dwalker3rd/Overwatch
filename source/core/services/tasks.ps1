@@ -614,7 +614,13 @@ function global:Show-PlatformTasks {
                         $_lastRunTime = ($platformTask.ScheduledTaskInfo.LastRunTime).ToString('u') + " "
                     }
                     $_lastRunTimePadRight = $emptyString.PadLeft($formatData.LastRunTime.Width-1-$_lastRunTime.Length," ")
-                    $_lastTaskResult = (New-Object System.ComponentModel.Win32Exception([int]$platformTask.ScheduledTaskInfo.LastTaskResult)).Message + " "
+
+                    # hresult codes for scheduledtaskinfo ARE int32; however, other hresult codes can be passed thru lasttaskresult.
+                    # some of these other codes are greater than [int32]::maxvalue.  To get the text for these error codes, they must 
+                    # be converted to hex and then back to int32 which, (1) results in a negative number larger than [int32]::minvalue 
+                    # that can (2) now becast as an int32 and (3) passed to the Win32Exception class constructor to retrieve the hresult text 
+                    $_lastTaskResult = (New-Object System.ComponentModel.Win32Exception([int32]('0x{0:X}' -f $platformTask.ScheduledTaskInfo.LastTaskResult))).Message + " "
+                    
                     $_lastTaskResultPadRight = $emptyString.PadLeft($formatData.LastTaskResult.Width-1-$_lastTaskResult.Length," ")
 
                     $_platformTaskColor = $global:consoleSequence.ForegroundWhite
