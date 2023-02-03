@@ -1,16 +1,17 @@
-function Format-TableauServerWCFooter {
+function Format-TableauServerWC {
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Message
     )
     
     # replace multiple spaces with the html non-breaking space
     # only replacing multiple spaces leave the text more human-readable
-    $Message.replace("  ","&nbsp;&nbsp;")
+    $Message = $Message.replace("  ","&nbsp;&nbsp;")
 
     # escape the asterisk
     $Message = $Message -replace "\*","\*"
-    return $Message
     
+    return $Message
+
 }
 
 function global:Send-TableauServerWC {
@@ -26,7 +27,7 @@ function global:Send-TableauServerWC {
     $provider = get-provider -id 'TableauServerWC'  # TODO: pass this in from Send-Message?
  
     # update the customizable welcome banner text
-    $notification = Format-TableauServerWCFooter $Message.Summary
+    $notification = Format-TableauServerWC $Message.Summary
     $result = Update-PostgresData -Database workgroup -Table global_settings -Column Value -Filter "Name = 'welcome_channel_server_footer'" -Value $notification
     $result | Out-Null
 
