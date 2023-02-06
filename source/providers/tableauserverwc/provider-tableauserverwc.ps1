@@ -1,10 +1,17 @@
-function Format-TableauServerWCFooter {
+function Format-TableauServerWC {
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Message
     )
-    $Message = $Message -replace "\s","&nbsp;"
+    
+    # replace multiple spaces with the html non-breaking space
+    # only replacing multiple spaces leave the text more human-readable
+    $Message = $Message.replace("  ","&nbsp;&nbsp;")
+
+    # escape the asterisk
     $Message = $Message -replace "\*","\*"
+    
     return $Message
+
 }
 
 function global:Send-TableauServerWC {
@@ -20,13 +27,15 @@ function global:Send-TableauServerWC {
     $provider = get-provider -id 'TableauServerWC'  # TODO: pass this in from Send-Message?
  
     # update the customizable welcome banner text
-    $notification = Format-TableauServerWCFooter $Message.Summary
-    Update-PostgresData -Database workgroup -Table global_settings -Column Value -Filter "Name = 'welcome_channel_server_footer'" -Value $notification
+    $notification = Format-TableauServerWC $Message.Summary
+    $result = Update-PostgresData -Database workgroup -Table global_settings -Column Value -Filter "Name = 'welcome_channel_server_footer'" -Value $notification
+    $result | Out-Null
 
     # enable the show welcome banner preference for any user that has disabled it 
-    Update-PostgresData -Database workgroup -Table site_user_prefs -Column show_welcome_screen -Value true -Filter "show_welcome_screen = '0'" -ErrorAction SilentlyContinue
+    $result = Update-PostgresData -Database workgroup -Table site_user_prefs -Column show_welcome_screen -Value true -Filter "show_welcome_screen = '0'" -ErrorAction SilentlyContinue
+    $result | Out-Null
     
-    Write-Log -Context "Provider.TableauServerWC" -Name $provider.Id -Context "TableauServerWC" -Message $Message.Summary -Status $global:PlatformMessageStatus.Transmitted -Force
+    Write-Log -Context "Provider.TableauServerWC" -Name $provider.Id -Message $Message.Summary -Status $global:PlatformMessageStatus.Transmitted -Force
 
     return $global:PlatformMessageStatus.Transmitted
 
