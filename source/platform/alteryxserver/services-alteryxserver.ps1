@@ -899,6 +899,11 @@ function global:Stop-Gallery {
     param ([Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(Get-PlatformTopology components.gallery.nodes -Keys))
     Request-PlatformComponent Stop Gallery -ComputerName $ComputerName
 }
+function global:Restart-Gallery {
+    param ([Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(Get-PlatformTopology components.gallery.nodes -Keys))
+    Request-PlatformComponent Stop Gallery -ComputerName $ComputerName
+    Request-PlatformComponent Start Gallery -ComputerName $ComputerName
+}
 function global:Start-Worker {
     param ([Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(Get-PlatformTopology components.worker.nodes -Keys))
     Request-PlatformComponent Start Worker -ComputerName $ComputerName
@@ -906,6 +911,11 @@ function global:Start-Worker {
 function global:Stop-Worker {
     param ([Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(Get-PlatformTopology components.worker.nodes -Keys))
     Request-PlatformComponent Stop Worker -ComputerName $ComputerName
+}
+function global:Restart-Worker {
+    param ([Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(Get-PlatformTopology components.worker.nodes -Keys))
+    Request-PlatformComponent Stop Worker -ComputerName $ComputerName
+    Request-PlatformComponent Start Worker -ComputerName $ComputerName
 }
 
 #endregion STOP-START
