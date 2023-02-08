@@ -661,6 +661,7 @@ function global:Request-PlatformComponent {
     $Command = (Get-Culture).TextInfo.ToTitleCase($Command)
     $Component = (Get-Culture).TextInfo.ToTitleCase($Component)
     $ComputerName = $ComputerName ? $ComputerName : $_platformTopology.Components.$component.Nodes
+    $ComputerName = $ComputerName | ForEach-Object { Get-PlatformTopologyAlias $_}
 
     Write-Host+ -NoTrace "$($Command)","$($componentType)$($Component)" # -ForegroundColor ($Command -eq "Start" ? "Green" : "Red"),Gray
     Write-Log -Action $Command -Message "$($Command) $($componentType)$($Component)"        
@@ -1230,11 +1231,9 @@ function global:Initialize-PlatformTopology {
         }
         if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
             if ($node -match $global:RegexPattern.PlatformTopology.Alias.Match) {
-                $ptAlias = ""
-                foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
-                    $ptAlias += $Matches[$i]
-                }
+                $ptAlias = $node -replace $global:RegexPattern.PlatformTopology.Alias.Match, $global:RegexPattern.PlatformTopology.Alias.Substitution
                 $platformTopology.Alias.($ptAlias) = $node
+                $platformTopology.Alias.($node) = $node
             }
         }
     }
