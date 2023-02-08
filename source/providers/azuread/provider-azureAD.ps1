@@ -652,7 +652,7 @@ function global:Get-AzureADObjects {
     }
     $queryParams += @{
         Users = @{
-            property = $Property ?? ($AzureADB2C ? @("id","userPrincipalName","userType","displayName","mail","accountEnabled","proxyAddresses","signInActivity","identities") : $queryParams.default.Users.property)
+            property = $Property ?? ($AzureADB2C ? @("id","userPrincipalName","userType","displayName","mail","accountEnabled","proxyAddresses","identities") : $queryParams.default.Users.property)
             select = ""
             # filter = $Filter
         }
@@ -964,7 +964,7 @@ function global:Get-DeltaLink {
     $message = "Reading $typeLowerCaseSingular delta link "
     Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
 
-    if ((get-cache $cache).Exists()) {
+    if ((get-cache $cache).Exists) {
         $deltaLinks = read-cache $cache
     }
     if (!$deltaLinks.$Type) {
@@ -1038,7 +1038,7 @@ function global:Read-AzureADCache {
     # $retryAttempts = 0
 
     $filteredObject = @{}
-    if ($(get-cache $cache).Exists()) {
+    if ($(get-cache $cache).Exists) {
 
         do {
             try {
