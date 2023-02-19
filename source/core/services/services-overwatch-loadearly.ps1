@@ -167,7 +167,7 @@ function global:Write-Host+ {
     if ($NoIndent) {$Indent = 0}
 
     if ($Clear) { Clear-Host }
-    if ([console]::GetCursorPosition().Item2 -eq 1) { Write-Host "`e[2J" }
+    # if ([console]::GetCursorPosition().Item2 -eq 1) { Write-Host "`e[2J" }
     if ($ReverseLineFeed -gt 0) { 
         Write-Host -NoNewline "`e[$($ReverseLineFeed)F" 
     }

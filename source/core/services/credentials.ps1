@@ -190,7 +190,7 @@ function global:Copy-Credentials {
         [Parameter(Mandatory=$false)][object]$SourceKeyVault = "key",
         [Parameter(Mandatory=$false)][string]$SourceComputerName = $env:COMPUTERNAME,
         
-        [Parameter(Mandatory=$false)][string]$Destination = $Source,
+        [Parameter(Mandatory=$true,Position=1)][string]$Destination,
         [Parameter(Mandatory=$false)][object]$DestinationSecretVault = $SourceSecretVault,
         [Parameter(Mandatory=$false)][object]$DestinationKeyVault = $SourceKeyVault,
         [Parameter(Mandatory=$false)][string]$DestinationComputerName = $SourceComputerName

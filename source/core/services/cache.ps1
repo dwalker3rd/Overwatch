@@ -60,7 +60,7 @@ function global:Read-Cache {
 
     $cache = Get-Cache $Name -MaxAge $MaxAge -ComputerName $ComputerName
 
-    if ($cache.Exists()) {
+    if ($cache.Exists) {
         if ($cache.Expired()) {
             $cache = Clear-Cache $cache.FileNameWithoutExtension
             return $null
@@ -133,7 +133,7 @@ function global:Clear-Cache {
     )
     
     $cache = Get-Cache $Name -ComputerName $ComputerName
-    if ($cache.Exists()) {
+    if ($cache.Exists) {
         foreach ($fileInfo in $cache.FileInfo) {
             # $cacheName = $fileInfo.BaseName
             $cachePath = $fileInfo.FullName
@@ -146,7 +146,7 @@ function global:Clear-Cache {
                 throw "Unable to acquire lock on cache $($fileInfo.FullName)"
             }
         }
-        $($cache).Exists() = $false
+        $($cache).Exists = $false
     }
     return $null
 }
@@ -173,7 +173,7 @@ function global:Lock-Cache {
     )
 
     # $cache = Get-Cache $Name -ComputerName $ComputerName
-    $lockFile = $Cache.FullPathName -replace $Cache.Extension,".lock"
+    $lockFile = $Cache.FullName -replace $Cache.Extension,".lock"
     
     $lockRetryAttempts = 0
     $FileStream = [System.IO.File]::Open($lockFile, $Mode, $Access, $Share)
@@ -247,7 +247,7 @@ function global:Test-IsCacheLocked {
     )
 
     $cache = Get-Cache $Name -ComputerName $ComputerName
-    $lockFile = $cache.FullPathName -replace $cache.Extension,".lock"
+    $lockFile = $cache.FullName -replace $cache.Extension,".lock"
 
     return Test-Path -Path $lockFile
 
@@ -271,7 +271,7 @@ function global:Wait-CacheUnlocked {
     )
 
     $cache = Get-Cache $Name -ComputerName $ComputerName
-    # $lockFile = $cache.FullPathName -replace $cache.Extension,".lock"
+    # $lockFile = $cache.FullName -replace $cache.Extension,".lock"
 
     $lockRetryAttempts = 0
     while (Test-IsCacheLocked $cache.FileNameWithoutExtension) {

@@ -13,7 +13,7 @@
         )
 
         # read cache if it exists, else initialize the topology
-        if (!$ResetCache -and $(get-cache platformtopology).Exists()) {
+        if (!$ResetCache -and $(get-cache platformtopology).Exists) {
             $platformTopology = Read-Cache platformtopology
         } else {
             if ($ResetCache) {

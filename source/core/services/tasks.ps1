@@ -714,9 +714,8 @@ function global:Show-PlatformTasks {
         }
         finally {
             [console]::CursorVisible = $true
+            Remove-PSSession+
         }
-
-        Remove-PSSession+
 
     }
 

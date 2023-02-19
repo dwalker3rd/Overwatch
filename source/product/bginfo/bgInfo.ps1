@@ -44,7 +44,7 @@ function Update-BgInfoCustomContent {
 
         $bgInfoContent = ([FileObject]::new($Path, $node))
         
-        if ($bgInfoContent.exists()) {
+        if ($bgInfoContent.Exists) {
             Clear-Content -Path $bgInfoContent.Path
         }
 

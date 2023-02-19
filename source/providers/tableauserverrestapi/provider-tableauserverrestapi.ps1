@@ -945,8 +945,7 @@ function global:Invoke-TSRestApiMethod {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 0
     )
 
-    # if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi)) { return }
-
+    # if not the ServerInfo or Login methods AND the token is null, login
     if ($Method -notin $global:tsRestApiConfig.SpecialMethods -and !$global:tsRestApiConfig.Token) {
 
         $creds = Get-Credentials $global:tsRestApiConfig.Credentials
@@ -957,6 +956,7 @@ function global:Invoke-TSRestApiMethod {
             $global:tsRestApiConfig.SiteId = $response.site.id
             $global:tsRestApiConfig.ContentUrl = $response.site.contentUrl
             $global:tsRestApiConfig.UserId = $response.user.id 
+            $global:tsRestApiConfig.$($global:TsRestApiConfig.Method.$Method.EndpointVersioningType).Headers."X-Tableau-Auth" = $global:tsRestApiConfig.Token
         }
         else {
             $responseError = @{
@@ -1025,6 +1025,7 @@ function global:Invoke-TSRestApiMethod {
         }
     }
     catch {
+        # not sure why the Tableau Server REST API error messages aren't formatted correctly: fix it
         if ($_.ErrorDetails.Message -cmatch "^.*([a-z])([A-Z]).*$") {
             $responseError = $matches[0] -replace "$($matches[1])$($matches[2])","$($matches[1]): $($matches[2])"
         }
@@ -1032,6 +1033,16 @@ function global:Invoke-TSRestApiMethod {
     }
 
     if ($responseError) {
+
+        # if this is because the token has expired, then set the token to null and reinvoke the call
+        # nullifying the token forces a login before completing the original call
+        # after reinvoking the call, the original call must return from here or it will loop
+        if ($responseError.StartsWith("Unauthorized Access")) {
+            $global:tsRestApiConfig.Token = $null
+            $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method $Method -Params $Params -PageNumber $PageNumber -PageSize $PageSize -Filter $Filter -TimeoutSec $TimeoutSec
+            return $response, $pagination, $responseError
+        }
+
         return $response, $null, $responseError
     }
 

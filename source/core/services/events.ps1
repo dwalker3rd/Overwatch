@@ -212,7 +212,7 @@ function global:Get-PlatformEventHistory {
         }
     }
 
-    if ($(get-cache platformEventHistory -ComputerName $ComputerName).Exists()) {
+    if ($(get-cache platformEventHistory -ComputerName $ComputerName).Exists) {
         $platformEventHistory = [PlatformEvent[]](Read-Cache platformEventHistory -ComputerName $ComputerName)
     }
     else {

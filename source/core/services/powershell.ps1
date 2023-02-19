@@ -41,13 +41,15 @@ function global:New-PSSession+ {
         [Parameter(Mandatory=$false)][string]$ConfigurationName = $global:PSSessionConfigurationName
     )
 
-    $_psSession = $null
+    $_psSession = @()
     if ($global:UseCredssp) { 
-        $creds = Get-Credentials "localadmin-$($Platform.Instance)" -Credssp
-        $_psSession = New-PSSession -ComputerName $ComputerName -ConfigurationName $ConfigurationName -Credential $creds -Authentication Credssp -ErrorAction SilentlyContinue
+        foreach ($node in $ComputerName) {
+            $creds = Get-Credentials "localadmin-$($Platform.Instance)" -ComputerName $ComputerName -Localhost
+            $_psSession += New-PSSession -ComputerName $ComputerName -ConfigurationName $ConfigurationName -Credential $creds -Authentication Credssp -ErrorAction SilentlyContinue
+        }
     }
     else {
-        $_psSession = New-PSSession -ComputerName $ComputerName -ConfigurationName $ConfigurationName -ErrorAction SilentlyContinue
+        $_psSession += New-PSSession -ComputerName $ComputerName -ConfigurationName $ConfigurationName -ErrorAction SilentlyContinue
     } 
 
     return $_psSession

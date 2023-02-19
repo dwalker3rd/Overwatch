@@ -15,10 +15,18 @@ function global:Get-Files {
 
     $files = @()
     foreach ($node in $ComputerName) {
-        $files += ([FileObject]::new($Path, $node, $params))
+        $_fileObject = ([FileObject]::new($Path, $node, $params))
+        foreach ($_fileInfo in $_fileObject.FileInfo) {
+            if ($_fileObject.IsDirectory($_fileInfo)) {
+                $files += [DirectoryObject]::new($_fileInfo.FullName)
+            }
+            else {
+                $files += [FileObject]::new($_fileInfo.FullName)
+            }
+        }
     } 
 
-    return $files | Select-Object -Property $($View ? $FileObjectView.$($View) : $FileObjectView.Default)
+    return $files #| Select-Object -Property $($View ? $FileObjectView.$($View) : $FileObjectView.Default)
 
 }
 
@@ -88,27 +96,47 @@ function global:Copy-Files {
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName,
         [switch]$Overwrite,
-        [switch]$Quiet
+        [switch]$Quiet,
+        [switch]$Recurse
     )
 
-    if ($Path -eq $Destination) {
-        $ExcludeComputerName = ![string]::IsNullOrEmpty($ExcludeComputerName) ? $ExcludeComputerName : $env:COMPUTERNAME
+    if (!$ComputerName -and $ExcludeComputerName) {
+        throw "`$ExcludeComputerName cannot be used when `$ComputerName is null."
+    }
+    if ($ComputerName -and $ComputerName.Count -eq 1 -and $ComputerName -eq $env:COMPUTERNAME -and $ExcludeComputerName) {
+        throw "`$ExcludeComputerName cannot be used when `$ComputerName only contains `$env:COMPUTERNAME."
+    }
+    if (!$ComputerName -and $Path -eq $Destination) {
+        throw "`$Path and `$Destination cannot point to the same location when `$ComputerName is null."
+    }
+
+    if ($Path -eq $Destination) { $Destination = $null }
+
+    if ($ComputerName -and $ComputerName.Count -eq 1 -and [string]::IsNullOrEmpty($ExcludeComputerName)) {
+        $ExcludeComputerName = $env:COMPUTERNAME
     }
 
     foreach ($node in $ComputerName) {
 
         if ($ExcludeComputerName -notcontains $node.ToUpper()) {
 
-            $files = Get-ChildItem $Path
+            # $files = Get-ChildItem $Path -Recurse:$Recurse.IsPresent
+            $files = Get-Files $Path -Recurse:$Recurse.IsPresent
 
             foreach ($file in $files) {
 
-                $Destination = ([string]::IsNullOrEmpty($Destination) ? $file.FullName : $Destination).Replace(":","$")
-
-                Copy-Item -Path $file.FullName -Destination "\\$node\$Destination" -Force:$Overwrite.IsPresent
-
-                Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ",$file," -Destination ", "\\$node\$Destination" -ForegroundColor DarkGray,Gray,DarkGray,Gray
-
+                if ($file.GetType().Name -eq "DirectoryObject") {
+                    $directory = [DirectoryObject]::new($file.Path,$node)
+                    if (!$directory.Exists) {
+                        $directory.DirectoryInfo.Create()
+                    }
+                }
+                else {
+                    $destinationFile = [FileObject]::new(([string]::IsNullOrEmpty($Destination) ? $file.Path : $Destination), $node)
+                    Copy-Item -Path $file.Path -Destination $destinationFile.Path -Force:$Overwrite.IsPresent
+                    Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ",$file.Path," -Destination ", $destinationFile.Path -ForegroundColor DarkGray,Gray,DarkGray,Gray
+                }
+                
             }
 
         }

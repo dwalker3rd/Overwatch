@@ -210,259 +210,226 @@ class PerformanceMeasurement {
     [string]$ComputerName
 }
 
-class DirectoryObject {
+class FileObjectBase {
 
     [ValidateNotNullOrEmpty()]
-    [string]$Path
+    hidden [string]$_Path
 
-    [ValidateNotNullOrEmpty()]
-    [ValidatePattern('^[a-z0-9-]+$')]
-    [string]$ComputerName
+    hidden [string]$_ComputerName
 
-    [string]$OriginalPath
-    [string]$FullPath
-    [string]$Root
-    [string]$Parent
+    hidden [string]$_Parent
+    hidden [string]$_Root
+    hidden [string]$_DirectoryName
+    hidden [DirectoryInfo]$_Directory
+    hidden [string]$_FullName
+    hidden [string]$_Name
+    hidden [string]$_Extension
+    hidden [string]$_FilenameWithoutExtension
+    hidden [bool]$_Exists
 
-    [DirectoryInfo]$DirectoryInfo
-
-    DirectoryObject() {}
-    DirectoryObject([string]$Path) { $this.Init($Path,$env:COMPUTERNAME) }
-    DirectoryObject([string]$Path,[string]$ComputerName) { $this.Init($Path,$ComputerName) }
+    FileObjectBase() {}
+    FileObjectBase([string]$Path) { ([FileObjectBase]$this).Init($Path,$null,$null) }
+    FileObjectBase([string]$Path,[string]$ComputerName) { ([FileObjectBase]$this).Init($Path,$ComputerName,$null) }
+    FileObjectBase([string]$Path,[string]$ComputerName,[hashtable]$Options) { ([FileObjectBase]$this).Init($Path,$ComputerName,$Options) }
     
-    [void]Init(
-        [string]$Path,
-        [string]$ComputerName
-    ) {
-        # validate
-        $this.Validate($Path, $ComputerName)
+    [void] Init([string]$Path,[string]$ComputerName,[hashtable]$Options) {
 
-        $this.OriginalPath = $Path
-        $this.FullPath = [Path]::GetFullPath($Path)
-        $this.ComputerName = $ComputerName
-        $this.Path = $this.ToUnc($this.FullPath,$ComputerName)
+        $this.ValidatePath($Path)
 
-        $this.Parent = $this.GetParent()
-        $this.Root = $this.GetDirectoryRoot()
+        if ([string]::IsNullOrEmpty($ComputerName)) {
+            if ($this.IsUnc($Path)) {
+                $_regexMatches = [regex]::Matches($Path,"^\\\\(.*?)\\(.*)$")
+                $ComputerName = $_regexMatches[1]
+                $Path = $_regexMatches[2] -replace "\$",":"
+            }
+            else {
+                $ComputerName = $env:COMPUTERNAME.ToLower()
+            }
+        }
 
-        $this.DirectoryInfo = [DirectoryInfo]::New($this.Path)
+        $this.ValidateComputerName($ComputerName)
+
+        $this._ComputerName = $ComputerName
+        $this._Path = $this.IsLocal() ? $Path : $this.ToUnc($Path,$ComputerName)
+
+        switch ($this.GetType().Name) {
+            "DirectoryObject" {
+                $_directoryInfo = [DirectoryInfo]::new($this._Path)
+                $this._Parent = $_directoryInfo.Parent
+                $this._Root = $_directoryInfo.Root
+                $this._FullName = $_directoryInfo.FullName
+                $this._Extension = $_directoryInfo.Extension
+                $this._Name = $_directoryInfo.Name
+                $this._Exists = $_directoryInfo.Exists
+            }
+            default {
+                $_fileInfo = [fileInfo]::new($this._Path)
+                $this._DirectoryName = $_fileInfo.DirectoryName
+                $this._Directory = $_fileInfo.Directory
+                $this._Parent = $_fileInfo.Parent
+                $this._Root = $_fileInfo.Root
+                $this._FullName = $_fileInfo.FullName
+                $this._Extension = $_fileInfo.Extension
+                $this._Name = $_fileInfo.Name
+                $this._FileNameWithoutExtension = [Path]::GetFileNameWithoutExtension($this._Path)
+                $this._Exists = $_fileInfo.Exists
+            }
+        }
 
     }
-
-    [void]Validate([string]$Path,[string]$ComputerName) {
-
-        if (!(Test-Path -Path $Path -IsValid)) {
-            throw "[Test-Path -IsValid] Path '$($Path)' is invalid."
-        }
-        if ($ComputerName -notmatch '^[a-z0-9-]+$') {
-            throw "[Regex] ComputerName '$($ComputerName)' contains invalid characters."
-        }
-
-        if (!(Test-WSMan $ComputerName)) {
-            throw "[Test-WSMan] Unable to resolve or connect to ComputerName '$($ComputerName)'."
-        }
-
-    }
-
-    [void]CreateDirectory() { $this.CreateDirectory($this.Path) }
-    [void]CreateDirectory([string]$Path) { if (!$this.Exists($Path)) { $this.DirectoryInfo = [Directory]::CreateDirectory($Path) } }
-    [void]Delete() { $this.Delete($this.Path, $false) }
-    [bool]Exists() {return $this.Exists($this.Path) }
-    [bool]Exists([string]$Path) {return [Directory]::Exists($Path) }
-    [datetime]GetCreationTime() { return [Directory]::GetCreationTime($this.Path) }
-    [datetime]GetCreationTimeUtc() { return [Directory]::GetCreationTimeUtc($this.Path) }
-    [string[]]GetDirectories() {return [Directory]::GetDirectories($this.Path)}
-    [string[]]GetDirectories([string]$searchPattern) {return [Directory]::GetDirectories($this.Path,$searchPattern,[SearchOption]::TopDirectoryOnly)}
-    [string[]]GetDirectories([SearchOption]$searchOption) {return [Directory]::GetDirectories($this.Path,"*",$searchOption)}
-    [string[]]GetDirectories([string]$searchPattern,[SearchOption]$searchOption) {return [Directory]::GetDirectories($this.Path,$searchPattern,$searchOption)}
-    [string[]]GetDirectoryRoot() {return [Directory]::GetDirectoryRoot($this.Path)}
-    [string[]]GetFiles() {return [Directory]::GetFiles($this.Path)}
-    [string[]]GetFiles([string]$searchPattern) {return [Directory]::GetFiles($this.Path,$searchPattern,[SearchOption]::TopDirectoryOnly)}
-    [string[]]GetFiles([SearchOption]$searchOption) {return [Directory]::GetFiles($this.Path,"*",$searchOption)}
-    [string[]]GetFiles([string]$searchPattern,[SearchOption]$searchOption) {return [Directory]::GetFiles($this.Path,$searchPattern,$searchOption)}
-    [datetime]GetLastAccessTime() { return [Directory]::GetLastAccessTime($this.Path) }
-    [datetime]GetLastAccessTimeUtc() { return [Directory]::GetLastAccessTimeUtc($this.Path) }
-    [datetime]GetLastWriteTime() { return [Directory]::GetLastWriteTime($this.Path) }
-    [datetime]GetLastWriteTimeUtc() { return [Directory]::GetLastWriteTimeUtc($this.Path) }
-    [object]GetParent() { return [Directory]::GetParent($this.Path) }
-    [void]Move([string]$Destination) { [Directory]::Move($this.Path, $Destination) }
-    [void]SetCurrentDirectory() { [Directory]::SetCurrentDirectory($this.Path) }
     
-    [string]ToUnc() { return $this.ToUnc($this.Path, $this.ComputerName) }
-    [string]ToUnc([string]$Path, [string]$ComputerName) { return $Path -replace "^([a-zA-Z])\:","\\$($ComputerName)\`$1`$" }
+    [void]ValidatePath([string]$Path) {
 
-}
-
-class FileObject {
-    [ValidateNotNullOrEmpty()]
-    [string]$Path
-
-    [ValidateNotNullOrEmpty()]
-    [ValidatePattern('^[a-z0-9-]+$')]
-    [string]$ComputerName
-
-    [string]$FullPathName
-    [string]$PathRoot
-    [string]$Directory
-    [string]$FileName
-    [string]$FileNameWithoutExtension
-    [string]$Extension
-
-    [object]$FileInfo
-
-    hidden [string]$ValidFileNameExtension = "\..+$"
-
-    FileObject() {}
-    FileObject([string]$Path) { $this.Init($Path,$env:COMPUTERNAME,@{}) }
-    FileObject([string]$Path,[string]$ComputerName) { $this.Init($Path,$ComputerName,@{}) }
-    FileObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { $this.Init($Path,$ComputerName,$Options) }
-    
-    [void] Init(
-        [string]$Path,
-        [string]$ComputerName,
-        [hashtable]$Options
-    ) {
-        # validate
-        if (!$this.IsValidPath($Path)) {return}
-        if (!$this.IsValidComputer($ComputerName)) {return}
-
-        $this.Path = $this.ToUnc($Path, $ComputerName)
-        $this.ComputerName = $ComputerName
-
-        $this.FullPathName = [Path]::GetFullPath($this.Path)
-        $this.PathRoot = [Path]::GetPathRoot($this.FullPathName)
-
-        if ($this.IsDirectory()) {
-            $this.Directory = $this.FullPathName
-            # Write-Warning "Use the DirectoryObject class for directories."
-        }
-        else {
-            $this.Directory = [Path]::GetDirectoryName($this.FullPathName)
-            $this.FileName = [Path]::GetFileName($this.FullPathName)
-            $this.FileNameWithoutExtension = [Path]::GetFileNameWithoutExtension($this.FullPathName)
-            $this.Extension = [Path]::GetExtension($this.FullPathName)
-        }
-
-        #actions
-        $this.Get($Options)
-
-    }
-
-    [bool]IsValidPath(
-        [string]$Path
-    ) {
-        # path spec
+        # valid Path format
         if (!$(Test-Path $Path -IsValid)) {
-            Write-Warning "Invalid path '$($Path)'."
-            return $false
+            throw "Path `'$Path`' is an invalid path specification."
         }
 
-        # filename extension
+        # valid filename extension for this object
         if (!$this.IsDirectory($Path)) {
             $filenameExtension = [Path]::GetExtension($Path)
             if ($filenameExtension -notmatch $this.ValidFileNameExtension) {
-                Write-Warning "Invalid filename extension '$($filenameExtension)' for [$($this.GetType())]."
-                return $false
+                "Path `'$Path`' specifies an invalid filename extension for [$($this.GetType())]."
             }
         }
 
-        # otherwise
-        return $true
     }
 
-    [bool]IsValidComputer(
-        [string]$ComputerName
-    ) {
-        # valid characters
-        if ($ComputerName -notmatch '^[a-z0-9-]+$') {
-            Write-Warning "The computer name '$($ComputerName)' contains invalid characters."
-            return $false
-        }
+    [void]ValidateComputerName([string]$ComputerName) {}
 
-        # powershell remoting 
-        if (!(Test-WSMan $ComputerName)) {
-            Write-Warning "[Test-WSMan]: The computer name '$($ComputerName)' cannot be resolved."
-            return $false
-        }
+    # [bool]Exists() {return $this.Exists($this._Path)}
+    # [bool]Exists([string]$Path) {return Test-Path $Path}
+        
+    [bool]IsLocal() {return $this.IsLocal($this._ComputerName)}
+    [bool]IsLocal([string]$ComputerName) { return $env:COMPUTERNAME -eq $ComputerName }
+    [bool]IsRemote() {return $this.IsRemote($this._ComputerName) }
+    [bool]IsRemote([string]$ComputerName) {return !$this.IsLocal() }
 
-        # otherwise
-        return $true
-    }
+    [bool]IsDirectory() {return $this.IsDirectory($this._Path) }
+    [bool]IsDirectory([string]$Path) {return Test-Path $Path -PathType Container}
+    [bool]IsDirectory([FileInfo]$_object) {return ($_object.Attributes -band [FileAttributes]::Directory) -eq [FileAttributes]::Directory}
+    [bool]IsDirectory([DirectoryInfo]$_object) {return ($_object.Attributes -band [FileAttributes]::Directory) -eq [FileAttributes]::Directory}
 
-    [object]New(
-    ) {
-        if ($this.Exists($this.Path)) {
-            Write-Warning "The file '$($this.Path)' already exists."
-            return $null}
-        if (!$this.Exists($this.Directory)) {
-            Write-Warning "Could not find a part of the path '$($this.Path)'"
-            return $null
-        }
-
-        $this.FileInfo = New-Item -Path $this.Path -ItemType File
-
-        if (!$this.FileInfo) {
-            Write-Warning "Unable to create '$($this.Path)'"
-            return $null
-        }
-
-        return $this.FileInfo
-    }
-
-    [object]Get(
-    ) {
-        return $this.Get(@{})
-    }
-    [object]Get(
-        [hashtable]$Options
-    ) {
-        $this.FileInfo = Get-ChildItem -Path $this.Path @Options -ErrorAction SilentlyContinue
-        return $this.FileInfo
-    }
-
-    [void]Remove(
-    ) {
-        if (!$this.FileInfo) {
-            Write-Warning "FileInfo is null."
-            return}
-
-        foreach ($file in $this.FileInfo.FullName) {
-            if (!$this.Exists($file)) {
-                Write-Warning "Could not find a part of the path '$($this.FileInfo.FullName)'"
-                return
-            }
-        }
-
-        $this.FileInfo.Delete()
-    }
-
-    [bool]Exists() {return $this.Exists($this.Path) }
-    [bool]Exists([string]$Path) {return Test-Path $Path}
-
-    [bool]IsUnc([string]$Path) {return $Path -match "^\\\\[^\.\?].+$"}
+    [bool]IsUnc() {return $this.IsUnc($this._Path)}
+    [bool]IsUnc([string]$Path) {return ([Uri]$Path).IsUnc}
     
-    [string]ToUnc(
-        [string]$Path,
-        [string]$ComputerName
-    ) {
-        if (!$this.IsValidPath($Path)) {return $null}
-        if (!$this.IsValidComputer($ComputerName)) {return $null}
+    [string]ToUnc() {return $this.ToUnc($this._Path,$this._ComputerName)}
+    [string]ToUnc([string]$Path,[string]$ComputerName) {
 
         if ($this.IsUnc($Path)) {return $Path}
-        return [Path]::GetFullPath($Path) -replace "^([a-zA-Z])\:","\\$($ComputerName)\`$1`$" 
+    
+        $__servername = $ComputerName
+        $__drive = [Path]::GetPathRoot($Path) -replace "\\",""
+        $__share = $__drive -replace ":","$"
+        $__directory = [Path]::GetDirectoryName($Path) -replace $__drive,"" -replace "^\\",""
+        $__fileName = [Path]::GetFileName($Path)
+        $__uncPath = "\\$__servername\$__share\$__directory\$__fileName"
+    
+        return ([Uri]($__uncPath)).IsUnc ? $__uncPath : $null
+
+    }
+
+}
+
+class DirectoryObject : FileObjectBase {
+
+    [ValidateNotNullOrEmpty()]
+    [string]$Path
+
+    [ValidateNotNullOrEmpty()]
+    [string]$ComputerName
+
+    [string]$Parent
+    [string]$Root
+    [string]$FullName
+    [string]$Extension
+    [string]$Name
+    [DirectoryInfo]$DirectoryInfo
+    [bool]$Exists
+
+    DirectoryObject() : base() {}
+    DirectoryObject([string]$Path) : base($Path) {
+        ([DirectoryObject]$this).Init($null)
+    }
+    DirectoryObject([string]$Path,[hashtable]$Options) : base($Path) {
+        ([DirectoryObject]$this).Init($Options)
+    }
+    DirectoryObject([string]$Path,[string]$ComputerName) : base($Path,$ComputerName) {
+        ([DirectoryObject]$this).Init($null)
+    }
+    DirectoryObject([string]$Path,[string]$ComputerName,[hashtable]$Options) : base($Path,$ComputerName) {
+        ([DirectoryObject]$this).Init($Options)
     }
     
-    [bool]IsLocal() {return $env:COMPUTERNAME -eq $this.ComputerName}
-    [bool]IsRemote() {return !$this.IsLocal() }
+    [void]Init([hashtable]$Options) {
 
-    [bool]IsDirectory() {return $this.IsDirectory($this.Path) }
-    [bool]IsDirectory([string]$Path) {return Test-Path $Path -PathType Container}
+        $this.Path = $this._Path
+        $this.ComputerName = $this._ComputerName
+        $this.Parent = $this._Parent
+        $this.Root = $this._Root
+        $this.FullName = $this._FullName
+        $this.Extension = $this._Extension
+        $this.Name = $this._Name
+        $this.DirectoryInfo = Get-Item -Path $this._Path -ErrorAction SilentlyContinue
+        $this.Exists = $this._Exists
 
-    [bool]IsFile() {return $this.IsFile($this.Path) }
-    [bool]IsFile([string]$Path) {return Test-Path $Path -PathType Leaf}
+    }
 
-    [int]FileCount() {return $(Resolve-Path $this.Path).Length}
-    [bool]IsSingleFile() {return $this.FileCount() -eq 1}
+}
+
+class FileObject : FileObjectBase {
+
+    [ValidateNotNullOrEmpty()]
+    [string]$Path
+
+    [ValidateNotNullOrEmpty()]
+    [string]$ComputerName
+
+    [string]$DirectoryName
+    [DirectoryInfo]$Directory
+    [string]$FullName
+    [string]$Extension
+    [string]$Name
+    [string]$FilenameWithoutExtension
+    [object]$FileInfo
+    [bool]$Exists
+
+    hidden [string]$ValidFileNameExtension = "(?:\..+)?$"
+
+    FileObject() : base() {}
+    FileObject([string]$Path) : base($Path) {
+        ([FileObject]$this).Init($null)
+    }
+    FileObject([string]$Path,[hashtable]$Options) : base($Path) {
+        ([FileObject]$this).Init($Options)
+    }
+    FileObject([string]$Path,[string]$ComputerName) : base($Path,$ComputerName) {
+        ([FileObject]$this).Init($null)
+    }
+    FileObject([string]$Path,[string]$ComputerName,[hashtable]$Options) : base($Path,$ComputerName) {
+        ([FileObject]$this).Init($Options)
+    }
+
+    [void]Init([hashtable]$Options) {
+
+        $this.Path = $this._Path
+        $this.ComputerName = $this._ComputerName
+        $this.FullName = $this._FullName
+        $this.DirectoryName = $this._DirectoryName
+        $this.Directory = $this._Directory
+        $this.Extension = $this._Extension
+        $this.Name = $this._Name
+        $this.FilenameWithoutExtension = $this._FileNameWithoutExtension
+        if ($this.IsDirectory()) {
+            $this.FileInfo = Get-ChildItem -Path $this.Path @Options -ErrorAction SilentlyContinue
+        }
+        else {
+            $this.FileInfo = Get-Item -Path $this.Path -ErrorAction SilentlyContinue
+        }
+        $this.Exists = $this._Exists
+
+    }
+
 }
 
 class LogObject : FileObject {
@@ -471,22 +438,10 @@ class LogObject : FileObject {
 
     hidden [string]$ValidFileNameExtension = "^\.log$"
 
-    LogObject():base() {}
-    LogObject([string]$Path) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{}); $this.Init() }
-    LogObject([string]$Path,[string]$ComputerName) { ([FileObject]$this).Init($Path,$ComputerName,@{}); $this.Init() }  
-    LogObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options); $this.Init() }  
-
-    [void]Validate() {}
-
-    [void]Init(
-    ) {
-        # properties
-        # $this.Name = (Get-Culture).TextInfo.ToTitleCase($this.FileNameWithoutExtension)
-        $this.Name = $this.FileNameWithoutExtension
-
-        # validate
-        $this.Validate()
-    }
+    LogObject() : base() {}
+    LogObject([string]$Path) : base($Path) {}
+    LogObject([string]$Path,[string]$ComputerName) : base($Path,$ComputerName) {}
+    LogObject([string]$Path,[string]$ComputerName,[hashtable]$Options) : base($Path,$ComputerName,$Options) {}
 
     [object]New(
         [object]$Header
@@ -508,26 +463,27 @@ class CacheObject : FileObject {
 
     hidden [string]$ValidFileNameExtension = "^\.cache$"
 
-    CacheObject():base() {}
-    CacheObject([string]$Path) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{});$this.Init([timespan]::MaxValue) }
-    CacheObject([string]$Path,[string]$ComputerName) { ([FileObject]$this).Init($Path,$ComputerName,@{});$this.Init([timespan]::MaxValue) }
-    CacheObject([string]$Path,[string]$ComputerName,[timespan]$MaxAge) { ([FileObject]$this).Init($Path,$ComputerName,@{});$this.Init($MaxAge) }
-    CacheObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options);$this.Init([timespan]::MaxValue) }  
-    CacheObject([string]$Path,[string]$ComputerName,[timespan]$MaxAge,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options);$this.Init($MaxAge) }          
+    CacheObject() : base() {}
+    CacheObject([string]$Path) : base($Path) {
+        $this.Init($Path,$env:COMPUTERNAME,[timespan]::MaxValue,$null)
+    }
+    CacheObject([string]$Path,[string]$ComputerName) : base($Path,$ComputerName) {
+        $this.Init($Path,$ComputerName,[timespan]::MaxValue,$null)
+    }
+    CacheObject([string]$Path,[string]$ComputerName,[timespan]$MaxAge) : base($Path,$ComputerName) {
+        $this.Init($Path,$ComputerName,$MaxAge,$null)
+    }
+    CacheObject([string]$Path,[string]$ComputerName,[hashtable]$Options) : base($Path,$ComputerName,$Options) {
+        $this.Init($Path,$ComputerName,[timespan]::MaxValue,$Options)
+    }  
+    CacheObject([string]$Path,[string]$ComputerName,[timespan]$MaxAge,[hashtable]$Options) : base($Path,$ComputerName,$Options) {
+        $this.Init($Path,$ComputerName,$MaxAge,$Options)
+    }          
 
-    [void]Validate() {}
+    [void] Init([string]$Path,[string]$ComputerName,[timespan]$MaxAge,[hashtable]$Options) {
 
-    [void]Init(
-        [timespan]$MaxAge
-    ) {
-        # params
         $this.MaxAge = $MaxAge
-        
-        # properties
-        $this.Name = (Get-Culture).TextInfo.ToTitleCase($this.FileNameWithoutExtension)
 
-        # validate
-        $this.Validate()
     }
 
     [timespan]Age() {return $this.FileInfo.LastWriteTime ? [datetime]::Now - $this.FileInfo.LastWriteTime : $null}
@@ -541,24 +497,11 @@ class VaultObject : FileObject {
 
     hidden [string]$ValidFileNameExtension = "^\.vault$"
 
-    VaultObject():base() {}
-    VaultObject([string]$Path) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,@{});$this.Init() }
-    VaultObject([string]$Path,[hashtable]$Options) { ([FileObject]$this).Init($Path,$env:COMPUTERNAME,$Options);$this.Init() } 
-    VaultObject([string]$Path,[string]$ComputerName) { ([FileObject]$this).Init($Path,$ComputerName,@{});$this.Init() }      
-    VaultObject([string]$Path,[string]$ComputerName,[hashtable]$Options) { ([FileObject]$this).Init($Path,$ComputerName,$Options);$this.Init() }     
-
-    [void]Validate() {}
-
-    [void]Init(
-    ) {
-        # params
-        
-        # properties
-        $this.Name = (Get-Culture).TextInfo.ToTitleCase($this.FileNameWithoutExtension)
-
-        # validate
-        $this.Validate()
-    }
+    VaultObject() : base() {}
+    VaultObject([string]$Path) : base($Path) {}
+    VaultObject([string]$Path,[hashtable]$Options) : base($Path,$Options) {} 
+    VaultObject([string]$Path,[string]$ComputerName) : base($Path,$ComputerName) {}      
+    VaultObject([string]$Path,[string]$ComputerName,[hashtable]$Options) : base($Path,$ComputerName,$Options) {}     
     
 }
 

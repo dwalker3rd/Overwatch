@@ -22,7 +22,7 @@ function global:Initialize-PlatformTopology {
     )
 
     if (!$ResetCache) {
-        if ($(get-cache platformtopology).Exists()) {
+        if ($(get-cache platformtopology).Exists) {
             return Read-Cache platformtopology
         }
     }
@@ -102,7 +102,7 @@ function global:Get-PlatformService {
         # [switch]$ResetCache
     )
 
-    # if ($(get-cache platformservices).Exists() -and !$ResetCache) {
+    # if ($(get-cache platformservices).Exists -and !$ResetCache) {
     #     $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
     #     if ($platformServicesCache) {
     #         $platformServices = $platformServicesCache
@@ -234,7 +234,7 @@ function global:Get-RMTStatus {
         [switch]$Quiet
     )
     
-    if ((get-cache rmtstatus).Exists() -and !$ResetCache) {
+    if ((get-cache rmtstatus).Exists -and !$ResetCache) {
         $rmtStatus = Read-Cache rmtstatus -MaxAge $(New-TimeSpan -Seconds 60)
         if ($rmtStatus) {
             return $rmtStatus

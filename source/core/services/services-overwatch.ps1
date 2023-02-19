@@ -39,12 +39,12 @@
             
             # find the environ.ps1 file on the remote node
             $environFile = [FileObject]::new($Path,$ComputerName)
-            if (!$environFile.Exists()) {
-                throw "Cannot find path `'$($environFile.FullPathName)`' because it does not exist."
+            if (!$environFile.Exists) {
+                throw "Cannot find path `'$($environFile.FullName)`' because it does not exist."
              }
             
             $result = Invoke-Command -Session $psSession -ScriptBlock {
-                . $using:environFile.FullPathName
+                . $using:environFile.FullName
                 Invoke-Expression "`$$using:Key"
             }
 
@@ -109,7 +109,7 @@
 
         $products = @()
         if (!$ResetCache -and !$NoCache) {
-            if ($(Get-Cache products -ComputerName $ComputerName).Exists()) {
+            if ($(Get-Cache products -ComputerName $ComputerName).Exists) {
                 $products = Read-Cache products -ComputerName $ComputerName #-MaxAge $(New-Timespan -Minutes 2)
             }
         }
@@ -130,7 +130,7 @@
 
             $products = @()
             foreach ($_product in $_installedProducts) {
-                $productDefinitionFilePath = ([FileObject]::new("$definitionsPath\definitions-product-$($_product).ps1", $ComputerName)).FullPathName
+                $productDefinitionFilePath = ([FileObject]::new("$definitionsPath\definitions-product-$($_product).ps1", $ComputerName)).FullName
                 if (Test-Path -Path $productDefinitionFilePath) {
                     $params = @{}
                     $params.ScriptBlock = { . $productDefinitionFilePath }
@@ -179,7 +179,7 @@
 
         $providers = @()
         if (!$ResetCache) {
-            if ($(get-cache providers).Exists()) {
+            if ($(get-cache providers).Exists) {
                 $providers = Read-Cache providers # -MaxAge $(New-Timespan -Minutes 2)
             }
         }
@@ -196,7 +196,7 @@
 
             $providers = @()
             foreach ($_provider in $_installedProviders) {
-                $providerDefinitionFilePath = ([FileObject]::new("$definitionsPath\definitions-provider-$($_provider).ps1", $ComputerName)).FullPathName
+                $providerDefinitionFilePath = ([FileObject]::new("$definitionsPath\definitions-provider-$($_provider).ps1", $ComputerName)).FullName
                 if (Test-Path -Path $providerDefinitionFilePath) {
                     $params = @{}
                     $params.ScriptBlock = { . $providerDefinitionFilePath }
@@ -732,7 +732,7 @@
 
             # The $ResetCache switch is only for the platform-specific Get-PlatformStatusRollup
             # function and is *** NOT *** to be used for the platformstatus cache
-            if ((get-cache platformstatus).Exists()) {
+            if ((get-cache platformstatus).Exists) {
                 $platformStatus = [PlatformStatus](Read-Cache platformStatus)
                 # The $CacheOnly switch allows a faster return for those callers that 
                 # don't need updated platform-specific status. par example:  Show-PlatformEvent

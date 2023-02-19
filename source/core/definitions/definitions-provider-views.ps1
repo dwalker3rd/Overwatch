@@ -27,7 +27,7 @@ $global:ViewSettings = @{
 
 $global:FileObjectView = @{
     Default = $([FileObject]@{}).PSObject.Properties.Name
-    Min = @("Path","ComputerName",@{Name="Exists";Expression={$_.exists()}})
+    Min = @("Path","ComputerName",@{Name="Exists";Expression={$_.Exists}})
 } 
 
 $global:LogObjectView = @{

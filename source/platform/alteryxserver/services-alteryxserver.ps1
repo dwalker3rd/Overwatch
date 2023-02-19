@@ -7,7 +7,7 @@ function global:Get-PlatformInfo {
         [switch][Alias("Update")]$ResetCache
     )
 
-    if ($(get-cache platforminfo).Exists() -and !$ResetCache) {
+    if ($(get-cache platforminfo).Exists -and !$ResetCache) {
         Write-Debug "Read-Cache platforminfo"
         $platformInfo = Read-Cache platforminfo # -MaxAge $(New-TimeSpan -Minutes 1)
         if ($platformInfo) {
@@ -51,7 +51,7 @@ function global:Get-PlatformProcess {
     )
 
     if (!$ResetCache) {
-        if ($(get-cache platformprocesses ).Exists()) {
+        if ($(get-cache platformprocesses ).Exists) {
             Write-Debug "Read-Cache platformprocesses"
             $platformProcesses = Read-Cache platformprocesses -MaxAge (New-TimeSpan -Seconds 10)
             if ($platformProcesses) {
@@ -145,7 +145,7 @@ function global:Get-PlatformService {
     # $services = Invoke-Command -Session $psSession {&{
     #     Get-Service -Name "AlteryxService" -InformationAction SilentlyContinue
     # }}
-    $cimSession = New-CimSession -ComputerName $ComputerName -Credential (Get-Credentials "localadmin-$($Platform.Instance)" -Credssp) -Authentication CredSsp
+    $cimSession = New-CimSession -ComputerName $ComputerName -Credential (Get-Credentials "localadmin-$($Platform.Instance)" -Localhost) -Authentication CredSsp
     $services = Get-CimInstance -ClassName Win32_Service -CimSession $cimSession -Property * |
         Where-Object {$_.Name -eq $PlatformServiceConfig.Name} 
     Remove-CimSession $cimSession
@@ -1210,7 +1210,7 @@ function global:Initialize-PlatformTopology {
 
     if ($Nodes) {$ResetCache = $true}
     if (!$ResetCache -and !$NoCache) {
-        if ($(get-cache platformtopology).Exists()) {
+        if ($(get-cache platformtopology).Exists) {
             return Read-Cache platformtopology
         }
     }

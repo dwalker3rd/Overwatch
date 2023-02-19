@@ -263,7 +263,7 @@ function global:New-AzResourceGroup+ {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][string]$ResourceGroupName,
-        [Parameter(Mandatory=$false)][string]$Location = $global:Azure.Templates.Resources.Location
+        [Parameter(Mandatory=$true)][string]$Location
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
@@ -280,9 +280,10 @@ function global:New-AzStorageAccount+ {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][string]$StorageAccountName,
         [Parameter(Mandatory=$true)][string]$ResourceGroupName,
-        [Parameter(Mandatory=$false)][string]$SKU = $global:Azure.Templates.Resources.StorageAccount.SKU,
-        [Parameter(Mandatory=$false)][string]$Location = $global:Azure.Templates.Resources.Location,
-        [Parameter(Mandatory=$false)][int]$RetentionDays = $global:Azure.Templates.Resources.StorageAccount.SoftDelete.RetentionDays
+        [Parameter(Mandatory=$true)][string]$SKU,
+        [Parameter(Mandatory=$true)][string]$Location,
+        [Parameter(Mandatory=$true)][bool]$EnableSoftDelete,
+        [Parameter(Mandatory=$true)][int]$RetentionDays
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
@@ -290,7 +291,7 @@ function global:New-AzStorageAccount+ {
 
     $storageAccount = New-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $StorageAccountName -SkuName $SKU -Location $location
 
-    if ($global:Azure.Templates.Resources.StorageAccount.SoftDelete.Enabled) {
+    if ($EnableSoftDelete) {
         Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName -RetentionDays $RetentionDays
     }
 
@@ -304,7 +305,7 @@ function global:New-AzStorageContainer+ {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][object]$Context,
         [Parameter(Mandatory=$true)][string]$ContainerName,
-        [Parameter(Mandatory=$false)][ValidateSet("Container","Blob","Off")][string]$Permission = $global:Azure.Templates.Resources.StorageAccount.Permission
+        [Parameter(Mandatory=$true)][ValidateSet("Container","Blob","Off")][string]$Permission
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
@@ -517,5 +518,37 @@ function global:Get-AzureTenantKeys {
         }
     }
     return $tenantKeys
+
+}
+
+function global:Rename-AzDisk {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][string]$ResourceGroupName,
+        [Parameter(Mandatory=$false)][string]$SKU = $global:Azure.Templates.Resources.StorageAccount.SKU,
+        [Parameter(Mandatory=$false)][string]$Location = $global:Azure.Templates.Resources.Location
+    )
+
+    #Define the following parameters.
+    $originalOsDiskName = "OSDiskRename_OsDisk_1_d6783bf8f6604032972883b96a78c579"
+    $newOsDiskName = "OSDisRename-OS"
+    $virtualMachineName = "OSDiskRename"
+    #Get a list of all the managed disks in a resource group.
+    #Get-AzDisk -ResourceGroupName $resourceGroup | Select Name
+    #Get the source managed disk.
+    $sourceDisk = Get-AzDisk -ResourceGroupName $resourceGroupName -DiskName $originalOsDiskName
+    #Create the disk configuration.
+    $diskConfig = New-AzDiskConfig -SourceResourceId $sourceDisk.Id -Location $sourceDisk.Location -CreateOption Copy -DiskSizeGB 127 -SkuName "Premium_LRS"
+    #Create the new disk.
+    New-AzDisk -Disk $diskConfig -DiskName $newOsDiskName -ResourceGroupName $resourceGroupName
+    #Swap the OS Disk out for the renamed disk.
+    $virtualMachine = Get-AzVm -ResourceGroupName $resourceGroupName -Name $virtualMachineName
+    $newOsDisk = Get-AzDisk -ResourceGroupName $resourceGroupName -Name $newOsDiskName
+    Set-AzVMOSDisk -VM $virtualMachine -ManagedDiskId $newOsDisk.Id -Name $newOsDisk.Name
+    Update-AzVM -ResourceGroupName $resourceGroupName -VM $virtualMachine
+    #Delete the original disk.
+    Remove-AzDisk -ResourceGroupName $resourceGroupName -DiskName $originalOsDiskName -Force
 
 }

@@ -1,5 +1,6 @@
 $global:RegexClass = @{
     HexDigit = "[0-9a-fA-f]"
+    AtoZ = "[a-zA-Z]"
 }
 
 $global:RegexPattern = @{
@@ -23,6 +24,7 @@ $global:RegexPattern = @{
             1074 = "The\sprocess\s(?'process'\S*\s\(.*\))\shas\sinitiated\sthe\s(\S*)\sof\scomputer\s(?'computer'\S*)\son\sbehalf\sof\suser\s(?'user'\S.*)\s.*for the following reason:\s(?'reason'.*)\n\s*Reason\sCode:\s*(?'code'.*)\n\s*Shutdown\sType:\s*(?'type'.*)\n\s*Comment:\s*(?'comment'\S?.*)"
             1076 = "The\sreason\ssupplied\sby\suser\s(?'user'\S*)\sfor\sthe\slast\sunexpected\sshutdown\sof\sthis\scomputer\sis:\s(?'reason'.*)\n\s*Reason\sCode:\s*(?'code'.*)\n\s*Bug\sID:\s*(?'bugID'.*)\s*Bugcheck\sString:\s*(?'bugcheckString'.*)\n\s*Comment:\s*(?'comment'\S?.*)"
         }
+        ComputerName = "[^\.\\/\:\*\?""\<\>\|]{1}[^\\/\:\*\?""\<\>\|]{0,14}"
     }
     WriteHostPlus = @{
         Parse = "^<(.*?)\s<(.)>(\d*)>\s(.*)$"

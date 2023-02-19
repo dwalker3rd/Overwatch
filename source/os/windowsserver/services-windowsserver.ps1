@@ -64,7 +64,7 @@ function global:Get-ServerInfo {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     ) 
     
-    # if ($(Get-Cache serverinfo).Exists()) {
+    # if ($(Get-Cache serverinfo).Exists) {
     #     Write-Information  "Read-Cache serverinfo"
     #     $serverInfo = Read-Cache serverinfo
     #     if ($serverInfo) {return $serverInfo}
@@ -234,7 +234,7 @@ function global:Get-ServerStatus {
                     }
                 }
 
-                Write-Log -EntryType $PlatformMessageType.Warning -Context Server -Action $shutdown.event -Target $node -Status $shutdown.status -Message $shutdown.reason
+                Write-Log -EntryType $PlatformMessageType.Warning -Action $shutdown.event -Target $node -Status $shutdown.status -Message $shutdown.reason
                 Write-Host+ -NoTrace -NoTimestamp -ForegroundColor ($shutdown.level -eq $PlatformMessageType.Alert ? "DarkRed" : "DarkYellow") "[$($shutdown.timeCreated.ToString('u'))] $($shutdown.event.ToUpper()) of $($node.ToUpper()) $($be) $($shutdown.status.ToUpper())" 
 
                 Send-ServerStatusMessage -ComputerName $shutdown.node -Event $shutdown.event -Status $shutdown.status -Reason $shutdown.reason -Comment $shutdown.comment -User $shutdown.user -Level $shutdown.level -TimeCreated $shutdown.timeCreated | Out-Null
@@ -383,17 +383,18 @@ function global:Confirm-LogOnAsAService {
     $results = Invoke-Command -Session $psSession {
         secedit /export /cfg "$($using:Location.Data)\secpol.cfg" | Out-Null
         $secpolcfg = get-content "$($using:Location.Data)\secpol.cfg"
-        $seServiceLogonRight = $secpolcfg | Where-Object {$_.startswith($using:Policy)}
+        $seServiceLogonRight = $secpolcfg | Where-Object {$_.StartsWith($using:Policy)}
+        $seServiceLogonRightMatch = [regex]::Match($seServiceLogonRight,"^SeServiceLogonRight\s=\s*(.*?\s*,*\s*(alteryxsvc)\s*,.*)$",[System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        $isOk = $seServiceLogonRightMatch.Success
         [PSCustomObject]@{
             ComputerName = $env:COMPUTERNAME
             Policy = $using:Policy
-            Setting = $seServiceLogonRight.split("=")[1]
-            Name = $using:Name
-            IsOK = $seServiceLogonRight.IndexOf($using:Name) -gt -1
+            Setting = $isOk ? $seServiceLogonRightMatch.Captures.Groups[1].Value : $null
+            Name = $isOk ? $seServiceLogonRightMatch.Groups[2].Value : $Name
+            IsOK = $isOk
         }
         Remove-Item -force "$($using:Location.Data)\secpol.cfg" -confirm:$false
     }
-    # Remove-PsSession $psSession
 
 return $results | Select-Object -Property ComputerName, Policy, Setting, Name, IsOK | Sort-Object ComputerName
 }

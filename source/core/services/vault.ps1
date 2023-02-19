@@ -106,7 +106,7 @@ function global:Read-Vault {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     $vault = Get-Vault $Name -ComputerName $ComputerName
-    if ($vault.Exists()) {
+    if ($vault.Exists) {
         $lock = Lock-Vault $Name -ComputerName $ComputerName -Share "Read"
         if ($lock) {
             $outputObject = Import-Clixml $vault.Path
@@ -180,7 +180,7 @@ function global:Lock-Vault {
     )
 
     $vault = Get-Vault $Name -ComputerName $ComputerName
-    $lockFile = $vault.FullPathName -replace $vault.Extension,".lock"
+    $lockFile = $vault.FullName -replace $vault.Extension,".lock"
     
     $lockRetryAttempts = 0
     $FileStream = [System.IO.File]::Open($lockFile, 'OpenOrCreate', 'ReadWrite', $Share)
@@ -254,7 +254,7 @@ function global:Test-IsVaultLocked {
     )
 
     $vault = Get-Vault $Name -ComputerName $ComputerName
-    $lockFile = $vault.FullPathName -replace $vault.Extension,".lock"
+    $lockFile = $vault.FullName -replace $vault.Extension,".lock"
 
     return Test-Path -Path $lockFile
 
@@ -278,7 +278,7 @@ function global:Wait-VaultUnlocked {
     )
 
     $vault = Get-Vault $Name -ComputerName $ComputerName
-    # $lockFile = $vault.FullPathName -replace $vault.Extension,".lock"
+    # $lockFile = $vault.FullName -replace $vault.Extension,".lock"
 
     $lockRetryAttempts = 0
     while (Test-IsVaultLocked $vault.FileNameWithoutExtension) {

@@ -36,7 +36,7 @@ if (Test-Path $sourceBgInfoConfigFile) {
 
         # # copy bginfo config files to Overwatch directory on other nodes
         # $destinationBgInfoConfigFile = $_product.Config.Files.BgInfoBgi
-        # if (!$destinationBgInfoConfigFile.Exists()) {
+        # if (!$destinationBgInfoConfigFile.Exists) {
         #     Copy-Files -Path $sourceBgInfoConfigFile $destinationBgInfoConfigFile -ComputerName $node -Verbose:$true
         # }
 

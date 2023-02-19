@@ -351,7 +351,7 @@ function global:Get-TableauServerStatus {
     $target = "clusterstatus"
     $attemptMessage = ""
 
-    if ((get-cache clusterstatus).Exists() -and !$ResetCache) {
+    if ((get-cache clusterstatus).Exists -and !$ResetCache) {
         
         Write-Debug "$($action) $($target): Pending"
 

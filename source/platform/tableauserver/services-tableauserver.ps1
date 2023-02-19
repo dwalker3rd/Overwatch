@@ -131,7 +131,7 @@ param (
 )
 
 if (!$ResetCache) {
-    if ($(get-cache platforminfo).Exists()) {
+    if ($(get-cache platforminfo).Exists) {
         $platformInfo = Read-Cache platforminfo 
         if ($platformInfo) {
             # $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
@@ -173,7 +173,7 @@ param (
     [switch]$ResetCache
 )
 
-if ($(get-cache platformservices).Exists() -and !$ResetCache) {
+if ($(get-cache platformservices).Exists -and !$ResetCache) {
     Write-Debug "Read-Cache platformservices"
     $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
     if ($platformServicesCache) {
@@ -938,7 +938,7 @@ param (
 )
 
 if (!$ResetCache) {
-    if ($(get-cache platformtopology).Exists()) {
+    if ($(get-cache platformtopology).Exists) {
         return Read-Cache platformtopology
     }
 }

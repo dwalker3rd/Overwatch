@@ -27,7 +27,7 @@ $global:WarningPreference = "SilentlyContinue"
         # verify that the config-ps-powershell.pssc PSSessionConfigurationFile has been copied to all nodes
         $_psRequiredSessionConfigurationFileExists = $true
         foreach ($node in $ComputerName) {
-            $_psRequiredSessionConfigurationFileExistsOnNode = [FileObject]::new($_psRequiredSessionConfigurationFile,$node).Exists()
+            $_psRequiredSessionConfigurationFileExistsOnNode = [FileObject]::new($_psRequiredSessionConfigurationFile,$node).Exists
             if (!$_psRequiredSessionConfigurationFileExistsOnNode) {
                 throw ("Required PSSessionConfigurationFile `"$_psRequiredSessionConfigurationFile`" not found on $node")
             }
