@@ -111,7 +111,7 @@ $global:WarningPreference = "SilentlyContinue"
     }
     catch {
 
-        $message = "$($emptyString.PadLeft(8,"`b")) FAILED"
+        $message = "$($emptyString.PadLeft(8,"`b")) FAILED "
         Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Red
 
     }

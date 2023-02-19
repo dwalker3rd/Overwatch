@@ -122,7 +122,7 @@ function global:Get-Credentials {
         [Parameter(Mandatory=$false)][object]$Key,
         [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
         [Parameter(Mandatory=$false)][object]$KeyVault = "key",
-        [switch]$Credssp,
+        [switch]$Localhost,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
