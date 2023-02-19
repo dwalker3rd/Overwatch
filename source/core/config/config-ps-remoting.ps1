@@ -22,7 +22,9 @@ $global:WarningPreference = "SilentlyContinue"
         # most recently installed on the Overwatch controller, then unregister the $global:PSSessionConfigurationName 
         # PSSessionConfiguration and create a new version using the config-ps-powershell.pssc PSSessionConfigurationFile 
         $_psRequiredSessionConfigurationFile = "$($global:Location.Config)\config-ps-powershell.pssc"
-        Copy-Files -Path $_psRequiredSessionConfigurationFile -ComputerName $ComputerName -ExcludeComputerName $env:COMPUTERNAME -Quiet
+        if (!($ComputerName.Count -eq 1 -and $ComputerName -eq $env:COMPUTERNAME)) {
+            Copy-Files -Path $_psRequiredSessionConfigurationFile -ComputerName $ComputerName -ExcludeComputerName $env:COMPUTERNAME -Quiet
+        }
         
         # verify that the config-ps-powershell.pssc PSSessionConfigurationFile has been copied to all nodes
         $_psRequiredSessionConfigurationFileExists = $true
