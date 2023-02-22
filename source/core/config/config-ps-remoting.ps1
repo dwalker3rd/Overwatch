@@ -76,7 +76,7 @@ $global:WarningPreference = "SilentlyContinue"
         }
 
         # configure basic powershell remoting config (for this node)
-        $ignoreOutput = winrm quickconfig -Quiet
+        # $ignoreOutput = winrm quickconfig -Quiet
         $ignoreOutput = enable-psremoting -skipnetworkprofilecheck -force
         $ignoreOutput = set-netfirewallrule -name "WINRM-HTTP-In-TCP-PUBLIC" -RemoteAddress Any
 
