@@ -239,8 +239,8 @@ class FileObjectBase {
         if ([string]::IsNullOrEmpty($ComputerName)) {
             if ($this.IsUnc($Path)) {
                 $_regexMatches = [regex]::Matches($Path,"^\\\\(.*?)\\(.*)$")
-                $ComputerName = $_regexMatches[1]
-                $Path = $_regexMatches[2] -replace "\$",":"
+                $ComputerName = $_regexMatches.Groups[1].Value
+                $Path = $_regexMatches.Groups[2].Value -replace "\$",":"
             }
             else {
                 $ComputerName = $env:COMPUTERNAME.ToLower()
