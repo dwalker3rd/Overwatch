@@ -69,4 +69,16 @@
         BackgroundForegroundDefault = $global:consoleSequence.BackgroundDefault + $global:consoleSequence.ForegroundDefault
     }
 
+    # set each consoleSequence to an empty string if $global:DisableConsoleSequences is $true
+    # this prevents console sequences from being used with incompatible consoles/terminals
+    if ($global:DisableConsoleSequences) {
+        foreach ($key in @($global:consoleSequence.Keys)) {
+            $global:consoleSequence.$key = ""
+        }
+    }
+
+    # defining these here b/c they belong with the console sequences
+    function global:Set-CursorVisible { try { Set-CursorVisible } catch {} }
+    function global:Set-CursorInvisible { try { Set-CursorInvisible } catch {} }
+
 #endregion CONSOLE SEQUENCES 

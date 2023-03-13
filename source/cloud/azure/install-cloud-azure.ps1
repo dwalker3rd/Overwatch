@@ -3,7 +3,7 @@ $Cloud = Get-Catalog -Type Cloud Azure
 $Name = $Cloud.Name 
 
 $cursorVisible = [console]::CursorVisible
-[console]::CursorVisible = $true
+Set-CursorVisible
 
 $message = "  $Name$($emptyString.PadLeft(20-$Name.Length," "))","PENDING"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray

@@ -3,7 +3,7 @@ $Provider = Get-Catalog -Type Provider AzureAD
 $Id = $Provider.Id 
 
 $cursorVisible = [console]::CursorVisible
-[console]::CursorVisible = $true
+Set-CursorVisible
 
 $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray

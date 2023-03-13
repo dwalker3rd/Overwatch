@@ -239,7 +239,7 @@ $global:Product = @{Id="AzureADSyncTS"}
             Switch-TSSite $contentUrl
             $tsSite = Get-TSSite
 
-            [console]::CursorVisible = $false
+            Set-CursorInvisible
 
             $message = "<    $($tssite.name) <.>48> PENDING"
             Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray

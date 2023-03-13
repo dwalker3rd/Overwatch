@@ -1339,7 +1339,7 @@ $providerIds = @()
 #endregion LOG 
 #region MAIN
 
-    [console]::CursorVisible = $false
+    Set-CursorInvisible
 
         #region CONFIG
 
@@ -1495,6 +1495,6 @@ $providerIds = @()
         Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
         Write-Host+
 
-    [console]::CursorVisible = $true
+    Set-CursorVisible
 
 #endregion MAIN

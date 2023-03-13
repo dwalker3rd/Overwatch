@@ -23,7 +23,7 @@ $global:Product = @{Id="Uninstall"}
 
 #region MAIN
 
-    [console]::CursorVisible = $false
+    Set-CursorInvisible
 
     Write-Host+ -ResetIndentGlobal
 
@@ -85,17 +85,17 @@ $global:Product = @{Id="Uninstall"}
     
             # delete/retain definitions, install setttings and data
             $deleteAllData = $false
-            [console]::CursorVisible = $true
+            Set-CursorVisible
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Delete data for $Type $Id (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
             $continue = Read-Host
-            [console]::CursorVisible = $false
+            Set-CursorInvisible
             $deleteAllData = $continue.ToUpper() -eq "Y"
 
             # the inevitable "Are you sure?" prompt
-            [console]::CursorVisible = $true
+            Set-CursorVisible
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Uninstall $Type $Id $($deleteAllData ? "and delete ALL data" : $null) (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
             $continue = Read-Host
-            [console]::CursorVisible = $false
+            Set-CursorInvisible
             if ($continue.ToUpper() -ne "Y") {
                 Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
                 return
@@ -140,17 +140,17 @@ $global:Product = @{Id="Uninstall"}
 
             # delete/retain definitions, install setttings and data
             $deleteAllData = $false
-            [console]::CursorVisible = $true
+            Set-CursorVisible
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Delete ALL data (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
             $continue = Read-Host
-            [console]::CursorVisible = $false
+            Set-CursorInvisible
             $deleteAllData = $continue.ToUpper() -eq "Y"
 
             # the inevitable "Are you sure?" prompt
-            [console]::CursorVisible = $true
+            Set-CursorVisible
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Uninstall Overwatch $($deleteAllData ? "and delete ALL data" : $null) (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
             $continue = Read-Host
-            [console]::CursorVisible = $false
+            Set-CursorInvisible
             if ($continue.ToUpper() -ne "Y") {
                 Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
                 return
@@ -266,6 +266,6 @@ $global:Product = @{Id="Uninstall"}
 
     #endregion REMOVE PSSESSION
 
-    [console]::CursorVisible = $true
+    Set-CursorVisible
 
 #endregion MAIN

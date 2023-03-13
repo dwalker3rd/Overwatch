@@ -592,7 +592,7 @@ function global:Show-PlatformTasks {
 
         try {
 
-            [console]::CursorVisible = $false
+            Set-CursorInvisible
 
             $RefreshPeriodSecondsTotal = 0
             do {
@@ -713,7 +713,7 @@ function global:Show-PlatformTasks {
             throw
         }
         finally {
-            [console]::CursorVisible = $true
+            Set-CursorVisible
             Remove-PSSession+
         }
 

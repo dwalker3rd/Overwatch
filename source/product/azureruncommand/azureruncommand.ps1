@@ -34,6 +34,8 @@ $global:PreflightPreference = "SilentlyContinue"
 $global:PostflightPreference = "SilentlyContinue"
 $global:WriteHostPlusPreference = "Continue"
 
+$global:DisableConsoleSequences = $true
+
 $global:UseCredssp = $false
 if ($Credssp) {
     $global:UseCredssp = $true
@@ -54,6 +56,12 @@ if ($Command) {
         # product id must be set before include files
         $global:Product = @{Id="AzureRunCommand"}
         . $PSScriptRoot\definitions.ps1
+
+        Write-Host+
+        Write-Host+ -NoTrace "`$DoubleHop: $DoubleHop"
+        Write-Host+ -NoTrace "`$NoDoubleHop: $NoDoubleHop"
+        Write-Host+ -NoTrace "`$Credssp: $Credssp"
+        Write-Host+ -NoTrace "`$OverwatchController: $OverwatchController"
 
         Write-Host+ -NoTrace "Remoting to $OverwatchController using CredSSP `"double hop`"." 
 
@@ -81,6 +89,12 @@ if ($Command) {
 
         $global:WriteHostPlusPreference = "Continue"
 
+        Write-Host+
+        Write-Host+ -NoTrace "`$DoubleHop: $DoubleHop"
+        Write-Host+ -NoTrace "`$NoDoubleHop: $NoDoubleHop"
+        Write-Host+ -NoTrace "`$Credssp: $Credssp"
+        Write-Host+ -NoTrace "`$OverwatchController: $OverwatchController"
+
         $commandExpression = $Command
         $commandParametersKeys = (Get-Command $Command.Split(" ")[0]).parameters.keys
         
@@ -89,7 +103,6 @@ if ($Command) {
         if (![string]::IsNullOrEmpty($Reason) -and $commandParametersKeys -contains "Reason") {$commandExpression += " -Reason '$Reason'"}
         if (![string]::IsNullOrEmpty($RunId) -and $commandParametersKeys -contains "RunId") {$commandExpression += " -RunId '$RunId'"}
         
-        Write-Host+ -NoTrace "Overwatch controller: $OverwatchController"
         Write-Host+ -NoTrace "Command: $commandExpression" 
         Write-Host+
         

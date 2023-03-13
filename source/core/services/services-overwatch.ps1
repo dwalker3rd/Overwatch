@@ -1505,19 +1505,6 @@
         return $aliasUsed
     
     }
-
-    function global:Set-CursorVisible {
-
-        try { [console]::CursorVisible = $true }
-        catch {}
-
-    }
-
-    function global:Set-CursorInvisible {
-
-        try { [console]::CursorVisible = $false }
-        catch {}
-
-    }
+    
 
 #endregion MISC

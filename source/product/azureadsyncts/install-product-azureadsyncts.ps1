@@ -9,7 +9,7 @@ $Id = $product.Id
 $interaction = $false
 
 $cursorVisible = [console]::CursorVisible
-[console]::CursorVisible = $true
+Set-CursorVisible
 
 $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray

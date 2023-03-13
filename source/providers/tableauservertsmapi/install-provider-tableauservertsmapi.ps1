@@ -6,7 +6,7 @@ $Provider = Get-Provider -Id 'TableauServerTsmApi'
 $Id = $Provider.Id 
 
 $cursorVisible = [console]::CursorVisible
-[console]::CursorVisible = $true
+Set-CursorVisible
 
 $interaction = $false
 

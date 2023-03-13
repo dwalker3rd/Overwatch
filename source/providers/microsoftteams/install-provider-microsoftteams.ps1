@@ -6,7 +6,7 @@ $Provider = Get-Provider -Id 'MicrosoftTeams'
 $Id = $Provider.Id 
 
 $cursorVisible = [console]::CursorVisible
-[console]::CursorVisible = $true
+Set-CursorVisible
 
 $interaction = $false
 

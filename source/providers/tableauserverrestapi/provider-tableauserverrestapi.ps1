@@ -1222,7 +1222,7 @@ function global:Download-TSObject {
         #endregion INITIATE FILE UPLOAD
         #region APPEND TO FILE UPLOAD
 
-            [console]::CursorVisible = $false
+            Set-CursorInvisible
 
             $message =  "<Uploading $Type `'$fileName`' <.>58> PENDING$($emptyString.PadLeft(9," "))"
             Write-Host+ -Iff $Progress -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
@@ -1299,7 +1299,7 @@ function global:Download-TSObject {
 
                     $message = "$($emptyString.PadLeft(16,"`b"))FAILURE$($emptyString.PadLeft(16-$bytesUploaded.Length," "))"
                     Write-Host+ -Iff $Progress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
-                    [console]::CursorVisible = $true
+                    Set-CursorVisible
 
                     $fileStream.Close()
 
@@ -1317,7 +1317,7 @@ function global:Download-TSObject {
             $message = "$($emptyString.PadLeft(16,"`b"))$bytesReadTotalString","/","$fileSizeString$($emptyString.PadLeft(16-($bytesReadTotalString.Length + 1 + $fileSizeString.Length)," "))"
             Write-Host+ -Iff $Progress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen,DarkGray,DarkGreen
 
-            [console]::CursorVisible = $true
+            Set-CursorVisible
 
         #endregion APPEND TO FILE UPLOAD        
         #region FINALIZE UPLOAD

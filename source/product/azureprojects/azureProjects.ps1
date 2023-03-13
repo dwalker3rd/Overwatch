@@ -575,7 +575,7 @@ function global:Grant-AzProjectRole {
     
     }
 
-    [console]::CursorVisible = $false
+    Set-CursorInvisible
 
     $emptyString = ""
     $resourceTypeOrderedList = [ordered]@{
@@ -1211,7 +1211,7 @@ function global:Grant-AzProjectRole {
 
     Write-Host+
 
-    [console]::CursorVisible = $true
+    Set-CursorVisible
 
     return
 
