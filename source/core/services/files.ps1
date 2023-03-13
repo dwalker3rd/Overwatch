@@ -41,6 +41,7 @@ function global:Remove-Files {
         [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][int]$Keep=0,
         [switch]$Days,
+        [switch]$Hours,
         [switch]$Recurse,
         [switch]$Force
     )
@@ -58,8 +59,37 @@ function global:Remove-Files {
     if ($Recurse) {$removeParams += @{Recurse = $Recurse}}   
 
     $files = Get-Files -Path $Path @getParams
+
+    foreach ($_directoryInfo in $files.DirectoryInfo) {
+
+        if ($Keep -eq 0) {
+            # mode is delete
+        }
+        else {
+            # mode is purge
+            if ($Days) {
+                # retain $Keep days of the most recent directories
+                $_directoryInfo = $_directoryInfo | Where-Object {$_.LastWriteTime -lt (Get-Date).AddDays(-$Keep)}
+            }
+            elseif ($Hours) {
+                # retain $Keep days of the most recent directories
+                $_directoryInfo = $_directoryInfo | Where-Object {$_.LastWriteTime -lt (Get-Date).AddHours(-$Keep)}
+            }
+            else {
+                # retain $Keep number of the most recent directories
+                $_directoryInfo = $_directoryInfo | Sort-Object -Property LastWriteTime -Descending | Select-Object -Skip $Keep
+            }
+        }
+        
+        if ($_directoryInfo) {
+            Write-Host+ -IfVerbose -NoTrace -NoTimestamp "Deleted $($_directoryInfo.FullName)" -ForegroundColor Red
+            if($PSCmdlet.ShouldProcess($_directoryInfo.FullName)) {
+                Remove-Item $_directoryInfo.FullName -Recurse -Force
+            }
+        }
+    }
     
-    foreach ($f in $files) {
+    foreach ($_fileInfo in $files.FileInfo) {
 
         if ($Keep -eq 0) {
             # mode is delete
@@ -68,18 +98,22 @@ function global:Remove-Files {
             # mode is purge
             if ($Days) {
                 # retain $Keep days of the most recent files
-                $f.fileInfo = $f.fileInfo | Where-Object {$_.LastWriteTime -lt (Get-Date).AddDays(-$Keep)}
+                $_fileInfo = $_fileInfo | Where-Object {$_.LastWriteTime -lt (Get-Date).AddDays(-$Keep)}
+            }
+            elseif ($Hours) {
+                # retain $Keep days of the most recent files
+                $_fileInfo = $_fileInfo | Where-Object {$_.LastWriteTime -lt (Get-Date).AddHours(-$Keep)}
             }
             else {
                 # retain $Keep number of the most recent files
-                $f.fileInfo = $f.fileInfo | Sort-Object -Property LastWriteTime -Descending | Select-Object -Skip $Keep
+                $_fileInfo = $_fileInfo | Sort-Object -Property LastWriteTime -Descending | Select-Object -Skip $Keep
             }
         }
         
-        if ($f.fileInfo) {
-            Write-Host+ -IfVerbose -NoTrace -NoTimestamp "Deleted $($f.fileInfo.FullName)" -ForegroundColor Red
-            if($PSCmdlet.ShouldProcess($f.fileInfo.FullName)) {
-                Remove-Item $f.fileInfo.FullName @removeParams
+        if ($_fileInfo) {
+            Write-Host+ -IfVerbose -NoTrace -NoTimestamp "Deleted $($_fileInfo.FullName)" -ForegroundColor Red
+            if($PSCmdlet.ShouldProcess($_fileInfo.FullName)) {
+                Remove-Item $_fileInfo.FullName @removeParams
             }
         }
     }
