@@ -136,7 +136,7 @@ function global:Get-Credentials {
     $UserName = $creds.keys[0]
     $PasswordEncrypted = $creds.$($username)
 
-    if ($Credssp) {
+    if ($Localhost) {
         if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine) { 
             if ($creds.UserName -notlike ".\*" -and $creds.UserName -notlike "$($env:COMPUTERNAME)\*") {
                 $UserName = ".\$UserName"
