@@ -87,7 +87,7 @@ function global:New-Log {
     $newLog = foreach ($node in $ComputerName){
         if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
         $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
-        [LogObject]::new($Path, $node).New($global:LogViewEntry.Raw)
+        [LogObject]::new($Path, $node).New($global:LogEntryView.Raw)
     }
 
     return $newLog
@@ -663,13 +663,15 @@ function global:Remove-Log {
     return $log
 
 }
+
 function global:Repair-Log {
     
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Path,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][string]$LogLevel = "Warning"
     )
 
     foreach ($node in $ComputerName) {
@@ -692,7 +694,10 @@ function global:Repair-Log {
                 # remove duplicates
                 $logEntry = $logEntry | Sort-Object -Property TimeStamp, EntryType, Context, Action, Status, Target, Message, ComputerName -Unique
 
-                # resort by timestamp
+                # remove entry types below log level
+                $logEntry = $logEntry | Where-Object { $_.$EntryType -le $LogLevels.$LogLevel }
+
+                # sort by timestamp
                 $logEntry = $logEntry | Sort-Object -Property TimeStamp
                 for ($i=0;$i -lt $logEntry.Count;$i++) {$logEntry[$i].Index = $i + 1}
 
