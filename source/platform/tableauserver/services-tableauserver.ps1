@@ -131,7 +131,7 @@ param (
 )
 
 if (!$ResetCache) {
-    if ($(get-cache platforminfo).Exists) {
+    if ($(Get-Cache platforminfo).Exists) {
         $platformInfo = Read-Cache platforminfo 
         if ($platformInfo) {
             # $global:Platform.Api.TsRestApiVersion = $platformInfo.TsRestApiVersion
@@ -168,12 +168,17 @@ function global:Get-PlatformService {
 
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+    [Parameter(Mandatory=$false)][string[]]$ComputerName,
     [Parameter(Mandatory=$false)][string]$View,
     [switch]$ResetCache
 )
 
-if ($(get-cache platformservices).Exists -and !$ResetCache) {
+$platformTopology = Get-PlatformTopology -Online
+if ([string]::IsNullOrEmpty($ComputerName)) {
+    $ComputerName = $platformTopology.nodes.Keys
+}
+
+if ($(Get-Cache platformservices).Exists -and !$ResetCache) {
     Write-Debug "Read-Cache platformservices"
     $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
     if ($platformServicesCache) {
@@ -347,7 +352,7 @@ function global:Get-PlatformProcess {
 
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+    [Parameter(Mandatory=$false)][string[]]$ComputerName,
     [Parameter(Mandatory=$false)][string]$View,
     [switch]$ResetCache
 )
@@ -938,7 +943,7 @@ param (
 )
 
 if (!$ResetCache) {
-    if ($(get-cache platformtopology).Exists) {
+    if ($(Get-Cache platformtopology).Exists) {
         return Read-Cache platformtopology
     }
 }

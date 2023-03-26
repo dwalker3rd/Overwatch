@@ -52,7 +52,7 @@ function global:Get-Heartbeat {
     [CmdletBinding()]
     param ()
 
-    if ($(get-cache heartbeat).Exists) {
+    if ($(Get-Cache heartbeat).Exists) {
         $heartbeat = Read-Cache heartbeat 
     }
     else {
@@ -173,7 +173,7 @@ function global:Get-HeartbeatHistory {
     [CmdletBinding()]
     param ()
 
-    if ($(get-cache heartbeatHistory).Exists) {
+    if ($(Get-Cache heartbeatHistory).Exists) {
         $heartbeatHistory = [HeartbeatHistory[]](Read-Cache heartbeatHistory)
     }
     else {
