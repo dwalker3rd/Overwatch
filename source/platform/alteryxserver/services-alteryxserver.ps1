@@ -7,7 +7,7 @@ function global:Get-PlatformInfo {
         [switch][Alias("Update")]$ResetCache
     )
 
-    if ($(get-cache platforminfo).Exists -and !$ResetCache) {
+    if ($(Get-Cache platforminfo).Exists -and !$ResetCache) {
         Write-Debug "Read-Cache platforminfo"
         $platformInfo = Read-Cache platforminfo # -MaxAge $(New-TimeSpan -Minutes 1)
         if ($platformInfo) {
@@ -45,13 +45,18 @@ function global:Get-PlatformProcess {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+        [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$ResetCache
     )
 
+    $platformTopology = Get-PlatformTopology -Online
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        $ComputerName = $platformTopology.nodes.Keys
+    }
+
     if (!$ResetCache) {
-        if ($(get-cache platformprocesses ).Exists) {
+        if ((Get-Cache platformprocesses).Exists) {
             Write-Debug "Read-Cache platformprocesses"
             $platformProcesses = Read-Cache platformprocesses -MaxAge (New-TimeSpan -Seconds 10)
             if ($platformProcesses) {
@@ -134,18 +139,18 @@ function global:Get-PlatformService {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+        [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][string]$View
     )
 
     $platformTopology = Get-PlatformTopology -Online
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        $ComputerName = $platformTopology.nodes.Keys
+    }
 
-    Write-Verbose "Get services from node[s]: RUNNING ..."
-    # $psSession = Use-PSSession+ -ComputerName $ComputerName
-    # $services = Invoke-Command -Session $psSession {&{
-    #     Get-Service -Name "AlteryxService" -InformationAction SilentlyContinue
-    # }}
-    $cimSession = New-CimSession -ComputerName $ComputerName -Credential (Get-Credentials "localadmin-$($Platform.Instance)" -Localhost) -Authentication CredSsp
+    $owt = Get-OverwatchTopology nodes.$node
+    $creds = Get-Credentials "localadmin-$($owt.Environ)" -ComputerName $owt.Controller -Localhost
+    $cimSession = New-CimSession -ComputerName $ComputerName -Credential $creds -Authentication CredSsp
     $services = Get-CimInstance -ClassName Win32_Service -CimSession $cimSession -Property * |
         Where-Object {$_.Name -eq $PlatformServiceConfig.Name} 
     Remove-CimSession $cimSession
@@ -235,9 +240,13 @@ function global:Get-AlteryxServerStatus {
     
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+        [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][ValidateSet("Controller","Database","Gallery","Worker")][string]$Component
     )
+
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        $ComputerName = Get-PlatformTopology nodes -Keys -Online
+    }
 
     $platformTopology = Get-PlatformTopology
 
@@ -403,13 +412,12 @@ function global:Get-RuntimeSettings {
     [CmdletBinding()] 
     param(
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
-        [Parameter(Mandatory=$false)][string]$Path = "c$\programdata\alteryx\runtimesettings.xml"
+        [Parameter(Mandatory=$false)][string]$Path = "C:\ProgramData\Alteryx\RuntimeSettings.xml"
     )
 
-    $Path =  "\\$($ComputerName)\$($Path)"
-    Write-Debug "$($Path)"
+    $runtimeSettingsFile = ([FileObject]::new($Path, $ComputerName))
 
-    return [xml]$(Get-Content -Path $Path)
+    return [xml]$(Get-Content -Path $runtimeSettingsFile.Path)
 
 }
 
@@ -519,9 +527,14 @@ function global:Watch-PlatformJob {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = (Get-PlatformTopology components.worker.nodes -Online -Keys),
+        [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][int32]$Seconds = 15
     ) 
+
+    $platformTopology = Get-PlatformTopology -Online
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        $ComputerName = $platformTopology.nodes.Keys
+    }
 
     $timer = [Diagnostics.Stopwatch]::StartNew()
 
@@ -1015,23 +1028,33 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
 
         [CmdletBinding()] param(
-            [Parameter(Mandatory=$false)][Alias("a")][switch]$All = $global:Cleanup.All,
-            [Parameter(Mandatory=$false)][Alias("b")][switch]$BackupFiles = $global:Cleanup.BackupFiles,
-            [Parameter(Mandatory=$false)][Alias("backup-files-retention")][int]$BackupFilesRetention = $global:Cleanup.BackupFilesRetention,
+            # [Parameter(Mandatory=$false)][Alias("a")][switch]$All = $global:Cleanup.All,
+            # [Parameter(Mandatory=$false)][Alias("b")][switch]$BackupFiles = $global:Cleanup.BackupFiles,
+            # [Parameter(Mandatory=$false)][Alias("backup-files-retention")][int]$BackupFilesRetention = $global:Cleanup.BackupFilesRetention,
             [Parameter(Mandatory=$false)][Alias("l")][switch]$LogFiles = $global:Cleanup.LogFiles,
             [Parameter(Mandatory=$false)][Alias("log-files-retention")][int]$LogFilesRetention = $global:Cleanup.LogFilesRetention
         )
 
-        if ($All) {
-            $BackupFiles = $true
-            $LogFiles = $true
-        }
+        function Get-RetentionPeriod {
 
-        if (!$BackupFiles -and !$LogFiles) {
-            $message = "You must specify at least one of the following switches: -All, -BackupFiles or -LogFiles."
-            Write-Host+ $message -ForegroundColor Red
-            Write-Log -Context "Product.Cleanup" -Action "NONE" -EntryType "Error" -Status "Failure" -Message $message
-            return
+            param (
+                [Parameter(Mandatory=$true,Position=0)][string]$Retention
+            )
+
+            $regexMatches = [regex]::Match($Retention,$global:RegexPattern.Cleanup.Retention,[System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            
+            $_retentionParams = @{
+                Keep = $regexMatches.Groups["count"].Value
+            }
+            if (![string]::IsNullOrEmpty($regexMatches.Groups["unit"].Value)) {
+                switch ($regexMatches.Groups["unit"].Value) {
+                    "D" { $_retentionParams += @{ Days = $true }}
+                    "H" { $_retentionParams += @{ Hours = $true }}
+                }
+            }
+
+            return $_retentionParams
+        
         }
 
         Write-Host+
@@ -1039,152 +1062,177 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
-        # Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status "Running" -Force
-        # $result = Send-TaskMessage -Id "Cleanup" -Status "Running"
-        # $result | Out-Null
+        Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status "Running" -Force
+        $result = Send-TaskMessage -Id "Cleanup" -Status "Running"
+        $result | Out-Null
 
         $platformTopology = Get-PlatformTopology
         # $ComputerName = $Force ? $ComputerName : $ComputerName | Where-Object {!$platformTopology[$ComputerName].Offline}
 
-        $purgeBackupFilesSuccess = $true
+        # $cleanupSuccess = $true
 
-        # purge backup files if the -BackupFiles switch was specified
-        # for Overwatch for Alteryx Server, the Backup product must also be installed
-        if ((Get-Product "Backup") -and $BackupFiles) {
-            
-            $message = "  <Backup files <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+        # try{
 
-            try{
-
-                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Backup.Extension)" -Recurse -Force
-
-                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Force
-                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
-
-            }
-            catch {
-
-                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+            foreach ($node in ($platformTopology.Nodes.Keys)) {
 
                 Write-Host+
-                Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
+                $message = "<  $node <.>48> PENDING"
+                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
                 Write-Host+
-                $message = "  <Backup files <.>48> FAILURE"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Red
 
-                $purgeBackupFilesSuccess = $false
+                [xml]$runtimeSettings = Get-RunTimeSettings -ComputerName $node
 
-            }
+                $controllerLogFilePath = Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -Parent
+                $engineDefaultTempFilePath = $runtimeSettings.SystemSettings.Engine.DefaultTempFilePath
+                $enginePackageStagingPath = $runtimeSettings.SystemSettings.Engine.PackageStagingPath
+                $engineLogFilePath = $runtimeSettings.SystemSettings.Engine.LogFilePath
+                $galleryLogFilePath = $runtimeSettings.SystemSettings.Gallery.LoggingPath
 
-        }
-        else {
-            $message = "<  Backup Files <.>48> SKIPPED"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-        }
+                if ($global:Cleanup.Controller.LogFiles -and $controllerLogFilePath -and (Test-Path $controllerLogFilePath)) {
 
-        # Write-Host+ -MaxBlankLines 1
+                    # Controller/Service: AlteryxService Log
+                    $message = "<    Controller Logs <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
-        $purgeLogFilesSuccess = $true
+                    $controllerLogFileName = Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -LeafBase
+                    $controllerLogFileExtension= Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -Extension
 
-        # purge log files if the -LogFiles switch was specified
-        if ($LogFiles) {
-
-            $message = "<  Log Files <.>48> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-            try {
-                
-                # Controller/Service Logs
-                $message = "<    Controller Logs <.>48> PENDING"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-                foreach ($controller in ($platformTopology.Components.Controller.Nodes.Keys)) {
-                    [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $controller
-                    if ($runTimeSettings.SystemSettings.Controller.LoggingPath) {
-                        $controllerLogFilePath = split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -Parent
-                        $controllerLogFilePath = $controllerLogFilePath -replace "^([a-zA-Z])\:","\\$($controller)\`$1`$" 
-                        if (Test-Path $controllerLogFilePath) {
-                            $controllerLogFileName = split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -LeafBase
-                            $controllerLogFileExtension= split-path $runTimeSettings.SystemSettings.Controller.LoggingPath -Extension
-                            $controllerLogFileFilter = "$($controllerLogFileName)*$($controllerLogFileExtension)"
-                            Remove-Files -Path $controllerLogFilePath -Filter $controllerLogFileFilter -Keep $LogFilesRetention -Days
-                        }
+                    $params = @{}
+                    $params += @{
+                        Path = $controllerLogFilePath
+                        Filter = "$($controllerLogFileName)*$($controllerLogFileExtension)"
                     }
-                }
-                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                    $params += Get-RetentionPeriod ($global:Cleanup.Controller.LogFiles.Retention ?? $global:Cleanup.Default.Retention)
+                    Remove-Files @params
 
-                # Gallery Logs
-                $message = "<    Gallery Logs <.>48> PENDING"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-                foreach ($gallery in ($platformTopology.Components.Gallery.Nodes.Keys)) {
-                    [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $gallery
-                    if ($runtimeSettings.SystemSettings.Gallery.LoggingPath) {
-                        $galleryLogFilePath = $runtimeSettings.SystemSettings.Gallery.LoggingPath 
-                        $galleryLogFilePath = $galleryLogFilePath -replace "^([a-zA-Z])\:","\\$($gallery)\`$1`$" 
-                        if (Test-Path $galleryLogFilePath) {
-                            Remove-Files -Path $galleryLogFilePath -Keep $LogFilesRetention -Days
+                    Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+
+                }
+
+                if ($global:Cleanup.Engine.TempFiles -and $engineDefaultTempFilePath -and (Test-Path $engineDefaultTempFilePath)) {
+
+                    # Engine: Default Temporary Directory
+                    $message = "<    Engine Temp Directories <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+
+                    foreach ($engineDefaultTempFilePathFilter in $global:Cleanup.Engine.TempFiles.Filter) {
+
+                        $params = @{}
+                        $params += @{
+                            Path = $engineDefaultTempFilePath
+                            Filter = $engineDefaultTempFilePathFilter
                         }
-                    }
-                }
-                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                        $params += Get-RetentionPeriod ($global:Cleanup.Engine.TempFiles.Retention ?? $global:Cleanup.Default.Retention)
+                        Remove-Files @params
 
-                # Engine Logs
-                $message = "<    Worker Logs <.>48> PENDING"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
-                foreach ($worker in ($platformTopology.Components.Worker.Nodes.Keys)) {
-                    [xml]$runTimeSettings = Get-RunTimeSettings -ComputerName $worker
-                    if ($runTimeSettings.SystemSettings.Engine.LogFilePath) {
-                        $workerLogFilePath = $runtimeSettings.SystemSettings.Engine.LogFilePath 
-                        $workerLogFilePath = $workerLogFilePath -replace "^([a-zA-Z])\:","\\$($worker)\`$1`$" 
-                        if (Test-Path $workerLogFilePath) {
-                            Remove-Files -Path $workerLogFilePath -Keep $LogFilesRetention -Days
+                    }
+
+                    Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                    
+                }
+
+                if ($global:Cleanup.Engine.LogFiles -and $engineLogFilePath -and (Test-Path $engineLogFilePath)) {
+
+                    # Engine: Default Temporary Directory
+                    $message = "<    Engine Log Files <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+
+                    foreach ($engineLogFilePathFilter in $global:Cleanup.Engine.LogFiles.Filter) {
+
+                        $params = @{}
+                        $params += @{
+                            Path = $engineLogFilePath
+                            Filter = $engineLogFilePathFilter
                         }
+                        $params += Get-RetentionPeriod ($global:Cleanup.Engine.LogFiles.Retention ?? $global:Cleanup.Default.Retention)
+                        Remove-Files @params
                     }
-                }
-                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
 
-                $message = "<  Log Files <.>48> SUCCESS"
+                    Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                    
+                }
+
+                if ($global:Cleanup.Engine.StagingFiles -and $enginePackageStagingPath -and (Test-Path $enginePackageStagingPath)) {
+
+                    # Engine: Default Temporary Directory
+                    $message = "<    Engine Staging Files <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+
+                    foreach ($enginePackageStagingPathFilter in $global:Cleanup.Engine.StagingFiles.Filter) {
+
+                        $params = @{}
+                        $params += @{
+                            Path = $enginePackageStagingPath
+                            Filter = $enginePackageStagingPathFilter
+                        }
+                        $params += Get-RetentionPeriod ($global:Cleanup.Engine.StagingFiles.Retention ?? $global:Cleanup.Default.Retention)
+                        Remove-Files @params
+
+                    }
+
+                    Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                    
+                }
+
+                if ($global:Cleanup.Gallery.LogFiles -and $galleryLogFilePath -and (Test-Path $galleryLogFilePath)) {
+
+                    # Gallery: Log Files
+                    $message = "<    Gallery Log Files <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+
+                    foreach ($galleryLogFilePathFilter in $global:Cleanup.Engine.StagingFiles.Filter) {
+
+                        $params = @{}
+                        $params += @{
+                            Path = $galleryLogFilePath
+                            Filter = $galleryLogFilePathFilter
+                        }
+                        $params += Get-RetentionPeriod ($global:Cleanup.Engine.StagingFiles.Retention ?? $global:Cleanup.Default.Retention)
+                        Remove-Files @params
+
+                    }
+
+                    Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+
+                }
+
+                Write-Host+
+                $message = "<  $node <.>48> SUCCESS"
                 Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+                Write-Host+
 
             }
-            catch {
+            
 
-                Write-Host+
-                Write-Host+ -NoTrace  "$($_.Exception.Message)" -ForegroundColor Red
-                Write-Host+
+        # }
+        # catch {
 
-                $message = "<  Log Files <.>48> FAILURE"
-                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
+        #     $cleanupSuccess = $false
 
-                $purgeLogFilesSuccess = $false
+        #     Write-Host+
+        #     Write-Host+ -NoTrace  "$($_.Exception.Message)" -ForegroundColor Red
+        #     Write-Host+
 
-            }   
+        # }   
 
-        }
-        else {
-            $message = "<  Log Files <.>48> SKIPPED"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
-        }
-        
-        $status = "SUCCESS"
-        if (!$purgeBackupFilesSuccess -and $purgeLogFilesSuccess) { $status = "WARNING"}
-        if (!$purgeLogFilesSuccess) { $status = "FAILURE"}
+        # $status = "SUCCESS"
+        # if (!$cleanupSuccess) { $status = "FAILURE"}
     
-        $color = switch ($status) {
-            "SUCCESS" { "DarkGreen" }
-            "WARNING" { "DarkYellow" }
-            "FAILURE" { "Red"}
-        }
+        # $color = switch ($status) {
+        #     "SUCCESS" { "DarkGreen" }
+        #     "WARNING" { "DarkYellow" }
+        #     "FAILURE" { "Red"}
+        # }
     
-        $entryType = switch ($status) {
-            "SUCCESS" { "Information" }
-            "WARNING" { "Warning" }
-            "FAILURE" { "Error"}
-        }
+        # $entryType = switch ($status) {
+        #     "SUCCESS" { "Information" }
+        #     "WARNING" { "Warning" }
+        #     "FAILURE" { "Error"}
+        # }
     
         Write-Host+
-        $message = "<Cleanup <.>48> $status"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,$color
+        $message = "<Cleanup <.>48> SUCCESS"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
         Write-Host+
     
         Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
@@ -1192,8 +1240,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         $result | Out-Null
     
         return
-        
-        return
+    
     }
 
 #endregion CLEANUP
@@ -1210,7 +1257,7 @@ function global:Initialize-PlatformTopology {
 
     if ($Nodes) {$ResetCache = $true}
     if (!$ResetCache -and !$NoCache) {
-        if ($(get-cache platformtopology).Exists) {
+        if ($(Get-Cache platformtopology).Exists) {
             return Read-Cache platformtopology
         }
     }
@@ -1231,9 +1278,12 @@ function global:Initialize-PlatformTopology {
         }
         if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
             if ($node -match $global:RegexPattern.PlatformTopology.Alias.Match) {
-                $ptAlias = $node -replace $global:RegexPattern.PlatformTopology.Alias.Match, $global:RegexPattern.PlatformTopology.Alias.Substitution
-                $platformTopology.Alias.($ptAlias) = $node
-                $platformTopology.Alias.($node) = $node
+                $ptAlias = ""
+                foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
+                    $ptAlias += $Matches[$i]
+                }
+                $platformTopology.Alias.$ptAlias = $node
+                $platformTopology.Alias.$node = $node
             }
         }
     }
@@ -1257,11 +1307,11 @@ function global:Initialize-PlatformTopology {
     foreach ($node in $Nodes) {
 
         # get runtimesettings.xml config file from node
-        $runTimeSettings = Get-RuntimeSettings -ComputerName $node
-        if (!$runTimeSettings) {continue}
+        $runtimeSettings = Get-RuntimeSettings -ComputerName $node
+        if (!$runtimeSettings) {continue}
 
         # check controller settings
-        if ($null -eq $runTimeSettings.SystemSettings.controller.ControllerEnabled -or $runTimeSettings.SystemSettings.controller.ControllerEnabled -eq "True") {
+        if ($null -eq $runtimeSettings.SystemSettings.controller.ControllerEnabled -or $runtimeSettings.SystemSettings.controller.ControllerEnabled -eq "True") {
             
             $platformTopology.Components.Controller.Nodes += @{$node = @{}}
 
@@ -1274,16 +1324,16 @@ function global:Initialize-PlatformTopology {
             $platformTopology.Components.Controller.Active.Nodes += @{$node = @{}}
 
             # embedded MongoDB
-            if ($runTimeSettings.SystemSettings.Controller.EmbeddedMongoDBEnabled -eq "True") {
+            if ($runtimeSettings.SystemSettings.Controller.EmbeddedMongoDBEnabled -eq "True") {
                 $platformTopology.Components.Controller.EmbeddedMongoDBEnabled = $true
                 $platformTopology.Nodes.$node.Components.Controller += @{EmbeddedMongoDBEnabled = $true}
             }
 
         }
 
-        if ($runTimeSettings.SystemSettings.Gallery.BaseAddress) {
+        if ($runtimeSettings.SystemSettings.Gallery.BaseAddress) {
 
-            $baseAddress = $runTimeSettings.SystemSettings.Gallery.BaseAddress
+            $baseAddress = $runtimeSettings.SystemSettings.Gallery.BaseAddress
             if ($baseAddress[$baseAddress.Length-1] -eq "/") {$baseAddress = $baseAddress.subString(0,$baseAddress.Length-1)}
             if ($baseAddress -eq $global:Platform.Uri) {
 
@@ -1300,7 +1350,7 @@ function global:Initialize-PlatformTopology {
             }
         }
 
-        if ($null -eq $runTimeSettings.SystemSettings.Environment.workerEnabled) {
+        if ($null -eq $runtimeSettings.SystemSettings.Environment.workerEnabled) {
 
             $platformTopology.Components.Worker.Nodes += @{$node = @{}}
             
