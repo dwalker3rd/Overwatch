@@ -1135,7 +1135,7 @@ $providerIds = @()
         foreach ($package in $requiredPackages) {
             
             $message = "<  $($package.name) <.>36> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
             $installedColor = "DarkGray"
             if (!(Get-InstalledModule -Name $package.name -ErrorAction SilentlyContinue)) {
