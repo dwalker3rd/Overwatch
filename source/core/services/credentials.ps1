@@ -196,8 +196,8 @@ function global:Copy-Credentials {
         [Parameter(Mandatory=$false)][string]$DestinationComputerName = $SourceComputerName
     )
 
-    $creds = Get-Credentials $Source -SecretVault $SourceSecretVault -KeyVault $SourceKeyVault -ComputerName $SourceComputerName
-    Set-Credentials $Destination -Credentials $creds -SecretVault $DestinationSecretVault -KeyVault $DestinationKeyVault -ComputerName $DestinationComputerName
+    $creds = Get-Credentials $Source -SecretVault $SourceSecretVault -KeyVault $SourceKeyVault -ComputerName (Get-OverwatchController $SourceComputerName)
+    Set-Credentials $Destination -Credentials $creds -SecretVault $DestinationSecretVault -KeyVault $DestinationKeyVault -ComputerName (Get-OverwatchController $DestinationComputerName)
 
 }
 

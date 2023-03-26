@@ -57,12 +57,6 @@ if ($Command) {
         $global:Product = @{Id="AzureRunCommand"}
         . $PSScriptRoot\definitions.ps1
 
-        Write-Host+
-        Write-Host+ -NoTrace "`$DoubleHop: $DoubleHop"
-        Write-Host+ -NoTrace "`$NoDoubleHop: $NoDoubleHop"
-        Write-Host+ -NoTrace "`$Credssp: $Credssp"
-        Write-Host+ -NoTrace "`$OverwatchController: $OverwatchController"
-
         Write-Host+ -NoTrace "Remoting to $OverwatchController using CredSSP `"double hop`"." 
 
         $creds = Get-Credentials "localadmin-$($Platform.Instance)" -Localhost
@@ -88,12 +82,6 @@ if ($Command) {
         . $PSScriptRoot\definitions.ps1
 
         $global:WriteHostPlusPreference = "Continue"
-
-        Write-Host+
-        Write-Host+ -NoTrace "`$DoubleHop: $DoubleHop"
-        Write-Host+ -NoTrace "`$NoDoubleHop: $NoDoubleHop"
-        Write-Host+ -NoTrace "`$Credssp: $Credssp"
-        Write-Host+ -NoTrace "`$OverwatchController: $OverwatchController"
 
         $commandExpression = $Command
         $commandParametersKeys = (Get-Command $Command.Split(" ")[0]).parameters.keys

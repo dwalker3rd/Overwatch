@@ -54,6 +54,9 @@ If using the Microsoft Teams provider, it must be configured here.
     #endregion PLATFORM-OBJECT
     #region PLATFORMTOPOLOGY
 
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Platform > Topology > Alias
+
         $global:RegexPattern += @{
             PlatformTopology = @{
                 Alias = @{
@@ -94,11 +97,35 @@ If using the Microsoft Teams provider, it must be configured here.
 
         $global:Cleanup = $null
         $global:Cleanup += @{
-            All = $false
-            LogFiles = $true
-            LogFilesRetention = 30
-            BackupFiles = $false
-            BackupFilesRetention = 1
+            Default = @{
+                Retention = "15D"
+            }
+            Controller = @{
+                LogFiles = @{
+                    # Filter derived from controller runtime settings
+                    Retention = "15D" 
+                }
+            }
+            Engine = @{
+                TempFiles = @{
+                    Filter = @("Alteryx_*_","AlteryxCEF_*")
+                    Retention = "15D" 
+                }
+                LogFiles = @{
+                    Filter = "alteryx-*.csv"
+                    Retention = "15D" 
+                }
+                StagingFiles = @{
+                    Filter = $global:RegexPattern.Guid
+                    Retention = "15D"
+                }
+            }
+            Gallery = @{
+                LogFiles = @{
+                    Filter = "*.log"
+                    Retention = "15D" 
+                } 
+            }
         }
 
     #endregion CLEANUP

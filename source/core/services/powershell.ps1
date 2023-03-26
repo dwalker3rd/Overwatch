@@ -44,7 +44,8 @@ function global:New-PSSession+ {
     $_psSession = @()
     if ($global:UseCredssp) { 
         foreach ($node in $ComputerName) {
-            $creds = Get-Credentials "localadmin-$($Platform.Instance)" -ComputerName $node -Localhost
+            $owt = Get-OverwatchTopology nodes.$node
+            $creds = Get-Credentials "localadmin-$($owt.Environ)" -ComputerName $owt.Controller -Localhost
             $_psSession += New-PSSession -ComputerName $node -ConfigurationName $ConfigurationName -Credential $creds -Authentication Credssp -ErrorAction SilentlyContinue
         }
     }

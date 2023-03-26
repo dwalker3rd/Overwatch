@@ -37,7 +37,7 @@ function global:Confirm-DiskSpace {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Keys -Online)
+        [Parameter(Mandatory=$false)][string[]]$ComputerName
     )
 
     function Build-MessageCard {
@@ -63,6 +63,11 @@ function global:Confirm-DiskSpace {
 
         return $msg
 
+    }
+
+    $platformTopology = Get-PlatformTopology -Online
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        $ComputerName = $platformTopology.nodes.Keys
     }
 
     $diskSpaceThresholds = @(-1,$diskSpaceLowThreshold,$diskSpaceCriticalThreshold)

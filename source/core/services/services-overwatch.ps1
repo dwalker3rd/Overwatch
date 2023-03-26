@@ -64,28 +64,7 @@
 
         return $result
 
-    }
-
-    function global:Find-OverwatchControllers {
-
-        [CmdletBinding()] 
-        param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName
-        )
-
-        if (!$ComputerName) {
-            $ComputerName = (Get-WsManTrustedHosts).Value -split "," #| Where-Object {$_ -notin (pt nodes -k) -or $_ -eq $env:COMPUTERNAME}
-        }
-
-        $controllers = @()
-        foreach ($node in $ComputerName) {
-            $_overwatch = Get-Catalog -Uid Overwatch.Overwatch -ComputerName $node
-            if ($_overwatch.Installed) { $controllers += $node }
-        }
-
-        return $controllers
-
-    }
+    } 
 
 #endregion OVERWATCH
 #region PROVIDERS
@@ -179,7 +158,7 @@
 
         $providers = @()
         if (!$ResetCache) {
-            if ($(get-cache providers).Exists) {
+            if ($(Get-Cache providers).Exists) {
                 $providers = Read-Cache providers # -MaxAge $(New-Timespan -Minutes 2)
             }
         }
@@ -732,7 +711,7 @@
 
             # The $ResetCache switch is only for the platform-specific Get-PlatformStatusRollup
             # function and is *** NOT *** to be used for the platformstatus cache
-            if ((get-cache platformstatus).Exists) {
+            if ((Get-Cache platformstatus).Exists) {
                 $platformStatus = [PlatformStatus](Read-Cache platformStatus)
                 # The $CacheOnly switch allows a faster return for those callers that 
                 # don't need updated platform-specific status. par example:  Show-PlatformEvent
@@ -833,12 +812,17 @@
 
             [CmdletBinding()]
             param (
-                [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Online -Keys),
+                [Parameter(Mandatory=$false)][string[]]$ComputerName,
                 [Parameter(Mandatory=$true)][string]$Name,
                 [Parameter(Mandatory=$false)][string]$Status = "Running",
                 [Parameter(Mandatory=$false)][int]$WaitTimeInSeconds = 60,
                 [Parameter(Mandatory=$false)][int]$TimeOutInSeconds = 0
             )
+
+            $platformTopology = Get-PlatformTopology -Online
+            if ([string]::IsNullOrEmpty($ComputerName)) {
+                $ComputerName = $platformTopology.nodes.Keys
+            }
             
             $totalWaitTimeInSeconds = 0
             $service = Get-PlatformService -ComputerName $ComputerName | Where-Object {$_.Name -eq $Name}
@@ -925,8 +909,13 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName = (Get-PlatformTopology nodes -Keys)
+            [Parameter(Mandatory=$false)][string[]]$ComputerName
         )
+
+        $platformTopology = Get-PlatformTopology -Online
+        if ([string]::IsNullOrEmpty($ComputerName)) {
+            $ComputerName = $platformTopology.nodes.Keys
+        }
 
         $leader = Format-Leader -Length 47 -Adjust ((("  Network Connections").Length))
         Write-Host+ -NoTrace "  Network Connections",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
@@ -1505,6 +1494,5 @@
         return $aliasUsed
     
     }
-    
 
 #endregion MISC
