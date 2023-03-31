@@ -44,7 +44,8 @@ function global:Initialize-PlatformTopology {
             foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
                 $ptAlias += $Matches[$i]
             }
-            $platformTopology.Alias.($ptAlias) = $controller
+            $platformTopology.Alias.$ptAlias = $controller
+            $platformTopology.Alias.$controller = $controller
         }
     }
 
@@ -56,7 +57,8 @@ function global:Initialize-PlatformTopology {
                 foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
                     $ptAlias += $Matches[$i]
                 }
-                $platformTopology.Alias.($ptAlias) = $agent.Name
+                $platformTopology.Alias.$ptAlias = $agent.Name
+                $platformTopology.Alias.$($agent.Name) = $agent.Name
             }
         }
     }
