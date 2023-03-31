@@ -413,6 +413,7 @@ function global:Get-AzMlWorkspace {
 
 function global:Get-AzVmContext {
 
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false,Position=0)][string]$VmName=$env:COMPUTERNAME
     )
@@ -470,6 +471,7 @@ function global:Get-AzVmContext {
 
 function global:Install-AzVmExtension {
 
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
         [Parameter(Mandatory=$true)][string]$ResourceGroupName,
@@ -521,34 +523,45 @@ function global:Get-AzureTenantKeys {
 
 }
 
-function global:Rename-AzDisk {
+
+function global:Enable-AzVMExtensionAutomaticUpdate {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][string]$ResourceGroupName,
-        [Parameter(Mandatory=$false)][string]$SKU = $global:Azure.Templates.Resources.StorageAccount.SKU,
-        [Parameter(Mandatory=$false)][string]$Location = $global:Azure.Templates.Resources.Location
+        [Parameter(Mandatory=$false)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ResourceGroupName,
+        [Parameter(Mandatory=$false)][string]$VmName
     )
 
-    #Define the following parameters.
-    $originalOsDiskName = "OSDiskRename_OsDisk_1_d6783bf8f6604032972883b96a78c579"
-    $newOsDiskName = "OSDisRename-OS"
-    $virtualMachineName = "OSDiskRename"
-    #Get a list of all the managed disks in a resource group.
-    #Get-AzDisk -ResourceGroupName $resourceGroup | Select Name
-    #Get the source managed disk.
-    $sourceDisk = Get-AzDisk -ResourceGroupName $resourceGroupName -DiskName $originalOsDiskName
-    #Create the disk configuration.
-    $diskConfig = New-AzDiskConfig -SourceResourceId $sourceDisk.Id -Location $sourceDisk.Location -CreateOption Copy -DiskSizeGB 127 -SkuName "Premium_LRS"
-    #Create the new disk.
-    New-AzDisk -Disk $diskConfig -DiskName $newOsDiskName -ResourceGroupName $resourceGroupName
-    #Swap the OS Disk out for the renamed disk.
-    $virtualMachine = Get-AzVm -ResourceGroupName $resourceGroupName -Name $virtualMachineName
-    $newOsDisk = Get-AzDisk -ResourceGroupName $resourceGroupName -Name $newOsDiskName
-    Set-AzVMOSDisk -VM $virtualMachine -ManagedDiskId $newOsDisk.Id -Name $newOsDisk.Name
-    Update-AzVM -ResourceGroupName $resourceGroupName -VM $virtualMachine
-    #Delete the original disk.
-    Remove-AzDisk -ResourceGroupName $resourceGroupName -DiskName $originalOsDiskName -Force
+    $vmParams = @{}
+    if (![string]::IsNullOrEmpty($ResourceGroupName)) { $vmParams += @{ ResourceGroupName = $ResourceGroupName } }
+    if (![string]::IsNullOrEmpty($VmName)) { $vmParams += @{ VmName = $VmName } }
+    $azVMs = Get-AzVM @vmParams
+
+    foreach ($azVM in $azVMs) {
+
+        $vmExtensionParams = @{}
+        $vmExtensionParams += @{
+            ResourceGroupName = $azVM.ResourceGroupName
+            VMName = $azVM.Name
+        }
+        if (![string]::IsNullOrEmpty($Name)) { $vmExtensionParams += @{ Name = $Name } }
+    
+        $vmExtensions = Get-AzVmExtension @vmExtensionParams
+        foreach ($vmExtension in $vmExtensions) {
+            Set-AzVMExtension -ExtensionName $vmExtension.Name `
+                -ResourceGroupName $azVM.ResourceGroupName `
+                -VMName $azVM.Name `
+                -Publisher $vmExtension.Publisher `
+                -ExtensionType $vmExtension.ExtensionType `
+                -TypeHandlerVersion $vmExtension.TypeHandlerVersion `
+                -Location $vmExtension.Location `
+                -EnableAutomaticUpgrade $true `
+                -NoWait `
+                -ErrorAction SilentlyContinue
+        }
+    
+    }
+
 
 }
