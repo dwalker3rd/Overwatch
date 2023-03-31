@@ -894,16 +894,21 @@
 #endregion PLATFORM
 #region TESTS
 
-    function global:Get-IpAddress {
+function global:Get-IpAddress {
 
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory=$true)][string]$ComputerName
-        )
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName,
+        [Parameter(Mandatory=$false,Position=1)][ValidateSet("IP4","IP6")][string]$Type = "IP4",
+        [Parameter(Mandatory=$false,Position=2)][string]$Mask = "255.255.255.255"
+    )
 
-        return (Resolve-DnsName $ComputerName).IPAddress
+    $ipAddress = (Resolve-DnsName $ComputerName | Where-Object {$null -ne $_."$($Type)Address"}).IPAddress
+    $ipAddress = [ipaddress] (([ipaddress]$ipAddress).Address -band ([ipaddress]$Mask).Address)
 
-    }
+    return $ipAddress.IPAddressToString
+
+}
 
     function global:Test-Connections {
 
