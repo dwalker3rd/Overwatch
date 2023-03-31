@@ -186,13 +186,22 @@ function global:Find-OverwatchControllers {
     )
 
     if (!$ComputerName) {
-        $ComputerName = (Get-WsManTrustedHosts).Value -split "," #| Where-Object {$_ -notin (pt nodes -k) -or $_ -eq $env:COMPUTERNAME}
+        $_controllers = @()
+        $_controllers += $env:COMPUTERNAME
+        if ($global:OverwatchRemoteControllers.Count -gt 0) {
+            $_controllers += $global:OverwatchRemoteControllers
+        }
+        $ComputerName = $_controllers | Sort-Object -Unique
     }
 
     $controllers = @()
     foreach ($node in $ComputerName) {
         $_overwatch = Get-Catalog -Uid Overwatch.Overwatch -ComputerName $node
-        if ($_overwatch.Installed) { $controllers += $node }
+        if ($_overwatch.Installed) {
+            if ($controllers -inotcontains $node) { 
+                $controllers += $node.ToLower()
+            }
+        }
     }
 
     return $controllers
@@ -301,6 +310,9 @@ function global:Initialize-OverwatchTopology {
 
     $overwatchControllers = Find-OverwatchControllers -Computername $ComputerName
     foreach ($overwatchController in $OverwatchControllers) {
+        
+        # add overwatch controller to wsman trusted hosts (required for remoting)
+        Add-WSManTrustedHosts -ComputerName $overwatchController | Out-Null
 
         $environ = Get-EnvironConfig -Key Environ -ComputerName $overwatchController
         $nodes = Get-PlatformTopology nodes -Keys -Controller $overwatchController

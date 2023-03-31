@@ -54,3 +54,10 @@
     $global:InstallSettings = "$($global:Location.Install)\data\installSettings.ps1"
 
 #endregion FILES  
+#region OVERWATCH TOPOLOGY 
+
+    # The following line indicates a post-installation configuration to the installer
+    # Manual Configuration > Overwatch > Topology > Remote Controllers
+    $global:OverwatchRemoteControllers = @()
+
+#endregion OVERWATCH TOPOLOGY
