@@ -9,12 +9,13 @@
         [CmdletBinding()] 
         param (
             [Parameter(Mandatory=$true,Position=0)][string]$Key,
+            [Parameter(Mandatory=$false)][ValidateSet("Global","Local")][string]$Scope,
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
             [Parameter(Mandatory=$false)][string]$Path
         )
 
         if ($ComputerName -eq $env:COMPUTERNAME -and [string]::IsNullOrEmpty($Path)) {
-            Invoke-Expression "`$$Key"
+            Invoke-Expression "`$$($Scope):$($Key)"
             return
         }
 

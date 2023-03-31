@@ -309,38 +309,38 @@ function global:Initialize-OverwatchTopology {
     }
 
     $overwatchControllers = Find-OverwatchControllers -Computername $ComputerName
-    foreach ($overwatchController in $OverwatchControllers) {
+    foreach ($overwatchController in $overwatchControllers) {
         
         # add overwatch controller to wsman trusted hosts (required for remoting)
         Add-WSManTrustedHosts -ComputerName $overwatchController | Out-Null
 
-        $environ = Get-EnvironConfig -Key Environ -ComputerName $overwatchController
-        $nodes = Get-PlatformTopology nodes -Keys -Controller $overwatchController
+        $owcEnviron = Get-EnvironConfig -Key Environ -ComputerName $overwatchController
+        $owcNodes = Get-PlatformTopology nodes -Keys -Controller $overwatchController
 
         # environ
-        $platformInstance = $environ.Instance
-        foreach ($key in $environ.Keys) {
-            $overwatchTopology.Environ.$platformInstance += @{ 
-                $key = $environ.$key
+        $owcPlatformInstance = $owcEnviron.Instance
+        foreach ($key in $owcEnviron.Keys) {
+            $overwatchTopology.Environ.$owcPlatformInstance += @{ 
+                $key = $owcEnviron.$key
             }
         }
-        $overwatchTopology.Environ.$platformInstance += @{ Controller = $overwatchController }
-        $overwatchTopology.Environ.$platformInstance += @{ Nodes = $nodes }
+        $overwatchTopology.Environ.$owcPlatformInstance += @{ Controller = $overwatchController }
+        $overwatchTopology.Environ.$owcPlatformInstance += @{ Nodes = $owcNodes }
 
         # controller
         $overwatchTopology.Controller += @{ 
             $overwatchController = @{
-                Environ = $platformInstance
-                Nodes = $nodes
+                Environ = $owcPlatformInstance
+                Nodes = $owcNodes
             }
         }
 
         # nodes
-        foreach ($node in $nodes) {
+        foreach ($node in $owcNodes) {
             $overwatchTopology.Nodes += @{ 
                 $node = @{ 
                     Controller = $overwatchController
-                    Environ = $platformInstance
+                    Environ = $owcPlatformInstance
                 }
             }
             if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
