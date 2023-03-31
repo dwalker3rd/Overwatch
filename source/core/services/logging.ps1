@@ -635,6 +635,8 @@ function global:Summarize-Log {
 
     }
 
+    $global:consoleSequence.Reset
+
 }
 Set-Alias -Name logSummary -Value Show-LogSummary -Scope Global
 

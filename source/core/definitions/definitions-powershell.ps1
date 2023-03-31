@@ -15,6 +15,7 @@
 #region CONSOLE SEQUENCES
 
     $global:consoleSequence = @{
+        Reset = "`e[!p"
         Default = "`e[0m"
         BoldBright = "`e[1m"
         NoBoldBright = "`e[22m"
