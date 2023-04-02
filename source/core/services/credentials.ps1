@@ -122,7 +122,7 @@ function global:Get-Credentials {
         [Parameter(Mandatory=$false)][object]$Key,
         [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
         [Parameter(Mandatory=$false)][object]$KeyVault = "key",
-        [switch]$Localhost,
+        [switch]$LocalMachine,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
@@ -136,7 +136,7 @@ function global:Get-Credentials {
     $UserName = $creds.keys[0]
     $PasswordEncrypted = $creds.$($username)
 
-    if ($Localhost) {
+    if ($LocalMachine) {
         if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine) { 
             if ($creds.UserName -notlike ".\*" -and $creds.UserName -notlike "$($env:COMPUTERNAME)\*") {
                 $UserName = ".\$UserName"

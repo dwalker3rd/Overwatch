@@ -59,7 +59,7 @@ if ($Command) {
 
         Write-Host+ -NoTrace "Remoting to $OverwatchController using CredSSP `"double hop`"." 
 
-        $creds = Get-Credentials "localadmin-$($Platform.Instance)" -Localhost
+        $creds = Get-Credentials "localadmin-$($Platform.Instance)" -LocalMachine
 
         $workingDirectory = $global:Location.Root
         $result = Invoke-Command -ComputerName $OverwatchController `

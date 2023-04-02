@@ -148,13 +148,17 @@ function global:Get-PlatformService {
         $ComputerName = $platformTopology.nodes.Keys
     }
 
-    $owt = Get-OverwatchTopology nodes.$node
-    $creds = Get-Credentials "localadmin-$($owt.Environ)" -ComputerName $owt.Controller -Localhost
-    $cimSession = New-CimSession -ComputerName $ComputerName -Credential $creds -Authentication CredSsp
+    $cimSession = @()
+    foreach ($node in $ComputerName) {
+        $owt = Get-OverwatchTopology nodes.$node
+        $creds = Get-Credentials "localadmin-$($owt.Environ)" -ComputerName $owt.Controller -LocalMachine
+        $cimSession += New-CimSession -ComputerName $node -Credential $creds -Authentication CredSsp -ErrorAction SilentlyContinue
+    }
+
     $services = Get-CimInstance -ClassName Win32_Service -CimSession $cimSession -Property * |
         Where-Object {$_.Name -eq $PlatformServiceConfig.Name} 
+
     Remove-CimSession $cimSession
-    Write-Verbose "Get services from node[s]: COMPLETED"
 
     $PlatformServices = @(
         $services | ForEach-Object {
