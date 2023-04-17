@@ -112,20 +112,26 @@ If using the Microsoft Teams provider, it must be configured here.
                     Retention = "15D" 
                 }
                 LogFiles = @{
-                    Filter = "alteryx-*.csv"
+                    Filter = "*.log"
                     Retention = "15D" 
                 }
                 StagingFiles = @{
-                    Filter = $global:RegexPattern.Guid
+                    Filter = @("????????-????-????-????-????????????")
                     Retention = "15D"
                 }
             }
             Gallery = @{
                 LogFiles = @{
-                    Filter = "*.log"
+                    Filter = "alteryx-*.csv"
                     Retention = "15D" 
                 } 
             }
+            Worker = @{
+                StagingFiles = @{
+                    Filter = @("*_????????????????????????????????")
+                    Retention = "15D"
+                }
+            }            
         }
 
     #endregion CLEANUP

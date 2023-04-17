@@ -1062,9 +1062,9 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         }
 
         Write-Host+
-        $message = "<Cleanup <.>48> PENDING"
+        $message = "<Cleanup <.>60> PENDING"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-        Write-Host+
+        # Write-Host+
 
         Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status "Running" -Force
         $result = Send-TaskMessage -Id "Cleanup" -Status "Running"
@@ -1080,9 +1080,10 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
             foreach ($node in ($platformTopology.Nodes.Keys)) {
 
                 Write-Host+
-                $message = "<  $node <.>48> PENDING"
-                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-                Write-Host+
+                $message = "  $node"
+                Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkBlue
+                $message = "  $($emptyString.PadLeft($node.Length,"-"))"
+                Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkBlue
 
                 [xml]$runtimeSettings = Get-RunTimeSettings -ComputerName $node
 
@@ -1091,11 +1092,12 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
                 $enginePackageStagingPath = $runtimeSettings.SystemSettings.Engine.PackageStagingPath
                 $engineLogFilePath = $runtimeSettings.SystemSettings.Engine.LogFilePath
                 $galleryLogFilePath = $runtimeSettings.SystemSettings.Gallery.LoggingPath
+                $workerStagingPath = $runtimeSettings.SystemSettings.Worker.StagingPath
 
-                if ($global:Cleanup.Controller.LogFiles -and $controllerLogFilePath -and (Test-Path $controllerLogFilePath)) {
+                if ($global:Cleanup.Controller.LogFiles -and $controllerLogFilePath -and (Test-Path+ -Path $controllerLogFilePath -ComputerName $node)) {
 
-                    # Controller/Service: AlteryxService Log
-                    $message = "<    Controller Logs <.>48> PENDING"
+                    # Alteryx Service: AlteryxService Log
+                    $message = "<    AlteryxService Log Files <.>48> PENDING"
                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
                     $controllerLogFileName = Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -LeafBase
@@ -1103,6 +1105,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                     $params = @{}
                     $params += @{
+                        ComputerName = $node
                         Path = $controllerLogFilePath
                         Filter = "$($controllerLogFileName)*$($controllerLogFileExtension)"
                     }
@@ -1113,7 +1116,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                 }
 
-                if ($global:Cleanup.Engine.TempFiles -and $engineDefaultTempFilePath -and (Test-Path $engineDefaultTempFilePath)) {
+                if ($global:Cleanup.Engine.TempFiles -and $engineDefaultTempFilePath -and (Test-Path+ -Path $engineDefaultTempFilePath -ComputerName $node)) {
 
                     # Engine: Default Temporary Directory
                     $message = "<    Engine Temp Directories <.>48> PENDING"
@@ -1123,6 +1126,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                         $params = @{}
                         $params += @{
+                            ComputerName = $node
                             Path = $engineDefaultTempFilePath
                             Filter = $engineDefaultTempFilePathFilter
                         }
@@ -1135,9 +1139,9 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
                     
                 }
 
-                if ($global:Cleanup.Engine.LogFiles -and $engineLogFilePath -and (Test-Path $engineLogFilePath)) {
+                if ($global:Cleanup.Engine.LogFiles -and $engineLogFilePath -and (Test-Path+ -Path $engineLogFilePath -ComputerName $node)) {
 
-                    # Engine: Default Temporary Directory
+                    # Engine: Log Files
                     $message = "<    Engine Log Files <.>48> PENDING"
                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
@@ -1145,6 +1149,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                         $params = @{}
                         $params += @{
+                            ComputerName = $node
                             Path = $engineLogFilePath
                             Filter = $engineLogFilePathFilter
                         }
@@ -1156,9 +1161,9 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
                     
                 }
 
-                if ($global:Cleanup.Engine.StagingFiles -and $enginePackageStagingPath -and (Test-Path $enginePackageStagingPath)) {
+                if ($global:Cleanup.Engine.StagingFiles -and $enginePackageStagingPath -and (Test-Path+ -Path $enginePackageStagingPath -ComputerName $node)) {
 
-                    # Engine: Default Temporary Directory
+                    # Engine: Staging Files
                     $message = "<    Engine Staging Files <.>48> PENDING"
                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
@@ -1166,6 +1171,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                         $params = @{}
                         $params += @{
+                            ComputerName = $node
                             Path = $enginePackageStagingPath
                             Filter = $enginePackageStagingPathFilter
                         }
@@ -1178,7 +1184,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
                     
                 }
 
-                if ($global:Cleanup.Gallery.LogFiles -and $galleryLogFilePath -and (Test-Path $galleryLogFilePath)) {
+                if ($global:Cleanup.Gallery.LogFiles -and $galleryLogFilePath -and (Test-Path+ -Path $galleryLogFilePath -ComputerName $node)) {
 
                     # Gallery: Log Files
                     $message = "<    Gallery Log Files <.>48> PENDING"
@@ -1188,6 +1194,7 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                         $params = @{}
                         $params += @{
+                            ComputerName = $node
                             Path = $galleryLogFilePath
                             Filter = $galleryLogFilePathFilter
                         }
@@ -1200,10 +1207,33 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
 
                 }
 
-                Write-Host+
-                $message = "<  $node <.>48> SUCCESS"
-                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-                Write-Host+
+                if ($global:Cleanup.Worker.StagingFiles -and $workerStagingPath -and (Test-Path+ -Path $workerStagingPath -ComputerName $node)) {
+
+                    # Worker: Staging Files
+                    $message = "<    Worker Staging Files <.>48> PENDING"
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+
+                    foreach ($workerStagingPathFilter in $global:Cleanup.Worker.StagingFiles.Filter) {
+
+                        $params = @{}
+                        $params += @{
+                            ComputerName = $node
+                            Path = $workerStagingPath
+                            Filter = $workerStagingPathFilter
+                        }
+                        $params += Get-RetentionPeriod ($global:Cleanup.Worker.StagingFiles.Retention ?? $global:Cleanup.Default.Retention)
+                        Remove-Files @params
+
+                    }
+
+                    Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                    
+                }              
+
+                # Write-Host+
+                # $message = "<  $node <.>48> SUCCESS"
+                # Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+                # Write-Host+
 
             }
             
@@ -1235,11 +1265,11 @@ Set-Alias -Name backup -Value Backup-Platform -Scope Global
         # }
     
         Write-Host+
-        $message = "<Cleanup <.>48> SUCCESS"
+        $message = "<Cleanup <.>60> SUCCESS"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
         Write-Host+
     
-        Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
+        # Write-Log -Context "Product.Cleanup" -Action "Cleanup" -Status $status -EntryType $entryType -Force
         $result = Send-TaskMessage -Id "Cleanup" -Status "Completed" -Message $($status -eq "SUCCESS" ? "" : "See log files for details.")
         $result | Out-Null
     
