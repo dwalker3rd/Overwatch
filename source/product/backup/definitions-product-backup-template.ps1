@@ -20,13 +20,14 @@
     $global:Product.HasTask = $true
 
     $global:Product.Config = @{}
-    $global:Product.Config += @{
-        Backup = @{
-            Path = "<backupArchiveLocation>"
-            Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-            Extension = "bak"
-            MaxRunTime = New-Timespan -Minutes 15
-        }
+
+    $global:Backup = @{}
+    $global:Backup += @{
+        Path = "<backupArchiveLocation>"
+        Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
+        Extension = "bak"
+        MaxRunTime = New-Timespan -Minutes 15
+        Retention = 3
     }
 
     return $global:Product
