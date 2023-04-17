@@ -100,12 +100,13 @@ If using the Microsoft Teams provider, it must be configured here.
             Default = @{
                 Retention = "15D"
             }
-            Controller = @{
+            AlteryxService = @{
                 LogFiles = @{
                     # Filter derived from controller runtime settings
                     Retention = "15D" 
                 }
             }
+            Controller = @{}
             Engine = @{
                 TempFiles = @{
                     Filter = @("Alteryx_*_","AlteryxCEF_*")
