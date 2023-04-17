@@ -408,17 +408,17 @@ function global:Cleanup-Platform {
         $message = "<  Backup files <.>48> PENDING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-        $backupFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.$($global:Product.Config.Backup.Extension)").fileInfo.Count
-        $configFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.json").fileInfo.Count
+        $backupFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.$($global:Backup.Extension)").fileInfo.Count
+        $configFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.json").fileInfo.Count
 
         if ($backupFileCount -gt $BackupFilesRetention -or $configFileCount -gt $BackupFilesRetention) {
 
             try{
                 $fileCountBeforePurge = $backupFileCount + $configFileCount
-                Remove-Files -Path $global:Product.Config.Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Product.Config.Backup.Extension)"
-                Remove-Files -Path $global:Product.Config.Backup.Path -Keep $BackupFilesRetention -Filter "*.json"
-                $backupFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.$($global:Product.Config.Backup.Extension)").fileInfo.Count
-                $configFileCount = (Get-Files -Path $global:Product.Config.Backup.Path -Filter "*.json").fileInfo.Count
+                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.$($global:Backup.Extension)"
+                Remove-Files -Path $global:Backup.Path -Keep $BackupFilesRetention -Filter "*.json"
+                $backupFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.$($global:Backup.Extension)").fileInfo.Count
+                $configFileCount = (Get-Files -Path $global:Backup.Path -Filter "*.json").fileInfo.Count
                 $fileCountAfterPurge = $backupFileCount + $configFileCount
                 Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -Status "Success" -Message "$($fileCountBeforePurge-$fileCountAfterPurge) backup files purged." -Force
                 Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
@@ -552,7 +552,7 @@ function global:Backup-Platform {
         try {
 
             $response = Invoke-TsmApiMethod -Method "ExportConfigurationAndTopologySettings"
-            $exportFile = "$($global:Product.Config.Backup.Path)/$($global:Product.Config.Backup.Name).json" -replace "\/","\"
+            $exportFile = "$($global:Backup.Path)/$($global:Backup.Name).json" -replace "\/","\"
             $response | ConvertTo-Json -Depth 99 | Out-File $exportFile
 
             $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
@@ -577,7 +577,7 @@ function global:Backup-Platform {
         
         try {
 
-            $backupFile = "$($global:Product.Config.Backup.Name).$($global:Product.Config.Backup.Extension)"
+            $backupFile = "$($global:Backup.Name).$($global:Backup.Extension)"
             $backupPlatformJob = Invoke-TsmApiMethod -Method "Backup" -Params @($backupFile)
             Watch-PlatformJob -Id $backupPlatformJob.id -Context "Backup" -Callback "Invoke-PlatformJobCallback"
 
