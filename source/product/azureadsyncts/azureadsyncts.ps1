@@ -277,7 +277,7 @@ $global:Product = @{Id="AzureADSyncTS"}
                     
                     # the azureADUser account is enabled; the tsUser account is disabled
                     if ($azureADUser.accountEnabled -and $tsUser.siteRole -eq "Unlicensed") {
-                        $azureADUserAccountAction = "ENABLE"; $azureADUserAccountState = "Enabled"; $azureADUserAccountActionResult = "Enabled"; $azureADUserAccountStateColor = "DarkGreen"; $siteRole = $tsUser.siteRole
+                        $azureADUserAccountAction = "ENABLE"; $azureADUserAccountState = "Enabled"; $azureADUserAccountActionResult = "Enabled"; $azureADUserAccountStateColor = "DarkGreen"; $siteRole = $global:Product.Config.$($contentUrl).SiteRoleMinimum
                     }
 
                     # the azureADUser account is disabled; the tsUser account is NOT disabled (enabled)
