@@ -197,3 +197,20 @@ if (Select-String -Path $Path -Pattern $Find) {
 return 
 
 }
+
+function global:Test-Path+ {
+   
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Path,
+        [Parameter(Mandatory=$false)][string]$ComputerName
+    )
+
+    if (![string]::IsNullOrEmpty($ComputerName)) {
+        return [FileObject]::new($Path,$ComputerName).Exists ? [FileObject]::new($Path,$ComputerName).Exists : [DirectoryObject]::new($Path,$ComputerName).Exists
+    }
+    else {
+        return Test-Path -Path $Path @Args
+    }
+
+}
