@@ -381,40 +381,19 @@ function global:Get-TableauServerStatus {
     $attemptMessage = "Attempt #<0>"
 
     do {
-
-        Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Pending"
         
         try {
 
-            # Invoke-TsmApiMethod (1st attempt)
             $tableauServerStatus = Invoke-TsmApiMethod -Method "ClusterStatus"
-
-            $platformJob = Get-PlatformJob | Where-Object {$_.status -eq "Running" -and $_.jobType -in ("StartServerJob","StopServerJob","RestartServerJob")}
-
-            # Check for running platform jobs
-            # modify Tableau Server status if these jobs are running
-            $tableauServerStatus.RollupStatus = 
-                switch ($platformJob.jobType) {
-                    "StartServerJob" {"Starting"}
-                    "StopServerJob" {"Stopping"}
-                    "RestartServerJob" {"Restarting"}
-                    default {$tableauServerStatus.RollupStatus}
-                }
-
-            Write-Debug "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Success"
 
         }
         catch {
 
             if ($attempt -eq $maxAttempts) {
-                # Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor Red
-                # Write-Host+ -NoTrace "$($action) $($target) ($($attemptMessage.replace("<0>", $attempt))): Failure" -ForegroundColor Red
                 Write-Log -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
                 Write-Log -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
             }
             else {
-                # give the TSM API a moment to think it over
-                Write-Debug "Waiting $($sleepSeconds) before retrying ... "
                 Start-Sleep -Seconds $sleepSeconds
             }
 
@@ -424,7 +403,23 @@ function global:Get-TableauServerStatus {
         
     } until ($tableauServerStatus -or $attempt -gt $maxAttempts)
 
+    $platformJob = Get-PlatformJob | Where-Object {$_.status -eq "Running" -and $_.jobType -in ("StartServerJob","StopServerJob","RestartServerJob")}
+
     if ($tableauServerStatus) {
+
+        if ($platformJob) {
+    
+            # Check for running platform jobs
+            # modify Tableau Server status if these jobs are running
+            $tableauServerStatus.RollupStatus = 
+                switch ($platformJob.jobType) {
+                    "StartServerJob" {"Starting"}
+                    "StopServerJob" {"Stopping"}
+                    "RestartServerJob" {"Restarting"}
+                    default {$tableauServerStatus.RollupStatus}
+                }
+    
+        }        
         
         # if Tableau Server's rollupStatus is DEGRADED
         if ($tableauServerStatus.rollupStatus -eq "Degraded") {
