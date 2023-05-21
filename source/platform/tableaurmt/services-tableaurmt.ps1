@@ -1095,3 +1095,96 @@ function global:Show-PlatformStatus {
 }
 
 #endregion COMMAND/CONTROL
+#region TESTS
+
+    function global:Test-RepositoryAccess {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true)][string[]]$ComputerName,
+            [switch]$SSL
+        )
+
+        $hostMode = $SSL ? "hostssl" : "host"
+
+        $leader = Format-Leader -Length 47 -Adjust ((("  Postgres Access").Length))
+        Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
+
+        try {
+
+            $templatePath = "$($global:Platform.InstallPath)\data\postgresql13\pg_hba.conf"
+            $templateContent = [System.Collections.ArrayList](Get-Content -Path $templatePath)
+
+            if ($templateContent) {
+        
+                Write-Host+ -NoTimestamp -NoTrace  " PENDING" -ForegroundColor DarkGray
+
+                $subLeader = Format-Leader -Length 35 -Adjust ((("Updating pg_hba.conf").Length))
+                Write-Host+ -NoTrace -NoNewLine "    Updating pg_hba.conf",$subLeader -ForegroundColor Gray,DarkGray
+
+                $regionBegin = $templateContent.Trim().IndexOf("# region Overwatch")
+                $regionEnd = $templateContent.Trim().IndexOf("# endregion Overwatch")
+
+                $savedRows = @()
+
+                if ($regionBegin -ne -1 -and $regionEnd -ne 1) {
+                    for ($i = $regionBegin+1; $i -le $regionEnd-1; $i++) {
+                        $savedRows += $templateContent[$i].Trim() -replace "host(?:ssl)?.*?\s", "$hostMode "
+                    }
+                    $templateContent.RemoveRange($regionBegin,$regionEnd-$regionBegin+2)
+                }
+
+                $newRows = $false
+                foreach ($node in $ComputerName) {
+                    $newRow = "$hostMode all readonly $(Get-IpAddress $node)/32 md5"
+                    if ($savedRows -notcontains $newRow) {
+                        $savedRows += $newRow
+                        $newRows = $true
+                    }
+                }
+
+                if ($newRows) {
+
+                    if ($templateContent[-1].Trim() -ne "") { $templateContent.Add("") | Out-Null}
+                    $templateContent.Add("# region Overwatch") | Out-Null
+                    # $templateContent.Add("<#if pgsql.readonly.enabled >") | Out-Null
+                    foreach ($row in $savedRows) {
+                        $templateContent.Add($row) | Out-Null
+                    }
+                    # $templateContent.Add("</#if>") | Out-Null
+                    $templateContent.Add("# endregion Overwatch") | Out-Null
+                    $templateContent.Add("") | Out-Null
+                    $templateContent | Set-Content -Path $templatePath
+
+                }
+
+                Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen
+                Write-Log -Action "Test" -Target "pg_hba.conf" -Status "PASS"
+
+                Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
+                Write-Host+ -NoTimestamp -NoTrace  " PASS" -ForegroundColor DarkGreen
+
+            }
+            else {
+                
+                Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed 
+                Write-Log -Action "Test" -Target "pg_hba.conf" -Status "FAIL" -EntryType "Error" -Message "Invalid format"
+                # throw "Invalid format"
+
+                Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
+                Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed 
+
+            }
+
+        }
+        catch {
+        
+            Write-Host+ -NoTimestamp -NoTrace  " FAIL" -ForegroundColor DarkRed 
+            Write-Log -Action "Test" -Target "pg_hba.conf" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
+            # throw "$($_.Exception.Message)"
+        
+        }
+
+    }
+
+#region TESTS

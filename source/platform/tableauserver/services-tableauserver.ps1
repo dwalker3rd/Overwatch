@@ -1375,7 +1375,7 @@ function global:Test-RepositoryAccess {
 
             if ($regionBegin -ne -1 -and $regionEnd -ne 1) {
                 for ($i = $regionBegin+2; $i -le $regionEnd-2; $i++) {
-                    $savedRows += $templateContent[$i].Trim() -replace "host.*\s", "$hostMode "
+                    $savedRows += $templateContent[$i].Trim() -replace "host(?:ssl)?.*?\s", "$hostMode "
                 }
                 $templateContent.RemoveRange($regionBegin,$regionEnd-$regionBegin+2)
             }
