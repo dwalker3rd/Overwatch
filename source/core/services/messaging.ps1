@@ -499,6 +499,82 @@ function global:Send-ServerStatusMessage {
 
 }
 
+function global:Send-SslCertificateExpiryMessage {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][object]$Certificate,
+        [switch]$NoThrottle
+    )
+
+    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+
+    $1day = New-TimeSpan -days 1
+    $7days = New-TimeSpan -days 7
+    $30days = New-TimeSpan -days 30
+
+    $expiresInDays = $Certificate.NotAfter - $now
+
+    $cn = $Certificate.Subject # .Replace("*.","")
+    $cnShort = $cn.Split(",")[0].Replace("CN=","")
+
+    $facts = @()
+    $sections = @()
+
+    $facts = @(
+        @{
+            name = "Subject" 
+            value = $cn
+        }
+        @{
+            name = "Issuer"
+            value = $Certificate.Issuer.split(",")[0]
+        }
+        @{
+            name = "SerialNumber"
+            value = $Certificate.SerialNumber
+        }
+        @{
+            name = "Thumbprint"
+            value = $Certificate.Thumbprint
+        }
+        @{
+            name = "Expiry"
+            value = $Certificate.NotAfter
+        }
+        @{
+            name = "Status"
+            value = $expiresInDays -le 0 ? "Expired" : "Expires in $([math]::round($expiresInDays.TotalDays,0)) days"
+        }
+    )
+
+    $sectionMain = @{
+        ActivityTitle = $global:Platform.Instance
+        ActivitySubtitle = $global:Platform.DisplayName
+        ActivityText = "[$($global:Platform.Uri)]($($global:Platform.Uri))"
+        ActivityImage = $global:Platform.Image
+        Facts = $facts
+    }
+    $sections += $sectionMain
+
+    $throttle = $expiresInDays -le $30days ? $1day : $7days
+    $throttle = $NoThrottle ? [timespan]::Zero : $throttle
+
+    $msg = @{
+        Title = "Overwatch SSL Certificate Monitoring"
+        Text = "A SSL certificate on $($Platform.Name) ($($Platform.Instance)) $($expiresInDays -le 0 ? "has expired" : "expires in $([math]::round($expiresInDays.TotalDays,0)) days")"
+        Sections = $sections
+        Type = $expiresInDays -le 0 ? $PlatformMessageType.Alert : $($expiresInDays -le $30days ? $PlatformMessageType.Warning : $PlatformMessageType.Information)
+        Summary = "The `"$cnShort`" SSL certificate on $($Platform.Name) ($($Platform.Instance)) $($expiresInDays -le 0 ? "has expired" : "expires in $([math]::round($expiresInDays.TotalDays,0)) days")"
+        Subject = "Overwatch SSL Certificate Monitoring"
+        Throttle = $throttle
+        Source = "Send-SSLCertificateExpiryMessage"
+    }
+
+    return Send-Message -Message $msg
+
+}
+
 function global:Send-UserNotification {
 
     [CmdletBinding()]
