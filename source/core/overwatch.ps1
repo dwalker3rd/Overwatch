@@ -6,8 +6,8 @@ $global:InformationPreference = "Continue"
 $global:VerbosePreference = "SilentlyContinue"
 $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
-$global:PreflightPreference = "SilentlyContinue"
-$global:PostflightPreference = "SilentlyContinue"
+$global:PreflightPreference = "Continue"
+$global:PostflightPreference = "Continue"
 $global:WriteHostPlusPreference = "Continue"
 
 # product id must be set before include files
