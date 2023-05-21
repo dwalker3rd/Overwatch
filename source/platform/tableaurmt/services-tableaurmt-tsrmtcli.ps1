@@ -68,7 +68,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
         }
         $controller.IsOK = $controller.RollupStatus -eq "Running"
 
-        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
+        $message = "$($emptyString.PadLeft(10,"`b")) SUCCESS"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen 
         $message = "/",$controller.RollupStatus.ToUpper()
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
@@ -93,7 +93,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         if (!$Controller.IsOK) {
-            $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
+            $message = "$($emptyString.PadLeft(10,"`b")) FAILURE"
             Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
             return
         }
@@ -117,7 +117,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
             $agent.Services = Get-PlatformService -ComputerName $agent.Name
         }
 
-        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
+        $message = "$($emptyString.PadLeft(10,"`b")) SUCCESS"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen
 
         return $agents | Sort-Object -Property Name
@@ -140,7 +140,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         if (!$Controller.IsOK) {
-            $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
+            $message = "$($emptyString.PadLeft(10,"`b")) FAILURE"
             Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
             return
         }
@@ -155,7 +155,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
             throw "No such environment `"$EnvironmentIdentifier`"."
         }
 
-        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
+        $message = "$($emptyString.PadLeft(10,"`b")) SUCCESS"
         Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen
 
         return $environ

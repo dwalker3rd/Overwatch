@@ -204,7 +204,7 @@ function global:Get-RMTTableauServerStatus {
     }
     catch {
 
-        $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
+        $message = "$($emptyString.PadLeft(10,"`b")) FAILURE"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
 
         return $tableauServerStatus
@@ -215,7 +215,7 @@ function global:Get-RMTTableauServerStatus {
     $tableauServerStatus.RollupStatus = $tsStatus.RollupStatus
     $tableauServerStatus.TableauServer = $tsStatus
 
-    $message = "$($emptyString.PadLeft(8,"`b")) $($tableauServerStatus.RollupStatus.ToUpper())"
+    $message = "$($emptyString.PadLeft(10,"`b")) $($tableauServerStatus.RollupStatus.ToUpper())"
     $messageColor = switch ($tableauServerStatus.RollupStatus) {
         "Starting" { "DarkYellow" }
         default {
@@ -468,7 +468,7 @@ function global:Request-RMTService {
         $logEntryType = $result -eq "Success" ? "Information" : "Error" 
         Write-Log -Action $command -Target "$node\$Alias" -EntryType $logEntryType -Status $result -Force # -Data $Name 
 
-        $message = "$($emptyString.PadLeft(8,"`b")) $($result.ToUpper())$($emptyString.PadLeft(8," "))"
+        $message = "$($emptyString.PadLeft(10,"`b")) $($result.ToUpper())$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($result -eq "SUCCESS" ? "DarkGreen" : "DarkRed" )
 
     }
@@ -523,7 +523,7 @@ function global:Request-Platform {
         $logEntryType = $result -eq "Success" ? "Information" : "Error" 
         Write-Log -Action $Command -Target "$node\RMT $Target" -EntryType $logEntryType -Status $result -Force
 
-        $message = "$($emptyString.PadLeft(8,"`b")) $($result.ToUpper())$($emptyString.PadLeft(8," "))"
+        $message = "$($emptyString.PadLeft(10,"`b")) $($result.ToUpper())$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor ($result -eq "SUCCESS" ? "DarkGreen" : "DarkRed" )
     
     }
