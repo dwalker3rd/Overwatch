@@ -1178,10 +1178,11 @@ function global:Get-IpAddress {
                 $fail = $fail -or $thisFail
                 $state = $bestPractice.protocols.$protocol.state -ne "" ? $($bestPractice.protocols.$protocol.state -eq "Enabled" ? "Enabled" : "Disabled") : $($ProtocolStatus.$protocol ? "Enabled" : "Disabled")
                 $result = $bestPractice.protocols.$protocol.state -ne "" ? $($thisFail ? "FAIL": "PASS") : "NA"
-                $message = "<    $($bestPractice.protocols.$protocol.displayName) <.>31> $(($state.ToUpper() + " ").Substring(0,8))/$result"
-                $stateColor = $state -eq "ENABLED" ? "DarkGreen" : "DarkRed"
+                $message = "<    $($bestPractice.protocols.$protocol.displayName) <.>31> "
+                $stateColor = $state -eq "Enabled" ? "DarkGreen" : "DarkRed"
                 $resultColor = $result -ne "NA" ? $thisFail ? "DarkRed" : "DarkGreen" : "DarkGray"
-                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$stateColor,DarkGray,$resultColor
+                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray
+                Write-Host+ -IFF (!$PassFailOnly) -NoTrace -NoSeparator ($state.ToUpper() + " ").Substring(0,8),"/",$result -ForegroundColor $stateColor,DarkGray,$resultColor
             }
 
             $thisWarn = $false
