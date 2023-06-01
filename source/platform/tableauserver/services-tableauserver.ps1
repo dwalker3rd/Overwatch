@@ -1059,7 +1059,7 @@ function global:Get-ConfigurationKey {
         [Parameter(Mandatory=$false)][Alias("K")][string]$Key
     )
 
-    $currentConfigurationVersion = Invoke-TsmApiMethod -Method "ConfigurationsRequestedVersion"
+    $currentConfigurationVersion = Invoke-TsmApiMethod -Method "CurrentConfigurationVersion"
     $value = Invoke-TsmApiMethod -Method "ConfigurationKey" -Params @($currentConfigurationVersion, $Key)
     return $value
 }
@@ -1092,7 +1092,7 @@ function global:Show-TSSslProtocols {
     foreach ($protocol in $protocols) {
         $message = "<    $($protocol.name) <.>25> $($protocol.value.ToUpper())"
         $color = $protocol.value -eq "ENABLED" ? "DarkGreen" : "DarkRed"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$color -NoSeparator
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$color
     }
 
 }
