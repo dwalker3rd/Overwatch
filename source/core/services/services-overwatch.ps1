@@ -1061,7 +1061,7 @@ function global:Get-IpAddress {
 
             $messagePart = "  SSL Protocol ","$($ComputerName)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 48 -Adjust ((($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray
-            Write-Host+ -Iff (!$PassFailOnly)
+            # Write-Host+ -Iff (!$PassFailOnly)
 
             $now = Get-Date -AsUTC
             $30days = New-TimeSpan -days 30
@@ -1164,7 +1164,7 @@ function global:Get-IpAddress {
             $thisWarn = $false
             $thisFail = $false
 
-            Write-Host+ -Iff (!$PassFailOnly)
+            # Write-Host+ -Iff (!$PassFailOnly)
 
             foreach ($protocol in $protocolNames) {
                 $thisFail = $global:TlsBestPractices.protocols.$protocol.state -ne "Optional" ? $protocolStatus.$protocol -ne ($global:TlsBestPractices.protocols.$protocol.state -eq "Enabled") : $false
@@ -1183,8 +1183,8 @@ function global:Get-IpAddress {
                 Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoTimestamp -NoSeparator "BP:",($global:TlsBestPractices.protocols.$protocol.state.ToUpper() + " ").Substring(0,8)," ","S:",($state.ToUpper() + " ").Substring(0,8)," ",$result -ForegroundColor DarkGray,$bestPracticeColor,DarkGray,DarkGray,$stateColor,DarkGray,$resultColor
             }
 
-            Write-Host+ -Iff (!$PassFailOnly) -NoTrace "    * BP:Best Practice, S:Current State" -ForegroundColor DarkGray
-            Write-Host+ -Iff (!$PassFailOnly)
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace "      * BP:Best Practice, S:Current State" -ForegroundColor DarkGray
+            # Write-Host+ -Iff (!$PassFailOnly)
 
             $thisWarn = $false
             $thisFail = $false
