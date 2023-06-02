@@ -1061,6 +1061,7 @@ function global:Get-IpAddress {
 
             $messagePart = "  SSL Protocol ","$($ComputerName)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 48 -Adjust ((($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray
+            Write-Host+ -Iff (!$PassFailOnly)
 
             $now = Get-Date -AsUTC
             $30days = New-TimeSpan -days 30
@@ -1068,54 +1069,43 @@ function global:Get-IpAddress {
             $fail = $false
             $warn = $false
 
-            $ProtocolNames = [System.Security.Authentication.SslProtocols] |
+            $protocolNames = [System.Security.Authentication.SslProtocols] |
                 Get-Member -Static -MemberType Property |
                 Where-Object -Filter { $_.Name -notin @("Default","None") } |
                 Foreach-Object { $_.Name }
     
-            $bestPractice = @{
-                protocols = @{
-                    Ssl2  = @{state="Disabled"; displayName="SSLv2"}
-                    Ssl3  = @{state="Disabled"; displayName="SSLv3"}
-                    Tls   = @{state="Disabled"; displayName="TLSv1"}
-                    Tls11 = @{state="Disabled"; displayName="TLSv1.1"}
-                    Tls12 = @{state="Enabled"; displayName="TLSv1.2"}
-                    Tls13 = @{state=""; displayName="TLSv1.3"}
-                }
-                signatureAlgorithms = @("sha256RSA")
-            }
-            $supportedProtocols = $bestPractice.protocols.Keys | Sort-Object
+            # $supportedProtocols = $global:TlsBestPractices.protocols.Keys | Sort-Object
 
         }
 
         process {
 
-            $ProtocolStatus = [Ordered]@{}
-            $ProtocolStatus.Add("ComputerName", $ComputerName)
-            $ProtocolStatus.Add("Port", $Port)
-            $ProtocolStatus.Add("KeyLength", $null)
-            $ProtocolStatus.Add("SignatureAlgorithm", $null)
-            $ProtocolStatus.Add("SupportedProtocols",@())
+            $protocolStatus = [Ordered]@{}
+            $protocolStatus.Add("ComputerName", $ComputerName)
+            $protocolStatus.Add("Port", $Port)
+            $protocolStatus.Add("KeyLength", $null)
+            # $protocolStatus.Add("SignatureAlgorithm", $null)
+            $protocolStatus.Add("SupportedProtocols",@())
 
-            $ProtocolNames | ForEach-Object {
-                $ProtocolName = $_
-                $Socket = New-Object System.Net.Sockets.Socket( `
+            $protocolNames | ForEach-Object {
+                $protocolName = $_
+                $socket = New-Object System.Net.Sockets.socket( `
                     [System.Net.Sockets.SocketType]::Stream,
                     [System.Net.Sockets.ProtocolType]::Tcp)
-                $Socket.Connect($ComputerName, $Port)
+                $socket.Connect($ComputerName, $Port)
                 try {
-                    $NetStream = New-Object System.Net.Sockets.NetworkStream($Socket, $true)
-                    $SslStream = New-Object System.Net.Security.SslStream($NetStream, $true)
-                    $SslStream.AuthenticateAsClient($ComputerName,  $null, $ProtocolName, $false )
-                    $RemoteCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]$SslStream.RemoteCertificate
-                    $ProtocolStatus["KeyLength"] = $RemoteCertificate.PublicKey.Key.KeySize
-                    $ProtocolStatus["SignatureAlgorithm"] = $RemoteCertificate.SignatureAlgorithm.FriendlyName
-                    $ProtocolStatus["Certificate"] = $RemoteCertificate
-                    $ProtocolStatus.Add($ProtocolName, $true)
+                    $netStream = New-Object System.Net.Sockets.NetworkStream($socket, $true)
+                    $sslStream = New-Object System.Net.Security.sslStream($netStream, $true)
+                    $sslStream.AuthenticateAsClient($ComputerName,  $null, $protocolName, $false )
+                    $remoteCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]$sslStream.remoteCertificate
+                    $protocolStatus["KeyLength"] = $remoteCertificate.PublicKey.Key.KeySize
+                    # $protocolStatus["SignatureAlgorithm"] = $remoteCertificate.SignatureAlgorithm.FriendlyName
+                    $protocolStatus["Certificate"] = $remoteCertificate
+                    $protocolStatus.Add($protocolName, $true)
                 } catch  {
-                    $ProtocolStatus.Add($ProtocolName, $false)
+                    $protocolStatus.Add($protocolName, $false)
                 } finally {
-                    $SslStream.Close()
+                    $sslStream.Close()
                 }
             }
 
@@ -1126,7 +1116,7 @@ function global:Get-IpAddress {
             $thisWarn = $false
             $thisFail = $false
 
-            $expiresInDays = $ProtocolStatus.Certificate.NotAfter - $now
+            $expiresInDays = $protocolStatus.Certificate.NotAfter - $now
             
             $thisWarn = $expiresInDays -le $30days
             $warn = $warn -or $thiswarn
@@ -1137,15 +1127,16 @@ function global:Get-IpAddress {
             
             $message = "<    Certificate <.>40> PENDING"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-            $message = "      Subject:      $($ProtocolStatus.Certificate.Subject)"
+
+            $message = "      Subject:      $($protocolStatus.Certificate.Subject)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "      Issuer:       $($ProtocolStatus.Certificate.Issuer.split(",")[0])"
+            $message = "      Issuer:       $($protocolStatus.Certificate.Issuer.split(",")[0])"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "      Serial#:      $($ProtocolStatus.Certificate.SerialNumber)"
+            $message = "      Serial#:      $($protocolStatus.Certificate.SerialNumber)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "      Thumbprint:   $($ProtocolStatus.Certificate.Thumbprint)"
+            $message = "      Thumbprint:   $($protocolStatus.Certificate.Thumbprint)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-            $message = "      Expiry:      | $($ProtocolStatus.Certificate.NotAfter)"
+            $message = "      Expiry:      | $($protocolStatus.Certificate.NotAfter)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor DarkGray,$expiryColor
             $message = "      Status:      | $($thisFail ? "Expired" : ($thisWarn ? "Expires in $([math]::round($expiresInDays.TotalDays,1)) days" : "Valid"))"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $message.Split("|")[0],$message.Split("|")[1] -ForegroundColor DarkGray,$expiryColor
@@ -1157,14 +1148,14 @@ function global:Get-IpAddress {
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$expiryColor
 
             if ($thisWarn -or $thisFail) {
-                Send-SSLCertificateExpiryMessage -Certificate $ProtocolStatus.Certificate | Out-Null
+                Send-SSLCertificateExpiryMessage -Certificate $protocolStatus.Certificate | Out-Null
             }
 
             $thisWarn = $false
             $thisFail = $false
 
-            foreach ($signatureAlgorithm in $bestPractice.signatureAlgorithms) {
-                $thisFail = $ProtocolStatus.SignatureAlgorithm -ne $signatureAlgorithm
+            foreach ($signatureAlgorithm in $global:TlsBestPractices.signatureAlgorithms) {
+                $thisFail = $protocolStatus.SignatureAlgorithm -ne $signatureAlgorithm
                 $fail = $fail -or $thisFail
                 $message = "<    Signature Algorithm <.>40> $($thisFail ? "FAIL" : "PASS")"
                 Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($thisFail ? "DarkRed" : "DarkGreen")
@@ -1173,17 +1164,27 @@ function global:Get-IpAddress {
             $thisWarn = $false
             $thisFail = $false
 
-            foreach ($protocol in $supportedProtocols) {
-                $thisFail = $bestPractice.protocols.$protocol.state -ne "" ? $ProtocolStatus.$protocol -ne ($bestPractice.protocols.$protocol.state -eq "Enabled") : $false
+            Write-Host+ -Iff (!$PassFailOnly)
+
+            foreach ($protocol in $protocolNames) {
+                $thisFail = $global:TlsBestPractices.protocols.$protocol.state -ne "Optional" ? $protocolStatus.$protocol -ne ($global:TlsBestPractices.protocols.$protocol.state -eq "Enabled") : $false
                 $fail = $fail -or $thisFail
-                $state = $bestPractice.protocols.$protocol.state -ne "" ? $($bestPractice.protocols.$protocol.state -eq "Enabled" ? "Enabled" : "Disabled") : $($ProtocolStatus.$protocol ? "Enabled" : "Disabled")
-                $result = $bestPractice.protocols.$protocol.state -ne "" ? $($thisFail ? "FAIL": "PASS") : "NA"
-                $message = "<    $($bestPractice.protocols.$protocol.displayName) <.>31> "
+                $state = $global:TlsBestPractices.protocols.$protocol.state -ne "Optional" ? $($global:TlsBestPractices.protocols.$protocol.state -eq "Enabled" ? "Enabled" : "Disabled") : $($protocolStatus.$protocol ? "Enabled" : "Disabled")
+                $result = $global:TlsBestPractices.protocols.$protocol.state -ne "Optional" ? $($thisFail ? "FAIL": "PASS") : "PASS"
+                $message = "<    $($global:TlsBestPractices.protocols.$protocol.displayName) <.>17> "
+                $bestPracticeColor = switch($global:TlsBestPractices.protocols.$protocol.state) {
+                    "Enabled" {"DarkGreen"}
+                    "Disabled" {"DarkRed"}
+                    "Optional" {"DarkYellow"}
+                }
                 $stateColor = $state -eq "Enabled" ? "DarkGreen" : "DarkRed"
-                $resultColor = $result -ne "NA" ? $thisFail ? "DarkRed" : "DarkGreen" : "DarkGray"
+                $resultColor = $thisFail ? "DarkRed" : "DarkGreen"
                 Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray
-                Write-Host+ -IFF (!$PassFailOnly) -NoTrace -NoSeparator ($state.ToUpper() + " ").Substring(0,8),"/",$result -ForegroundColor $stateColor,DarkGray,$resultColor
+                Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoTimestamp -NoSeparator "BP:",($global:TlsBestPractices.protocols.$protocol.state.ToUpper() + " ").Substring(0,8)," ","S:",($state.ToUpper() + " ").Substring(0,8)," ",$result -ForegroundColor DarkGray,$bestPracticeColor,DarkGray,DarkGray,$stateColor,DarkGray,$resultColor
             }
+
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace "    * BP:Best Practice, S:Current State" -ForegroundColor DarkGray
+            Write-Host+ -Iff (!$PassFailOnly)
 
             $thisWarn = $false
             $thisFail = $false
@@ -1192,7 +1193,7 @@ function global:Get-IpAddress {
             Write-Host+ -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 48 -Adjust ((($messagePart -join " ").Length+2)))," $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,$expiryColor
             Write-Log -Action "Test" -Target "SSL" -Status $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))
         
-            # return [PSCustomObject]$ProtocolStatus
+            # return [PSCustomObject]$protocolStatus
         }
 
     }

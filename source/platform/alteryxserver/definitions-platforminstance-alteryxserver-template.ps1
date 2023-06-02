@@ -176,4 +176,23 @@ If using the Microsoft Teams provider, it must be configured here.
 
     #endregion PYTHON
 
+    #region TLS BEST PRACTICES
+    
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > PlatformInstance > BestPractice > TLS
+        
+        $global:TlsBestPractices = @{
+            Protocols = @{
+                Ssl2  = @{state="Disabled"; displayName="SSLv2"}
+                Ssl3  = @{state="Disabled"; displayName="SSLv3"}
+                Tls   = @{state="Disabled"; displayName="TLSv1"}
+                Tls11 = @{state="Disabled"; displayName="TLSv1.1"}
+                Tls12 = @{state="Enabled"; displayName="TLSv1.2"}
+                Tls13 = @{state="Optional"; displayName="TLSv1.3"}
+            }
+            # signatureAlgorithms = @("sha256RSA")
+        }
+
+    #endregion TLS BEST PRACTICES       
+
 #endregion INSTANCE-DEFINITIONS
