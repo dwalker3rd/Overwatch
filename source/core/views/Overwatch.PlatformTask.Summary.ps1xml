@@ -30,7 +30,7 @@
                     </TableColumnHeader>
                     <TableColumnHeader>
                         <Label>LastTaskResult</Label>
-                        <Width>52</Width>
+                        <Width>102</Width>
                         <Alignment>Left</Alignment>
                     </TableColumnHeader>     
                 </TableHeaders>
