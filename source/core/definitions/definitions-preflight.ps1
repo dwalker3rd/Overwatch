@@ -45,7 +45,7 @@ function global:Invoke-Preflight {
 
         $message = "<$Name $noun $Action <.>48> $($fail ? "FAIL" : "PASS")"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
-        Write-Host+
+        # Write-Host+
 
         Write-Log -verb "$noun $Action" -Target $Id -Status ($fail ? "FAIL" : "PASS") -EntryType ($fail ? "Error" : "Information")
 
