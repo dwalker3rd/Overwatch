@@ -1107,7 +1107,7 @@ function global:Show-PlatformStatus {
 
         $hostMode = $SSL ? "hostssl" : "host"
 
-        $leader = Format-Leader -Length 47 -Adjust ((("  Postgres Access").Length))
+        $leader = Format-Leader -Length 46 -Adjust ((("  Postgres Access").Length))
         Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
 
         try {

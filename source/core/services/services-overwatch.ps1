@@ -923,7 +923,7 @@ function global:Get-IpAddress {
             $ComputerName = $platformTopology.nodes.Keys
         }
 
-        $leader = Format-Leader -Length 47 -Adjust ((("  Network Connections").Length))
+        $leader = Format-Leader -Length 46 -Adjust ((("  Network Connections").Length))
         Write-Host+ -NoTrace "  Network Connections",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
         Write-Log -Action "Test" -Target "Network"
 
@@ -946,7 +946,7 @@ function global:Get-IpAddress {
 
         }
 
-        $leader = Format-Leader -Length 47 -Adjust ((("  Network Connections").Length))
+        $leader = Format-Leader -Length 46 -Adjust ((("  Network Connections").Length))
         Write-Host+ -NoTrace -NoNewLine  "  Network Connections",$leader -ForegroundColor Gray,DarkGray
 
         if ($fail) {
@@ -965,7 +965,7 @@ function global:Get-IpAddress {
         [CmdletBinding()]
         param ()
 
-        $leader = Format-Leader -Length 47 -Adjust ((("  Powershell Remoting").Length))
+        $leader = Format-Leader -Length 46 -Adjust ((("  Powershell Remoting").Length))
         Write-Host+ -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
         Write-Log -Action "Test" -Target "Powershell-Remoting"
 
@@ -990,7 +990,7 @@ function global:Get-IpAddress {
 
         }
 
-        $leader = Format-Leader -Length 47 -Adjust ((("  Powershell Remoting").Length))
+        $leader = Format-Leader -Length 46 -Adjust ((("  Powershell Remoting").Length))
         Write-Host+ -NoTrace -NoNewLine "  Powershell Remoting",$leader -ForegroundColor Gray,DarkGray
         
         if ($fail) {
@@ -1060,7 +1060,7 @@ function global:Get-IpAddress {
             If (!$PassFailOnly) {Write-Host+}
 
             $messagePart = "  SSL Protocol ","$($ComputerName)"
-            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 48 -Adjust ((($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray
+            Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 47 -Adjust ((($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray
             # Write-Host+ -Iff (!$PassFailOnly)
 
             $now = Get-Date -AsUTC
@@ -1125,7 +1125,7 @@ function global:Get-IpAddress {
 
             $expiryColor = $thisFail ? "DarkRed" : ($thisWarn ? "DarkYellow" : "DarkGray")
             
-            $message = "<    Certificate <.>40> PENDING"
+            $message = "<    Certificate <.>41> PENDING"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
             $message = "      Subject:      $($protocolStatus.Certificate.Subject)"
@@ -1144,7 +1144,7 @@ function global:Get-IpAddress {
             # change expireColor success from darkgray to darkgreen for PASS indicators
             $expiryColor = $thisFail ? "DarkRed" : ($thisWarn ? "DarkYellow" : "DarkGreen")
 
-            $message = "<    Certificate <.>40> $($thisFail ? "FAIL" : ($thisWarn ? "WARN" : "PASS"))"
+            $message = "<    Certificate <.>41> $($thisFail ? "FAIL" : ($thisWarn ? "WARN" : "PASS"))"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$expiryColor
 
             if ($thisWarn -or $thisFail) {
@@ -1157,7 +1157,7 @@ function global:Get-IpAddress {
             foreach ($signatureAlgorithm in $global:TlsBestPractices.signatureAlgorithms) {
                 $thisFail = $protocolStatus.SignatureAlgorithm -ne $signatureAlgorithm
                 $fail = $fail -or $thisFail
-                $message = "<    Signature Algorithm <.>40> $($thisFail ? "FAIL" : "PASS")"
+                $message = "<    Signature Algorithm <.>41> $($thisFail ? "FAIL" : "PASS")"
                 Write-Host+ -Iff (!$PassFailOnly) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($thisFail ? "DarkRed" : "DarkGreen")
             }
 
@@ -1171,7 +1171,7 @@ function global:Get-IpAddress {
                 $fail = $fail -or $thisFail
                 $state = $global:TlsBestPractices.protocols.$protocol.state -ne "Optional" ? $($global:TlsBestPractices.protocols.$protocol.state -eq "Enabled" ? "Enabled" : "Disabled") : $($protocolStatus.$protocol ? "Enabled" : "Disabled")
                 $result = $global:TlsBestPractices.protocols.$protocol.state -ne "Optional" ? $($thisFail ? "FAIL": "PASS") : "PASS"
-                $message = "<    $($global:TlsBestPractices.protocols.$protocol.displayName) <.>17> "
+                $message = "<    $($global:TlsBestPractices.protocols.$protocol.displayName) <.>18> "
                 $bestPracticeColor = switch($global:TlsBestPractices.protocols.$protocol.state) {
                     "Enabled" {"DarkGreen"}
                     "Disabled" {"DarkRed"}
@@ -1190,7 +1190,7 @@ function global:Get-IpAddress {
             $thisFail = $false
 
             $messagePart = "  SSL Protocol ","$($ComputerName)"
-            Write-Host+ -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 48 -Adjust ((($messagePart -join " ").Length+2)))," $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,$expiryColor
+            Write-Host+ -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 47 -Adjust ((($messagePart -join " ").Length+2)))," $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,$expiryColor
             Write-Log -Action "Test" -Target "SSL" -Status $($fail ? "FAIL" : ($warn ? "WARN" : "PASS"))
         
             # return [PSCustomObject]$protocolStatus

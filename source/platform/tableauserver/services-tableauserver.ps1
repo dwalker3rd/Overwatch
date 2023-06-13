@@ -1217,7 +1217,7 @@ function global:Confirm-PlatformLicenses {
 
     $indent = Format-Leader -Character " " -Length 6
 
-    $leader = Format-Leader -Length 47 -Adjust ((("  EULA Compliance").Length))
+    $leader = Format-Leader -Length 46 -Adjust ((("  EULA Compliance").Length))
     Write-Host+ -NoTrace "  EULA Compliance",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
     $now = Get-Date
@@ -1281,7 +1281,7 @@ function global:Confirm-PlatformLicenses {
 
     }
 
-    $leader = Format-Leader -Length 47 -Adjust ((("  EULA Compliance").Length))
+    $leader = Format-Leader -Length 46 -Adjust ((("  EULA Compliance").Length))
     Write-Host+ -NoTrace -NoNewLine "  EULA Compliance",$leader -ForegroundColor Gray,DarkGray
     
     if (!$pass) {
@@ -1304,7 +1304,7 @@ function global:Test-TsmController {
     [CmdletBinding()]
     param ()
 
-    $leader = Format-Leader -Length 47 -Adjust ((("  TSM Controller").Length))
+    $leader = Format-Leader -Length 46 -Adjust ((("  TSM Controller").Length))
     Write-Host+ -NoTrace "  TSM Controller",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
     $fail = $false
@@ -1324,7 +1324,7 @@ function global:Test-TsmController {
         Write-Host+ -NoTrace -NoTimestamp " UNKNOWN" -ForegroundColor DarkRed
     }
 
-    $leader = Format-Leader -Length 47 -Adjust ((("  TSM Controller").Length))
+    $leader = Format-Leader -Length 46 -Adjust ((("  TSM Controller").Length))
     Write-Host+ -NoTrace -NoNewLine "  TSM Controller",$leader -ForegroundColor Gray,DarkGray
 
     if ($fail) {
@@ -1353,7 +1353,7 @@ function global:Test-RepositoryAccess {
 
     $hostMode = $SSL ? "hostssl" : "host"
 
-    $leader = Format-Leader -Length 47 -Adjust ((("  Postgres Access").Length))
+    $leader = Format-Leader -Length 46 -Adjust ((("  Postgres Access").Length))
     Write-Host+ -NoNewline -NoTrace "  Postgres Access",$leader -ForegroundColor Gray,DarkGray
 
     try {

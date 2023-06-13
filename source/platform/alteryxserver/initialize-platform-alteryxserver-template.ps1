@@ -2,7 +2,7 @@
 
     Write-Host+
     $message = "Platform Initialization"
-    $leader = Format-Leader -Length 47 -Adjust $message.Length
+    $leader = Format-Leader -Length 46 -Adjust $message.Length
     Write-Host+ -NoNewline $message,$leader -ForegroundColor DarkBlue,DarkGray
 
     try {
@@ -18,7 +18,8 @@
     }
 
     Write-Host+ -NoTimestamp -NoTrace "SUCCESS" -ForegroundColor DarkGreen 
-    Write-Log -Action "Initialize" -Target "Platform" -Status "Success"
+    Write-Host+
+    
     return
 
 #endregion INIT
