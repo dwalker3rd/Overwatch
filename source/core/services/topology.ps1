@@ -161,6 +161,26 @@ function global:Get-PlatformTopologyAlias {
 Set-Alias -Name ptGetAlias -Value Get-PlatformTopologyAlias -Scope Global
 Set-Alias -Name ptAlias -Value Get-PlatformTopologyAlias -Scope Global
 
+function global:Build-PlatformTopologyAlias {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$ComputerName
+    )
+
+    $ptAlias = $null
+    if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
+        if ($ComputerName -match $global:RegexPattern.PlatformTopology.Alias.Match) {
+            foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
+                $ptAlias += $Matches[$i]
+            }
+        }
+    }
+
+    return $ptAlias
+}
+Set-Alias -Name ptBuildAlias -Value Build-PlatformTopologyAlias -Scope Global
+
 function global:Set-PlatformTopologyAlias {
 
     [CmdletBinding()]
@@ -343,15 +363,10 @@ function global:Initialize-OverwatchTopology {
                     Environ = $owcPlatformInstance
                 }
             }
-            if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
-                if ($node -match $global:RegexPattern.PlatformTopology.Alias.Match) {
-                    $owtAlias = ""
-                    foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
-                        $owtAlias += $Matches[$i]
-                    }
-                    $overwatchTopology.Alias.($owtAlias) = $node
-                }
-            }           
+            $owtAlias = ptBuildAlias $node
+            if ($owtAlias) {
+                $overwatchTopology.Alias.$owtAlias = $node
+            }
         }
 
     }
