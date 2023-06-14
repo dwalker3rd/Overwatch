@@ -166,13 +166,28 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
     function global:Get-RMTVersion {
 
         [CmdletBinding()]
-        param ()
+        param(
+            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = $env:COMPUTERNAME
+        )
 
-        $infoVersion = (. $rmtAdmin version)[1]
+        $role = Get-RMTRole $ComputerName
+
+        switch ($role) {
+            "Controller" {
+                $infoVersion = (. $rmtAdmin version)[1]
+                $sql = "select \`"ProductVersion\`",\`"BuildVersion\`",\`"InfoVersion\`" from public.upgradehistory where public.upgradehistory.\`"InfoVersion\`" = '$infoVersion'"
+            }
+            "Agent" {
+                $sql = "select \`"ProductVersion\`",\`"BuildVersion\`",\`"InfoVersion\`" from public.agent where public.agent.\`"Name\`" = '$($ComputerName.ToUpper())'"
+            }
+        }
+        $versions = Query-RMTDatabase $sql
         return [PSCustomObject]@{
-            infoVersion = $infoVersion
-            productVersion = $infoVersion.split(".")[0].Substring(0,4) + "." + $infoVersion.Substring(4,1) + ".x"
-            buildVersion = $infoVersion.split("+")[0]
+            Node = $ComputerName.ToLower()
+            Role = $role
+            ProductVersion = $versions.ProductVersion
+            BuildVersion = $versions.BuildVersion
+            InfoVersion = $versions.InfoVersion
         }
 
     }
