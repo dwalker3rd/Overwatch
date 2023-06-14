@@ -42,50 +42,69 @@ function global:Get-PlatformStatusRollup {
 
 function global:Show-PlatformStatus {
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = "All")]
     param(
-        [switch]$All,
-        [switch]$Required,
-        [switch]$Issues
+        [Parameter(Mandatory=$false,ParameterSetName="Summary")][switch]$Summary,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$All,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
     )
 
-    if ($All -and $Required) {
-        throw "The `"All`" and `"Required`" switches cannot be used together"
+    if (!$Summary -and !$All) { $All = $true }
+
+    # get platform status
+    $platformStatus = Get-PlatformStatus -ResetCache
+
+    # check platform status and for any active events
+    $_platformEvent = ""
+    $_platformEventStatus = ""
+    $_platformRollupStatus = $platformStatus.RollupStatus
+    $_consoleSequenceIsOKColor = $platformStatus.IsOK ? $global:consoleSequence.Default : $global:consoleSequence.ForegroundRed
+    $_consoleSequenceRollupStatusColor = $global:consoleSequence.ForegroundGreen
+    $_consoleSequenceEventColor = $global:consoleSequence.Default
+    if (!$platformStatus.IsOK -or $platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+        if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+            $_platformEvent = $platformStatus.Event
+            $_platformEventStatus = $platformStatus.EventStatus
+            $_consoleSequenceEventColor = switch ($platformStatus.Event) {
+                "Start" { $global:consoleSequence.ForegroundGreen }
+                "Stop" { $global:consoleSequence.ForegroundRed}
+            } 
+        }
+        $_consoleSequenceRollupStatusColor = $global:consoleSequence.ForegroundRed
     }
 
-    if (!$All) { $Required = $true }
+    Write-Host+ 
+    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Platform$($global:consoleSequence.Default)    : $($global:Platform.Name)"
+    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Instance$($global:consoleSequence.Default)    : $($global:Platform.Instance)"
+    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Version$($global:consoleSequence.Default)     : $($global:Platform.Version)"
+    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Status$($global:consoleSequence.Default)      : $($_consoleSequenceRollupStatusColor)$($_platformRollupStatus)$($global:consoleSequence.Default)"
+    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)IsOK$($global:consoleSequence.Default)        : $($_consoleSequenceIsOKColor)$($platformStatus.IsOK.ToString())$($global:consoleSequence.Default)"
 
-    # check for platform events
-    $platformStatus = Get-PlatformStatus 
-    # notify if platform is stopped or if a platform event is in progress
-    if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-        Write-Host+
-        if ($platformStatus.IsStopped) {
-            $message = "Platform is STOPPED"
-        }
-        if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-            $message = "$($Platform.Name) $($platformStatus.Event.ToUpper()) is $($platformStatus.EventStatus.ToUpper())"
-        }
-        Write-Host+ -NoTrace -NoTimeStamp $message -ForegroundColor DarkRed
-        Write-Host+ -NoTrace -NoTimeStamp "The Tableau Server REST API is unavailable." -ForegroundColor DarkRed
+    if (![string]::IsNullOrEmpty($_platformEvent)) {
+        Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Event$($global:consoleSequence.Default)       : $($_consoleSequenceEventColor)$($_platformEvent)$($global:consoleSequence.Default)"
+        Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)EventStatus$($global:consoleSequence.Default) : $_platformEventStatus"
     }
 
     $nodeStatus = (Get-TableauServerStatus).Nodes
     $nodeStatus = $nodeStatus | 
-        Select-Object -Property @{Name='NodeId';Expression={$_.nodeId}}, @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Status';Expression={$_.rollupstatus}}
-    $nodeStatus | Format-Table -Property Node, Status, NodeId
+        Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='NodeId';Expression={$_.nodeId}}, @{Name='Status';Expression={$_.rollupstatus}}, @{Name='Version';Expression={$Platform.Version}}
+    $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, NodeId, Status, Version
 
     $platformIssues = $platformStatus.platformIssues
-    if ($platformIssues) {
+    if ($Issues -and $platformIssues) {
         $platformIssues = $platformIssues | 
             Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Service';Expression={"$($_.name)_$($_.instanceId)"}}, @{Name='Status';Expression={$_.processStatus}}, @{Name='Message';Expression={$_.message}}
         $platformIssues | Format-Table -Property Node, Service, Status, Message
     }
 
-    $services = Get-PlatformService
-    if ($Required) { $services = $services | Where-Object {$_.Required} }
-    if ($Issues) { $services = $services | Where-Object {!$_.StatusOK.Contains($_.Status)} }
-    $services | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, Name, Status, Required, Transient, IsOK
+    if ($All -or ($Issues -and $platformIssues)) {
+        $services = Get-PlatformService
+        if ($Required) { $services = $services | Where-Object {$_.Required} }
+        if ($Issues) { $services = $services | Where-Object {!$_.StatusOK.Contains($_.Status)} }
+        $services | Select-Object Node, @{Name='NodeId';Expression={ptGetAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK | 
+            Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, NodeId, Class, Name, Status, Required, Transient, IsOK
+    }
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
@@ -969,15 +988,17 @@ foreach ($nodeId in $response.topologyVersion.nodes.psobject.properties.name) {
     $node = $nodeInfo.address
 
     $platformTopology.Alias.$nodeId = $node
-    if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
-        if ($node -match $RegexPattern.PlatformTopology.Alias.Match) {
-            $ptAlias = ""
-            foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
-                $ptAlias += $Matches[$i]
-            }
-            $platformTopology.Alias.($ptAlias) = $node
-        }
-    }
+    $platformTopology.Alias.$node = $nodeId
+    # if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
+    #     if ($node -match $RegexPattern.PlatformTopology.Alias.Match) {
+    #         $ptAlias = ""
+    #         foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
+    #             $ptAlias += $Matches[$i]
+    #         }
+    #         $platformToplogy.Alias.$node = $ptAlias
+    #         $platformTopology.Alias.($ptAlias) = $node
+    #     }
+    # }
 
     $platformTopology.Nodes.$node += @{
         NodeId = $nodeId
