@@ -707,7 +707,8 @@
             [CmdletBinding()]
             param (
                 [switch]$ResetCache,
-                [switch]$CacheOnly
+                [switch]$CacheOnly,
+                [switch]$Quiet
             )
 
             # The $ResetCache switch is only for the platform-specific Get-PlatformStatusRollup
@@ -727,6 +728,7 @@
             # function and is *** NOT *** to be used for the platformstatus cache
             $params = @{}
             if ($ResetCache) {$params += @{ResetCache = $true}}
+            if ($Quiet) { $params = @{ Quiet = $Quiet } }
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.Issues, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
 
             if ($platformStatus.RollupStatus -eq "Unavailable") {
