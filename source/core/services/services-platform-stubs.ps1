@@ -43,7 +43,11 @@
 
     function global:Get-PlatformStatusRollup {
 
-        [CmdletBinding()] param()
+        [CmdletBinding()]
+        param (
+            [switch]$ResetCache,
+            [switch]$Quiet
+        )
 
         Write-Host+ -IfDebug -NoTrace -ForegroundColor DarkYellow "DEBUG: $($MyInvocation.MyCommand) is a STUB"
         Write-Host+ -IfDebug

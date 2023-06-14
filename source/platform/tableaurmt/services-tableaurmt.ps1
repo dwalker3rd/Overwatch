@@ -1,6 +1,6 @@
 #region TOPOLOGY
 
-function global:Get-RMTComponent {
+function global:Get-RMTRole {
 
     [CmdletBinding()]
     param(
@@ -8,9 +8,9 @@ function global:Get-RMTComponent {
     )
 
     if ($ComputerName -in $global:PlatformTopologyBase.Components.Controller.Nodes.Keys) {return "Controller"}
-    if ($ComputerName -in (pt components.agent.nodes -k)) {return "Agent"}
+    if ($ComputerName -in (pt components.agents.nodes -k)) {return "Agent"}
 
-    throw "Node `"$ComputerName`" : not part of this platform's topology"
+    throw "Node `"$ComputerName`" is not part of this platform's topology."
 
 }
 
@@ -286,6 +286,7 @@ function global:Get-RMTStatus {
                     Agent = $agent
                     Name = $agent.Name
                     EnvironmentIdentifier = $agent.EnvironmentIdentifier
+                    Version = $agent.ProductVersion
                 }
                 $agentStatus.IsOK = $agentStatus.ConnectionIsOK -and $agentStatus.ServiceIsOK
                 
@@ -375,11 +376,13 @@ function global:Get-PlatformStatusRollup {
     
     [CmdletBinding()]
     param (
-        [switch]$ResetCache
+        [switch]$ResetCache,
+        [switch]$Quiet
     )
 
     $params = @{}
     if ($ResetCache) { $params = @{ ResetCache = $ResetCache } }
+    if ($Quiet) { $params = @{ Quiet = $Quiet } }
     $tableauRMTStatus = Get-RMTStatus @params
 
     $issues = $null
@@ -996,101 +999,70 @@ function global:Restart-Platform {
 
 function global:Show-PlatformStatus {
 
-    [CmdletBinding()]
-    param (
-        [switch]$BuildVersion
+    [CmdletBinding(DefaultParameterSetName = "All")]
+    param(
+        [Parameter(Mandatory=$false,ParameterSetName="Summary")][switch]$Summary,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$All,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
     )
 
-    Write-Host+ -ResetAll
+    if (!$Summary -and !$All) { $All = $true }
 
-    $rmtStatus = Get-RMTStatus -ResetCache -Quiet
-
-    $controller = $rmtStatus.ControllerStatus
-    $environments = $rmtStatus.EnvironmentStatus
-
-    Write-Host+
-    $message = $global:Platform.DisplayName
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
-    Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
-    Write-Host+
-
-    # $message =  "Controller"
-    # Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
-    # Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
-    # Write-Host+
-    # Write-Host+ -SetIndentGlobal +2
-
-    $message = "<Controller\$($controller.Name) <.>56> $($controller.RollupStatus.ToUpper())"
-    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
-    Write-Host+ -SetIndentGlobal +2
-    if ($BuildVersion) {
-        $message = "<BuildVersion <.>56> $($controller.Controller.BuildVersion)"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
-    }
-    # Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
-    # Write-Host+ -SetIndentGlobal +2
-    foreach ($service in $controller.Controller.Services) {
-        $message = "<service\$($service.Name) <.>56> $($service.Status.ToUpper())"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
-    }
-    # Write-Host+ -SetIndentGlobal -2
-    Write-Host+ -SetIndentGlobal -2
-    Write-Host+
-    
-    foreach ($environment in $environments) {
-
-        $message = "Environment\$($environment.Name)"
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message
-        Write-Host+ -NoTrace -NoTimestamp (Format-Leader -Character "-" -Length $message.Length -NoIndent) -ForegroundColor DarkGray
-        Write-Host+
-        Write-Host+ -SetIndentGlobal +2
-
-        # Write-Host+ -NoTrace -NoTimestamp "Tableau Server"
-        # Write-Host+ -SetIndentGlobal +2
-        $tableauServer = $environment.TableauServer
-        $message = "<TableauServer\$($tableauServer.Name) <.>56> $($tableauServer.RollupStatus.ToUpper())"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($tableauServer.IsOK ? "DarkGreen" : "Red")
-        # Write-Host+ -SetIndentGlobal -2
+    # check platform status and for any active events
+    $platformStatus = Get-PlatformStatus -ResetCache -Quiet
+    if (!$platformStatus.IsOK -or $platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
 
         Write-Host+
         
-        foreach ($agent in $environment.AgentStatus.Agent) {
-
-            # Write-Host+ -NoTrace -NoTimestamp "Agent"
-            # Write-Host+ -SetIndentGlobal +2
-            
-            $agentStatus = $agent.IsConnected -eq "True" ? ($agent.Services.Status -eq "Running" ? "Connected" : "Connecting") : "Degraded"
-            $message = "<Agent\$($agent.Name) <.>56> $($agentStatus.ToUpper())"
-            $agentStatusColor = switch ($agentStatus) {
-                "Connected" { "DarkGreen" }
-                "Connecting" { "DarkYellow" }
-                "Degraded" { "Red" }
-            }
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,$agentStatusColor
-            Write-Host+ -SetIndentGlobal +2
-            if ($BuildVersion) {
-                $message = "<BuildVersion <.>56> $($agent.BuildVersion)"
-                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
-            }
-            # Write-Host+ -NoTrace -NoTimestamp "Services" -ForegroundColor DarkGray
-            # Write-Host+ -SetIndentGlobal +2
-            foreach ($service in $agent.Services) {
-                $message = "<Service\$($service.Name) <.>56> $($service.Status.ToUpper())"
-                Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray,DarkGray,($service.IsOK ? "DarkGreen" : "Red")
-            }
-            # Write-Host+ -SetIndentGlobal -2
-            Write-Host+ -SetIndentGlobal -2
-
-            Write-Host+
-
+        $_platformEvent = ""
+        $_platformStatus = $platformStatus.RollupStatus
+        if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+            $_platformEvent = $platformStatus.Event
+            $_platformStatus = $platformStatus.EventStatus
         }
+        $message = "$($Platform.Name)$($_platformEvent ? " " : $null)$($_platformEvent.ToUpper()) is $($_platformStatus.ToUpper())."
+        Write-Host+ -NoTrace -NoTimeStamp $message -ForegroundColor DarkRed
 
-        Write-Host+ -SetIndentGlobal -2
-        Write-Host+
+    }    
 
+    $rmtStatus = Get-RMTStatus -ResetCache -Quiet
+    $controller = $rmtStatus.ControllerStatus
+    $agents = $rmtStatus.AgentStatus
+    # $environments = $rmtStatus.EnvironmentStatus
+
+    $nodeStatus = @()
+    # Controller
+    $nodeStatus +=  [PsCustomObject]@{
+        NodeId = ptBuildAlias $controller.Name
+        Node = $controller.Name
+        Status = $controller.RollupStatus
+        Role = Get-RMTRole $controller.Name
+        Version = $controller.Controller.ProductVersion
     }
+    # Agents
+    foreach ($agent in $agents) {
+        $nodeStatus +=  [PsCustomObject]@{
+            NodeId = ptBuildAlias $agent.Name
+            Node = $agent.Name
+            Status = $agent.RollupStatus
+            Role = Get-RMTRole $agent.Name
+            Version = $agent.Agent.ProductVersion
+        }
+    }
+    $nodeStatus | Sort-Object -Property Node | Format-Table -Property Role, Node, Status, Version
 
-    Write-Host+ -ResetAll
+    $platformIssues = $null
+    if ($Issues -and $platformIssues) {
+        $platformIssues | Format-Table -Property @{Name='Role';Expression={$_.Role[0]}}, Node, Class, Name, Status
+    }    
+
+    if ($All -or ($Issues -and $platformIssues)) {
+        $services = [array]$Controller.Controller.Services + [array]$rmtStatus.AgentStatus.Agent.Services
+        if ($Required) { $services = $services | Where-Object {$_.Required} }
+        if ($Issues) { $services = $services | Where-Object {!$_.IsOK} }
+        $services | Sort-Object -Property Node, Name | Format-Table -Property @{Name='Role';Expression={$_.Component[0]}}, Node, Class, Name, Status, Required, Transient, IsOK 
+    }
 
 }
 
