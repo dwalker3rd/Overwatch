@@ -206,35 +206,56 @@ function global:Get-PlatformService {
 
 function global:Show-PlatformStatus {
 
-    [CmdletBinding()]
-    param()
-    $Nodes = $true
-    $Components = $true
+    [CmdletBinding(DefaultParameterSetName = "All")]
+    param(
+        [Parameter(Mandatory=$false,ParameterSetName="Summary")][switch]$Summary,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$All,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
+    )
 
-    if ($Nodes) {
+    if (!$Summary -and !$All) { $All = $true }
 
-        $nodeStatusHashTable = (Get-AlteryxServerStatus).Nodes
+    # check platform status and for any active events
+    $platformStatus = Get-PlatformStatus -ResetCache -Quiet
+    if (!$platformStatus.IsOK -or $platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
 
-        $nodeStatus = @()
-        foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
-            $nodeStatus +=  [PsCustomObject]@{
-                NodeId = ptGetAlias $node
-                Node = $node
-                Status = $nodeStatusHashTable[$node]
-            }
+        Write-Host+
+        
+        $_platformEvent = ""
+        $_platformStatus = $platformStatus.RollupStatus
+        if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+            $_platformEvent = $platformStatus.Event
+            $_platformStatus = $platformStatus.EventStatus
         }
-
-        $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Status
+        $message = "$($Platform.Name)$($_platformEvent ? " " : $null)$($_platformEvent.ToUpper()) is $($_platformStatus.ToUpper())."
+        Write-Host+ -NoTrace -NoTimeStamp $message -ForegroundColor DarkRed
 
     }
 
-    if ($Components) {
-        if ($Components) {
+    $nodeStatusHashTable = (Get-AlteryxServerStatus).Nodes
+    $nodeStatus = @()
+    foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
 
-            Get-PlatformService | Where-Object -Property Required -EQ "True" | Sort-Object -Property Node, Name | Format-Table -Property Node, @{Name="Service";Expression={$_.Name}}, Status, Required, Transient, IsOK
-            Get-PlatformProcess | Where-Object -Property Required -EQ "True" | Sort-Object -Property Node, Name | Format-Table -Property Node, @{Name="Process";Expression={$_.Name}}, Status, Required, Transient, IsOK
-
+        $nodeStatus +=  [PsCustomObject]@{
+            Alias = ptBuildAlias $node
+            Node = $node
+            Status = $nodeStatusHashTable[$node]
         }
+
+    }
+    $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
+
+    $platformIssues = $platformStatus.platformIssues
+    if ($Issues -and $platformIssues) {
+        $platformIssues | Format-Table -Property Node, Class, Name, Status, Component
+    }    
+
+    if ($All -or ($Issues -and $platformIssues)) {
+        $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
+        if ($Required) { $_components = $_components | Where-Object {$_.Required} }
+        if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
+        $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
     }
 
 }
@@ -360,7 +381,8 @@ function global:Get-PlatformStatusRollup {
     
     [CmdletBinding()]
     param (
-        [switch]$ResetCache
+        [switch]$ResetCache,
+        [switch]$Quiet
     )
 
     $alteryxServerStatus = Get-AlteryxServerStatus
@@ -1331,16 +1353,11 @@ function global:Initialize-PlatformTopology {
         $platformTopology.Nodes.$node = @{
             Components = @{}
         }
-        if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
-            if ($node -match $global:RegexPattern.PlatformTopology.Alias.Match) {
-                $ptAlias = ""
-                foreach ($i in $global:RegexPattern.PlatformTopology.Alias.Groups) {
-                    $ptAlias += $Matches[$i]
-                }
-                $platformTopology.Alias.$ptAlias = $node
-                $platformTopology.Alias.$node = $node
-            }
+        $ptAlias = ptBuildAlias $node
+        if ($ptAlias) {
+            $platformTopology.Alias.$ptAlias = $node
         }
+        $platformTopology.Alias.$node = $node
     }
 
     # initialize components
