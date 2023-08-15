@@ -216,47 +216,67 @@ function global:Show-PlatformStatus {
 
     if (!$Summary -and !$All) { $All = $true }
 
-    # check platform status and for any active events
-    $platformStatus = Get-PlatformStatus -ResetCache -Quiet
-    if (!$platformStatus.IsOK -or $platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+    #region STATUS     
 
-        Write-Host+
-        
-        $_platformEvent = ""
-        $_platformStatus = $platformStatus.RollupStatus
-        if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-            $_platformEvent = $platformStatus.Event
-            $_platformStatus = $platformStatus.EventStatus
-        }
-        $message = "$($Platform.Name)$($_platformEvent ? " " : $null)$($_platformEvent.ToUpper()) is $($_platformStatus.ToUpper())."
-        Write-Host+ -NoTrace -NoTimeStamp $message -ForegroundColor DarkRed
+        # check platform status and for any active events
+        $platformStatus = Get-PlatformStatus -ResetCache -Quiet
 
-    }
-
-    $nodeStatusHashTable = (Get-AlteryxServerStatus).Nodes
-    $nodeStatus = @()
-    foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
-
+        $nodeStatusHashTable = (Get-AlteryxServerStatus).Nodes
+        $nodeStatus = @()
         $nodeStatus +=  [PsCustomObject]@{
-            Alias = ptBuildAlias $node
-            Node = $node
-            Status = $nodeStatusHashTable[$node]
+            Alias = ""
+            Node = $global:Platform.Instance
+            Status = $platformStatus.RollupStatus
+        }
+        foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
+            $nodeStatus +=  [PsCustomObject]@{
+                Alias = ptBuildAlias $node
+                Node = $node
+                Status = $nodeStatusHashTable[$node]
+            }
+        }
+        $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
+
+    #endregion STATUS      
+    #region EVENTS            
+
+        if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  Event < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.Event -ForegroundColor DarkGray, $global:PlatformEventColor.($platformStatus.Event)
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventStatus < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventStatus -ForegroundColor DarkGray, $global:PlatformEventStatusColor.($platformStatus.EventStatus)
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedBy < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCreatedBy -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCreatedAt -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventUpdatedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventUpdatedAt -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCompletedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCompletedAt -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventHasCompleted < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventHasCompleted -ForegroundColor DarkGray, "$($global:PlatformStatusBooleanColor.($platformStatus.EventHasCompleted))"
         }
 
-    }
-    $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
+    #endregion EVENTS     
+    #region ISSUES           
 
-    $platformIssues = $platformStatus.platformIssues
-    if ($Issues -and $platformIssues) {
-        $platformIssues | Format-Table -Property Node, Class, Name, Status, Component
-    }    
+        $platformIssues = $platformStatus.platformIssues
+        if ($Issues -and $platformIssues) {
+            $platformIssues | Format-Table -Property Node, Class, Name, Status, Component
+        }  
+        
+    #endregion ISSUES
+    #region SERVICES         
 
-    if ($All -or ($Issues -and $platformIssues)) {
-        $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
-        if ($Required) { $_components = $_components | Where-Object {$_.Required} }
-        if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
-        $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
-    }
+        if ($All -or ($Issues -and $platformIssues)) {
+            $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
+            if ($Required) { $_components = $_components | Where-Object {$_.Required} }
+            if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
+            $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
+        }
+
+    #endregion SERVICES       
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
