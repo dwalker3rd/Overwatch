@@ -1009,25 +1009,41 @@ function global:Show-PlatformStatus {
 
     if (!$Summary -and !$All) { $All = $true }
 
+    $platformStatus = Get-PlatformStatus -Quiet
+    $_platformStatusRollupStatus = $platformStatus.RollupStatus
+    if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+        $_platformStatusRollupStatus = switch ($platformStatus.Event) {
+            "Start" { "Starting" }
+            "Stop"  { "Stopping" }
+        }
+    }
+
+    Write-Host+
+    $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
     #region STATUS  
+
+        Write-Host+
 
         $rmtStatus = Get-RMTStatus -ResetCache -Quiet
         $controller = $rmtStatus.ControllerStatus
         $agents = $rmtStatus.AgentStatus
         # $environments = $rmtStatus.EnvironmentStatus
 
+        $_nodeId = 0
         $nodeStatus = @()
         # Platform
-        $nodeStatus +=  [PsCustomObject]@{
-            NodeId = ""
-            Node = $global:Platform.Instance
-            Status = $controller.RollupStatus
-            Role = "Platform"
-            Version = $controller.Controller.ProductVersion
-        }
+        # $nodeStatus +=  [PsCustomObject]@{
+        #     NodeId = ""
+        #     Node = $global:Platform.Instance
+        #     Status = $controller.RollupStatus
+        #     Role = "Platform"
+        #     Version = $controller.Controller.ProductVersion
+        # }
         # Controller
         $nodeStatus +=  [PsCustomObject]@{
-            NodeId = ptBuildAlias $controller.Name
+            NodeId = $_nodeId
             Node = $controller.Name
             Status = $controller.RollupStatus
             Role = Get-RMTRole $controller.Name
@@ -1035,15 +1051,23 @@ function global:Show-PlatformStatus {
         }
         # Agents
         foreach ($agent in $agents) {
+            $_nodeId = $_nodeId++
             $nodeStatus +=  [PsCustomObject]@{
-                NodeId = ptBuildAlias $agent.Name
+                NodeId = $_nodeId
                 Node = $agent.Name
                 Status = $agent.RollupStatus
                 Role = Get-RMTRole $agent.Name
                 Version = $agent.Agent.ProductVersion
             }
         }
-        $nodeStatus | Sort-Object -Property Node | Format-Table -Property Role, Node, Status, Version
+
+        $nodeStatus = $nodeStatus | Sort-Object -Property NodeId, Node
+
+        foreach ($_nodeStatus in $nodeStatus) {
+            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>38> $($_nodeStatus.Status)"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($_nodeStatus.Status)
+        }
+        # $nodeStatus | Sort-Object -Property Node | Format-Table -Property Role, Node, Status, Version
 
     #endregion STATUS      
     #region EVENTS       
@@ -1084,7 +1108,12 @@ function global:Show-PlatformStatus {
             $services | Sort-Object -Property Node, Name | Format-Table -Property @{Name='Role';Expression={$_.Component[0]}}, Node, Class, Name, Status, Required, Transient, IsOK 
         }
 
-    #endregion SERVICES        
+    #endregion SERVICES   
+
+    Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
+    
+    $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
 }
 

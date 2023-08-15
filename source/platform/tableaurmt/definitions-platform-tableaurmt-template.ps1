@@ -37,4 +37,17 @@
         'ReadOnly'
     )    
 
+    $global:PlatformStatusColor = @{
+        Degraded = "DarkRed"
+        Stopping = "DarkYellow"
+        Stopped = "DarkRed"
+        Starting = "DarkYellow"
+        Restarting = "DarkYellow"
+        Running = "DarkGreen"
+        Connected = "DarkGreen"
+        Connecting = "DarkGreen"
+        Disconnected = "DarkRed"
+        Disconnecting = "DarkRed"
+    }
+
 #endregion PLATFORM DEFINITIONS
