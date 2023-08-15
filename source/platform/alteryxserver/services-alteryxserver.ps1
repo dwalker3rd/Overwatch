@@ -216,26 +216,49 @@ function global:Show-PlatformStatus {
 
     if (!$Summary -and !$All) { $All = $true }
 
-    #region STATUS     
+    $platformStatus = Get-PlatformStatus -Quiet
+    $_platformStatusRollupStatus = $platformStatus.RollupStatus
+    if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+        $_platformStatusRollupStatus = switch ($platformStatus.Event) {
+            "Start" { "Starting" }
+            "Stop"  { "Stopping" }
+        }
+    }
+
+    Write-Host+
+    $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
+    #region STATUS    
+    
+        Write-Host+
 
         # check platform status and for any active events
         $platformStatus = Get-PlatformStatus -ResetCache -Quiet
 
         $nodeStatusHashTable = (Get-AlteryxServerStatus).Nodes
         $nodeStatus = @()
-        $nodeStatus +=  [PsCustomObject]@{
-            Alias = ""
-            Node = $global:Platform.Instance
-            Status = $platformStatus.RollupStatus
-        }
+        # $nodeStatus +=  [PsCustomObject]@{
+        #     Alias = ""
+        #     Node = $global:Platform.Instance
+        #     Status = $platformStatus.RollupStatus
+        # }
         foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
             $nodeStatus +=  [PsCustomObject]@{
+                Role = pt nodes.$node.components -k
                 Alias = ptBuildAlias $node
                 Node = $node
                 Status = $nodeStatusHashTable[$node]
             }
         }
-        $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
+
+        $nodeStatus = $nodeStatus | Sort-Object -Property Role, Node
+
+        foreach ($_nodeStatus in $nodeStatus) {
+            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>38> $($_nodeStatus.Status)"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($_nodeStatus.Status)
+        }
+        # $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
 
     #endregion STATUS      
     #region EVENTS            
@@ -276,7 +299,12 @@ function global:Show-PlatformStatus {
             $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
         }
 
-    #endregion SERVICES       
+    #endregion SERVICES   
+    
+    Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
+    
+    $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)    
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
