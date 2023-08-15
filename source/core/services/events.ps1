@@ -267,36 +267,38 @@ function global:Get-PlatformEventHistory {
 function global:Show-PlatformEvent {
 
     param(
-        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus -CacheOnly),
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+        [switch]$History
     )
 
-    if ($ComputerName -eq $env:COMPUTERNAME) {
+    Write-Host+
 
-        $platformStatus = Get-PlatformStatus -CacheOnly
+    $properties = $PlatformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory" -or $_.name -like "IsStopped*" -or $_.name -like "Intervention*"}
+    $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}
+    $maxLength = ($propertyNameLengths | Measure-Object -Maximum).Maximum
 
-        $properties = $platformStatus.psobject.Properties | Where-Object {$_.name -like "Event*" -and $_.name -ne "EventHistory" -or $_.name -like "IsStopped*" -or $_.name -like "Intervention*"}
-        $propertyNameLengths = foreach($property in $properties) {$property.Name.Length}
-        $maxLength = ($propertyNameLengths | Measure-Object -Maximum).Maximum
-
-        Write-Host+
-        foreach ($property in $properties) {
-            $message = "<$($property.Name) < >$($maxLength+2)> "
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Green,DarkGray
-            $value = switch ($property.Value.GetType().Name) {
-                default { $property.Value}
-                "ArrayList" {
-                    "{$($property.Value -join ", ")}"
-                }
+    foreach ($property in $properties) {
+        $message = "<  $($property.Name) < >$($maxLength+4)> "
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Green
+        $value = switch ($property.Value.GetType().Name) {
+            default { $property.Value}
+            "ArrayList" {
+                "{$($property.Value -join ", ")}"
             }
-            Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor Green,Gray
         }
-
+        Write-Host+ -NoTrace -NoTimestamp ":",$value -ForegroundColor DarkGray,Gray
     }
 
-    $platformEventHistory = Get-PlatformEventHistory -ComputerName $ComputerName
-    $platformEventHistory | 
-        Sort-Object -Property TimeStamp -Descending | 
-            Format-Table -Property ComputerName, Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventUpdatedAt, EventCompletedAt, EventHasCompleted, EventStatusTarget, TimeStamp
+    if ($History) {
+        $platformEventHistory = Get-PlatformEventHistory -ComputerName $ComputerName
+        $platformEventHistory | 
+            Sort-Object -Property TimeStamp -Descending | 
+                Format-Table -Property ComputerName, Event, EventReason, EventStatus, EventCreatedBy, EventCreatedAt, EventUpdatedAt, EventCompletedAt, EventHasCompleted, EventStatusTarget, TimeStamp
+    }
+    else {
+        Write-Host+
+    }
 
 }
 
