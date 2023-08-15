@@ -17,14 +17,15 @@
 
     # ensure that the AlteryxService service is disabled for offline nodes
     try{
-        $offlineNodes = foreach ($component in (pt components -k)) {pt components.$component.Offline}
+        $offlineNodes = foreach ($node in (pt nodes -k)) {(pt nodes.$node).Offline}
         Set-PlatformService -Name "AlteryxService" -StartupType "Disabled" -Computername $offlineNodes
     }
     catch{}
 
     # confirm that the required crypto/ssl files are in the DLLs directory
     # see https://github.com/conda/conda/issues/8273
-    Repair-PythonSSL -ComputerName (Get-PlatformTopology nodes -keys)
+    Repair-PythonSSL -ComputerName (pt components.Gallery.Nodes -k)
+    Repair-PythonSSL -ComputerName (pt components.Worker.nodes -k)
 
     # install any additional python packages required for your Alteryx Server environment
     # these are in addition to those python packages installed by Alteryx Server
