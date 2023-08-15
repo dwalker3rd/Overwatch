@@ -1,6 +1,6 @@
 #region OVERWATCH DEFINITIONS
 
-    $global:Overwatch = $global:Catalog.Overwatch.Overwatch
+$global:Overwatch = $global:Catalog.Overwatch.Overwatch
 
 #endregion OVERWATCH DEFINITIONS
 #region CONSTANTS
@@ -9,10 +9,17 @@
     $global:epoch = New-Object -Type DateTime -ArgumentList 1970, 1, 1, 0, 0, 0, 0
 
 #endregion CONSTANTS
+#region STATUS
+
+    $global:PlatformStatusBooleanColor = @{ $true = "DarkGreen"; $false = "DarkRed" }
+
+#endregion STATUS
 #region EVENTS
 
-    $global:PlatformEventStatusTarget=@{ Stop="Stopped"; Start="Running"; }
-    $global:PlatformEventStatus=@{ InProgress="In Progress"; Completed="Completed"; Failed="Failed"; Reset="Reset"; Testing="Testing"; }
+    $global:PlatformEventColor = @{ Stop = "DarkRed"; Start = "DarkGreen" }
+    $global:PlatformEventStatusTarget = @{ Stop = "Stopped"; Start = "Running"; }
+    $global:PlatformEventStatus = @{ InProgress = "In Progress"; Completed = "Completed"; Failed = "Failed"; Reset = "Reset"; Testing = "Testing"; }
+    $global:PlatformEventStatusColor = @{ InProgress = "DarkYellow"; Completed = "DarkGreen"; Failed = "DarkRed"; Reset = "DarkYellow"; Testing = "DarkYellow"; }
 
 #endregion EVENTS
 #region TASKS
@@ -32,12 +39,12 @@
 #region MESSAGES
 
     $global:PlatformMessageType = @{ 
-        Information="Information"
-        Warning="Warning"
-        Alert="Alert"
-        AllClear="AllClear"
-        UserNotification="UserNotification"
-        Heartbeat="Heartbeat"
+        Information = "Information"
+        Warning = "Warning"
+        Alert = "Alert"
+        AllClear = "AllClear"
+        UserNotification = "UserNotification"
+        Heartbeat = "Heartbeat"
     }
 
     $global:PlatformMessageStatus = @{ 
@@ -56,8 +63,6 @@
 #endregion FILES  
 #region OVERWATCH TOPOLOGY 
 
-    # The following line indicates a post-installation configuration to the installer
-    # Manual Configuration > Overwatch > Topology > Remote Controllers
-    $global:OverwatchRemoteControllers = @()
+    $global:OverwatchRemoteControllers = @("tbl-prod-01","tbl-mgmt-01","ayx-control-01")
 
 #endregion OVERWATCH TOPOLOGY

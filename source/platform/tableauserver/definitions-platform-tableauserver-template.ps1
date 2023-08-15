@@ -10,14 +10,19 @@ $global:Platform.Image = "$($global:Location.Images)/tableau_sparkle.png"
 $global:PlatformStatusNotOK = @(
     'Unlicensed',
     'Down',
-    'StatusNotAvailable','StatusUnAvailable',
+    'StatusNotAvailable','
+    StatusUnAvailable',
     'StatusNotAvailableSyncing',
     'NotAvailable',
-    'DecommissionedReadOnly','DecommisionedReadOnly',
-    'DecommissioningReadOnly','DecomisioningReadOnly',
+    'DecommissionedReadOnly',
+    'DecommisionedReadOnly',
+    'DecommissioningReadOnly',
+    'DecomisioningReadOnly',
     'DecommissionFailedReadOnly',
     'Degraded',
-    'Stopping',"Starting","Restarting"
+    'Stopping',
+    'Starting',
+    'Restarting'
 )
 
 $global:PlatformStatusOK = @(
@@ -28,6 +33,31 @@ $global:PlatformStatusOK = @(
     'Passive',
     'ReadOnly'
 )
+
+$global:PlatformStatusColor = @{
+    Unlicensed = "DarkRed"
+    Down = "DarkRed"
+    StatusNotAvailable = "DarkYellow"
+    StatusUnAvailable = "DarkYellow"
+    StatusNotAvailableSyncing = "DarkYellow"
+    NotAvailable = "DarkYellow"
+    DecommissionedReadOnly = "DarkYellow"
+    DecommisionedReadOnly = "DarkYellow"
+    DecommissioningReadOnly = "DarkYellow"
+    DecomisioningReadOnly = "DarkYellow"
+    DecommissionFailedReadOnly = "DarkYellow"
+    Degraded = "DarkRed"
+    Stopping = "DarkYellow"
+    Stopped = "DarkRed"
+    Starting = "DarkYellow"
+    Restarting = "DarkYellow"
+    Active = "DarkGreen"
+    ActiveSyncing = "DarkGreen"
+    Busy = "Green"
+    Running = "DarkGreen"
+    Passive = "DarkGreen"
+    ReadOnly = "DarkGreen"
+}
 
 $global:TSSiteRoles = @(
     "Creator",

@@ -142,29 +142,26 @@
 #endregion PREFLIGHT
 #region POSTFLIGHT
 
-. "$($global:Location.Definitions)\definitions-postflight.ps1"
+    . "$($global:Location.Definitions)\definitions-postflight.ps1"
 
 #endregion POSTFLIGHT
 #region WARNINGS
 
-    $_platformTasksDisabled = Get-PlatformTask -Disabled
-
-    $_warnings = (IsMessagingDisabled) -or $_platformTasksDisabled.Count -gt 0
-
-    Write-Host+ -Iff ($_warnings)
-
     if (IsMessagingDisabled) {
+        Write-Host+
         Write-Host+ -NoTrace "  Messaging DISABLED" -ForegroundColor DarkYellow
     }
 
+    Show-PlatformStatus -Required -Issues
+
+    $_platformTasksDisabled = Get-PlatformTask -Disabled
     if ($_platformTasksDisabled.Count -gt 0) {
+        Write-Host+
         Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
         Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
         $_platformTasksDisabled | Show-PlatformTasks
         Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Include -SetTraceGlobal Include
     }
-
-    Write-Host+ -Iff ($_warnings)
 
 #endregion WARNINGS
 #region CLOSE
