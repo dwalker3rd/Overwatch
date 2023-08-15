@@ -1009,60 +1009,82 @@ function global:Show-PlatformStatus {
 
     if (!$Summary -and !$All) { $All = $true }
 
-    # check platform status and for any active events
-    $platformStatus = Get-PlatformStatus -ResetCache -Quiet
-    if (!$platformStatus.IsOK -or $platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+    #region STATUS  
 
-        Write-Host+
-        
-        $_platformEvent = ""
-        $_platformStatus = $platformStatus.RollupStatus
-        if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-            $_platformEvent = $platformStatus.Event
-            $_platformStatus = $platformStatus.EventStatus
-        }
-        $message = "$($Platform.Name)$($_platformEvent ? " " : $null)$($_platformEvent.ToUpper()) is $($_platformStatus.ToUpper())."
-        Write-Host+ -NoTrace -NoTimeStamp $message -ForegroundColor DarkRed
+        $rmtStatus = Get-RMTStatus -ResetCache -Quiet
+        $controller = $rmtStatus.ControllerStatus
+        $agents = $rmtStatus.AgentStatus
+        # $environments = $rmtStatus.EnvironmentStatus
 
-    }    
-
-    $rmtStatus = Get-RMTStatus -ResetCache -Quiet
-    $controller = $rmtStatus.ControllerStatus
-    $agents = $rmtStatus.AgentStatus
-    # $environments = $rmtStatus.EnvironmentStatus
-
-    $nodeStatus = @()
-    # Controller
-    $nodeStatus +=  [PsCustomObject]@{
-        NodeId = ptBuildAlias $controller.Name
-        Node = $controller.Name
-        Status = $controller.RollupStatus
-        Role = Get-RMTRole $controller.Name
-        Version = $controller.Controller.ProductVersion
-    }
-    # Agents
-    foreach ($agent in $agents) {
+        $nodeStatus = @()
+        # Platform
         $nodeStatus +=  [PsCustomObject]@{
-            NodeId = ptBuildAlias $agent.Name
-            Node = $agent.Name
-            Status = $agent.RollupStatus
-            Role = Get-RMTRole $agent.Name
-            Version = $agent.Agent.ProductVersion
+            NodeId = ""
+            Node = $global:Platform.Instance
+            Status = $controller.RollupStatus
+            Role = "Platform"
+            Version = $controller.Controller.ProductVersion
         }
-    }
-    $nodeStatus | Sort-Object -Property Node | Format-Table -Property Role, Node, Status, Version
+        # Controller
+        $nodeStatus +=  [PsCustomObject]@{
+            NodeId = ptBuildAlias $controller.Name
+            Node = $controller.Name
+            Status = $controller.RollupStatus
+            Role = Get-RMTRole $controller.Name
+            Version = $controller.Controller.ProductVersion
+        }
+        # Agents
+        foreach ($agent in $agents) {
+            $nodeStatus +=  [PsCustomObject]@{
+                NodeId = ptBuildAlias $agent.Name
+                Node = $agent.Name
+                Status = $agent.RollupStatus
+                Role = Get-RMTRole $agent.Name
+                Version = $agent.Agent.ProductVersion
+            }
+        }
+        $nodeStatus | Sort-Object -Property Node | Format-Table -Property Role, Node, Status, Version
 
-    $platformIssues = $null
-    if ($Issues -and $platformIssues) {
-        $platformIssues | Format-Table -Property @{Name='Role';Expression={$_.Role[0]}}, Node, Class, Name, Status
-    }    
+    #endregion STATUS      
+    #region EVENTS       
 
-    if ($All -or ($Issues -and $platformIssues)) {
-        $services = [array]$Controller.Controller.Services + [array]$rmtStatus.AgentStatus.Agent.Services
-        if ($Required) { $services = $services | Where-Object {$_.Required} }
-        if ($Issues) { $services = $services | Where-Object {!$_.IsOK} }
-        $services | Sort-Object -Property Node, Name | Format-Table -Property @{Name='Role';Expression={$_.Component[0]}}, Node, Class, Name, Status, Required, Transient, IsOK 
-    }
+        if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  Event < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.Event -ForegroundColor DarkGray, $global:PlatformEventColor.($platformStatus.Event)
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventStatus < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventStatus -ForegroundColor DarkGray, $global:PlatformEventStatusColor.($platformStatus.EventStatus)
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedBy < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCreatedBy -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCreatedAt -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventUpdatedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventUpdatedAt -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCompletedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCompletedAt -ForegroundColor DarkGray, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventHasCompleted < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventHasCompleted -ForegroundColor DarkGray, "$($global:PlatformStatusBooleanColor.($platformStatus.EventHasCompleted))"
+        }
+
+    #endregion EVENTS     
+    #region ISSUES    
+
+        $platformIssues = $null
+        if ($Issues -and $platformIssues) {
+            $platformIssues | Format-Table -Property @{Name='Role';Expression={$_.Role[0]}}, Node, Class, Name, Status
+        }    
+
+    #endregion ISSUES
+    #region SERVICES        
+
+        if ($All -or ($Issues -and $platformIssues)) {
+            $services = [array]$Controller.Controller.Services + [array]$rmtStatus.AgentStatus.Agent.Services
+            if ($Required) { $services = $services | Where-Object {$_.Required} }
+            if ($Issues) { $services = $services | Where-Object {!$_.IsOK} }
+            $services | Sort-Object -Property Node, Name | Format-Table -Property @{Name='Role';Expression={$_.Component[0]}}, Node, Class, Name, Status, Required, Transient, IsOK 
+        }
+
+    #endregion SERVICES        
 
 }
 
