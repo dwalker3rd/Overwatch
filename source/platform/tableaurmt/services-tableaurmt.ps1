@@ -1031,6 +1031,7 @@ function global:Show-PlatformStatus {
         $agents = $rmtStatus.AgentStatus
         # $environments = $rmtStatus.EnvironmentStatus
 
+        $_nodeId = 0
         $nodeStatus = @()
         # Platform
         # $nodeStatus +=  [PsCustomObject]@{
@@ -1042,7 +1043,7 @@ function global:Show-PlatformStatus {
         # }
         # Controller
         $nodeStatus +=  [PsCustomObject]@{
-            NodeId = ptBuildAlias $controller.Name
+            NodeId = $_nodeId
             Node = $controller.Name
             Status = $controller.RollupStatus
             Role = Get-RMTRole $controller.Name
@@ -1050,14 +1051,17 @@ function global:Show-PlatformStatus {
         }
         # Agents
         foreach ($agent in $agents) {
+            $_nodeId = $_nodeId++
             $nodeStatus +=  [PsCustomObject]@{
-                NodeId = ptBuildAlias $agent.Name
+                NodeId = $_nodeId
                 Node = $agent.Name
                 Status = $agent.RollupStatus
                 Role = Get-RMTRole $agent.Name
                 Version = $agent.Agent.ProductVersion
             }
         }
+
+        $nodeStatus = $nodeStatus | Sort-Object -Property NodeId, Node
 
         foreach ($_nodeStatus in $nodeStatus) {
             $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>38> $($_nodeStatus.Status)"
