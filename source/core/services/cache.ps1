@@ -172,34 +172,33 @@ function global:Lock-Cache {
         [Parameter(Mandatory=$false)][ValidateSet("Read","None")][String]$Share = "Read"
     )
 
-    # $cache = Get-Cache $Name -ComputerName $ComputerName
     $lockFile = $Cache.FullName -replace $Cache.Extension,".lock"
     
     $lockRetryAttempts = 0
-    $FileStream = [System.IO.File]::Open($lockFile, $Mode, $Access, $Share)
-    while (!($Access -eq "ReadWrite" -and $FileStream.CanWrite) -and !($Access -eq "Read" -and $FileStream.CanRead)) {
-        # if (!(Test-Path -Path $lockFile)) {
-        #     Set-Content -Path $lockFile -Value (Get-Date -AsUTC)
-        # }
+    do {
         try {
-            if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
-                $message = "Unable to acquire lock after $($lockRetryAttempts) attempts."
-                # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-                Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error" # -Data $lockMeta
-                return $null
-            }
             $lockRetryAttempts++
             $FileStream = [System.IO.File]::Open($lockFile, $Mode, $Access, $Share)
         }
         catch {
             Start-Sleep -Milliseconds $lockRetryDelay.TotalMilliseconds
         }
+    } 
+    until ( 
+        ($Access -eq "ReadWrite" -and $FileStream.CanWrite) -or 
+        ($Access -eq "Read" -and $FileStream.CanRead) -or 
+        $lockRetryAttempts -ge $lockRetryMaxAttempts 
+    )
+    
+    if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
+        $message = "Unable to acquire lock after $($lockRetryAttempts) attempts."
+        Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error"
+        return $null
     }
 
     if ($lockRetryAttempts -gt 2) {
         $message = "Lock acquired after $($lockRetryAttempts) attempts."
-        # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
-        Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Success" -Message $message -Force # -Data $lockMeta
+        Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Success" -Message $message -Force
     }
 
     return $FileStream
@@ -224,8 +223,6 @@ function global:Unlock-Cache {
     $Lock.Close()
     $Lock.Dispose()
     Remove-Item -Path $Lock.Name -Force -ErrorAction SilentlyContinue
-
-    # Write-Log -Action "UnlockCache" -Target $cache.FileNameWithoutExtension -Status "Success" -Force
 
 }
 
