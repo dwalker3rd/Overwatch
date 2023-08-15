@@ -6,7 +6,8 @@ function global:Get-PlatformStatusRollup {
         
     [CmdletBinding()]
     param (
-        [switch]$ResetCache
+        [switch]$ResetCache,
+        [switch]$Quiet
     )
 
     $params = @{}
@@ -52,59 +53,80 @@ function global:Show-PlatformStatus {
 
     if (!$Summary -and !$All) { $All = $true }
 
-    # get platform status
     $platformStatus = Get-PlatformStatus -ResetCache
-
-    # check platform status and for any active events
-    $_platformEvent = ""
-    $_platformEventStatus = ""
-    $_platformRollupStatus = $platformStatus.RollupStatus
-    $_consoleSequenceIsOKColor = $platformStatus.IsOK ? $global:consoleSequence.Default : $global:consoleSequence.ForegroundRed
-    $_consoleSequenceRollupStatusColor = $global:consoleSequence.ForegroundGreen
-    $_consoleSequenceEventColor = $global:consoleSequence.Default
-    if (!$platformStatus.IsOK -or $platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-        if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-            $_platformEvent = $platformStatus.Event
-            $_platformEventStatus = $platformStatus.EventStatus
-            $_consoleSequenceEventColor = switch ($platformStatus.Event) {
-                "Start" { $global:consoleSequence.ForegroundGreen }
-                "Stop" { $global:consoleSequence.ForegroundRed}
-            } 
+    $_platformStatusRollupStatus = $platformStatus.RollupStatus
+    if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+        $_platformStatusRollupStatus = switch ($platformStatus.Event) {
+            "Start" { "Starting" }
+            "Stop"  { "Stopping" }
         }
-        $_consoleSequenceRollupStatusColor = $global:consoleSequence.ForegroundRed
     }
 
-    Write-Host+ 
-    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Platform$($global:consoleSequence.Default)    : $($global:Platform.Name)"
-    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Instance$($global:consoleSequence.Default)    : $($global:Platform.Instance)"
-    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Version$($global:consoleSequence.Default)     : $($global:Platform.Version)"
-    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Status$($global:consoleSequence.Default)      : $($_consoleSequenceRollupStatusColor)$($_platformRollupStatus)$($global:consoleSequence.Default)"
-    Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)IsOK$($global:consoleSequence.Default)        : $($_consoleSequenceIsOKColor)$($platformStatus.IsOK.ToString())$($global:consoleSequence.Default)"
+    Write-Host+
+    $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    if (![string]::IsNullOrEmpty($_platformEvent)) {
-        Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)Event$($global:consoleSequence.Default)       : $($_consoleSequenceEventColor)$($_platformEvent)$($global:consoleSequence.Default)"
-        Write-Host+ -NoTrace -NoTimestamp "$($global:consoleSequence.ForegroundGreen)EventStatus$($global:consoleSequence.Default) : $_platformEventStatus"
-    }
+    #region STATUS
 
-    $nodeStatus = (Get-TableauServerStatus).Nodes
-    $nodeStatus = $nodeStatus | 
-        Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='NodeId';Expression={$_.nodeId}}, @{Name='Status';Expression={$_.rollupstatus}}, @{Name='Version';Expression={$Platform.Version}}
-    $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, NodeId, Status, Version
+        Write-Host+
 
-    $platformIssues = $platformStatus.platformIssues
-    if ($Issues -and $platformIssues) {
-        $platformIssues = $platformIssues | 
-            Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Service';Expression={"$($_.name)_$($_.instanceId)"}}, @{Name='Status';Expression={$_.processStatus}}, @{Name='Message';Expression={$_.message}}
-        $platformIssues | Format-Table -Property Node, Service, Status, Message
-    }
+        $nodes = (Get-TableauServerStatus).Nodes | 
+        Select-Object -Property @{Name='node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, nodeId, rollupStatus | 
+            Sort-Object -Property node
 
-    if ($All -or ($Issues -and $platformIssues)) {
-        $services = Get-PlatformService
-        if ($Required) { $services = $services | Where-Object {$_.Required} }
-        if ($Issues) { $services = $services | Where-Object {!$_.StatusOK.Contains($_.Status)} }
-        $services | Select-Object Node, @{Name='NodeId';Expression={ptGetAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK | 
-            Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, NodeId, Class, Name, Status, Required, Transient, IsOK
-    }
+        foreach ($node in $nodes) {
+            $message = "<  $($node.node) ($($node.nodeId))$($node.node -eq (pt InitialNode) ? "*" : $null) <.>38> $($node.RollupStatus)"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($node.RollupStatus)
+        }
+
+        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>38> $($_platformStatusRollupStatus)" -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+
+    #endregion STATUS      
+    #region EVENTS    
+
+        if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+
+            Write-Host+
+
+            Write-Host+ -NoTrace -Parse "<  Event <.>38> $($platformStatus.Event)" -ForegroundColor Gray,DarkGray, $global:PlatformEventColor.($platformStatus.Event)
+            Write-Host+ -NoTrace -Parse "<  EventStatus <.>38> $($global:PlatformEventStatus.($platformStatus.EventStatus))" -ForegroundColor Gray,DarkGray, $global:PlatformEventStatusColor.($platformStatus.EventStatus)
+            Write-Host+ -NoTrace -Parse "<  EventCreatedBy <.>38> $($platformStatus.EventCreatedBy)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -NoTrace -Parse "<  EventCreatedAt <.>38> $($platformStatus.EventCreatedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -Iff $(!$platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventUpdatedAt <.>38> $($platformStatus.EventUpdatedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -Iff $($platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventCompletedAt <.>38> $($platformStatus.EventCompletedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -NoTrace -Parse "<  EventHasCompleted <.>38> $($platformStatus.EventHasCompleted)" -ForegroundColor Gray,DarkGray, "$($global:PlatformStatusBooleanColor.($platformStatus.EventHasCompleted))"
+
+            # Show-PlatformEvent -PlatformStatus $platformStatus
+
+        }
+
+    #endregion EVENTS     
+    #region ISSUES
+
+        $platformIssues = $platformStatus.platformIssues
+        if ($Issues -and $platformIssues) {
+            $platformIssues = $platformIssues | 
+                Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Service';Expression={"$($_.name)_$($_.instanceId)"}}, @{Name='Status';Expression={$_.processStatus}}, @{Name='Message';Expression={$_.message}}
+            $platformIssues | Format-Table -Property Node, Service, Status, Message
+        }
+
+    #endregion ISSUES
+    #region SERVICES
+
+        if ($All -or ($Issues -and $platformIssues)) {
+            $services = Get-PlatformService
+            if ($Required) { $services = $services | Where-Object {$_.Required} }
+            if ($Issues) { $services = $services | Where-Object {!$_.StatusOK.Contains($_.Status)} }
+            $services | Select-Object Node, @{Name='NodeId';Expression={ptGetAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK | 
+                Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, NodeId, Class, Name, Status, Required, Transient, IsOK
+        }
+
+    #endregion SERVICES
+
+    Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
+
+    $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
@@ -1455,8 +1477,3 @@ function global:Test-RepositoryAccess {
 }
 
 #endregion TESTS
-#region PLATFORM NOTIFICATION
-
-
-
-#endregion PLATFORM NOTIFICATION
