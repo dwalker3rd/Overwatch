@@ -148,15 +148,15 @@ function global:Write-Host+ {
 
     if ($global:WriteHostPlusTimestampGlobal) { 
         switch ($global:WriteHostPlusTimestampGlobal) {
-            "Include" { $NoTimestamp = $NoTimeStamp ?? $false }
-            "Exclude" { $NoTimestamp = $NoTimeStamp ?? $true }
+            "Include" { $NoTimestamp = $false }
+            "Exclude" { $NoTimestamp = $true }
         }
     }
 
     if ($global:WriteHostPlusTraceGlobal) { 
         switch ($global:WriteHostPlusTraceGlobal) {
-            "Include" { $NoTrace = $NoTrace ?? $false }
-            "Exclude" { $NoTrace = $NoTrace ?? $true }
+            "Include" { $NoTrace = $false }
+            "Exclude" { $NoTrace = $true }
         }
     }
 

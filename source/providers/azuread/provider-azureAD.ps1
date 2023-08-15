@@ -1313,3 +1313,35 @@ function global:Find-AzureADGroup {
     return Find-AzureADObject -Tenant $tenantKey -Type "Group" -Groups $Groups @findParams
 
 }
+
+function global:Get-AzureADApplication {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$false)][string]$AppId,
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][string]$View
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/applications(appId='{$AppId}')" 
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'GET'
+        Uri = $uri
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+
+    return $response
+
+}
