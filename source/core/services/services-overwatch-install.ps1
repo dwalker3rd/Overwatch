@@ -656,7 +656,7 @@ function script:Remove-CatalogObjectFiles {
             Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Enable disabled tasks"
             Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
             Get-PlatformTask | Show-PlatformTasks
-            Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Include -SetTraceGlobal Include
+            Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
             $postInstallConfig = $true
         }
 

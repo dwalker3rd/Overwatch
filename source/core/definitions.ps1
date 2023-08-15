@@ -160,7 +160,7 @@
         Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
         Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
         $_platformTasksDisabled | Show-PlatformTasks
-        Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Include -SetTraceGlobal Include
+        Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
     }
 
 #endregion WARNINGS
