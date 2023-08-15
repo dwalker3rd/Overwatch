@@ -152,7 +152,7 @@ $providerIds = @()
     $operatingSystemId = $installedOperatingSystem
 
     $installedPlatforms = @()
-    $localServices = Get-Service
+    $localServices = Get-Service -ErrorAction SilentlyContinue
     foreach ($key in $global:Catalog.Platform.Keys) { 
         if ($localServices.Name -contains $global:Catalog.Platform.$key.Installation.Discovery.Service) {
             $installedPlatforms += $key
