@@ -1089,7 +1089,7 @@ function global:Grant-AzProjectRole {
 
             Write-Host+ -NoTrace "    $($emptyString.PadLeft($signInName.Length,"-"))" -ForegroundColor Gray
 
-            $identity = $assignee.identities | Where-Object {$_.issuer -eq $global:Azure.$tenantKey.Tenant.Name}
+            $identity = $assignee.identities | Where-Object {$_.issuer -eq $global:Azure.$tenantKey.Tenant.Domain}
             $signInType = $identity.signInType
             $signIn = $signInType -eq "userPrincipalName" ? $assignee.userPrincipalName : $signInName
             
