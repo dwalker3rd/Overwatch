@@ -85,7 +85,7 @@ function global:Set-Credentials {
     )
     
     $Name = $Name.ToLower()
-    $Key = New-EncryptionKey $Name
+    $Key = New-EncryptionKey $Name -ComputerName $ComputerName
     $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
     $PasswordEncrypted = $Credentials.Password | ConvertFrom-SecureString -Key $Key
 
