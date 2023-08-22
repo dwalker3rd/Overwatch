@@ -6,6 +6,8 @@ function global:Disable-Messaging {
         [switch]$Quiet
     )
 
+    if ($Duration.TotalMilliseconds -eq 0) { throw("Duration must be greater than 0.")}
+
     $now = Get-Date -AsUTC
     $expiry = $now + $Duration
     $messageStatusCache = @{
@@ -16,8 +18,7 @@ function global:Disable-Messaging {
     $messageStatusCache | Write-Cache platformMessageStatus
 
     Write-Log -EntryType "Warning" -Action "Disable" -Target "Messaging" -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled) until $expiry" -Force
-    Write-Host+ -Iff (!$Quiet) -NoTrace "Messaging ",$global:PlatformMessageStatus.Disabled.ToUpper() -ForegroundColor DarkGray,DarkYellow -NoSeparator
-    Write-Host+ -Iff (!$Quiet)
+    if (!$Quiet) { Show-MessagingStatus }
 
     return
 
@@ -38,8 +39,7 @@ function global:Enable-Messaging {
     $messageStatusCache | Write-Cache platformMessageStatus
 
     Write-Log -EntryType "Information" -Action "Enable" -Target "Messaging" -Status $global:PlatformMessageStatus.Enabled -Message "Messaging $($global:PlatformMessageStatus.Enabled.ToUpper())" -Force
-    Write-Host+ -Iff (!$Quiet) -NoTrace "Messaging ",$global:PlatformMessageStatus.Enabled.ToUpper() -ForegroundColor DarkGray,DarkGreen -NoSeparator
-    Write-Host+ -Iff (!$Quiet)
+    if (!$Quiet) { Show-MessagingStatus }
 
     return
 
@@ -49,7 +49,7 @@ function global:IsMessagingDisabled {
     if ($messageStatusCache.Status -eq "Disabled") {
         if ((Get-Date -AsUTC) -ge $messageStatusCache.Expiry) {
             Enable-Messaging -Quiet
-            $messageStatusCache = Get-MessagingStatus
+            return $false
         }
     }
     return $messageStatusCache.Status -eq $global:PlatformMessageStatus.Disabled
@@ -62,8 +62,34 @@ function global:Get-MessagingStatus {
     return (Read-Cache platformMessageStatus)
 }
 function global:Show-MessagingStatus {
-    $messageStatusCache = Get-MessagingStatus
-    Write-Host+ -NoTrace "Messaging",$messageStatusCache.Status,"until $($messageStatusCache.Expiry.ToString('u'))" -ForegroundColor Gray,DarkYellow,Gray
+    if (IsMessagingDisabled) {
+
+        $messageStatusCache = Get-MessagingStatus
+        
+        $expiry = $messageStatusCache.Expiry
+        $timeRemaining = $expiry - (Get-Date)
+        $minutesAsString = [math]::Floor($timeRemaining.TotalMinutes) -eq 0 ? "" : "$([math]::Floor($timeRemaining.TotalMinutes)) minute$($timeRemaining.Minutes -eq 1 ? '' : 's')"
+        $secondsAsString = $timeRemaining.Seconds -eq 0 ? "" : "$($timeRemaining.Seconds) second$($timeRemaining.Seconds -eq 1 ? '' : 's')"
+        
+        $messagingCountdown = "Messaging will be enabled in $minutesAsString"
+        if (![string]::IsNullOrEmpty($minutesAsString) -and ![string]::IsNullOrEmpty($secondsAsString)) { 
+            $messagingCountdown += " "
+        }
+        $messagingCountdown += $secondsAsString
+
+        if ([string]::IsNullOrEmpty($minutesAsString) -and [string]::IsNullOrEmpty($secondsAsString)) { 
+            # Write-Host+ -NoTrace "Messaging is being","$($global:PlatformMessageStatus.Enabled.ToUpper())" -ForegroundColor Gray,DarkGreen
+            Enable-Messaging
+        }
+        else {
+            Write-Host+ -NoTrace "Messaging",$messageStatusCache.Status.ToUpper(),"until $expiry" -ForegroundColor Gray,DarkYellow,Gray
+            Write-Host+ -NoTrace "$messagingCountdown" -ForegroundColor Gray
+        }
+    }  
+    else {
+        $messageStatusCache = Get-MessagingStatus
+        Write-Host+ -NoTrace "Messaging",$messageStatusCache.Status.ToUpper() -ForegroundColor Gray,DarkGreen
+    }  
 }
 
 function global:Send-Message {
@@ -76,7 +102,7 @@ function global:Send-Message {
     $json = $Message | ConvertTo-Json -Depth 99
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
-    if ((IsMessagingDisabled) -and !$Force.IsPresent) {
+    if ((IsMessagingDisabled) -and $Message.Type -notin $global:PlatformMessageTypeAlwaysSend.Values) {
         Write-Log -EntryType "Information" -Action "Send" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
         return $global:PlatformMessageStatus.Disabled
     }
@@ -311,10 +337,6 @@ function global:Send-PlatformEventMessage {
         [switch]$Reset,
         [switch]$NoThrottle
     )
-
-
-    # $serverInfo = Get-ServerInfo
-    # $platformStatus = Get-PlatformStatus
 
     $be = 
         switch ($PlatformStatus.EventStatus) {

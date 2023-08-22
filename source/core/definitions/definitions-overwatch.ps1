@@ -45,6 +45,11 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
         AllClear = "AllClear"
         UserNotification = "UserNotification"
         Heartbeat = "Heartbeat"
+        Intervention = "Intervention"
+    }
+
+    $global:PlatformMessageTypeAlwaysSend = @{
+        Intervention = "Intervention"
     }
 
     $global:PlatformMessageStatus = @{ 
@@ -53,6 +58,8 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
         Throttled = "Throttled"
         Transmitted = "Transmitted"
     }
+
+    $global:PlatformMessageDisabledTimeout = New-Timespan -Minutes 90
 
 #endregion MESSAGES    
 #region FILES

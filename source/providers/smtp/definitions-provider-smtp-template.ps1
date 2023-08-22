@@ -21,7 +21,7 @@
             Server = "<server>"
             Port = "<port>"
             UseSsl = "<useSsl>"
-            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear)
+            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
             # Credentials = $SmtpCredentials
             From = $($SmtpCredentials).UserName
             To = @()
