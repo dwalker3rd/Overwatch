@@ -149,7 +149,7 @@
 
     if (IsMessagingDisabled) {
         Write-Host+
-        Write-Host+ -NoTrace "  Messaging DISABLED" -ForegroundColor DarkYellow
+        Show-MessagingStatus
     }
 
     Show-PlatformStatus -Required -Issues

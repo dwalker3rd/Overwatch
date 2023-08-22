@@ -1,24 +1,69 @@
 function global:Disable-Messaging {
-    ($global:DisableMessaging = $true) | Write-Cache disableAllMessaging
-    $global:DisableMessaging | Out-Null
-    Write-Log -EntryType "Warning" -Action "Disable" -Target "Messaging" -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
-    Write-Host+ -NoTrace "Messaging ",$global:PlatformMessageStatus.Disabled.ToUpper() -ForegroundColor DarkGray,DarkYellow -NoSeparator
-    Write-Host+
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false,Position=0)][timespan]$Duration = $global:PlatformMessageDisabledTimeout,
+        [switch]$Quiet
+    )
+
+    $now = Get-Date -AsUTC
+    $expiry = $now + $Duration
+    $messageStatusCache = @{
+        Status = $global:PlatformMessageStatus.Disabled
+        Timestamp = $now
+        Expiry = $expiry
+    }
+    $messageStatusCache | Write-Cache platformMessageStatus
+
+    Write-Log -EntryType "Warning" -Action "Disable" -Target "Messaging" -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled) until $expiry" -Force
+    Write-Host+ -Iff (!$Quiet) -NoTrace "Messaging ",$global:PlatformMessageStatus.Disabled.ToUpper() -ForegroundColor DarkGray,DarkYellow -NoSeparator
+    Write-Host+ -Iff (!$Quiet)
+
     return
+
 }
+
 function global:Enable-Messaging {
-    ($global:DisableMessaging = $false) | Write-Cache disableAllMessaging
-    $global:DisableMessaging | Out-Null
+
+    [CmdletBinding()]
+    param (
+        [switch]$Quiet
+    )
+
+    $now = Get-Date -AsUTC
+    $messageStatusCache = @{
+        Status = $global:PlatformMessageStatus.Enabled
+        Timestamp = $now
+    }
+    $messageStatusCache | Write-Cache platformMessageStatus
+
     Write-Log -EntryType "Information" -Action "Enable" -Target "Messaging" -Status $global:PlatformMessageStatus.Enabled -Message "Messaging $($global:PlatformMessageStatus.Enabled.ToUpper())" -Force
-    Write-Host+ -NoTrace "Messaging ",$global:PlatformMessageStatus.Enabled.ToUpper() -ForegroundColor DarkGray,DarkGreen -NoSeparator
-    Write-Host+
+    Write-Host+ -Iff (!$Quiet) -NoTrace "Messaging ",$global:PlatformMessageStatus.Enabled.ToUpper() -ForegroundColor DarkGray,DarkGreen -NoSeparator
+    Write-Host+ -Iff (!$Quiet)
+
     return
+
 }
 function global:IsMessagingDisabled {
-    return (Read-Cache disableAllMessaging) -eq $true
+    $messageStatusCache = Get-MessagingStatus
+    if ($messageStatusCache.Status -eq "Disabled") {
+        if ((Get-Date -AsUTC) -ge $messageStatusCache.Expiry) {
+            Enable-Messaging -Quiet
+            $messageStatusCache = Get-MessagingStatus
+        }
+    }
+    return $messageStatusCache.Status -eq $global:PlatformMessageStatus.Disabled
 }
 function global:IsMessagingEnabled {
-    return (Read-Cache disableAllMessaging) -eq $false
+    $messageStatusCache = Get-MessagingStatus
+    return $messageStatusCache.Status -eq $global:PlatformMessageStatus.Enabled
+}
+function global:Get-MessagingStatus {
+    return (Read-Cache platformMessageStatus)
+}
+function global:Show-MessagingStatus {
+    $messageStatusCache = Get-MessagingStatus
+    Write-Host+ -NoTrace "Messaging",$messageStatusCache.Status,"until $($messageStatusCache.Expiry.ToString('u'))" -ForegroundColor Gray,DarkYellow,Gray
 }
 
 function global:Send-Message {
@@ -31,7 +76,7 @@ function global:Send-Message {
     $json = $Message | ConvertTo-Json -Depth 99
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
-    if (IsMessagingDisabled) {
+    if ((IsMessagingDisabled) -and !$Force.IsPresent) {
         Write-Log -EntryType "Information" -Action "Send" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
         return $global:PlatformMessageStatus.Disabled
     }
