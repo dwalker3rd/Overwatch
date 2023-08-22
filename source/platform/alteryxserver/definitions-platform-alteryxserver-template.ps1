@@ -127,6 +127,18 @@
             Component = "Controller"
         }
 
+        $global:PlatformStatusColor = @{
+            Stopping = "DarkYellow"
+            Stopped = "DarkRed"
+            Starting = "DarkYellow"
+            Restarting = "DarkYellow"
+            Running = "DarkGreen"
+            Responding = "DarkGreen"
+            Online = "DarkGreen"
+            Offline = "DarkYellow"
+            Degraded = "DarkRed"
+        }      
+
     )
 
 #endregion PLATFORM DEFINITIONS

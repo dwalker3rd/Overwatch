@@ -237,12 +237,16 @@ function global:Show-PlatformStatus {
         $platformStatus = Get-PlatformStatus -ResetCache -Quiet
 
         $nodeStatusHashTable = (Get-AlteryxServerStatus).Nodes
+
         $nodeStatus = @()
-        # $nodeStatus +=  [PsCustomObject]@{
-        #     Alias = ""
-        #     Node = $global:Platform.Instance
-        #     Status = $platformStatus.RollupStatus
-        # }
+        foreach ($node in (Get-PlatformTopology nodes -offline -keys)) {
+            $nodeStatus +=  [PsCustomObject]@{
+                Role = pt nodes.$node.components -k
+                Alias = ptBuildAlias $node
+                Node = $node
+                Status = "Offline"
+            }
+        }
         foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
             $nodeStatus +=  [PsCustomObject]@{
                 Role = pt nodes.$node.components -k
@@ -729,10 +733,18 @@ function global:Request-PlatformComponent {
         [switch]$Passive
     )
 
-    # REQUIRED!
-    # use a reinitialized **COPY** of the topology (in-memory and cached topologies are not affected)
-    # this ensures that nodes that were removed/offlines are processed by this function
-    $_platformTopology = Initialize-PlatformTopology -NoCache
+    ###
+    # WHY did i insist on a topology object without consideration for offline nodes?  
+    #
+        # # REQUIRED!
+        # # use a reinitialized **COPY** of the topology (in-memory and cached topologies are not affected)
+        # # this ensures that nodes that were removed/offlines are processed by this function
+        # $_platformTopology = Initialize-PlatformTopology -NoCache
+
+        $_platformTopology = Initialize-PlatformTopology
+
+    #
+    ###
 
     if ($Active -or $Passive) {
         if ($Component -ne $_platformTopology.Components.Controller.Name) {throw "The Active and Passive switches are only valid with a Controller."}
@@ -747,11 +759,38 @@ function global:Request-PlatformComponent {
 
     $Command = (Get-Culture).TextInfo.ToTitleCase($Command)
     $Component = (Get-Culture).TextInfo.ToTitleCase($Component)
-    $ComputerName = $ComputerName ? $ComputerName : $_platformTopology.Components.$component.Nodes
-    $ComputerName = $ComputerName | ForEach-Object { Get-PlatformTopologyAlias $_}
 
     Write-Host+ -NoTrace "$($Command)","$($componentType)$($Component)" # -ForegroundColor ($Command -eq "Start" ? "Green" : "Red"),Gray
     Write-Log -Action $Command -Message "$($Command) $($componentType)$($Component)"        
+
+    $ComputerName = $ComputerName ? $ComputerName : $_platformTopology.Components.$component.Nodes.Keys
+
+    # STOP: [attempt to] stop all nodes even if they are offline.
+    # START: ignore/skip offline nodes
+    if ($Command -eq "Start") {
+
+        $onlineNodes = @()
+        foreach ($node in $ComputerName) {
+            if ($_platformTopology.Nodes.$node.Offline) {
+                Write-Host+ -NoTrace "$Component on $node is", "Offline." -ForegroundColor Gray, DarkYellow
+            }
+            else {
+                $onlineNodes += $node
+            }
+        }
+
+        # if there are no online nodes in $ComputerName then indicate that all are offline
+        # however, if there's only one node, then it's a redundant message, so skip it
+        if (!$onlineNodes -and $ComputerName.Count -gt 1) {
+            Write-Host+ -NoTrace "$Component nodes are", "Offline." -ForegroundColor Gray, DarkYellow
+            return
+        }
+
+        $ComputerName = $onlineNodes
+        
+    }
+
+    $ComputerName = $ComputerName | ForEach-Object { Get-PlatformTopologyAlias $_}
 
     switch ($Component) {
         $_platformTopology.Components.Database.Name {
@@ -1390,6 +1429,8 @@ function global:Initialize-PlatformTopology {
     $Nodes ??= $global:PlatformTopologyBase.Nodes
     $Components = $global:PlatformTopologyBase.Components
 
+    $platformTopologyCache = Read-Cache platformtopology
+
     $platformTopology = @{
         Nodes = @{}
         Components = @{}
@@ -1451,14 +1492,12 @@ function global:Initialize-PlatformTopology {
 
         }
 
+        # gallery
         if ($runtimeSettings.SystemSettings.Gallery.BaseAddress) {
-
             $baseAddress = $runtimeSettings.SystemSettings.Gallery.BaseAddress
             if ($baseAddress[$baseAddress.Length-1] -eq "/") {$baseAddress = $baseAddress.subString(0,$baseAddress.Length-1)}
             if ($baseAddress -eq $global:Platform.Uri) {
-
                 $platformTopology.Components.Gallery.Nodes += @{$node = @{}}
-
                 if ("Gallery" -notin $platformTopology.Nodes.$node.Components.Keys) {
                     $platformTopology.Nodes.$node.Components += @{
                         Gallery = @{
@@ -1466,21 +1505,25 @@ function global:Initialize-PlatformTopology {
                         }
                     }
                 }
-
             }
         }
 
+        # worker
         if ($null -eq $runtimeSettings.SystemSettings.Environment.workerEnabled) {
-
             $platformTopology.Components.Worker.Nodes += @{$node = @{}}
-            
             if ("Worker" -notin $platformTopology.Nodes.$node.Components.Keys) {
                 $platformTopology.Nodes.$node.Components += @{
                     Worker = @{
                         Instances = @{}
                     }
                 }
-            }
+            } 
+        }
+
+        # if node was offline prior to calling Initialize-platformTopology ($platformTopologyCache), 
+        # then set it to offline in $platformTopology
+        if ($platformTopologyCache.nodes.$node.Offline) {
+            $platformTopology.nodes.$node.Offline = $platformTopologyCache.nodes.$node.Offline
         }
 
     }
@@ -1500,6 +1543,7 @@ function global:Initialize-PlatformTopology {
     if (!$NoCache -and $platformTopology.Nodes) {
         $platformTopology | Write-Cache platformtopology
     }
+
 
     return $platformTopology
 
@@ -1531,47 +1575,93 @@ function global:Set-PlatformTopology {
 
     $platformTopology = Get-PlatformTopology
 
-    switch ($Command) {
-        "Add" {$ComputerName = $ComputerName}
-        default {$ComputerName = $platformTopology.Nodes.$ComputerName ? $ComputerName : $platformTopology.Alias.$ComputerName}
+    $ComputerName = $platformTopology.Nodes.$ComputerName ? $ComputerName : ($platformTopology.Alias.$ComputerName ?? $ComputerName)
+    if ($Command.ToLower() -eq "add" -and $global:PlatformTopologyBase.Nodes -notcontains $ComputerName) {
+        throw "Invalid node '$($ComputerName)': Not defined in `$global:PlatformTopologyBase."
     }
 
     if ($platformTopology.Nodes.$ComputerName.ReadOnly -or $platformTopology.Nodes.$ComputerName.Components.Controller) {
-        throw "Invaid node '$($ComputerName)': Controllers may not be modified."
+        throw "Invalid node '$($ComputerName)': Controller nodes may not be modified."
     }
 
-    switch ($Command) {
-        "Remove" {
+    switch ($Command.ToLower()) {
+        "remove" {
+
             if (!$platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is *NOT* in the platform topology."}
+            if (!$platformTopology.Nodes.$ComputerName.Offline) {throw "$($ComputerName) must be offline before it can be removed."}
+
             $platformTopology.Nodes.Remove($ComputerName) | Out-Null
-            $result = Initialize-PlatformTopology -Nodes $platformTopology.Nodes.Keys
+
+            $Components = pt nodes.$ComputerName.components -k
+            foreach ($Component in $Components) {
+                $platformTopology.Components.$Component.Nodes.Remove($ComputerName)
+            }
+
+            $platformTopology | Write-Cache platformtopology
+
         }
-        "Add" {
+        "add" {
+
             if ($platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is already in the platform topology."}
+
             $platformTopology.Nodes.$ComputerName = @{}
             $platformTopology = Initialize-PlatformTopology -Nodes $platformTopology.Nodes.Keys
-            $platformTopology.Nodes.$ComputerName.Online = $false
+            $platformTopology.Nodes.$ComputerName.Offline = $true
+
             $platformTopology | Write-Cache platformtopology
-            Write-Host+ -NoTrace  "$($ComputerName) must brought online manually." -ForegroundColor Red
-            $result = $platformTopology
+
         }
-        "Online" {
+        "online" {
+            
             if (!$platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is *NOT* in the platform topology."}
             if (!$platformTopology.Nodes.$ComputerName.Offline) {throw "$($ComputerName) is already online."}
+
+            $Components = pt nodes.$ComputerName.components -k
+
+            # AlteryxService StartupType is Disabled if previously set offline
+            # AlteryxService must be un-Disabled (enabled or set to manual) to be started.
+            Set-PlatformService -Name "AlteryxService" -StartupType Manual -Computername $ComputerName
+
+            # remove Offline before calling start (start ignores offline nodes)
             $platformTopology.Nodes.$ComputerName.Remove("Offline")
+            foreach ($Component in $Components) {
+                if (!$platformTopology.Components.$Component.Nodes.Contains($ComputerName)) {
+                    $platformTopology.Components.$Component.Nodes += @{$ComputerName = @{}}
+                }
+            }
             $platformTopology | Write-Cache platformtopology
-            $result = $platformTopology
+            
+            foreach ($Component in $Components) {
+                Invoke-Expression "Start-$Component $ComputerName"
+            }
+            
         }
-        "Offline" {
+        "offline" {
+
             if (!$platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is *NOT* in the platform topology."}
             if ($platformTopology.Nodes.$ComputerName.Offline) {throw "$($ComputerName) is already offline."}
+
+            $Components = pt nodes.$ComputerName.components -k
+
+            foreach ($Component in $Components) {
+                Invoke-Expression "Stop-$Component $ComputerName"
+            }
+
+            # AlteryxService StartupType is set to Manual by Stop-$Component (Request-PlatformComponent)
+            # Set AlteryxService StartupType to Disabled to prevent it from starting unintentionally
+            Set-PlatformService -Name "AlteryxService" -StartupType Disabled -Computername $ComputerName
+            Write-Host+ -ReverseLineFeed 1 -NoTrace "$Component on $ComputerName startup is","Disabled" -ForegroundColor Gray,Red
+
             $platformTopology.Nodes.$ComputerName.Offline = $true
+            foreach ($Component in $Components) {
+                $platformTopology.Components.$Component.Remove($ComputerName)
+            }
             $platformTopology | Write-Cache platformtopology
-            $result = $platformTopology
+
         }
     }
     
-    return $result
+    return # $result
 
 }
 Set-Alias -Name ptSet -Value Set-PlatformTopology -Scope Global
@@ -1580,13 +1670,11 @@ function global:Enable-PlatformTopology {
     param ([Parameter(Mandatory=$false,Position=0)][string]$ComputerName)
     return Set-PlatformTopology Online $ComputerName
 }
-Set-Alias -Name ptOn -Value Enable-PlatformTopology -Scope Global
 Set-Alias -Name ptOnline -Value Enable-PlatformTopology -Scope Global
 function global:Disable-PlatformTopology {
     param ([Parameter(Mandatory=$false,Position=0)][string]$ComputerName)
     return Set-PlatformTopology Offline $ComputerName
 }
-Set-Alias -Name ptOff -Value Disable-PlatformTopology -Scope Global
 Set-Alias -Name ptOffline -Value Disable-PlatformTopology -Scope Global
 function global:Add-PlatformTopology {
     param ([Parameter(Mandatory=$false,Position=0)][string]$ComputerName)
@@ -1597,7 +1685,6 @@ function global:Remove-PlatformTopology {
     param ([Parameter(Mandatory=$false,Position=0)][string]$ComputerName)
     return Set-PlatformTopology Remove $ComputerName
 }
-Set-Alias -Name ptRem -Value Remove-PlatformTopology -Scope Global
-Set-Alias -Name ptDel -Value Remove-PlatformTopology -Scope Global
+Set-Alias -Name ptRemove -Value Remove-PlatformTopology -Scope Global
 
 #endregion TOPOLOGY
