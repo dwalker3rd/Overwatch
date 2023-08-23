@@ -118,7 +118,9 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
             Connector = @{
                 AllClear = @("<Microsoft Teams AllClear Webhook>")
                 Alert = @("<Microsoft Teams Alert Webhook>","<Microsoft Teams Alert Webhook>")
+                Heartbeat = @("<Microsoft Teams Heartbeat Webhook>")
                 Information = @("<Microsoft Teams Information Webhook>")
+                Intervention = @("<Microsoft Teams Intervention Webhook>")
                 Warning = @("<Microsoft Teams Warning Webhook>")
             }
         }

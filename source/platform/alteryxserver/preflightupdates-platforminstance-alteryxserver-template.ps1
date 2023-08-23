@@ -17,7 +17,7 @@
 
     # ensure that the AlteryxService service is disabled for offline nodes
     try{
-        $offlineNodes = foreach ($node in (pt nodes -k)) {(pt nodes.$node).Offline}
+        $offlineNodes = foreach ($node in (pt nodes -k)) {(Read-Cache platformtopology).nodes.$node.Offline ? $node : $null}
         Set-PlatformService -Name "AlteryxService" -StartupType "Disabled" -Computername $offlineNodes
     }
     catch{}

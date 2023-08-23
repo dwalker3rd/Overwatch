@@ -124,7 +124,7 @@ Open-Monitor
             Write-Log -Action "STOP" -Target "Platform" -Status InterventionRequired -Message $platformStatus.InterventionReason -EntryType "Warning" -Force
             $message = "  $($platformStatus.InterventionReason)"
             Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-            Send-TaskMessage -Id $($Product.Id) -Status $status -MessageType $PlatformMessageType.Alert -Message $platformStatus.InterventionReason | Out-Null
+            Send-TaskMessage -Id $($Product.Id) -Status $platformStatus.RollupStatus -MessageType $PlatformMessageType.Intervention -Message $platformStatus.InterventionReason | Out-Null
         }
 
         Close-Monitor

@@ -18,11 +18,14 @@ param(
 )
 
 function Test-Runbook { 
+
     Write-Host+ "[Test-Runbook] PENDING "
-    Write-Host+ "[Test-Runbook] Test-PsRemoting: PENDING"
-    Test-PsRemoting
-    Write-Host+ "[Test-Runbook] Test-PsRemoting: FINISHED"
+
+    # enter any command here for testing Overwatch's AzureRunCommand with Azure Automation 
+    Send-TaskMessage -Id Monitor -Status Running -MessageType $PlatformMessageType.Intervention -Message "Intervention Test"
+
     Write-Host+ "[Test-Runbook] FINISHED"
+    
 }
 
 $global:DebugPreference = "SilentlyContinue"
@@ -57,6 +60,10 @@ if ($Command) {
         $global:Product = @{Id="AzureRunCommand"}
         . $PSScriptRoot\definitions.ps1
 
+        # disable messaging for the next 90 minutes
+        # note: intervention messages will still be sent
+        Disable-Messaging -Duration (New-Timespan -Minutes 90)        
+
         Write-Host+ -NoTrace "Remoting to $OverwatchController using CredSSP `"double hop`"." 
 
         $creds = Get-Credentials "localadmin-$($Platform.Instance)" -LocalMachine
@@ -69,8 +76,6 @@ if ($Command) {
                 } `
             -Authentication Credssp `
             -Credential $creds 
-            
-        return $result
 
     }
     else {
@@ -82,6 +87,10 @@ if ($Command) {
         . $PSScriptRoot\definitions.ps1
 
         $global:WriteHostPlusPreference = "Continue"
+
+        # disable messaging for the next 90 minutes
+        # note: intervention messages will still be sent
+        Disable-Messaging -Duration (New-Timespan -Minutes 90)
 
         $commandExpression = $Command
         $commandParametersKeys = (Get-Command $Command.Split(" ")[0]).parameters.keys
@@ -95,10 +104,13 @@ if ($Command) {
         Write-Host+
         
         $result = Invoke-Expression -Command $commandExpression
-        return $result
 
     }
 
-}
+    Enable-Messaging
 
-Remove-PSSession+
+    Remove-PSSession+
+
+    return $result
+
+}
