@@ -3,6 +3,7 @@ function global:Disable-Messaging {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][timespan]$Duration = $global:PlatformMessageDisabledTimeout,
+        [switch]$Notify,
         [switch]$Quiet
     )
 
@@ -19,6 +20,7 @@ function global:Disable-Messaging {
 
     Write-Log -EntryType "Warning" -Action "Disable" -Target "Messaging" -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled) until $expiry" -Force
     if (!$Quiet) { Show-MessagingStatus }
+    if ($Notify) { Send-MessagingStatus -NoThrottle | Out-Null }
 
     return
 
@@ -28,6 +30,7 @@ function global:Enable-Messaging {
 
     [CmdletBinding()]
     param (
+        [switch]$Notify,
         [switch]$Quiet
     )
 
@@ -40,6 +43,7 @@ function global:Enable-Messaging {
 
     Write-Log -EntryType "Information" -Action "Enable" -Target "Messaging" -Status $global:PlatformMessageStatus.Enabled -Message "Messaging $($global:PlatformMessageStatus.Enabled.ToUpper())" -Force
     if (!$Quiet) { Show-MessagingStatus }
+    if ($Notify) { Send-MessagingStatus -NoThrottle | Out-Null }
 
     return
 
@@ -62,7 +66,8 @@ function global:Get-MessagingStatus {
     return (Read-Cache platformMessageStatus)
 }
 function global:Show-MessagingStatus {
-    if (IsMessagingDisabled) {
+
+    if (isMessagingDisabled) {
 
         $messageStatusCache = Get-MessagingStatus
         
@@ -71,7 +76,7 @@ function global:Show-MessagingStatus {
         $minutesAsString = [math]::Floor($timeRemaining.TotalMinutes) -eq 0 ? "" : "$([math]::Floor($timeRemaining.TotalMinutes)) minute$($timeRemaining.Minutes -eq 1 ? '' : 's')"
         $secondsAsString = $timeRemaining.Seconds -eq 0 ? "" : "$($timeRemaining.Seconds) second$($timeRemaining.Seconds -eq 1 ? '' : 's')"
         
-        $messagingCountdown = "Messaging will be enabled in $minutesAsString"
+        $messagingCountdown = "Messaging will be re-enabled in $minutesAsString"
         if (![string]::IsNullOrEmpty($minutesAsString) -and ![string]::IsNullOrEmpty($secondsAsString)) { 
             $messagingCountdown += " "
         }
@@ -90,19 +95,21 @@ function global:Show-MessagingStatus {
         $messageStatusCache = Get-MessagingStatus
         Write-Host+ -NoTrace "Messaging",$messageStatusCache.Status.ToUpper() -ForegroundColor Gray,DarkGreen
     }  
+
 }
 
 function global:Send-Message {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][object]$Message
+        [Parameter(Mandatory=$false,Position=0)][object]$Message,
+        [switch]$Force
     )
 
     $json = $Message | ConvertTo-Json -Depth 99
     Write-Log -EntryType "Debug" -Action "Send-Message" -Target $Message.Source
 
-    if ((IsMessagingDisabled) -and $Message.Type -notin $global:PlatformMessageTypeAlwaysSend.Values) {
+    if ((IsMessagingDisabled) -and $Message.Type -notin $global:PlatformMessageTypeAlwaysSend.Values -and !$Force) {
         Write-Log -EntryType "Information" -Action "Send" -Target $Message.Source -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled.ToUpper())" -Force
         return $global:PlatformMessageStatus.Disabled
     }
@@ -284,7 +291,6 @@ function global:Send-TaskMessage {
         [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Information,
         [switch]$NoThrottle
     )
-
     
     $serverInfo = Get-ServerInfo
 
@@ -658,5 +664,69 @@ function global:Send-UserNotification {
     }
 
     return Send-Message -Message $msg
+
+}
+
+function global:Send-MessagingStatus {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string]$Context = $($global:Product.Id),
+        [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Information,
+        [switch]$NoThrottle
+    )
+
+    $product = $Context ? (Get-Product $Context) : $global:Product
+    $serverInfo = Get-ServerInfo
+
+    $messageStatusCache = Get-MessagingStatus   
+    $status = $messageStatusCache.Status
+    $timestamp = $messageStatusCache.Timestamp
+
+    $facts = @(
+        @{name = "Messaging"; value = "**$($status.ToUpper())**"}
+        @{name = "Timestamp"; value = $timestamp.ToString('u')}
+    )
+
+    if ($messageStatusCache.Status -eq "Disabled") {
+
+        $messageStatusCache = Get-MessagingStatus
+        $expiry = $messageStatusCache.Expiry
+        # $timeRemaining = $expiry - (Get-Date)
+
+        # $minutesAsString = [math]::Floor($timeRemaining.TotalMinutes) -eq 0 ? "" : "$([math]::Floor($timeRemaining.TotalMinutes)) minute$($timeRemaining.Minutes -eq 1 ? '' : 's')"
+        # $secondsAsString = $timeRemaining.Seconds -eq 0 ? "" : "$($timeRemaining.Seconds) second$($timeRemaining.Seconds -eq 1 ? '' : 's')"
+        # $messagingCountdown = "$minutesAsString"
+        # if (![string]::IsNullOrEmpty($minutesAsString) -and ![string]::IsNullOrEmpty($secondsAsString)) { $messagingCountdown += " " }
+        # $messagingCountdown += $secondsAsString
+
+        $facts += @(
+            @{name = "Expiry"; value = $expiry.ToString('u')}
+            # @{name = "Countdown"; value = $messagingCountdown}
+        )
+    }
+
+    $summary = $subject = "Overwatch $MessageType`: Messaging on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)) is $statusMessage"
+
+    $msg = @{
+        Sections = @(
+            @{
+                ActivityTitle = $global:Platform.DisplayName
+                ActivitySubtitle = "Instance: $($global:Platform.Instance)"
+                ActivityText = "[$($global:Platform.Uri)]($($global:Platform.Uri))"
+                ActivityImage = $global:Platform.Image
+                Facts = $facts
+            }
+        )
+        Title = $product.DisplayName
+        Text = $product.Description 
+        Type = $MessageType
+        Summary = $summary
+        Subject = $subject
+        Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-MessagingStatus"
+    }
+
+    return Send-Message -Message $msg -Force
 
 }

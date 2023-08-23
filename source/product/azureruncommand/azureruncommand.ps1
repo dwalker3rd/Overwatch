@@ -60,9 +60,9 @@ if ($Command) {
         $global:Product = @{Id="AzureRunCommand"}
         . $PSScriptRoot\definitions.ps1
 
-        # disable messaging for the next 90 minutes
-        # note: intervention messages will still be sent
-        Disable-Messaging -Duration (New-Timespan -Minutes 90)        
+        # disable messaging for the specified duration and send message
+        # note that messages of type intervention or from source "Send-MessageStatus" are not affected
+        Disable-Messaging -Duration (New-Timespan -Minutes 90) -Notify  
 
         Write-Host+ -NoTrace "Remoting to $OverwatchController using CredSSP `"double hop`"." 
 
@@ -88,9 +88,9 @@ if ($Command) {
 
         $global:WriteHostPlusPreference = "Continue"
 
-        # disable messaging for the next 90 minutes
-        # note: intervention messages will still be sent
-        Disable-Messaging -Duration (New-Timespan -Minutes 90)
+        # disable messaging for the specified duration and send message
+        # note that messages of type intervention or from source "Send-MessageStatus" are not affected
+        Disable-Messaging -Duration (New-Timespan -Minutes 90) -Notify
 
         $commandExpression = $Command
         $commandParametersKeys = (Get-Command $Command.Split(" ")[0]).parameters.keys
@@ -107,7 +107,7 @@ if ($Command) {
 
     }
 
-    Enable-Messaging
+    Enable-Messaging -Notify
 
     Remove-PSSession+
 
