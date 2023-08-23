@@ -89,7 +89,7 @@ function global:Set-Credentials {
     $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
     $PasswordEncrypted = $Credentials.Password | ConvertFrom-SecureString -Key $Key
 
-    Add-ToVault -Vault $KeyVault -Name $Name -InputObject $Key -ComputerName $ComputerName
+    # Add-ToVault -Vault $KeyVault -Name $Name -InputObject $Key -ComputerName $ComputerName
     Add-ToVault -Vault $SecretVault -Name $Name -InputObject @{ $Credentials.UserName = $PasswordEncrypted } -ComputerName $ComputerName
 
     return
