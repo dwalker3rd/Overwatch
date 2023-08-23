@@ -4,8 +4,16 @@ function global:Disable-Messaging {
     param (
         [Parameter(Mandatory=$false,Position=0)][timespan]$Duration = $global:PlatformMessageDisabledTimeout,
         [switch]$Notify,
-        [switch]$Quiet
+        [switch]$Quiet,
+        [switch]$Force
     )
+
+    if ((IsMessagingDisabled) -and !$Force) {
+        $messageStatusCache = Get-MessagingStatus
+        Write-Host+ -NoTrace "Messaging is already",$messageStatusCache.Status.ToUpper() -ForegroundColor Gray,($messageStatusCache.Status -eq "Disabled" ? "DarkYellow" : "DarkGreen")
+        Write-Host+ -NoTrace "Use -Force to $($messageStatusCache.Status.ToLower() -Replace 'd$','') messaging again." -ForegroundColor Gray
+        return
+    }
 
     if ($Duration.TotalMilliseconds -eq 0) { throw("Duration must be greater than 0.")}
 
@@ -31,8 +39,16 @@ function global:Enable-Messaging {
     [CmdletBinding()]
     param (
         [switch]$Notify,
-        [switch]$Quiet
+        [switch]$Quiet,
+        [switch]$Force
     )
+
+    if ((IsMessagingEnabled) -and !$Force) {
+        $messageStatusCache = Get-MessagingStatus
+        Write-Host+ -NoTrace "Messaging is already",$messageStatusCache.Status.ToUpper() -ForegroundColor Gray,($messageStatusCache.Status -eq "Disabled" ? "DarkYellow" : "DarkGreen")
+        Write-Host+ -NoTrace "Use -Force to $($messageStatusCache.Status.ToLower() -Replace 'd$','') messaging again." -ForegroundColor Gray
+        return
+    }
 
     $now = Get-Date -AsUTC
     $messageStatusCache = @{

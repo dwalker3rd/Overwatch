@@ -17,14 +17,14 @@ param(
     [Parameter(Mandatory=$false)][string]$RunId
 )
 
-function Test-Runbook { 
+function Test-AzureRunCommand { 
 
-    Write-Host+ "[Test-Runbook] PENDING "
+    Write-Host+ "[Test-AzureRunCommand] PENDING "
 
     # enter any command here for testing Overwatch's AzureRunCommand with Azure Automation 
     Send-TaskMessage -Id Monitor -Status Running -MessageType $PlatformMessageType.Intervention -Message "Intervention Test"
 
-    Write-Host+ "[Test-Runbook] FINISHED"
+    Write-Host+ "[Test-AzureRunCommand] FINISHED"
     
 }
 
@@ -105,9 +105,9 @@ if ($Command) {
         
         $result = Invoke-Expression -Command $commandExpression
 
-    }
+        Enable-Messaging -Notify
 
-    Enable-Messaging -Notify
+    }
 
     Remove-PSSession+
 
