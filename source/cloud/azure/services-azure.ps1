@@ -24,8 +24,10 @@ function global:Connect-AzAccount+ {
 
     $azureProfile = Connect-AzAccount -Credential $creds -TenantId $tenantId -SubscriptionId $subscriptionId -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     if (!$azureProfile) {
-        $exception = [Microsoft.Azure.Commands.Common.Exceptions.AzPSAuthenticationFailedException](Get-Error).Exception
+        $exception = [Microsoft.Azure.Commands.Common.Exceptions.AzPSAuthenticationFailedException]((Get-Error).Exception).InnerException
         if ($exception.DesensitizedErrorMessage -like "MFA*") {
+            Write-Host+ -NoTrace "Non-interactive login failed because $($exception.DesensitizedErrorMessage)" -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace "Attempting interactive login ..." -ForegroundColor DarkGray
             $azureProfile = Connect-AzAccount -TenantId $tenantId -SubscriptionId $subscriptionId
         }
     }
