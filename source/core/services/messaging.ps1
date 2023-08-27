@@ -9,9 +9,9 @@ function global:Disable-Messaging {
     )
 
     if ((IsMessagingDisabled) -and !$Force) {
-        $messageStatusCache = Get-MessagingStatus
-        Write-Host+ -NoTrace "Messaging is already",$messageStatusCache.Status.ToUpper() -ForegroundColor Gray,($messageStatusCache.Status -eq "Disabled" ? "DarkYellow" : "DarkGreen")
-        Write-Host+ -NoTrace "Use -Force to $($messageStatusCache.Status.ToLower() -Replace 'd$','') messaging again." -ForegroundColor Gray
+        $_platformMessageStatus = Get-MessagingStatus
+        Write-Host+ -NoTrace "Messaging is already",$_platformMessageStatus.Status.ToUpper() -ForegroundColor Gray,($_platformMessageStatus.Status -eq "Disabled" ? "DarkYellow" : "DarkGreen")
+        Write-Host+ -NoTrace "Use -Force to $($_platformMessageStatus.Status.ToLower() -Replace 'd$','') messaging again." -ForegroundColor Gray
         return
     }
 
@@ -19,12 +19,12 @@ function global:Disable-Messaging {
 
     $now = Get-Date -AsUTC
     $expiry = $now + $Duration
-    $messageStatusCache = @{
+    $_platformMessageStatus = @{
         Status = $global:PlatformMessageStatus.Disabled
         Timestamp = $now
         Expiry = $expiry
     }
-    $messageStatusCache | Write-Cache platformMessageStatus
+    $_platformMessageStatus | Write-Cache platformMessageStatus
 
     Write-Log -EntryType "Warning" -Action "Disable" -Target "Messaging" -Status $global:PlatformMessageStatus.Disabled -Message "Messaging $($global:PlatformMessageStatus.Disabled) until $expiry" -Force
     if (!$Quiet) { Show-MessagingStatus }
@@ -44,18 +44,18 @@ function global:Enable-Messaging {
     )
 
     if ((IsMessagingEnabled) -and !$Force) {
-        $messageStatusCache = Get-MessagingStatus
-        Write-Host+ -NoTrace "Messaging is already",$messageStatusCache.Status.ToUpper() -ForegroundColor Gray,($messageStatusCache.Status -eq "Disabled" ? "DarkYellow" : "DarkGreen")
-        Write-Host+ -NoTrace "Use -Force to $($messageStatusCache.Status.ToLower() -Replace 'd$','') messaging again." -ForegroundColor Gray
+        $_platformMessageStatus = Get-MessagingStatus
+        Write-Host+ -NoTrace "Messaging is already",$_platformMessageStatus.Status.ToUpper() -ForegroundColor Gray,($_platformMessageStatus.Status -eq "Disabled" ? "DarkYellow" : "DarkGreen")
+        Write-Host+ -NoTrace "Use -Force to $($_platformMessageStatus.Status.ToLower() -Replace 'd$','') messaging again." -ForegroundColor Gray
         return
     }
 
     $now = Get-Date -AsUTC
-    $messageStatusCache = @{
+    $_platformMessageStatus = @{
         Status = $global:PlatformMessageStatus.Enabled
         Timestamp = $now
     }
-    $messageStatusCache | Write-Cache platformMessageStatus
+    $_platformMessageStatus | Write-Cache platformMessageStatus
 
     Write-Log -EntryType "Information" -Action "Enable" -Target "Messaging" -Status $global:PlatformMessageStatus.Enabled -Message "Messaging $($global:PlatformMessageStatus.Enabled.ToUpper())" -Force
     if (!$Quiet) { Show-MessagingStatus }
@@ -65,18 +65,20 @@ function global:Enable-Messaging {
 
 }
 function global:IsMessagingDisabled {
-    $messageStatusCache = Get-MessagingStatus
-    if ($messageStatusCache.Status -eq "Disabled") {
-        if ((Get-Date -AsUTC) -ge $messageStatusCache.Expiry) {
+    $_platformMessageStatus = Get-MessagingStatus
+    $_platformStatus = Get-PlatformStatus -CacheOnly
+    if ($_platformMessageStatus.Status -eq $global:PlatformMessageStatus.Disabled) {
+        if ((Get-Date -AsUTC) -ge $_platformMessageStatus.Expiry -or $_platformStatus.Intervention) {
             Enable-Messaging -Quiet
             return $false
         }
+        return $true
     }
-    return $messageStatusCache.Status -eq $global:PlatformMessageStatus.Disabled
+    return $false
 }
 function global:IsMessagingEnabled {
-    $messageStatusCache = Get-MessagingStatus
-    return $messageStatusCache.Status -eq $global:PlatformMessageStatus.Enabled
+    $_platformMessageStatus = Get-MessagingStatus
+    return $_platformMessageStatus.Status -eq $global:PlatformMessageStatus.Enabled
 }
 function global:Get-MessagingStatus {
     return (Read-Cache platformMessageStatus)
@@ -85,9 +87,9 @@ function global:Show-MessagingStatus {
 
     if (isMessagingDisabled) {
 
-        $messageStatusCache = Get-MessagingStatus
+        $_platformMessageStatus = Get-MessagingStatus
         
-        $expiry = $messageStatusCache.Expiry
+        $expiry = $_platformMessageStatus.Expiry
         $timeRemaining = $expiry - (Get-Date)
         $minutesAsString = [math]::Floor($timeRemaining.TotalMinutes) -eq 0 ? "" : "$([math]::Floor($timeRemaining.TotalMinutes)) minute$($timeRemaining.Minutes -eq 1 ? '' : 's')"
         $secondsAsString = $timeRemaining.Seconds -eq 0 ? "" : "$($timeRemaining.Seconds) second$($timeRemaining.Seconds -eq 1 ? '' : 's')"
@@ -103,13 +105,13 @@ function global:Show-MessagingStatus {
             Enable-Messaging
         }
         else {
-            Write-Host+ -NoTrace "Messaging",$messageStatusCache.Status.ToUpper(),"until $expiry" -ForegroundColor Gray,DarkYellow,Gray
+            Write-Host+ -NoTrace "Messaging",$_platformMessageStatus.Status.ToUpper(),"until $expiry" -ForegroundColor Gray,DarkYellow,Gray
             Write-Host+ -NoTrace "$messagingCountdown" -ForegroundColor Gray
         }
     }  
     else {
-        $messageStatusCache = Get-MessagingStatus
-        Write-Host+ -NoTrace "Messaging",$messageStatusCache.Status.ToUpper() -ForegroundColor Gray,DarkGreen
+        $_platformMessageStatus = Get-MessagingStatus
+        Write-Host+ -NoTrace "Messaging",$_platformMessageStatus.Status.ToUpper() -ForegroundColor Gray,DarkGreen
     }  
 
 }
@@ -695,19 +697,19 @@ function global:Send-MessagingStatus {
     $product = $Context ? (Get-Product $Context) : $global:Product
     $serverInfo = Get-ServerInfo
 
-    $messageStatusCache = Get-MessagingStatus   
-    $status = $messageStatusCache.Status
-    $timestamp = $messageStatusCache.Timestamp
+    $_platformMessageStatus = Get-MessagingStatus   
+    $status = $_platformMessageStatus.Status
+    $timestamp = $_platformMessageStatus.Timestamp
 
     $facts = @(
         @{name = "Messaging"; value = "**$($status.ToUpper())**"}
         @{name = "Timestamp"; value = $timestamp.ToString('u')}
     )
 
-    if ($messageStatusCache.Status -eq "Disabled") {
+    if ($_platformMessageStatus.Status -eq "Disabled") {
 
-        $messageStatusCache = Get-MessagingStatus
-        $expiry = $messageStatusCache.Expiry
+        $_platformMessageStatus = Get-MessagingStatus
+        $expiry = $_platformMessageStatus.Expiry
         # $timeRemaining = $expiry - (Get-Date)
 
         # $minutesAsString = [math]::Floor($timeRemaining.TotalMinutes) -eq 0 ? "" : "$([math]::Floor($timeRemaining.TotalMinutes)) minute$($timeRemaining.Minutes -eq 1 ? '' : 's')"
