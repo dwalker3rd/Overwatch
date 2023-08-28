@@ -536,7 +536,7 @@ $providerIds = @()
         }
 
     }
-    $productIds = $productsSelected
+    $productIds = $productsSelected | Where-Object {$_ -notin $productIds}
 
     Write-Host+ -Iff $productHeaderWritten
 
@@ -579,7 +579,7 @@ $providerIds = @()
             }
         }
     }
-    $providerIds = $_providerIds
+    $providerIds = $_providerIds | Where-Object {$_ -notin $providerIds}
 
     Write-Host+ -Iff $providerHeaderWritten
 
@@ -595,8 +595,8 @@ $providerIds = @()
             $dependentId = ($dependency.Dependent -split "\.")[1]
             Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentType) $($dependentId))" -ForegroundColor Gray,DarkGray
             switch ($dependency.Type) {
-                "Product" { $productIds += $dependency.Id }
-                "Provider" { $ProviderIds += $dependency.Id }
+                "Product" { $productIds += $dependency.Id | Where-Object {$_ -notin $productIds} }
+                "Provider" { $ProviderIds += $dependency.Id | Where-Object {$_ -notin $providerIds} }
             }
         }
         Write-Host+
@@ -794,8 +794,8 @@ $providerIds = @()
 
     $_impactedIds = @()
 
-    $productIds += $productIdsToReinstall
-    $providerIds += $providerIdsToReinstall
+    $productIds += $productIdsToReinstall | Where-Object {$_ -notin $productIds}
+    $providerIds += $providerIdsToReinstall | Where-Object {$_ -notin $providerIds}
 
     if ($environFile) {
         $_impactedIds += $environFileImpacts
@@ -1095,7 +1095,7 @@ $providerIds = @()
 
         $psDependencies = @()
         foreach ($impactedId in $impactedIds) {
-            $psDependencies = Get-CatalogDependencies -Uid $impactedId -IncludeDependency PowerShell | Where-Object {$_.Uid -notin $psDependencies.Uid}
+            $psDependencies += Get-CatalogDependencies -Uid $impactedId -IncludeDependency PowerShell | Where-Object {$_.Uid -notin $psDependencies.Uid}
         }
         foreach ($psDependency in $psDependencies) {
             if ($psDependency.Id -eq "Module") { 
