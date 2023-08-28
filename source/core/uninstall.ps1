@@ -121,7 +121,7 @@ $global:Product = @{Id="Uninstall"}
                 }
             }
 
-            Uninstall-CatalogObject -Type $Type -Id $Id -DeleteAllData:$DeleteAllData.IsPresent -Force:$Force.IsPresent
+            Uninstall-CatalogObject -Type $Type -Id $Id -DeleteAllData:$deleteAllData -Force:$Force.IsPresent
             # $expression = "Uninstall-$Type $Id"
             # $expression += $Force ? " -Force" : ""
             # Invoke-Expression $expression
