@@ -14,6 +14,7 @@ param(
 )
 
 [Flags()] enum AzureUpdateMgmtFlags {
+    None = 0
     DisableMessaging = 1
     ReenableMessaging = 2
 }
@@ -66,7 +67,7 @@ $azureUpdateMgmtFlags =
         "Test-Stop-Platform" { [AzureUpdateMgmtFlags]::DisableMessaging }
         "Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessaging }
         "Test-Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessaging }
-        default {}
+        default { [AzureUpdateMgmtFlags]::None }
     }
 
 $result = $null
