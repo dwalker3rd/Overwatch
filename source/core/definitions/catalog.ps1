@@ -309,12 +309,12 @@ $global:Catalog.Product += @{ AzureProjects =
     }
 }
 
-$global:Catalog.Product += @{ AzureRunCommand = 
+$global:Catalog.Product += @{ AzureUpdateMgmt = 
     [Product]@{
-        Id = "AzureRunCommand"
-        Name = "AzureRunCommand"
-        DisplayName = "AzureRunCommand"
-        Description = "Overwatch interface for executing Overwatch commands from Microsoft Azure."
+        Id = "AzureUpdateMgmt"
+        Name = "AzureUpdateMgmt"
+        DisplayName = "Azure Update Management"
+        Description = "Overwatch proxy for Microsoft Azure Automation Update Management."
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Prerequisite = @{

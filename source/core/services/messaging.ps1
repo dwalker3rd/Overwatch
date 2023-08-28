@@ -748,3 +748,50 @@ function global:Send-MessagingStatus {
     return Send-Message -Message $msg -Force
 
 }
+
+function global:Send-AzureUpdateMgmtMessage {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string]$Context = $($global:Product.Id),
+        [Parameter(Mandatory=$true)][string]$Command,
+        [Parameter(Mandatory=$false)][string]$Reason,
+        [Parameter(Mandatory=$true)][string]$Status,
+        [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Alert,
+        [switch]$NoThrottle
+    )
+
+    $be = $Status.ToLower().EndsWith("ing") ? "is" : "has"
+
+    $product = $Context ? (Get-Product $Context) : $global:Product
+
+    $facts = @(
+        @{name = "Status"; value = "**$($Status.ToUpper())**"}
+        @{name = "Command"; value = $Command}
+        if ($Reason) { @{name = "Reason"; value = $Reason} }
+    )
+
+    $summary = $subject = "Overwatch $MessageType`: $($product.Id) on $($global:Platform.Instance) (Command: $Command) $be $($Status.ToUpper())"
+
+    $msg = @{
+        Sections = @(
+            @{
+                ActivityTitle = $global:Platform.DisplayName
+                ActivitySubtitle = "Instance: $($global:Platform.Instance)"
+                ActivityText = "[$($global:Platform.Uri)]($($global:Platform.Uri))"
+                ActivityImage = $global:Platform.Image
+                Facts = $facts
+            }
+        )
+        Title = $product.DisplayName
+        Text = $product.Description 
+        Type = $MessageType
+        Summary = $summary
+        Subject = $subject
+        Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-AzureUpdateMgmtMessage"
+    }
+
+    return Send-Message -Message $msg -Force
+
+}

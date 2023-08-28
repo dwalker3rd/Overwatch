@@ -3,7 +3,7 @@ param (
     [switch]$NoNewLine
 )
 
-$product = Get-Product "AzureRunCommand"
+$product = Get-Product "AzureUpdateMgmt"
 $Id = $product.Id 
 
 if (!$NoNewLine) {

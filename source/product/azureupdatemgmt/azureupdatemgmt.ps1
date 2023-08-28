@@ -6,45 +6,39 @@
 param(
     [Parameter(Mandatory=$false,Position=0)][string]$Command,
     [Parameter(Mandatory=$false)][string]$OverwatchController = $env:COMPUTERNAME,
-    [switch]$RunSilent,
-    [switch]$DoubleHop,
     [switch]$NoDoubleHop,
-    [switch]$SkipPreflight,
     [switch]$Credssp,
-    [Parameter(Mandatory=$false)][string]$Context,
+    # [Parameter(Mandatory=$false)][string]$Context,
     [Parameter(Mandatory=$false)][string]$Reason,
     [Parameter(Mandatory=$false)][string]$RunId
 )
 
-function Test-AzureRunCommand { 
-    Write-Host+ "[$($MyInvocation.MyCommand)] PENDING "
-    # enter any command here for testing Overwatch's AzureRunCommand with Azure Automation 
-    Write-Host+ "[$($MyInvocation.MyCommand)] FINISHED"
+[Flags()] enum AzureUpdateMgmtFlags {
+    DisableMessaging = 1
+    ReenableMessaging = 2
 }
-function Test-MessagingOnStop { 
-    Write-Host+ "[$($MyInvocation.MyCommand)] PENDING "
-    $global:PlatformMessageType.Values | Where-Object {$_ -notin ("UserNotification","Heartbeat")} | ForEach-Object {
-        Send-TaskMessage -Id Monitor -Status Testing -MessageType $_ -Message "Testing $($_.ToLower()) message via AzureRunCommand\$($MyInvocation.MyCommand)" | Out-Null
-    }
-    Write-Host+ "[$($MyInvocation.MyCommand)] FINISHED"
-}
-function Test-MessagingOnStart { 
-    Write-Host+ "[$($MyInvocation.MyCommand)] PENDING "
-    $global:PlatformMessageType.Values | Where-Object {$_ -notin ("UserNotification","Heartbeat")} | ForEach-Object {
-        Send-TaskMessage -Id Monitor -Status Testing -MessageType $_ -Message "Testing $($_.ToLower()) message via AzureRunCommand\$($MyInvocation.MyCommand)" | Out-Null
-    }
-    Write-Host+ "[$($MyInvocation.MyCommand)] FINISHED"
-}
-function Test-MessagingOnIntervention { 
-    Write-Host+ "[$($MyInvocation.MyCommand)] PENDING "
 
+function Test-AzureUpdateMgmt {
+    # enter any command here for testing Overwatch's AzureUpdateMgmt with Azure Automation
+}
+function Test-Stop-Platform { 
+    # test disabled messaging with stop/start runbook
+    $global:PlatformMessageType.Values | Where-Object {$_ -notin ("UserNotification","Heartbeat")} | ForEach-Object {
+        Send-TaskMessage -Id Monitor -Status Testing -MessageType $_ -Message "Testing $($_.ToLower()) message via AzureUpdateMgmt\$($MyInvocation.MyCommand)" | Out-Null
+    }
+}
+function Test-Start-Platform { 
+    # test disabled messaging with stop/start runbook
+    $global:PlatformMessageType.Values | Where-Object {$_ -notin ("UserNotification","Heartbeat")} | ForEach-Object {
+        Send-TaskMessage -Id Monitor -Status Testing -MessageType $_ -Message "Testing $($_.ToLower()) message via AzureUpdateMgmt\$($MyInvocation.MyCommand)" | Out-Null
+    }
+}
+function Test-MessagingOnIntervention {
+    #test messaging when intervention required
     $_platformStatus = Get-PlatformStatus -CacheOnly
     $_platformStatus.Intervention = $true 
     $_platformStatus | Write-Cache platformstatus
-
-    Send-TaskMessage -Id Monitor -Status Testing -MessageType $global:PlatformMessageType.Information -Message "Testing information message via AzureRunCommand\$($MyInvocation.MyCommand)" | Out-Null
-    
-    Write-Host+ "[$($MyInvocation.MyCommand)] FINISHED"
+    Send-TaskMessage -Id Monitor -Status Testing -MessageType $global:PlatformMessageType.Information -Message "Testing information message via AzureUpdateMgmt\$($MyInvocation.MyCommand)" | Out-Null
 }
 
 $global:DebugPreference = "SilentlyContinue"
@@ -63,32 +57,37 @@ if ($Credssp) {
     $global:UseCredssp = $true
 }
 
+$Command = (Get-Culture).TextInfo.ToTitleCase($Command)
+$Reason = ![string]::IsNullOrEmpty($Reason) -and $Reason -ne "None"  ? $Reason : $null
+
+$azureUpdateMgmtFlags = 
+    switch ($Command) {
+        "Stop-Platform" { [AzureUpdateMgmtFlags]::DisableMessaging }
+        "Test-Stop-Platform" { [AzureUpdateMgmtFlags]::DisableMessaging }
+        "Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessaging }
+        "Test-Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessaging }
+        default {}
+    }
+
 $result = $null
 if ($Command) {
 
-    if (!$NoDoubleHop -and $Context -like "Azure*") {
-        $DoubleHop = $true
+    if (!$NoDoubleHop) {
+
         $global:UseCredssp = $true
-    }
-
-    if ($DoubleHop) {
-
-        $SkipPreflight = $true
 
         # product id must be set before include files
-        $global:Product = @{Id="AzureRunCommand"}
+        $global:Product = @{Id="AzureUpdateMgmt"}
         . $PSScriptRoot\definitions.ps1
 
-        $action = "Remoting to $OverwatchController using CredSSP"; $status = "Start"; $message = "$($action): $status" 
-        Write-Log -Context $Context -Action $action -Target $Command -Status $status -Message $message
-        Write-Host+ -NoTrace $message   
+        Send-AzureUpdateMgmtMessage -Command $Command -Reason $Reason -Status Starting      
 
-        # disable messaging when azure remote command is stop-platform
-        # assumption: azure remote command start-platform will follow stop-platform
-        # messaging will be enabled at end azure remote command start-platform
-        # note: intervention message types are always sent and will re-enable messaging
-        if ($Command.ToLower() -in ("stop-platform","test-messagingonstop")) {
-            Disable-Messaging -Duration (New-Timespan -Minutes 90) -Notify  
+        $action = "Remoting to $OverwatchController using CredSSP"; $status = "Start"; $message = "$($action): $status" 
+        Write-Log -Action $action -Target $Command -Status $status -Message $message
+        Write-Host+ -NoTrace $message 
+
+        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::DisableMessaging)) {
+            Disable-Messaging -Duration (New-Timespan -Minutes 90) 
         }
 
         $creds = Get-Credentials "localadmin-$($Platform.Instance)" -LocalMachine
@@ -97,13 +96,13 @@ if ($Command) {
         $result = Invoke-Command -ComputerName $OverwatchController `
             -ScriptBlock {
                     Set-Location $using:workingDirectory; 
-                    pwsh azureruncommand.ps1 -Command $using:Command -Context $using:Context -Reason $using:Reason -NoDoubleHop -CredSSP -SkipPreflight
+                    pwsh azureupdatemgmt.ps1 -Command $using:Command -Reason $using:Reason -NoDoubleHop -CredSSP
                 } `
             -Authentication Credssp `
             -Credential $creds 
 
         $action = "Remoting to $OverwatchController using CredSSP"; $status = "Completed"; $message = "$($action): $status" 
-        Write-Log -Context $Context -Action $action -Target $Command -Status $status -Message $message
+        Write-Log -Action $action -Target $Command -Status $status -Message $message
         Write-Host+ -NoTrace $message         
 
     }
@@ -112,20 +111,20 @@ if ($Command) {
         $global:WriteHostPlusPreference = "SilentlyContinue"
 
         # product id must be set before include files
-        $global:Product = @{Id="AzureRunCommand"}
+        $global:Product = @{Id="AzureUpdateMgmt"}
         . $PSScriptRoot\definitions.ps1
 
         $global:WriteHostPlusPreference = "Continue"
 
         $action = "Execute"; $status = "Start"; $message = "$action $($Command): $status" 
-        Write-Log -Context $Context -Action $action -Target $Command -Status $status -Message $message
+        Write-Log -Action $action -Target $Command -Status $status -Message $message
         Write-Host+ -NoTrace $message    
 
         $commandExpression = $Command
         $commandParametersKeys = (Get-Command $Command.Split(" ")[0]).parameters.keys
         
         # if (![string]::IsNullOrEmpty($ComputerName) -and $commandParametersKeys -contains "ComputerName") {$commandExpression += " -ComputerName $ComputerName"}
-        if (![string]::IsNullOrEmpty($Context) -and $commandParametersKeys -contains "Context") {$commandExpression += " -Context '$Context'"}
+        # if (![string]::IsNullOrEmpty($Context) -and $commandParametersKeys -contains "Context") {$commandExpression += " -Context '$Context'"}
         if (![string]::IsNullOrEmpty($Reason) -and $commandParametersKeys -contains "Reason") {$commandExpression += " -Reason '$Reason'"}
         if (![string]::IsNullOrEmpty($RunId) -and $commandParametersKeys -contains "RunId") {$commandExpression += " -RunId '$RunId'"}
         
@@ -134,15 +133,15 @@ if ($Command) {
         
         $result = Invoke-Expression -Command $commandExpression
 
+        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::ReenableMessaging)) {
+            Enable-Messaging         
+        }
+
         $action = "Execute"; $status = "Completed"; $message = "$action $($Command): $status" 
-        Write-Log -Context $Context -Action $action -Target $Command -Status $status -Message $message
+        Write-Log -Action $action -Target $Command -Status $status -Message $message
         Write-Host+ -NoTrace $message 
 
-        # enable messaging if needed
-        # note: see disable messaaging above
-        if ($Command.ToLower() -in ("start-platform","test-messagingonstart")) {
-            Enable-Messaging -Notify            
-        }
+        Send-AzureUpdateMgmtMessage -Command $Command -Reason $Reason -Status Completed   
 
     }
 
