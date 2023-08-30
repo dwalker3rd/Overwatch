@@ -1,8 +1,8 @@
 ﻿<# 
 .Synopsis
-Template for an Alteryx Server platform instance
+Template for an Tableau Server platform instance
 .Description
-Template for an Alteryx Server platform instance
+Template for an Tableau Server platform instance
 
 .Parameter Instance
 User-supplied ID for the platform instance. Must be unique.
