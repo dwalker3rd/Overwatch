@@ -100,8 +100,7 @@ function global:Show-MessagingStatus {
         }
         $messagingCountdown += $secondsAsString
 
-        if ([string]::IsNullOrEmpty($minutesAsString) -and [string]::IsNullOrEmpty($secondsAsString)) { 
-            # Write-Host+ -NoTrace "Messaging is being","$($global:PlatformMessageStatus.Enabled.ToUpper())" -ForegroundColor Gray,DarkGreen
+        if ([string]::IsNullOrEmpty($minutesAsString) -and [string]::IsNullOrEmpty($secondsAsString)) {
             Enable-Messaging
         }
         else {
@@ -314,7 +313,6 @@ function global:Send-TaskMessage {
 
     $task = Get-PlatformTask -Id $Id
     $Status = $Status ? $Status : $task.Status
-    # if ($Status -match '\b(\w+)$') {$Status = $Status -replace $Matches[1],"**$($Matches[1].ToUpper())**"}
 
     $facts = @(
         @{name = "Status"; value = $Status -match "\b(\w+)$" ? ($Status -replace $Matches[1],"**$($Matches[1].ToUpper())**") : "$($Status)"}
@@ -426,8 +424,6 @@ function global:Send-LicenseMessage {
         [switch]$NoThrottle
     )
 
-
-    # $now = Get-Date
     $30days = New-TimeSpan -days 30
     $90days = New-TimeSpan -days 90
 
@@ -710,17 +706,9 @@ function global:Send-MessagingStatus {
 
         $_platformMessageStatus = Get-MessagingStatus
         $expiry = $_platformMessageStatus.Expiry
-        # $timeRemaining = $expiry - (Get-Date)
-
-        # $minutesAsString = [math]::Floor($timeRemaining.TotalMinutes) -eq 0 ? "" : "$([math]::Floor($timeRemaining.TotalMinutes)) minute$($timeRemaining.Minutes -eq 1 ? '' : 's')"
-        # $secondsAsString = $timeRemaining.Seconds -eq 0 ? "" : "$($timeRemaining.Seconds) second$($timeRemaining.Seconds -eq 1 ? '' : 's')"
-        # $messagingCountdown = "$minutesAsString"
-        # if (![string]::IsNullOrEmpty($minutesAsString) -and ![string]::IsNullOrEmpty($secondsAsString)) { $messagingCountdown += " " }
-        # $messagingCountdown += $secondsAsString
 
         $facts += @(
             @{name = "Expiry"; value = $expiry.ToString('u')}
-            # @{name = "Countdown"; value = $messagingCountdown}
         )
     }
 
@@ -793,5 +781,43 @@ function global:Send-AzureUpdateMgmtMessage {
     }
 
     return Send-Message -Message $msg -Force
+
+}
+
+function global:Send-ServerInterventionMessage {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$ComputerName,
+        [Parameter(Mandatory=$true)][string]$Message,
+        [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Intervention,
+        [switch]$NoThrottle
+    )
+
+    $sections = @()
+
+    $serverInfo = Get-ServerInfo -ComputerName $ComputerName
+
+    $sectionMain = @{}
+    $sectionMain = @{
+        ActivityTitle = "INTERVENTION REQUIRED"
+        ActivitySubtitle = $Message
+        ActivityImage = "$($global:Location.Images)/intervention.png"
+    }
+
+    $sections += $sectionMain
+
+    $msg = @{
+        Title = "Overwatch Monitor for Overwatch Controllers"
+        Text = "Monitors the status of remote Overwatch controllers."
+        Sections = $sections
+        Type = $MessageType
+        Summary = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
+        Subject = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
+        Throttle = $NoThrottle ? [timespan]::Zero : [timespan]::Zero
+        Source = "Send-ServerMessage"
+    }
+
+    return Send-Message -Message $msg
 
 }

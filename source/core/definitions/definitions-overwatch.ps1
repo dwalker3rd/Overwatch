@@ -70,6 +70,9 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
 #endregion FILES  
 #region OVERWATCH TOPOLOGY 
 
-    $global:OverwatchRemoteControllers = @("tbl-prod-01","tbl-mgmt-01","ayx-control-01")
+    $global:OverwatchControllers = @()
+    $global:OverwatchRemoteControllers = @()
+    $global:OverwatchRemoteControllers += @("tbl-prod-01","tbl-mgmt-01","ayx-control-01")
+    $global:OverwatchControllers += $env:COMPUTERNAME.ToLower() + $global:OverwatchRemoteControllers 
 
 #endregion OVERWATCH TOPOLOGY

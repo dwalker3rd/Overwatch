@@ -1,7 +1,7 @@
 #region PREFLIGHT
 
-    Test-Connections
-    Test-PSRemoting
+    Test-NetConnection+ | Out-Null
+    Test-PSRemoting | Out-Null
 
     #region Test-SslProtocol
 

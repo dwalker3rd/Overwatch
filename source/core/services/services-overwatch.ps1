@@ -913,99 +913,172 @@ function global:Get-IpAddress {
 
 }
 
-    function global:Test-Connections {
+    function global:Test-NetConnection+ {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName
+            [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
+            [Parameter(Mandatory=$false)][ValidateSet("HTTP", "RDP", "SMB", "WINRM")][string]$CommonTCPPort = "WINRM",
+            [switch]$Quiet
         )
 
-        $platformTopology = Get-PlatformTopology -Online
-        if ([string]::IsNullOrEmpty($ComputerName)) {
-            $ComputerName = $platformTopology.nodes.Keys
-        }
-
-        $leader = Format-Leader -Length 46 -Adjust ((("  Network Connections").Length))
-        Write-Host+ -NoTrace "  Network Connections",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
-        Write-Log -Action "Test" -Target "Network"
+        $message = "  Network Connections"
+        $leader = Format-Leader -Length 46 -Adjust $message.Length
+        Write-Host+ -Iff $(!$Quiet) -NoTrace $message,$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
         $fail = $false
+        $testResults = [PSCustomObject]@()
         foreach ($node in $ComputerName) {
 
-            $ip = ([System.Net.Dns]::GetHostAddresses($node) | Where-Object {$_.AddressFamily -eq "InterNetwork"}).IPAddressToString
+            $remoteAddress = (Test-NetConnection -ComputerName $node -ErrorAction SilentlyContinue -WarningAction SilentlyContinue).RemoteAddress
 
-            $leader = Format-Leader -Length 39 -Adjust ((("    Ping $($node) [$($ip)]").Length))
-            Write-Host+ -NoTrace -NoNewLine "    Ping","$($node) [$($ip)]",$leader -ForegroundColor Gray,DarkBlue,DarkGray
+            $message = "    Ping:$node [$remoteAddress]"
+            $leader = Format-Leader -Length 39 -Adjust ($message.Length-1)
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoNewLine $message.Split(":")[0], $message.Split(":")[1], $leader, "PENDING" -ForegroundColor Gray,DarkBlue,DarkGray,DarkGray
 
-            if (Test-Connection -ComputerName $node -Quiet) {
-                Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen
-            }
-            else {
-                Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed 
-                Write-Log -Action "Test" -Target "Network" -Status "Fail" -EntryType "Error" -Message "Unable to ping $($node) [$($ip)]"
-                $fail = $true
-            }
+            $_fail = $false
+            #region PING
+
+                $pingResult = Test-NetConnection -ComputerName $node -InformationLevel ($Quiet ? "Quiet" : "Detailed") -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+
+                if (!$pingResult.PingSucceeded) {
+                    Write-Log -Action "Ping" -Target "$($pingResult.ComputerName) [$($pingResult.RemoteAddress)]" -Status "Fail" -EntryType "Information"
+                    $fail = $true
+                }
+
+                $testResults += [PSCustomObject]@{
+                    Test = "Ping"
+                    ComputerName = $node
+                    RemoteAddress = $pingResult.RemoteAddress
+                    Result = $pingResult.PingSucceeded ? "Pass" : "Fail"
+                    Pass = $pingResult.PingSucceeded
+                    Fail = !$pingResult.PingSucceeded
+                    Timestamp = Get-Date -AsUTC
+                }
+
+            #endregion PING
+            #region TCPTEST
+
+                $tcpTestResult = Test-NetConnection -ComputerName $node -CommonTCPPort $CommonTCPPort -InformationLevel ($Quiet ? "Quiet" : "Detailed") -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+
+                if (!$tcpTestResult.TcpTestSucceeded) { 
+                    Write-Log -Action "TcpTest" -Target "$($tcpTestResult.ComputerName) [$($tcpTestResult.RemoteAddress):$($tcpTestResult.RemotePort)]" -Status "Fail" -EntryType "Information"
+                    $_fail = $fail = $true
+                }
+
+                $testResults += [PSCustomObject]@{
+                    Test = "TcpTest"
+                    ComputerName = $node
+                    Protocol = $CommonTCPPort
+                    RemoteAddress = $tcpTestResult.RemoteAddress
+                    RemotePort = $tcpTestResult.RemotePort
+                    Result = $tcpTestResult.TcpTestSucceeded ? "Pass" : "Fail"
+                    Pass = $tcpTestResult.TcpTestSucceeded
+                    Fail = !$tcpTestResult.TcpTestSucceeded
+                    Timestamp = Get-Date -AsUTC
+                }
+
+            #endregion TCPTEST
+
+            $message = "$($emptyString.PadLeft(8,"`b")) $($_fail ? "FAIL" : "PASS")$($emptyString.PadLeft(8," "))"
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp $message -ForegroundColor ($_fail ? "DarkRed" : "DarkGreen")
 
         }
 
-        $leader = Format-Leader -Length 46 -Adjust ((("  Network Connections").Length))
-        Write-Host+ -NoTrace -NoNewLine  "  Network Connections",$leader -ForegroundColor Gray,DarkGray
+        $message = "  Network Connections"
+        $leader = Format-Leader -Length 46 -Adjust $message.Length
+        Write-Host+ -Iff $(!$Quiet) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")
 
-        if ($fail) {
-            Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
-            Write-Log -Action "Test" -Target "Network" -Status "Fail" -EntryType "Error" -Message $_.Exception.Message
-            # throw "Network Connections ... FAIL"
-        }
-        else {
-            Write-Host+ -NoTimestamp -NoTrace  " PASS" -ForegroundColor DarkGreen
-            Write-Log -Action "Test" -Target "Network" -Status "Pass"
-        }
+        return $testResults
+        
     }
 
     function global:Test-PSRemoting {
 
         [CmdletBinding()]
-        param ()
+        param (
+            [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
+            [switch]$Quiet
+        )
 
         $leader = Format-Leader -Length 46 -Adjust ((("  Powershell Remoting").Length))
-        Write-Host+ -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+ -Iff $(!$Quiet) -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
         Write-Log -Action "Test" -Target "Powershell-Remoting"
 
         $fail = $false
-        foreach ($node in (Get-PlatformTopology nodes -Online -Keys)) {
+        $testResults = [PSCustomObject]@()
+        foreach ($node in $ComputerName) {
 
-            # Write-Host+ -NoNewline -NoTimestamp -NoTrace "." -ForegroundColor DarkGray
+            # Write-Host+ -Iff $(!$Quiet) -NoNewline -NoTimestamp -NoTrace "." -ForegroundColor DarkGray
 
             $leader = Format-Leader -Length 39 -Adjust ((("    Remote to $($node)").Length))
-            Write-Host+ -NoTrace -NoNewLine "    Remote to","$($node)",$leader -ForegroundColor Gray,DarkBlue,DarkGray
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoNewLine "    Remote to","$($node)",$leader -ForegroundColor Gray,DarkBlue,DarkGray
+
+            $_fail = $false
 
             try {
                 $psSession = New-PSSession+ -ComputerName $node
                 Remove-PSSession -Session $psSession
-                Write-Host+ -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen 
+                Write-Host+ -Iff $(!$Quiet) -NoTimestamp -NoTrace " PASS" -ForegroundColor DarkGreen 
             }
             catch {
-                Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
+                Write-Host+ -Iff $(!$Quiet) -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
                 Write-Log -Action "Test" -Target "Powershell-Remoting" -Status "Fail" -EntryType "Error" -Message "Powershell-Remoting to $($node) failed"
-                $fail = $true
+                $_fail = $fail = $true
+            }
+
+            $testResults += [PSCustomObject]@{
+                Test = "PSRemoting"
+                ComputerName = $node
+                Result = $_fail ? "Fail" : "Pass"
+                Pass = !$_fail
+                Fail = $_fail
+                Timestamp = Get-Date -AsUTC
             }
 
         }
 
-        $leader = Format-Leader -Length 46 -Adjust ((("  Powershell Remoting").Length))
-        Write-Host+ -NoTrace -NoNewLine "  Powershell Remoting",$leader -ForegroundColor Gray,DarkGray
-        
-        if ($fail) {
-            Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
-            Write-Log -Action "Test" -Target "Powershell-Remoting" -Status "Fail" -EntryType "Error"
-            throw "Powershell Remoting ... FAIL"
-        }
-        else {
-            Write-Host+ -NoTimestamp -NoTrace  " PASS" -ForegroundColor DarkGreen
-            Write-Log -Action "Test" -Target "Powershell-Remoting" -Status "Pass"
-        }
+        $message = "  Powershell Remoting"
+        $leader = Format-Leader -Length 46 -Adjust $message.Length
+        Write-Host+ -Iff $(!$Quiet) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")        
+
+        return $testResults
+
     }
 
+    function global:Test-Server {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string[]]$ComputerName,
+            [switch]$Quiet
+        )
+    
+        $results = [PSCustomObject]@()
+    
+        $results += Test-NetConnection+ -ComputerName $ComputerName -Quiet:$Quiet.IsPresent
+        $results += Test-PSRemoting -ComputerName $ComputerName -Quiet:$Quiet.IsPresent
+    
+        $groupedResults = $results | Group-Object -Property ComputerName
+        foreach ($node in $groupedResults.Name) {        
+    
+            $nodeResults = $groupedResults | Where-Object {$_.Name -eq $node}
+            $pass = ($nodeResults.Group.Pass | Select-Object -Unique) -eq $true
+    
+            $results += [PSCustomObject]@{
+                Test = "Summary"
+                ComputerName = $node
+                Result = $pass ? "Pass" : "Fail"
+                Pass = $pass
+                Fail = !$pass
+                Timestamp = Get-Date -AsUTC
+            }
+    
+        }
+    
+        return $results
+    
+    }
     <#
         .DESCRIPTION
         Outputs the SSL protocols that the client is able to successfully use to connect to a server.
@@ -1199,6 +1272,81 @@ function global:Get-IpAddress {
         }
 
     }
+
+    function global:Test-RemoteOverwatchControllers {
+
+        [CmdletBinding()] 
+        param (
+            [Parameter(Mandatory=$false)][string[]]$ComputerName = $global:OverwatchRemoteControllers
+        )        
+
+        foreach ($node in $ComputerName) {
+            
+            # is the network interface reachable
+            $remoteConnectionStatus = Test-NetConnection -ComputerName $node
+            if ($remoteConnectionStatus.Status -contains "Success") {
+
+                Write-Host+ -NoTrace "$($node): Network interface is reachable" -ForegroundColor DarkGray
+    
+                # is the server reachable via powershell remoting?
+                # this is a proxy for "is the o/s up and running?"
+                try {
+                    $remotePsSession = New-PsSession+ -ComputerName $node
+                    Remove-PsSession -Session $remotePsSession
+
+                    Write-Host+ -NoTrace "$($node): Connected via Powershell remoting" -ForegroundColor DarkGray
+
+                    # is Overwatch Monitor running?
+                    try {
+
+                        $monitorPlatformTask = Get-PlatformTask -Id Monitor -ComputerName $node
+                        Write-Host+ -NoTrace "$($node): Overwatch Monitor is $($monitorPlatformTask.Status.ToUpper())" -ForegroundColor DarkGray
+
+                        # # is the platform ok/running?
+                        # # get the platformstatus cache; if stopped, determine if intervention is required
+                        # $platformStatus = Read-Cache platformstatus -ComputerName $node
+                        # # $remoteEnviron = Get-EnvironConfig -Key Environ -ComputerName $node
+                        # if ($platformStatus.EventStatus -eq $global:PlatformEventStatus.Failed) {
+                        #     Write-Host+ -NoTrace "$($node): Platform $($platformStatus.Event.ToUpper()) has $($platformStatus.EventStatus.ToUpper())" -ForegroundColor DarkRed
+                        # }
+                        # if ($remotePlatformStatus.IsStopped) {
+                        #     if ([datetime]::MinValue -ne $platformStatus.EventCreatedAt) {
+                        #         $productShutdownTimeout = $(Get-Product -Id $platformStatus.EventCreatedBy -ComputerName $node).ShutdownMax
+                        #         $shutdownTimeout = $productShutdownTimeout.TotalMinutes -gt 0 ? $productShutdownTimeout : $global:PlatformShutdownMax
+                        #         $stoppedDuration = New-TimeSpan -Start $platformStatus.EventCreatedAt
+                        #         if ($stoppedDuration.TotalMinutes -gt $shutdownTimeout.TotalMinutes) {
+                        #             Write-Host+ -NoTrace "$($node): Platform $($platformStatus.Event.ToUpper()) duration $([math]::Round($stoppedDuration.TotalMinutes,0)) minutes." -ForegroundColor DarkRed
+                        #         }
+                        #     }
+                        # }
+
+                    }
+
+                    # Get-PlatformTask failed
+                    catch {
+                        $message = (Get-Error).Exception.Message
+                        Write-Host+ -NoTrace "$($node): Unable to get Overwatch Monitor status" -ForegroundColor DarkRed
+                        Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+                    }
+
+                }
+    
+                # the server is not reachable via powershell remoting
+                # this is a proxy for "is the o/s up and running?"
+                catch {
+                    Write-Host+ -NoTrace "$($node): Unable to connect via Powershell remoting" -ForegroundColor DarkRed
+                }
+
+            }
+    
+            # the network interface is not reachable
+            else {
+                Write-Host+ -NoTrace "$($node): Network interface is unreachable" -ForegroundColor DarkRed
+            }
+    
+        }
+
+    }    
 
 #endregion TESTS
 #region MISC
