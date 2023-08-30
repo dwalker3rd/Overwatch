@@ -930,7 +930,8 @@ function global:Get-IpAddress {
         $testResults = [PSCustomObject]@()
         foreach ($node in $ComputerName) {
 
-            $remoteAddress = (Test-NetConnection -ComputerName $node -ErrorAction SilentlyContinue -WarningAction SilentlyContinue).RemoteAddress
+            $remoteAddress = ((Test-NetConnection -ComputerName $node -ErrorAction SilentlyContinue -WarningAction SilentlyContinue).ResolvedAddresses | 
+                Where-Object {$_.AddressFamily -eq "InterNetwork"}).IPAddressToString 
 
             $message = "    Ping:$node [$remoteAddress]"
             $leader = Format-Leader -Length 39 -Adjust ($message.Length-1)
