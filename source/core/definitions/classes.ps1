@@ -277,6 +277,23 @@ class FileObjectBase {
         }
 
     }
+
+    [object]New(
+    ) {
+        if ($this.Exists) {
+            Write-Warning "The file '$($this.Path)' already exists."
+            return $null
+        }
+
+        $this.FileInfo = New-Item -Path $this.Path -ItemType File
+
+        if (!$this.FileInfo) {
+            Write-Warning "Unable to create '$($this.Path)'"
+            return $null
+        }
+
+        return $this.FileInfo
+    }
     
     [void]ValidatePath([string]$Path) {
 

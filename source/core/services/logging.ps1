@@ -84,11 +84,12 @@ function global:New-Log {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     )
 
-    $newLog = foreach ($node in $ComputerName){
-        if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
-        $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
-        [LogObject]::new($Path, $node).New($global:LogEntryView.Raw)
-    }
+    $newLog = 
+        foreach ($node in $ComputerName){
+            if ([string]::IsNullOrEmpty($Name)) { $Name = Get-EnvironConfig Environ.Instance -ComputerName $node }
+            $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
+            [LogObject]::new($Path, $node).New($global:LogEntryView.Header)
+        }
 
     return $newLog
 
