@@ -101,6 +101,7 @@ function global:Get-ServerInfo {
                 if ($_ -like "*.*") {$Win32_ComputerSystem | Add-Member -NotePropertyName Ipv4Address -NotePropertyValue $_}
             }
 
+        $Win32_ComputerSystem | Add-Member -NotePropertyName OS -NotePropertyValue WindowsServer
         $Win32_ComputerSystem | Add-Member -NotePropertyName WindowsProductName -NotePropertyValue  $((Get-CimInstance -ClassName Win32_OperatingSystem -ComputerName $node).Name -split "\|")[0]
         $Win32_ComputerSystem | Add-Member -NotePropertyName FQDN -NotePropertyValue $("$($Win32_ComputerSystem.Name)$($Win32_ComputerSystem.PartOfDomain ? "." + $Win32_ComputerSystem.Domain : $null)")
         $Win32_ComputerSystem | Add-Member -NotePropertyName DisplayName -NotePropertyValue $("$($Win32_ComputerSystem.FQDN) at $($Win32_ComputerSystem.Ipv4Address)")
