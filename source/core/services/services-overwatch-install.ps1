@@ -238,9 +238,12 @@ function script:Copy-File {
         "`$cloudId = ""$($global:Environ.Cloud)""" | Add-Content -Path $global:InstallSettings
         "`$platformId = ""$($global:Environ.Platform)""" | Add-Content -Path $global:InstallSettings
         "`$platformInstanceId = ""$($global:Environ.Instance)""" | Add-Content -Path $global:InstallSettings
-        "`$platformInstallLocation = ""$($global:Platform.InstallPath)""" | Add-Content -Path $global:InstallSettings
         "`$imagesUri = [System.Uri]::new(""$($global:Location.Images)"")" | Add-Content -Path $global:InstallSettings
-        "`$platformInstanceUri = [System.Uri]::new(""$($global:Platform.Uri)"")" | Add-Content -Path $global:InstallSettings
+        "`$platformInstallLocation = ""$($global:Platform.InstallPath)""" | Add-Content -Path $global:InstallSettings
+
+        $_platformInstanceUri = ![string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : ""
+        "`$platformInstanceUri = ""$($_platformInstanceUri)""" | Add-Content -Path $global:InstallSettings
+        
         "`$platformInstanceDomain = ""$($global:Platform.Domain)""" | Add-Content -Path $global:InstallSettings
         if ($global:Environ.Product.Count -gt 0) {
             "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $global:InstallSettings
@@ -266,9 +269,10 @@ function script:Copy-File {
         param(
             [Parameter(Mandatory=$true)][string]$Source,
             [Parameter(Mandatory=$false)][string]$Destination = $Source,
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","Provider","Product","Location")][string]$Type,
+            [Parameter(Mandatory=$false)][ValidateSet("Environ","Overwatch","Cloud","Provider","Product","Location")][string]$Type,
             [Parameter(Mandatory=$false)][string]$Name,
-            [Parameter(Mandatory=$false)][string]$Expression = "`"`$(`$global:Location.Root)\$($Name.ToLower())`""
+            [Parameter(Mandatory=$false)][AllowEmptyString()][string]$Expression = "`"`$(`$global:Location.Root)\$($Name.ToLower())`"",
+            [Parameter(Mandatory=$false)][ValidateSet("Add","Replace","Remove")][string]$Mode = "Add"
         )
 
         if ([string]::IsNullOrEmpty($Type)) {
@@ -296,27 +300,66 @@ function script:Copy-File {
         }
         elseif ($Type -eq "Location") {
             $environFileContent = Get-Content -Path $Source -Raw
-            if ($environFileContent -match "(?s)\`$global:Location\s*\+=\s*@{(.*)}") {
+            $locationPattern = $Name -eq "Root" ? "(?s)\`$global:Location\s*\=\s*@{\s*(.*?)\s*}" : "(?s)\`$global:Location\s*\+=\s*@{\s*(.*?)\s*}"
+            if ($environFileContent -match $locationPattern) {
                 $locationContent = $matches[1]
-                Write-Host+ -NoTrace -NoTimestamp "  [Environ] `$global:Location.$Name = `"$(Invoke-Expression $Expression)`"" -ForegroundColor DarkGray
-                if ($locationContent -match "$Name\s*=\s*`"(.*)`"") {
-                    Write-Host+ -NoTrace -NoTimestamp "  [Environ] `$global:Location.$Name = `"$(Invoke-Expression $matches[1])`"" -ForegroundColor DarkGray
-                    Write-Host+ -NoTrace -NoTimestamp "  [Environ] Unable to add `"`$global:Location.$Name`"" -ForegroundColor Red
+                if ($Mode -in ("Add","Replace") -and $locationContent -match "$Name\s*=\s*(?:@\(|`"|`')([^<>\(\)`"`']*)(?:\)|`"|`')") {
+                    $expressionEvaluation = [string]::IsNullOrEmpty($Expression) ? "" : $matches[1]
+                    Write-Host+ -NoTrace  "Item has already been added.","Key/Value in dictionary:","$Type.$($matches[0])","  Key/Value being added:","$Type.$Name = `"$expressionEvaluation`"" -ForegroundColor Red,DarkGray,Gray,DarkGray,Gray
                     return
                 }
-                elseif (![string]::IsNullOrEmpty($global:Location.$Name) -and$global:Location.$Name -ne $Expression) {
-                    Write-Host+ -NoTrace -NoTimestamp "  [Location] `$global:Location.$Name = `"$($global:Location.$Name)`"" -ForegroundColor DarkGray
-                    Write-Host+ -NoTrace -NoTimestamp "  [Environ] Unable to add `"`$global:Location.$Name`"" -ForegroundColor Red
-                    return
+                elseif ($Mode -eq "Replace" -and $locationContent -match "$Name\s*=\s*(?:@\(|`"|`')(<.*>)(?:\)|`"|`')") {
+                    $expressionEvaluation = [string]::IsNullOrEmpty($Expression) ? "" : $matches[1]
+                    Write-Host+ -IfVerbose -NoTrace "Item replaced.","Key/Value","$Type.$($matches[0])"," replaced by ","$Type.$Name = `"$expressionEvaluation`"" -ForegroundColor DarkGreen,DarkGray,Gray,DarkGray,Gray
+                    $environFileContent = $environFileContent.Replace($matches[1],$Expression)
+                    $environFileContent | Set-Content -Path $Destination
                 }
-                else {
+                elseif ($Mode -eq "Add") {
+                    $expressionEvaluation = [string]::IsNullOrEmpty($Expression) ? "" : (Invoke-Expression $matches[1])
+                    Write-Host+ -IfVerbose -NoTrace "Item added.","Key/Value","$Type.$Name = `"$expressionEvaluation`"" -ForegroundColor DarkGreen,DarkGray,Gray
                     $newLocationContent = $locationContent + "        " + $Name + " = " + $Expression + "`n"
                     $environFileContent = $environFileContent.Replace($locationContent, $newLocationContent)
                     $environFileContent | Set-Content -Path $Destination
                 }
+                else {
+                    Write-Host+ -NoTrace "$Type update failed for an unknown reason" -ForegroundColor Red
+                    Write-Host+ -NoTrace "Type = $Type; Name = $Name; Expression = $Expression; Mode = $Mode" -ForegroundColor DarkGray
+                    return
+                }                
             }
         }
+        elseif ($Type -eq "Environ") {
+            $environFileContent = Get-Content -Path $Source -Raw
+            $environPattern = "(?s)\`$global:Environ\s*\=\s*@{\s*(.*?)\s*}"
+            if ($environFileContent -match $environPattern) {
+                $environContent = $matches[1]
+                if ($Mode -in ("Add","Replace") -and $environContent -match "$Name\s*=\s*(?:@\(|`"|`')([^<>\(\)`"`']*)(?:\)|`"|`')") {
+                    $expressionEvaluation = [string]::IsNullOrEmpty($Expression) ? "" : $matches[1]
+                    Write-Host+ -NoTrace  "Item has already been added.","Key/Value in dictionary:","$Type.$($matches[0])","  Key/Value being added:","$Type.$Name = `"$expressionEvaluation`"" -ForegroundColor Red,DarkGray,Gray,DarkGray,Gray
+                }
+                elseif ($Mode -eq "Replace" -and $environContent -match "$Name\s*=\s*(?:@\(|`"|`')(<.*>)(?:\)|`"|`')") {
+                    $expressionEvaluation = [string]::IsNullOrEmpty($Expression) ? "" : (Invoke-Expression $Expression)
+                    Write-Host+ -IfVerbose -NoTrace "Item replaced.","Key/Value","$Type.$($matches[0])"," replaced by ","$Type.$Name = `"$expressionEvaluation`"" -ForegroundColor DarkGreen,DarkGray,Gray,DarkGray,Gray
+                    $environFileContent = $environFileContent.Replace($matches[1],$Expression)
+                    $environFileContent | Set-Content -Path $Destination
+                }
+                elseif ($Mode -eq "Add") {
+                    $expressionEvaluation = [string]::IsNullOrEmpty($Expression) ? "" : $matches[1]
+                    Write-Host+ -IfVerbose -NoTrace "Item added.","Key/Value","$Type.$Name = `"$expressionEvaluation`"" -ForegroundColor DarkGreen,DarkGray,Gray
+                    $newEnvironContent = $environContent + "        " + $Name + " = " + $Expression + "`n"
+                    $environFileContent = $environFileContent.Replace($environContent, $newEnvironContent)
+                    $environFileContent | Set-Content -Path $Destination
+                }                
+                else {
+                    Write-Host+ -NoTrace "$Type update failed for an unknown reason" -ForegroundColor Red
+                    Write-Host+ -NoTrace "Type = $Type; Name = $Name; Expression = $Expression; Mode = $Mode" -ForegroundColor DarkGray
+                    return
+                }
+            }
+        }        
         else {
+            # i don't remember why this section is here ... sigh
+            # figure out what it does and document it!
             $environItems = Select-String $Destination -Pattern "$Type = " -Raw
             if (!$PSBoundParameters.ContainsKey('WhatIf')) {
                 $updatedEnvironItems = $environItems.Replace("`"$Name`"","").Replace(", ,",",").Replace("(, ","(").Replace(", )",")")

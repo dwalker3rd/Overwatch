@@ -21,20 +21,35 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Environ = @{}
 $global:Location = @{}
 
+$sourceEnvironFile = "$PSScriptRoot\source\environ\environ-template.ps1"
+$destinationEnvironFile = "$PSScriptRoot\environ.ps1"
+
 # if this is first install, then environ.ps1 does not exist
 # copy it to the users' temp directory and update the global Location variable
 if (!(Test-Path "environ.ps1")) {
-    $sourceEnvironFile = "$PSScriptRoot\source\environ\environ-template.ps1"
-    $environFile = "$($env:TEMP)\environ.ps1"
-    Copy-File $sourceEnvironFile $environFile -Quiet
-    Update-Environ -Source $sourceEnvironFile -Destination $environFile -Type Location -Name Root -Expression (Get-Location) 
+
+    $tempEnvironFile = "$($env:TEMP)\environ.ps1"
+    $tempEnvironFileNoProductsNoProviders = "$($env:TEMP)\environNoProductsNoProviders.ps1"
+    
+    . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
+    . $PSScriptRoot\source\core\services\services-overwatch-install.ps1  
+    Update-Environ -Mode Replace -Source $sourceEnvironFile -Destination $tempEnvironFile -Type Location -Name Root -Expression (Get-Location)
+    Update-Environ -Mode Replace -Source $tempEnvironFile -Destination $tempEnvironFileNoProductsNoProviders -Type Environ -Name Product -Expression ""
+    Update-Environ -Mode Replace -Source $tempEnvironFileNoProductsNoProviders -Destination $tempEnvironFileNoProductsNoProviders -Type Environ -Name Provider -Expression ""
     Remove-Variable -Scope Global Environ
+
+    $environFile = $tempEnvironFileNoProductsNoProviders
 }
 else {
     $environFile = "$PSScriptRoot\environ.ps1"
 }
 
 . $environFile
+
+if (!(Test-Path "environ.ps1")) {
+    $environFile = $tempEnvironFile
+}
+
 . $PSScriptRoot\source\core\definitions\definitions-sysinternals.ps1
 . $PSScriptRoot\source\core\definitions\definitions-powershell.ps1
 . $PSScriptRoot\source\core\definitions\classes.ps1
@@ -44,8 +59,8 @@ else {
 . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-install.ps1
 . $PSScriptRoot\source\core\services\cache.ps1
+. $PSScriptRoot\source\core\services\files.ps1
 
-Write-Host+ -ResetAll
 Write-Host+
 
 #region POST INSTALL SHORTCUT
@@ -131,7 +146,7 @@ $providerIds = @()
     catch {
         $global:WriteHostPlusPreference = "Continue"
         $message = "$($emptyString.PadLeft(9,"`b"))None      "
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Gray
     }
 
     if ($installOverwatch) {
@@ -158,11 +173,20 @@ $providerIds = @()
             $installedPlatforms += $key
         }
     }
-    Write-Host+ -NoTrace -NoTimestamp -Parse "<Platform <.>24> $($installedPlatforms -join ", ")" -ForegroundColor Gray,DarkGray,Blue
+    Write-Host+ -NoTrace -NoTimestamp -Parse "<Platform <.>24> $($installedPlatforms ? ($installedPlatforms -join ", ") : "None")" -ForegroundColor Gray,DarkGray,$($installedPlatforms ? "Blue" : "Gray")
 
     Write-Host+ -NoTrace -NoTimestamp -Parse "<Location <.>24> $((Get-Location).Path)" -ForegroundColor Gray,DarkGray,Blue
 
 #endregion DISCOVERY
+
+. $PSScriptRoot\source\core\services\tasks.ps1
+. $PSScriptRoot\source\core\services\powershell.ps1
+
+$tempLocationDefinitions = $global:Location.Definitions
+$global:Location.Definitions = "$($global:Location.Root)\source\core\definitions"
+. $PSScriptRoot\source\core\services\services-overwatch.ps1
+$global:Location.Definitions = $tempLocationDefinitions
+
 #region LOAD SETTINGS
 
     Write-Host+ -MaxBlankLines 1
@@ -210,7 +234,8 @@ $providerIds = @()
 
     #region REGISTRY
 
-        $overwatchRegistryPath = (Get-Catalog -Uid Overwatch.Overwatch).Installation.Registry.Path
+        # $overwatchRegistryPath = (Get-Catalog -Uid Overwatch.Overwatch).Installation.Registry.Path
+        $overwatchRegistryPath = "HKLM:\SOFTWARE\Overwatch"
         $overwatchRegistryKey = "InstallLocation"
         if (!(Test-Path $overwatchRegistryPath)) {
             New-Item -Path $overwatchRegistryPath -Force | Out-Null
@@ -252,6 +277,7 @@ $providerIds = @()
 #endregion CLOUD
 #region PLATFORM ID
 
+    $installedPlatforms += @("None")
     $platformId = $installedPlatforms[0]
     do {
         $platformIdResponse = $null
@@ -273,106 +299,117 @@ $providerIds = @()
 #endregion PLATFORM ID
 #region PLATFORM INSTALL LOCATION
 
-    do {
-        $platformInstallLocationResponse = $null
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        if (!$UseDefaultResponses) {
-            $platformInstallLocationResponse = Read-Host
-        }
-        else {
-            Write-Host+
-        }
-        $platformInstallLocation = ![string]::IsNullOrEmpty($platformInstallLocationResponse) ? $platformInstallLocationResponse : $platformInstallLocation
-        Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
-        if (!(Test-Path -Path $platformInstallLocation)) {
-            Write-Host+ -NoTrace -NoTimestamp "[ERROR] Cannot find path '$platformInstallLocation' because it does not exist." -ForegroundColor Red
-            $platformInstallLocation = $null
-        }
-        else {
-            Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The path '$platformInstallLocation' is valid." -IfVerbose -ForegroundColor DarkGreen
-        }
-    } until ($platformInstallLocation)
-    Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
-
-#endregion PLATFORM INSTALL LOCATION
-#region PLATFORM INSTANCE URL
-
-    do {
-        try {
-            $platformInstanceUriResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? "[$platformInstanceUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+    if ($platformId -ne "None") {
+        do {
+            $platformInstallLocationResponse = $null
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
-                $platformInstanceUriResponse = Read-Host
+                $platformInstallLocationResponse = Read-Host
             }
             else {
                 Write-Host+
             }
-            $platformInstanceUri = ![string]::IsNullOrEmpty($platformInstanceUriResponse) ? $platformInstanceUriResponse : $platformInstanceUri
-            $platformInstanceUri = [System.Uri]::new($platformInstanceUri)
-        }
-        catch {
-            Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid URI format" -ForegroundColor Red
-            $platformInstanceUri = $null
-        }
-        if ($platformInstanceUri) {
-            try {
-                Invoke-WebRequest $platformInstanceUri -Method Head | Out-Null
-                Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] Response from '$platformInstanceUri'" -IfVerbose -ForegroundColor DarkGreen
+            $platformInstallLocation = ![string]::IsNullOrEmpty($platformInstallLocationResponse) ? $platformInstallLocationResponse : $platformInstallLocation
+            Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
+            if (!(Test-Path -Path $platformInstallLocation)) {
+                Write-Host+ -NoTrace -NoTimestamp "[ERROR] Cannot find path '$platformInstallLocation' because it does not exist." -ForegroundColor Red
+                $platformInstallLocation = $null
             }
-            catch
-            {
-                Write-Host+ -NoTrace -NoTimestamp "[ERROR] No response from '$platformInstanceUri'" -ForegroundColor Red
+            else {
+                Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The path '$platformInstallLocation' is valid." -IfVerbose -ForegroundColor DarkGreen
+            }
+        } until ($platformInstallLocation)
+        Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
+    }
+
+#endregion PLATFORM INSTALL LOCATION
+#region PLATFORM INSTANCE URL
+
+    if ($platformId -ne "None") {
+        do {
+            try {
+                $platformInstanceUriResponse = $null
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? "[$platformInstanceUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+                if (!$UseDefaultResponses) {
+                    $platformInstanceUriResponse = Read-Host
+                }
+                else {
+                    Write-Host+
+                }
+                $platformInstanceUri = ![string]::IsNullOrEmpty($platformInstanceUriResponse) ? $platformInstanceUriResponse : $platformInstanceUri
+                $platformInstanceUri = [System.Uri]::new($platformInstanceUri)
+            }
+            catch {
+                Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid URI format" -ForegroundColor Red
                 $platformInstanceUri = $null
             }
-        }
-    } until ($platformInstanceUri)
-    Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
+            if ($platformInstanceUri) {
+                try {
+                    Invoke-WebRequest $platformInstanceUri -Method Head | Out-Null
+                    Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] Response from '$platformInstanceUri'" -IfVerbose -ForegroundColor DarkGreen
+                }
+                catch
+                {
+                    Write-Host+ -NoTrace -NoTimestamp "[ERROR] No response from '$platformInstanceUri'" -ForegroundColor Red
+                    $platformInstanceUri = $null
+                }
+            }
+        } until ($platformInstanceUri)
+        Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
+    }
 
 #endregion PLATFORM INSTANCE URL
 #region PLATFORM INSTANCE DOMAIN
 
-    $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
-    do {
-        $platformInstanceDomainResponse = $null
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        if (!$UseDefaultResponses) {
-            $platformInstanceDomainResponse = Read-Host
-        }
-        else {
-            Write-Host+
-        }
-        $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceWriteDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
-        if (![string]::IsNullOrEmpty($platformInstanceDomain) -and $platformInstanceUri.Host -notlike "*$platformInstanceDomain") {
-            Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid domain. Domain must match the platform instance URI" -ForegroundColor Red
-            $platformInstanceDomain = $null
-        }
-    } until ($platformInstanceDomain)
-    Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceDomain" -IfDebug -ForegroundColor Yellow
+    if ($platformId -ne "None") {
+        $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
+        do {
+            $platformInstanceDomainResponse = $null
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            if (!$UseDefaultResponses) {
+                $platformInstanceDomainResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
+            $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceWriteDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
+            if (![string]::IsNullOrEmpty($platformInstanceDomain) -and $platformInstanceUri.Host -notlike "*$platformInstanceDomain") {
+                Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid domain. Domain must match the platform instance URI" -ForegroundColor Red
+                $platformInstanceDomain = $null
+            }
+        } until ($platformInstanceDomain)
+        Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceDomain" -IfDebug -ForegroundColor Yellow
+    }
 
 #endregion PLATFORM INSTANCE DOMAIN
 #region PLATFORM INSTANCE ID
 
-    $platformInstanceId ??= $platformInstanceUri.Host -replace "\.","-"
-    do {
-        $platformInstanceIdResponse = $null
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
-        if (!$UseDefaultResponses) {
-            $platformInstanceIdResponse = Read-Host
-        }
-        else {
-            Write-Host+
-        }
-        $platformInstanceId = ![string]::IsNullOrEmpty($platformInstanceIdResponse) ? $platformInstanceIdResponse : $platformInstanceId
-        if ([string]::IsNullOrEmpty($platformInstanceId)) {
-            Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance ID is required" -ForegroundColor Red
-            $platformInstanceId = $null
-        }
-        if ($platformInstanceId -notmatch "^[a-zA-Z0-9\-]*$") {
-            Write-Host+ -NoTrace -NoTimestamp "INVALID CHARACTER: letters, digits and hypen only" -ForegroundColor Red
-            $platformInstanceId = $null
-        }
-    } until ($platformInstanceId)
-    Write-Host+ -NoTrace -NoTimestamp "Platform Instance ID: $platformInstanceId" -IfDebug -ForegroundColor Yellow
+    if ($platformId -eq "None") {
+        $platformInstanceId = "None"
+    }
+    else {
+        $platformInstanceId ??= $platformInstanceUri.Host -replace "\.","-"
+        do {
+            $platformInstanceIdResponse = $null
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            if (!$UseDefaultResponses) {
+                $platformInstanceIdResponse = Read-Host
+            }
+            else {
+                Write-Host+
+            }
+            $platformInstanceId = ![string]::IsNullOrEmpty($platformInstanceIdResponse) ? $platformInstanceIdResponse : $platformInstanceId
+            if ([string]::IsNullOrEmpty($platformInstanceId)) {
+                Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance ID is required" -ForegroundColor Red
+                $platformInstanceId = $null
+            }
+            if ($platformInstanceId -notmatch "^[a-zA-Z0-9\-]*$") {
+                Write-Host+ -NoTrace -NoTimestamp "INVALID CHARACTER: letters, digits and hypen only" -ForegroundColor Red
+                $platformInstanceId = $null
+            }
+        } until ($platformInstanceId)
+        Write-Host+ -NoTrace -NoTimestamp "Platform Instance ID: $platformInstanceId" -IfDebug -ForegroundColor Yellow
+    }
 
 #endregion PLATFORM INSTANCE ID
 #region PLATFORM INSTANCE NODES
@@ -846,7 +883,10 @@ $providerIds = @()
     $impactedIds = $_impactedIds | Select-Object -Unique
     $impactedProductIds = $impactedIds | Where-Object { $_.StartsWith("Product.") } | Where-Object { ($_ -split "\.")[1] -notin $productIds}
     $impactedProductIdsWithTasks = $impactedProductIds | Where-Object { (Get-Catalog -Uid $_).HasTask }
-    $disabledProductIds += "Product.$((Get-PlatformTask -Disabled).ProductID)"
+    $_disabledPlatformTasks = Get-PlatformTask -Disabled
+    if ($_disabledPlatformTasks) {
+        $disabledProductIds += "Product.$($_disabledPlatformTasks.ProductID)"
+    }
     $impactedProductIdsWithEnabledTasks = $impactedProductIdsWithTasks | Where-Object {$_ -notin $disabledProductIds}
     $impactedProviderIds = $impactedIds | Where-Object { $_.StartsWith("Provider.") } | Where-Object { ($_ -split "\.")[1] -notin $providerIds}
 
@@ -888,10 +928,15 @@ $providerIds = @()
             }
 
             $destinationEnvironFileExists = Test-Path $destinationEnvironFile
-            if ($environFileUpdated) {
-                Update-Environ -Source $sourceEnvironFile -Destination $destinationEnvironFile
-                Write-Host+ -NoTrace -NoTimestamp "  $($destinationEnvironFileExists ? "Updated" : "Created") $destinationEnvironFile" -ForegroundColor DarkGreen
+            if ($installOverwatch) {
+                Update-Environ -Source  $tempEnvironFile -Destination $destinationEnvironFile
             }
+            else {
+                if ($environFileUpdated) {
+                    Update-Environ -Source $sourceEnvironFile -Destination $destinationEnvironFile
+                }
+            }
+            Write-Host+ -NoTrace -NoTimestamp "  $($destinationEnvironFileExists ? "Updated" : "Created") $destinationEnvironFile" -ForegroundColor DarkGreen
             . $PSScriptRoot\environ.ps1
 
         #endregion ENVIRON
@@ -1063,9 +1108,13 @@ $providerIds = @()
     . $PSScriptRoot\definitions\catalog.ps1
     . $PSScriptRoot\definitions\definitions-regex.ps1
     . $PSScriptRoot\definitions\definitions-overwatch.ps1
+    . $PSScriptRoot\source\core\services\services-overwatch.ps1
     . $PSScriptRoot\services\services-overwatch-loadearly.ps1
     . $PSScriptRoot\services\services-overwatch-install.ps1
     . $PSScriptRoot\services\cache.ps1
+    . $PSScriptRoot\services\files.ps1
+    . $PSScriptRoot\source\core\services\tasks.ps1
+    . $PSScriptRoot\source\core\services\powershell.ps1
 
 #region INSTALLER UPDATED
 
@@ -1318,23 +1367,23 @@ $providerIds = @()
 #endregion CONTACTS
 #region LOG
 
-    if ($installOverwatch) {
-        $message = "<Log files <.>48> CREATING"
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+    # if ($installOverwatch) {
+    #     $message = "<Log files <.>48> CREATING"
+    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-        $osLogFile = ((Get-Catalog $OS.Id -Type "OS").Log).ToLower()
-        if (!(Test-Log -Name $osLogFile)) {
-            New-Log -Name $osLogFile | Out-Null
-        }
+    #     $osLogFile = ((Get-Catalog -Type "OS" -Id $OS.Id).Log).ToLower()
+    #     if (!(Test-Log -Name $osLogFile)) {
+    #         New-Log -Name $osLogFile | Out-Null
+    #     }
 
-        $platformLogFile = ((Get-Catalog $Platform.Id -Type "Platform").Log).ToLower()
-        if (!(Test-Log -Name $platformLogFile)) {
-            New-Log -Name $platformLogFile | Out-Null
-        }
+    #     $platformLogFile = ((Get-Catalog -Type "Platform" -Id $Platform.Id).Log).ToLower()
+    #     if (!(Test-Log -Name $platformLogFile)) {
+    #         New-Log -Name $platformLogFile | Out-Null
+    #     }
 
-        $message = "$($emptyString.PadLeft(8,"`b"))CREATED "
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-    }
+    #     $message = "$($emptyString.PadLeft(8,"`b"))CREATED "
+    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    # }
 
 #endregion LOG 
 #region MAIN
