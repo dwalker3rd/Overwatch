@@ -45,6 +45,22 @@
 
     #endregion MICROSOFT-TEAMS
 
+    #region PLATFORM TOPOLOGY ALIASES
+
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Platform > Topology > Update Alias Regex [OPTIONAL]
+
+        $global:RegexPattern += @{
+            PlatformTopology = @{
+                Alias = @{
+                    Match = ".*" # enter Regex pattern here for creating platform topology aliases from node names
+                    Groups = @(0)
+                }
+            }
+        }
+
+    #endregion PLATFORM TOPOLOGY ALIASES    
+
     #region TLS BEST PRACTICES
     
         # The following line indicates a post-installation configuration to the installer
@@ -62,6 +78,16 @@
             # signatureAlgorithms = @("sha256RSA")
         }
 
-    #endregion TLS BEST PRACTICES    
+    #endregion TLS BEST PRACTICES   
+    
+    #region OVERWATCH TOPOLOGY
+
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Platform > Topology > Update Overwatch Remote Controllers    
+
+        $global:OverwatchRemoteControllers += @()
+        $global:OverwatchControllers += $global:OverwatchRemoteControllers
+
+    #endregion OVERWATCH TOPOLOGY    
 
 #endregion INSTANCE DEFINITIONS

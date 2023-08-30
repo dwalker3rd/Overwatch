@@ -136,8 +136,8 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         $global:RegexPattern += @{
             PlatformTopology = @{
                 Alias = @{
-                    Match = "" # enter Regex pattern here for creating platform topology aliases from node names
-                    Groups = @()
+                    Match = ".*" # enter Regex pattern here for creating platform topology aliases from node names
+                    Groups = @(0)
                 }
             }
         }
@@ -162,5 +162,15 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         }
 
     #endregion TLS BEST PRACTICES   
+
+    #region OVERWATCH TOPOLOGY
+
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Platform > Topology > Update Overwatch Remote Controllers    
+
+        $global:OverwatchRemoteControllers += @()
+        $global:OverwatchControllers += $global:OverwatchRemoteControllers
+
+    #endregion OVERWATCH TOPOLOGY    
 
 #endregion INSTANCE-DEFINITIONS
