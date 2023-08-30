@@ -70,6 +70,17 @@ $global:Catalog.Cloud += @{ Azure =
     }
 }
 
+$global:Catalog.Platform += @{ None = 
+    [Platform]@{
+        Id = "None"
+        Name = "None"
+        DisplayName = "None"
+        Image = "../img/none.png"
+        Description = "Overwatch services for the None platform"
+        Publisher = "Walker Analytics Consulting"
+    }
+}
+
 $global:Catalog.Platform += @{ TableauServer = 
     [Platform]@{
         Id = "TableauServer"
