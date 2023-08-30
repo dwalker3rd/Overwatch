@@ -310,7 +310,7 @@ function global:Initialize-OverwatchTopology {
 
     [CmdletBinding()] 
     param (
-        [Parameter(Mandatory=$false)][Alias("Controller","c")][string]$ComputerName,
+        # [Parameter(Mandatory=$false)][Alias("Controller","c")][string[]]$ComputerName = $global:OverwatchControllers,
         [switch]$ResetCache,
         [switch]$NoCache
     )
@@ -328,11 +328,14 @@ function global:Initialize-OverwatchTopology {
         Alias = Get-PlatformTopology alias
     }
 
-    $overwatchControllers = Find-OverwatchControllers -Computername $ComputerName
-    foreach ($overwatchController in $overwatchControllers) {
+    # add overwatch controllers to wsman trusted hosts (required for remoting)
+    Add-WSManTrustedHosts -ComputerName $global:OverwatchControllers
+
+    # find-overwatchcontrollers ensures that each node in $ComputerName is reachable
+    foreach ($overwatchController in (Find-OverwatchControllers)) {
         
         # add overwatch controller to wsman trusted hosts (required for remoting)
-        Add-WSManTrustedHosts -ComputerName $overwatchController | Out-Null
+        # Add-WSManTrustedHosts -ComputerName $overwatchController | Out-Null
 
         $owcEnviron = Get-EnvironConfig -Key Environ -ComputerName $overwatchController
         $owcNodes = Get-PlatformTopology nodes -Keys -Controller $overwatchController

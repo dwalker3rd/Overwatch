@@ -91,8 +91,7 @@ $global:WarningPreference = "SilentlyContinue"
         $ignoreOutput = New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly -Name 1 -Value * -PropertyType String
 
         # configure trusted hosts (for this node)
-        $trustedHosts = Add-WSManTrustedHosts -ComputerName $TrustedHosts
-        $trustedHosts | Out-Null
+        Add-WSManTrustedHosts -ComputerName $TrustedHosts | Out-Null
 
         # enable WSMan Credssp for Server (for remote nodes)
         $nodes = @()
