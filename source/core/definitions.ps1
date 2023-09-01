@@ -61,11 +61,6 @@
     if (Test-Path -Path "$($global:Location.Definitions)\definitions-platformInstance-$($global:Environ.Instance.ToLower()).ps1") {. "$($global:Location.Definitions)\definitions-platformInstance-$($global:Environ.Instance.ToLower()).ps1"}
 
 #endregion PLATFORM DEFINITIONS
-#region MINIMUM DEFINITIONS RETURN
-
-    if ($MinimumDefinitions) { return }
-
-#endregion MINIMUM DEFINITIONS RETURN
 #region LOADEARLY
 
     . "$($global:Location.Definitions)\definitions-services-loadearly.ps1"
@@ -83,6 +78,11 @@
     Update-Catalog
 
 #endregion UPDATE CATALOG
+#region MINIMUM DEFINITIONS RETURN
+
+    if ($MinimumDefinitions) { return }
+
+#endregion MINIMUM DEFINITIONS RETURN
 #region PRODUCTS
 
     if (!$global:Environ.Product) {return}
