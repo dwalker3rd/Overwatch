@@ -1,4 +1,52 @@
-﻿function global:Measure-ServerPerformance {
+﻿enum OSProductType {
+    WorkStation = 1
+    DomainController = 2
+    Server = 3
+}
+
+function global:IsWindows {
+
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param (
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    ) 
+
+    if ($ComputerName -eq $env:COMPUTERNAME) {
+        $IsWindows
+    }
+    else {
+        $psSession = New-PSSession+ -ComputerName $ComputerName
+        return Invoke-Command -Session $psSession -ScriptBlock { $IsWindows }
+    }
+
+}
+
+function global:IsServer {
+
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param (
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    ) 
+
+    return (Get-CimInstance -ClassName Win32_OperatingSystem -ComputerName $ComputerName | Select-Object -Property ProductType).ProductType -eq [OSProductType]::Server
+
+}
+
+function global:IsWindowsServer {
+
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param (
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    ) 
+
+    return $IsWindows -and (IsServer)
+
+}
+
+function global:Measure-ServerPerformance {
 
     [CmdletBinding()]
     param (
@@ -63,54 +111,49 @@ function global:Get-ServerInfo {
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
     ) 
-    
-    # if ($(Get-Cache serverinfo).Exists) {
-    #     Write-Information  "Read-Cache serverinfo"
-    #     $serverInfo = Read-Cache serverinfo
-    #     if ($serverInfo) {return $serverInfo}
-    # }
+
 
     $serverInfo = @()
     foreach ($node in $ComputerName) {
 
-        $Win32_ComputerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ComputerName $node | 
+        $_serverInfo = Get-CimInstance -ClassName Win32_ComputerSystem -ComputerName $node | 
             Select-Object -Property *, @{Name="DomainRoleString"; Expression = {[Microsoft.PowerShell.Commands.DomainRole]$_.DomainRole}} | 
             Select-Object -ExcludeProperty DomainRole | 
             Select-Object -Property *, @{Name="DomainRole"; Expression = {$_.DomainRoleString}} | 
             Select-Object -ExcludeProperty DomainRoleString
 
         Get-CimInstance -ClassName Win32_OperatingSystem -ComputerName $node | 
-            Select-Object -Property OSArchitecture | ForEach-Object {
-                $Win32_ComputerSystem | Add-Member -NotePropertyName OSArchitecture -NotePropertyValue $_.OSArchitecture
+            Select-Object -Property Name, OSArchitecture, Version | ForEach-Object {
+                $_serverInfo | Add-Member -NotePropertyName OSName -NotePropertyValue ($_.Name -split "\|")[0]
+                $_serverInfo | Add-Member -NotePropertyName OSArchitecture -NotePropertyValue $_.OSArchitecture
+                $_serverInfo | Add-Member -NotePropertyName OSVersion -NotePropertyValue $_.Version
             }
 
         Get-CimInstance -ClassName Win32_Processor -ComputerName $node | 
             Select-Object -Property Name, NumberOfCores, NumberOfLogicalProcessors | ForEach-Object {
-                $Win32_ComputerSystem | Add-Member -NotePropertyName CPU -NotePropertyValue $_.Name
-                $Win32_ComputerSystem | Add-Member -NotePropertyName NumberOfCores -NotePropertyValue $_.NumberOfCores
+                $_serverInfo | Add-Member -NotePropertyName CPU -NotePropertyValue $_.Name
+                $_serverInfo | Add-Member -NotePropertyName NumberOfCores -NotePropertyValue $_.NumberOfCores
             }
 
-        Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter IPEnabled=$true -ComputerName $node | 
+        $_win32_NetworkAdapterConfiguration = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter IPEnabled=$true -ComputerName $node
+
+        $_win32_NetworkAdapterConfiguration | 
             Select-Object -Property MACAddress | ForEach-Object {
-                $Win32_ComputerSystem | Add-Member -NotePropertyName MACAddress -NotePropertyValue $_.MACAddress
+                $_serverInfo | Add-Member -NotePropertyName MACAddress -NotePropertyValue $_.MACAddress
             }
 
-        Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter IPEnabled=$true -ComputerName $node | 
+        $_win32_NetworkAdapterConfiguration | 
             Select-Object -ExpandProperty IPAddress | ForEach-Object {
-                if ($_ -like "*::*") {$Win32_ComputerSystem | Add-Member -NotePropertyName Ipv6Address -NotePropertyValue $_}
-                if ($_ -like "*.*") {$Win32_ComputerSystem | Add-Member -NotePropertyName Ipv4Address -NotePropertyValue $_}
+                if ($_ -like "*::*") {$_serverInfo | Add-Member -NotePropertyName Ipv6Address -NotePropertyValue $_}
+                if ($_ -like "*.*") {$_serverInfo | Add-Member -NotePropertyName Ipv4Address -NotePropertyValue $_}
             }
 
-        $Win32_ComputerSystem | Add-Member -NotePropertyName OS -NotePropertyValue WindowsServer
-        $Win32_ComputerSystem | Add-Member -NotePropertyName WindowsProductName -NotePropertyValue  $((Get-CimInstance -ClassName Win32_OperatingSystem -ComputerName $node).Name -split "\|")[0]
-        $Win32_ComputerSystem | Add-Member -NotePropertyName FQDN -NotePropertyValue $("$($Win32_ComputerSystem.Name)$($Win32_ComputerSystem.PartOfDomain ? "." + $Win32_ComputerSystem.Domain : $null)")
-        $Win32_ComputerSystem | Add-Member -NotePropertyName DisplayName -NotePropertyValue $("$($Win32_ComputerSystem.FQDN) at $($Win32_ComputerSystem.Ipv4Address)")
+        $_serverInfo | Add-Member -NotePropertyName OSType -NotePropertyValue (Get-OS -ComputerName $node).Id
+        $_serverInfo | Add-Member -NotePropertyName FQDN -NotePropertyValue $("$($_serverInfo.Name)$($_serverInfo.PartOfDomain ? "." + $_serverInfo.Domain : $null)")
+        $_serverInfo | Add-Member -NotePropertyName DisplayName -NotePropertyValue $("$($_serverInfo.FQDN) at $($_serverInfo.Ipv4Address)")
 
-        $serverInfo += $Win32_ComputerSystem
+        $serverInfo += $_serverInfo
     }
-
-    # Write-Debug "Write-Cache serverinfo"
-    # Write-Cache serverinfo -InputObject $serverInfo
 
     return $serverInfo
 }
@@ -316,7 +359,7 @@ param(
     [Parameter(Mandatory=$false)][string[]]$IgnoreDisks = $global:ignoreDisks
 )
 
-return Get-CimInstance -ClassName Win32_LogicalDisk -ComputerName $ComputerName |
+return Get-CimInstance -ClassName Cim_LogicalDisk -ComputerName $ComputerName |
     Where-Object {$_.DriveType -notin $ignoreDriveType} | Where-Object {$_.Name -notin $ignoreDisks} |
     Sort-Object -Property Name | 
     Select-Object PSComputerName, Name, Description,`
@@ -341,7 +384,7 @@ param (
 # if $StartName doesn't include a "\", assume local and prepend ".\"
 if ($StartName.IndexOf("\") -eq -1) {$StartName = ".\" + $StartName}
 
-$svc = Get-CimInstance -ClassName Win32_Service -Filter "Name='$Name'" -ComputerName $ComputerName 
+$svc = Get-CimInstance -ClassName Cim_Service -Filter "Name='$Name'" -ComputerName $ComputerName 
 
 return $svc | Select-Object -Property @{Name="ComputerName";Expression={$_.PSComputerName.ToLower()}}, Name, StartName, @{Name="IsOK";Expression={$_.StartName -eq $StartName}} | Sort-Object -Property ComputerName
 }
@@ -362,7 +405,7 @@ param (
 # if $StartName doesn't include a "\", assume local and prepend ".\"
 if ($StartName.IndexOf("\") -eq -1) {$StartName = ".\" + $StartName}
 
-$svc = Get-CimInstance -ClassName Win32_Service -Filter "Name='$Name'" -ComputerName $ComputerName 
+$svc = Get-CimInstance -ClassName Cim_Service -Filter "Name='$Name'" -ComputerName $ComputerName 
 if ($svc.StartName -ne $StartName) { 
     $svc | Invoke-CimMethod -MethodName Change -Arguments @{ StartName = "$($StartName)"; StartPassword = "$($StartPassword)" }
     Grant-LogOnAsAService -Name $StartName -ComputerName $ComputerName

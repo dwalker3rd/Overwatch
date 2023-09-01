@@ -4,6 +4,60 @@
 
 #region OVERWATCH
 
+    function global:Get-OverwatchGlobalVariables {
+        
+        [CmdletBinding()] 
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string]$Type,
+            [Parameter(Mandatory=$false)][ValidateSet("Global","Local")][string]$Scope = "Global",
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        )
+
+        if ($ComputerName -eq $env:COMPUTERNAME -and [string]::IsNullOrEmpty($Path)) {
+            
+            $result = Invoke-Expression "`$$($Scope):$($Type)"
+
+        }
+        else {
+
+            $remoteOverwatchRoot = Get-EnvironConfig -Key Location.Root -ComputerName $ComputerName
+            if (![string]::IsNullOrEmpty($remoteOverwatchRoot)) {
+
+                # this is a sandbox, so instead of the usual pssession reuse pattern,
+                # create a new session, make the remoting call, and delete the session
+                $psSession = New-PSSession+ -ComputerName $ComputerName
+
+                try {
+                    $result = Invoke-Command -Session $psSession -ScriptBlock {
+                        Set-Location $using:remoteOverwatchRoot
+                        . $using:remoteOverwatchRoot/definitions.ps1 -MinimumDefinitions
+                        Invoke-Expression "`$$($using:Scope):$($using:Type)"
+                    } 
+                }
+                catch {}             
+                finally {       
+
+                    $typedResult = New-Object -Type $Type
+                    foreach ($property in $typedResult.PSObject.Properties.Name) {
+                        $typedResult.$property = $result.$property
+                    }
+                    $result = $typedResult   
+                    
+                }
+
+                Remove-PSSession+ -Session $psSession
+
+            }
+        }
+
+        if (!$result) { 
+            throw "Overwatch object `$$($Scope):$($Type) was NOT FOUND on node $ComputerName"
+        }            
+
+        return $result
+
+    }
+
     function global:Get-EnvironConfig {
 
         [CmdletBinding()] 
@@ -68,6 +122,20 @@
     } 
 
 #endregion OVERWATCH
+#region OS
+
+    function global:Get-OS {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+        )
+
+        return (Get-OverwatchGlobalVariables -Type OS -ComputerName $ComputerName)
+        
+    }
+
+#endregion OS
 #region PROVIDERS
 
     function global:Get-Product {
@@ -310,7 +378,13 @@
             $catalogObjects += $__catalogObjects
         }
 
-        $catalogObjects | Foreach-Object {$_.Refresh()}
+        if ($remoteQuery){
+            $environKeyValues = Get-EnvironConfig -Key Environ.$Type -ComputerName $ComputerName
+            $catalogObjects | Foreach-Object {$_.Refresh($environKeyValues)}
+        }
+        else {
+            $catalogObjects | Foreach-Object {$_.Refresh()}
+        }
 
         if ($Installed) { $catalogObjects = $catalogObjects | Where-Object {$_.IsInstalled()} }
         if ($NotInstalled) { $catalogObjects = $catalogObjects | Where-Object {!$_.IsInstalled()} }

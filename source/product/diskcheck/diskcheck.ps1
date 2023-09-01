@@ -54,7 +54,7 @@ function global:Confirm-DiskSpace {
             Summary = "Disk Space on $($serverInfo.DisplayName) is $($diskSpaceState[$diskSpaceStateIndex].ToUpper())"
         }
         $msg.Sections += @{
-            ActivityTitle = $serverInfo.WindowsProductName
+            ActivityTitle = $serverInfo.OSName
             ActivitySubtitle = $serverInfo.DisplayName
             ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) Cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
             ActivityImage = $global:OS.Image

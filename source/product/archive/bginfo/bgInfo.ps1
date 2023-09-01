@@ -74,7 +74,7 @@ function Update-BgInfoCustomContent {
             }
             Add-Content -Path $bgInfoContent.Path -Value ""
 
-            Add-Content -Path $bgInfoContent.Path -Value "OS Version:`t$($serverInfo.WindowsProductName)"
+            Add-Content -Path $bgInfoContent.Path -Value "OS Version:`t$($serverInfo.OSName)"
             Add-Content -Path $bgInfoContent.Path -Value "System Type:`t$($serverInfo.DomainRole)"
             Add-Content -Path $bgInfoContent.Path -Value ""
 

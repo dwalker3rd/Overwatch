@@ -29,7 +29,14 @@ class CatalogObject {
         $this.Type = $this.GetType().Name
         $this.Installed = $this.IsInstalled()
         $this.SortProperty = $this.GetSortProperty()
-        $this.ComputerName = $env:COMPUTERNAME
+        $this.ComputerName = $this.ComputerName ?? $env:COMPUTERNAME
+    }
+
+    [void]Refresh([string[]]$EnvironKeyValues) {
+        $this.Type = $this.GetType().Name
+        $this.Installed = $this.IsInstalled($EnvironKeyValues)
+        $this.SortProperty = $this.GetSortProperty()
+        $this.ComputerName = $this.ComputerName ?? $env:COMPUTERNAME
     }
 
     [string]Uid() {
@@ -38,6 +45,9 @@ class CatalogObject {
 
     [bool]IsInstalled() {
         return $this.Id -in $global:Environ.$($this.Type)
+    }
+    [bool]IsInstalled([string[]]$EnvironKeyValues) {
+        return $this.Id -in $EnvironKeyValues
     }
 
     hidden [string]GetSortProperty() {

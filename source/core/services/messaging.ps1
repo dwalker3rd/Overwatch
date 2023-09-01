@@ -176,7 +176,7 @@ function global:Send-PlatformStatusMessage {
 
         $section = @{
             ActivityTitle = "**$($node.ToUpper())**"
-            ActivitySubTitle = "$($serverInfo.WindowsProductName)"
+            ActivitySubTitle = "$($serverInfo.OSName)"
             ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
             ActivityImage = $global:OS.Image
             Facts = @(
@@ -216,7 +216,7 @@ function global:Send-PlatformStatusMessage {
         if ($facts) {
             $section = @{
                 ActivityTitle = "**$($node)**"
-                ActivitySubTitle = "$($serverInfo.WindowsProductName), $($serverInfo.Model)"
+                ActivitySubTitle = "$($serverInfo.OSName), $($serverInfo.Model)"
                 ActivityText = "Performance: $($serverInfo.NumberOfLogicalProcessors) cores at $($cpuUtil.Text) utilization; $($memAvailable.Text) of $($memTotal) available"
                 ActivityImage = $global:OS.Image
                 Facts = $facts
@@ -563,7 +563,7 @@ function global:Send-ServerStatusMessage {
     )
 
     $sectionMain = @{
-        ActivityTitle = $serverInfo.WindowsProductName
+        ActivityTitle = $serverInfo.OSName
         ActivitySubtitle = $serverInfo.DisplayName
         ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) Cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
         ActivityImage = $global:OS.Image
@@ -798,11 +798,17 @@ function global:Send-ServerInterventionMessage {
 
     $serverInfo = Get-ServerInfo -ComputerName $ComputerName
 
+    $facts = @(
+        @{name  = "Message"; value = $Message}
+    )
+
     $sectionMain = @{}
     $sectionMain = @{
-        ActivityTitle = "INTERVENTION REQUIRED"
-        ActivitySubtitle = $Message
-        ActivityImage = "$($global:Location.Images)/intervention.png"
+        ActivityTitle = $serverInfo.OSName
+        ActivitySubtitle = $serverInfo.DisplayName
+        ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) Cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
+        ActivityImage = (Get-OS -ComputerName $ComputerName).image
+        Facts = $facts
     }
 
     $sections += $sectionMain
@@ -815,7 +821,53 @@ function global:Send-ServerInterventionMessage {
         Summary = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
         Subject = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
         Throttle = $NoThrottle ? [timespan]::Zero : [timespan]::Zero
-        Source = "Send-ServerMessage"
+        Source = "Send-ServerInterventionMessage"
+    }
+
+    return Send-Message -Message $msg
+
+}
+
+function global:Send-GenericMessage {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false)][string]$Context,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$true,Position=0)][string]$Message,
+        [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Information,
+        [switch]$NoThrottle
+    )
+
+    $sections = @()
+
+    $_product = $Context ? (Get-Product $Context) : (Get-Product $global:Product.Id)
+    $serverInfo = Get-ServerInfo -ComputerName $ComputerName
+
+    $facts = @(
+        @{name  = "Message"; value = $Message}
+    )
+
+    $sectionMain = @{}
+    $sectionMain = @{
+        ActivityTitle = $serverInfo.OSName
+        ActivitySubtitle = $serverInfo.DisplayName
+        ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) Cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
+        ActivityImage = (Get-OS -ComputerName $ComputerName).image
+        Facts = $facts
+    }
+
+    $sections += $sectionMain
+
+    $msg = @{
+        Title = $_product.DisplayName
+        Text = $_product.Description
+        Sections = $sections
+        Type = $MessageType
+        Summary = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
+        Subject = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
+        Throttle = $NoThrottle ? [timespan]::Zero : [timespan]::Zero
+        Source = "Send-GenericMessage"
     }
 
     return Send-Message -Message $msg
