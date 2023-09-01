@@ -1,7 +1,7 @@
 #region PREFLIGHT
 
-    Test-NetConnection+ -ComputerName (pt -nodes -k) | Out-Null
-    Test-PSRemoting | Out-Null -ComputerName (pt -nodes -k) | Out-Null
+    Test-NetConnection+ -ComputerName (pt nodes -k) | Out-Null
+    Test-PSRemoting | Out-Null -ComputerName (pt nodes -k) | Out-Null
 
     #region Test-SslProtocol
 
