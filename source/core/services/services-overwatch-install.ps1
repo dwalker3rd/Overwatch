@@ -1,3 +1,20 @@
+#region LOCAL DEFINTIIONS
+
+$script:ReviewRequiredRegionLabel = "REVIEW-REQUIRED"
+$script:ReviewRequiredContent = 
+@"
+#region $ReviewRequiredRegionLabel
+
+    # Manual Configuration > Definitions File > Template > Review
+    # The template for this file has been updated. However, Overwatch was unable to apply those updates.  
+    # Review the template and, where necessary, manually apply the updates from the template to this file.
+    # TEMPLATE: <templateFilePath>
+
+#endregion $ReviewRequiredRegionLabel
+
+"@
+
+#endregion LOCAL DEFINITIONS
 #region FILE MANAGEMENT
 
 function script:Copy-File {
@@ -128,8 +145,10 @@ function script:Copy-File {
                 $destinationFile = Get-ChildItem $destinationFilePath
                 $pathFileIsNewer = $pathFile.LastWriteTime -gt $destinationFile.LastWriteTime
                 
+                $templateFilePath = $null
                 $pathFileTemplateUpdate = $false
                 if ($pathFile.FullName.EndsWith("-template.ps1")) {
+                    $templateFilePath = $pathFile
                     $pathFileTemplateVariables = [regex]::Matches((Get-Content $pathFile), "((?'key'\S*?)\s*\=\s*)`"(?'value'<[a-zA-z]*?>)`"", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) | ForEach-Object {$_.Groups["value"].Value}
                     if ($pathFileTemplateVariables) {
                         $destinationFilePathTemplateVariables = $pathFileTemplateVariables | ForEach-Object { [regex]::Matches((Get-Content $destinationFilePath), $_, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) }
@@ -142,7 +161,11 @@ function script:Copy-File {
                 $updatePathFile = ($pathHashIsDifferent -and $pathFileIsNewer) -or $pathFileTemplateUpdate
 
                 if ($pathHashIsDifferent -and !$pathFileNewer) {
-                    Write-Host+ -IfDebug -NoTrace -NoTimestamp "  DEBUG: $pathFile is different from $destinationFile, but $destinationFile is newer." -ForegroundColor DarkGray
+                    Write-Host+ -IfDebug -NoTrace -NoTimestamp "  DEBUG: The source and destination files are different, but the destination file is newer" -ForegroundColor DarkGray
+                }
+
+                if (![string]::IsNullOrEmpty($templateFilePath) -and ($pathHashIsDifferent -or $pathFileTemplateUpdate)) {
+                    $noClobber = $true
                 }
 
                 if (!$updatePathFile) {
@@ -168,7 +191,7 @@ function script:Copy-File {
                     }
 
                     if ($PSBoundParameters.ContainsKey('WhatIf')) {
-                        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoNewLine "  [$_suiteOrComponent`:$_suiteOrName] $pathFile" -ForegroundColor $($noClobber ? "DarkYellow" : "DarkGray")
+                        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoNewLine "  [$_suiteOrComponent`:$_suiteOrName] $destinationFilePath" -ForegroundColor $($noClobber ? "DarkYellow" : "DarkGray")
                         Write-Host+ -Iff $(!$Quiet -and $noClobber) -NoTrace -NoTimestamp " -NOCLOBBER " -ForegroundColor DarkYellow
                         Write-Host+ -Iff $(!$Quiet -and !$noClobber)
                     }
@@ -176,6 +199,15 @@ function script:Copy-File {
                         if (!$noClobber) {
                             Split-Path -Path $pathFile -Leaf -Resolve | Foreach-Object {Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp "  Copied $_ to $destinationFilePath" -ForegroundColor DarkGray}
                         }
+                    }
+
+                    if ($noClobber) {
+                        $destinationFileContent = Get-Content -Path $destinationFilePath -Raw
+                        $destinationFileContent = $destinationFileContent -replace "(?s)(#region $ReviewRequiredRegionLabel.*#endregion $ReviewRequiredRegionLabel)"
+                        $destinationFileContent = $destinationFileContent -replace "(?s)^`r`n\s*"
+                        $ReviewRequiredContent = $ReviewRequiredContent -replace "<templateFilePath>",$templateFilePath
+                        Set-Content -Path $destinationFilePath -Value $ReviewRequiredContent -WhatIf:$false | Out-Null
+                        Add-Content -Path $destinationFilePath -Value $destinationFileContent -WhatIf:$false | Out-Null
                     }
 
                 }
