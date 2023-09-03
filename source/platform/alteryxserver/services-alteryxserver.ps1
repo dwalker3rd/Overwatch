@@ -1052,12 +1052,6 @@ function global:Restart-Worker {
 #endregion STOP-START
 #region BACKUP
 
-function global:Get-BackupFileName {
-    $global:Backup.Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $global:Backup.File = "$($global:Backup.Path)\$($global:Backup.Name).$($global:Backup.Extension)"
-    return $global:Backup.File
-}
-
 function global:Backup-Platform {
 
     [CmdletBinding()] param()
@@ -1087,6 +1081,8 @@ function global:Backup-Platform {
         }
     }
 
+    $backupFolder = "$($global:Backup.Path)\$($global:Backup.Name).$($global:Backup.Extension)"
+
     if (!$fail) {
 
         $step = "MongoDB Backup"
@@ -1095,7 +1091,7 @@ function global:Backup-Platform {
         Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
 
         try {
-            Invoke-AlteryxService "emongodump=$(Get-BackupFileName)"
+            Invoke-AlteryxService "emongodump=$backupFolder"
             Write-Verbose "$step COMPLETED"
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
         }
@@ -1105,6 +1101,27 @@ function global:Backup-Platform {
             Write-Error "$step FAILED"
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
         } 
+
+        if (!$fail) {
+
+            $step = "RuntimeSettings.xml Backup"
+
+            Write-Verbose "$step PENDING"
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
+
+            try {
+                Copy-File $global:Location.RuntimeSettings -Destination $backupFolder -Verbose
+                Write-Verbose "$step COMPLETED"
+                Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
+            }
+            catch {
+                $fail = $true
+                Write-Error "$($_.Exception.Message)"
+                Write-Error "$step FAILED"
+                Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
+            } 
+
+        }
 
     }
 

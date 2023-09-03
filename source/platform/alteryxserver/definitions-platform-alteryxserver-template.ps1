@@ -141,4 +141,8 @@
 
     )
 
+    $global:Location += @{
+        RuntimeSettings = "C:\ProgramData\Alteryx\RuntimeSettings.xml"
+    }  
+
 #endregion PLATFORM DEFINITIONS
