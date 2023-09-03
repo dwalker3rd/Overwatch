@@ -277,7 +277,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion CLOUD
 #region PLATFORM ID
 
-    $installedPlatforms += @("None")
+    if ([string]::IsNullOrEmpty($installedPlatforms)) {
+        $installedPlatforms += @("None")
+    }
     $platformId = $installedPlatforms[0]
     do {
         $platformIdResponse = $null
@@ -323,7 +325,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     }
 
 #endregion PLATFORM INSTALL LOCATION
-#region PLATFORM INSTANCE URL
+#region PLATFORM INSTANCE URI
 
     if ($platformId -ne "None") {
         do {
@@ -343,22 +345,22 @@ $global:Location.Definitions = $tempLocationDefinitions
                 Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid URI format" -ForegroundColor Red
                 $platformInstanceUri = $null
             }
-            if ($platformInstanceUri) {
-                try {
-                    Invoke-WebRequest $platformInstanceUri -Method Head | Out-Null
-                    Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] Response from '$platformInstanceUri'" -IfVerbose -ForegroundColor DarkGreen
-                }
-                catch
-                {
-                    Write-Host+ -NoTrace -NoTimestamp "[ERROR] No response from '$platformInstanceUri'" -ForegroundColor Red
-                    $platformInstanceUri = $null
-                }
-            }
+            # if ($platformInstanceUri) {
+            #     try {
+            #         Invoke-WebRequest $platformInstanceUri -Method Head | Out-Null
+            #         Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] Response from '$platformInstanceUri'" -IfVerbose -ForegroundColor DarkGreen
+            #     }
+            #     catch
+            #     {
+            #         Write-Host+ -NoTrace -NoTimestamp "[ERROR] No response from '$platformInstanceUri'" -ForegroundColor Red
+            #         # $platformInstanceUri = $null
+            #     }
+            # }
         } until ($platformInstanceUri)
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
     }
 
-#endregion PLATFORM INSTANCE URL
+#endregion PLATFORM INSTANCE URI
 #region PLATFORM INSTANCE DOMAIN
 
     if ($platformId -ne "None") {
@@ -566,7 +568,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                 }
 
                 if ($productResponse -eq "Y") {
-                    $dependencies += Get-CatalogDependencies -Type Product -Id $product.id -Include Product,Provider -NotInstalled
+                    $dependencies += Get-CatalogDependencies -Type Product -Id $product.id -Include Product,Provider -NotInstalled -Platform $platformId
                 }
             }
 
@@ -608,7 +610,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                     if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
                     if ($providerResponse -eq "Y") {
                         $_providerIds += $provider.Id
-                        $dependencies += Get-CatalogDependencies -Type Provider -Id $provider.id -Include Product,Provider -NotInstalled
+                        $dependencies += Get-CatalogDependencies -Type Provider -Id $provider.id -Include Product,Provider -NotInstalled -Platform $platformId
                     }
                 }
 
