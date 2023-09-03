@@ -288,19 +288,23 @@ function global:Show-PlatformStatus {
     #endregion EVENTS     
     #region ISSUES           
 
-        $platformIssues = $platformStatus.platformIssues
-        if ($Issues -and $platformIssues) {
-            $platformIssues | Format-Table -Property Node, Class, Name, Status, Component
-        }  
+        if ($global:WriteHostPlusPreference -eq "Continue") {
+            $platformIssues = $platformStatus.platformIssues
+            if ($Issues -and $platformIssues) {
+                $platformIssues | Format-Table -Property Node, Class, Name, Status, Component
+            }
+        }
         
     #endregion ISSUES
     #region SERVICES         
 
-        if ($All -or ($Issues -and $platformIssues)) {
-            $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
-            if ($Required) { $_components = $_components | Where-Object {$_.Required} }
-            if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
-            $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
+        if ($global:WriteHostPlusPreference -eq "Continue") {
+            if ($All -or ($Issues -and $platformIssues)) {
+                $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
+                if ($Required) { $_components = $_components | Where-Object {$_.Required} }
+                if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
+                $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
+            }
         }
 
     #endregion SERVICES   
@@ -1069,14 +1073,18 @@ function global:Backup-Platform {
     # stop and disable Monitor
     Disable-PlatformTask -Id "Monitor" -OutputType null
 
-    try {
-        $step = "Platform STOP"
-        Stop-Platform -Context "Backup"
-    }
-    catch {
-        $fail = $true
-        Write-Error "$step Failed"
-        Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+    $platformStatusBeforeBackup = Get-PlatformStatus -ResetCache
+
+    if ($platformStatusBeforeBackup.RollupStatus -eq "Running") {
+        try {
+            $step = "Platform STOP"
+            Stop-Platform -Context "Backup"
+        }
+        catch {
+            $fail = $true
+            Write-Error "$step Failed"
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+        }
     }
 
     if (!$fail) {
@@ -1100,14 +1108,16 @@ function global:Backup-Platform {
 
     }
 
-    try {
-        $step = "Platform START"
-        Start-Platform -Context "Backup"
-    }
-    catch {
-        $fail = $true
-        Write-Error "$step failed"
-        Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+    if ($platformStatusBeforeBackup.RollupStatus -eq "Running") {
+        try {
+            $step = "Platform START"
+            Start-Platform -Context "Backup"
+        }
+        catch {
+            $fail = $true
+            Write-Error "$step failed"
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+        }
     }
 
     # enable Monitor
