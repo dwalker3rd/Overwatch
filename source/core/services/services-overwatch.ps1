@@ -638,7 +638,8 @@
             [switch]$AllowDuplicates,
             [switch]$CatalogObjectsOnly,
             [switch]$Installed,
-            [switch]$NotInstalled
+            [switch]$NotInstalled,
+            [Parameter(Mandatory=$false)][string[]]$Platform
         )
 
         # "None" is a reserved word for an empty $global:Environ definition
@@ -738,6 +739,10 @@
         }
         elseif (![string]::IsNullOrEmpty($ExcludeDependencyType)) {
             $dependencies = $dependencies | Where-Object {$_.Type -notin $ExcludeDependencyType}
+        }
+
+        If (![string]::IsNullOrEmpty($Platform)) {
+            $dependencies = $dependencies | Where-Object {$_.Dependent -eq "Platform.$Platform"}
         }
 
         return $dependencies
