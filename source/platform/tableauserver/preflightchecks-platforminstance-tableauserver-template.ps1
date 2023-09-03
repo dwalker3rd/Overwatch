@@ -6,7 +6,7 @@
     $allowedRepositoryHosts = @()
     if ($allowedRepositoryHosts) {
 
-        Test-NetConnection+ $allowedRepositoryHosts | Out-Null
+        Test-NetConnection+ -ComputerName $allowedRepositoryHosts | Out-Null
 
         $heartbeat = Get-Heartbeat
         if ($heartbeat.IsOK) {        

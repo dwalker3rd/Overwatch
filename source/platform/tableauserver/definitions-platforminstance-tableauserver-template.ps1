@@ -1,56 +1,4 @@
-﻿<# 
-.Synopsis
-Template for an Tableau Server platform instance
-.Description
-Template for an Tableau Server platform instance
-
-.Parameter Instance
-User-supplied ID for the platform instance. Must be unique.
-Format: $Environ.Instance -match "^([a-zA-Z]+-?)+$"
-.Parameter Uri
-The uri for the platform instance
-.Parameter Domain
-The domain of the platform instance
-.Parameter InstallPath
-The location where the platform software is installed.
-
-.Parameter PrincipalContextType 
-Security context for the instance
-Supported options: Machine or Domain
-Link: https://docs.microsoft.com/en-us/dotnet/api/system.directoryservices.accountmanagement.contexttype
-.Parameter PrincipalContextName
-If PrincipalContextType -eq "Machine", then the machine name
-If PrincipalContextType -eq "Domain", then the domain name
-
-.Parameter PlatformComponentTimeout
-Consider a platform component to have failed if unresponsive to a command after this period.
-.Parameter PlatformShutdownMax
-Alert if a platform is shutdown (manually or for backups) longer than this period.
-
-.Parameter Backup
-Platform-specific object.  See platform definition file.
-.Parameter Cleanup
-Platform-specific object.  See platform definition file.
-
-.Parameter diskSpaceLowThreshold
-The percentage at which free space on a disk is considered LOW
-.Parameter diskSpaceCriticalThreshold
-The percentage at which free space on a disk is considered CRITICALLY LOW
-.Parameter ignoreDriveType
-Disks by drive type which should be ignored
-Link:  https://docs.microsoft.com/en-us/dotnet/api/system.io.drivetype
-.Parameter ignoreDisks 
-Disks by volume which should be ignored
-
-.Parameter MicrosoftTeamsConfig
-If using the Microsoft Teams provider, it must be configured here.
-
-.Parameter AzureADSync
-If using AzureADSync for Tableau Server, enter the site id[s] here.
-
-#>
-
-#region INSTANCE-DEFINITIONS
+﻿#region INSTANCE-DEFINITIONS
 
     #region PLATFORM-OBJECT
 
@@ -75,7 +23,7 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
 
     #endregion PRINCIPAL-CONTEXT
 
-    #region CLEANUP
+    #region PRODUCT-CLEANUP
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Product > Cleanup > Customization
@@ -95,18 +43,18 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         #     TimeoutInSeconds = 0
         # }  
 
-    #endregion CLEANUP    
+    #endregion PRODUCT-CLEANUP    
 
-    #region DISKS
+    #region PRODUCT-DISKCHECK
 
         $global:diskSpaceLowThreshold = 15
         $global:diskSpaceCriticalThreshold = 10
         $global:ignoreDriveType = @(2,5)
         $global:ignoreDisks = @("D:")
 
-    #endregion DISKS
+    #endregion PRODUCT-DISKCHECK
 
-    #region MICROSOFT-TEAMS
+    #region PROVIDER-MICROSOFT-TEAMS
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Provider > MicrosoftTeams > Webhooks
@@ -126,9 +74,9 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         }
         $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
 
-    #endregion MICROSOFT-TEAMS
+    #endregion PROVIDER-MICROSOFT-TEAMS
 
-    #region PLATFORM TOPOLOGY ALIASES
+    #region PLATFORM-TOPOLOGY-ALIASES
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Platform > Topology > Update Alias Regex [OPTIONAL]
@@ -142,9 +90,9 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
             }
         }
 
-    #endregion PLATFORM TOPOLOGY ALIASES
+    #endregion PLATFORM-TOPOLOGY-ALIASES
     
-    #region TLS BEST PRACTICES
+    #region TLS-BEST-PRACTICES
     
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > PlatformInstance > BestPractice > TLS
@@ -161,9 +109,9 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
             # signatureAlgorithms = @("sha256RSA")
         }
 
-    #endregion TLS BEST PRACTICES   
+    #endregion TLS-BEST-PRACTICES   
 
-    #region OVERWATCH TOPOLOGY
+    #region OVERWATCH-TOPOLOGY
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Platform > Topology > Update Overwatch Remote Controllers    
@@ -171,6 +119,6 @@ If using AzureADSync for Tableau Server, enter the site id[s] here.
         $global:OverwatchRemoteControllers += @()
         $global:OverwatchControllers += $global:OverwatchRemoteControllers
 
-    #endregion OVERWATCH TOPOLOGY    
+    #endregion OVERWATCH-TOPOLOGY    
 
 #endregion INSTANCE-DEFINITIONS

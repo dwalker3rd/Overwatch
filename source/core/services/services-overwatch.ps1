@@ -996,7 +996,7 @@ function global:Get-IpAddress {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
+            [Parameter(Mandatory=$true,Position=0)][string[]]$ComputerName,
             [Parameter(Mandatory=$false)][ValidateSet("HTTP", "RDP", "SMB", "WINRM")][string]$CommonTCPPort = "WINRM",
             [switch]$Quiet
         )
@@ -1077,7 +1077,7 @@ function global:Get-IpAddress {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
+            [Parameter(Mandatory=$true)][string[]]$ComputerName,
             [switch]$Quiet
         )
 
