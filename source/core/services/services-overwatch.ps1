@@ -638,7 +638,8 @@
             [switch]$AllowDuplicates,
             [switch]$CatalogObjectsOnly,
             [switch]$Installed,
-            [switch]$NotInstalled
+            [switch]$NotInstalled,
+            [Parameter(Mandatory=$false)][string[]]$Platform
         )
 
         # "None" is a reserved word for an empty $global:Environ definition
@@ -738,6 +739,10 @@
         }
         elseif (![string]::IsNullOrEmpty($ExcludeDependencyType)) {
             $dependencies = $dependencies | Where-Object {$_.Type -notin $ExcludeDependencyType}
+        }
+
+        If (![string]::IsNullOrEmpty($Platform)) {
+            $dependencies = $dependencies | Where-Object {$_.Dependent -eq "Platform.$Platform"}
         }
 
         return $dependencies
@@ -991,7 +996,7 @@ function global:Get-IpAddress {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
+            [Parameter(Mandatory=$true,Position=0)][string[]]$ComputerName,
             [Parameter(Mandatory=$false)][ValidateSet("HTTP", "RDP", "SMB", "WINRM")][string]$CommonTCPPort = "WINRM",
             [switch]$Quiet
         )
@@ -1072,7 +1077,7 @@ function global:Get-IpAddress {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
+            [Parameter(Mandatory=$true)][string[]]$ComputerName,
             [switch]$Quiet
         )
 

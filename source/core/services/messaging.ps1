@@ -312,6 +312,11 @@ function global:Send-TaskMessage {
     $serverInfo = Get-ServerInfo
 
     $task = Get-PlatformTask -Id $Id
+    if ($null -eq $task -or $task[0].Id -ne $Id -or !$task[0].Installed) {
+        $task = Get-Catalog -Type Product -Id $Id | Select-Object -Property Id,Name,Description,status
+        $task | Add-Member -NotePropertyName ProductId -NotePropertyValue $task.Id
+        $task.Status = "NotInstalled"
+    }
     $Status = $Status ? $Status : $task.Status
 
     $facts = @(
@@ -338,7 +343,7 @@ function global:Send-TaskMessage {
             }
         )
         Title = $task.Name
-        Text = $(Get-Product -Id $task.ProductId).Description 
+        Text = $task.Description 
         Type = $MessageType
         Summary = "Overwatch $MessageType`: $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)) is $($Status.ToUpper())"
         Subject = "Overwatch $MessageType`: $($Id) on $($serverInfo.DisplayName) (Instance: $($global:Platform.Instance)) is $($Status.ToUpper())"

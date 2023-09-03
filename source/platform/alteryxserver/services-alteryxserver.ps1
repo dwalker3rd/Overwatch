@@ -288,19 +288,23 @@ function global:Show-PlatformStatus {
     #endregion EVENTS     
     #region ISSUES           
 
-        $platformIssues = $platformStatus.platformIssues
-        if ($Issues -and $platformIssues) {
-            $platformIssues | Format-Table -Property Node, Class, Name, Status, Component
-        }  
+        if ($global:WriteHostPlusPreference -eq "Continue") {
+            $platformIssues = $platformStatus.platformIssues
+            if ($Issues -and $platformIssues) {
+                $platformIssues | Format-Table -Property Node, Class, Name, Status, Component
+            }
+        }
         
     #endregion ISSUES
     #region SERVICES         
 
-        if ($All -or ($Issues -and $platformIssues)) {
-            $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
-            if ($Required) { $_components = $_components | Where-Object {$_.Required} }
-            if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
-            $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
+        if ($global:WriteHostPlusPreference -eq "Continue") {
+            if ($All -or ($Issues -and $platformIssues)) {
+                $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
+                if ($Required) { $_components = $_components | Where-Object {$_.Required} }
+                if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
+                $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
+            }
         }
 
     #endregion SERVICES   
@@ -1048,12 +1052,6 @@ function global:Restart-Worker {
 #endregion STOP-START
 #region BACKUP
 
-function global:Get-BackupFileName {
-    $global:Backup.Name = "$($global:Environ.Instance).$(Get-Date -Format 'yyyyMMddHHmm')"
-    $global:Backup.File = "$($global:Backup.Path)\$($global:Backup.Name).$($global:Backup.Extension)"
-    return $global:Backup.File
-}
-
 function global:Backup-Platform {
 
     [CmdletBinding()] param()
@@ -1069,15 +1067,21 @@ function global:Backup-Platform {
     # stop and disable Monitor
     Disable-PlatformTask -Id "Monitor" -OutputType null
 
-    try {
-        $step = "Platform STOP"
-        Stop-Platform -Context "Backup"
+    $platformStatusBeforeBackup = Get-PlatformStatus -ResetCache
+
+    if ($platformStatusBeforeBackup.RollupStatus -eq "Running") {
+        try {
+            $step = "Platform STOP"
+            Stop-Platform -Context "Backup"
+        }
+        catch {
+            $fail = $true
+            Write-Error "$step Failed"
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+        }
     }
-    catch {
-        $fail = $true
-        Write-Error "$step Failed"
-        Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
-    }
+
+    $backupFolder = "$($global:Backup.Path)\$($global:Backup.Name).$($global:Backup.Extension)"
 
     if (!$fail) {
 
@@ -1087,7 +1091,7 @@ function global:Backup-Platform {
         Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
 
         try {
-            Invoke-AlteryxService "emongodump=$(Get-BackupFileName)"
+            Invoke-AlteryxService "emongodump=$backupFolder"
             Write-Verbose "$step COMPLETED"
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
         }
@@ -1098,16 +1102,39 @@ function global:Backup-Platform {
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
         } 
 
+        if (!$fail) {
+
+            $step = "RuntimeSettings.xml Backup"
+
+            Write-Verbose "$step PENDING"
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
+
+            try {
+                Copy-File $global:Location.RuntimeSettings -Destination $backupFolder -Verbose
+                Write-Verbose "$step COMPLETED"
+                Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
+            }
+            catch {
+                $fail = $true
+                Write-Error "$($_.Exception.Message)"
+                Write-Error "$step FAILED"
+                Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
+            } 
+
+        }
+
     }
 
-    try {
-        $step = "Platform START"
-        Start-Platform -Context "Backup"
-    }
-    catch {
-        $fail = $true
-        Write-Error "$step failed"
-        Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+    if ($platformStatusBeforeBackup.RollupStatus -eq "Running") {
+        try {
+            $step = "Platform START"
+            Start-Platform -Context "Backup"
+        }
+        catch {
+            $fail = $true
+            Write-Error "$step failed"
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
+        }
     }
 
     # enable Monitor

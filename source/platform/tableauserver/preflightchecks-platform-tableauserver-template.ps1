@@ -1,7 +1,7 @@
 #region PREFLIGHT
 
-    Test-NetConnection+ | Out-Null
-    Test-PSRemoting | Out-Null
+    Test-NetConnection+ -ComputerName (pt nodes -k) | Out-Null
+    Test-PSRemoting -ComputerName (pt nodes -k) | Out-Null
 
     $heartbeat = Get-Heartbeat
     if ($heartbeat.IsOK) {
