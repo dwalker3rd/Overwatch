@@ -136,7 +136,7 @@
     }
 
 #endregion OS
-#region PROVIDERS
+#region PRODUCTS
 
     function global:Get-Product {
 
@@ -204,7 +204,7 @@
 
     # $global:logLockObject = $false
 
-#endregion PROVIDERS
+#endregion PRODUCTS
 #region PROVIDERS
 
     function global:Get-Provider {
