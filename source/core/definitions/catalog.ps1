@@ -335,6 +335,22 @@ $global:Catalog.Product += @{ AzureUpdateMgmt =
     }
 }
 
+$global:Catalog.Product += @{ SSOMonitor = 
+    [Product]@{
+        Id = "SSOMonitor"
+        Name = "SSOMonitor"
+        DisplayName = "SSOMonitor"
+        Description = "Monitors the ssoLogger on the Alteryx Server platform."
+        Publisher = "Walker Analytics Consulting"
+        HasTask = $true
+        Installation = @{
+            Prerequisite = @{
+                Platform = @("AlteryxServer")
+            }
+        }
+    }
+}
+
 $global:Catalog.Provider += @{ SMTP = 
     [Provider]@{
         Id = "SMTP"
