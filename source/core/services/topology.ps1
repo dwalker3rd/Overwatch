@@ -52,7 +52,7 @@ function global:Get-PlatformTopology {
             if (($Online -and ($platformTopology.Nodes.$node.Offline)) -or 
                 ($Offline -and (!$platformTopology.Nodes.$node.Offline))) {
                     foreach ($component in $components) {
-                        if ($node -in $platformTopology.Components.$component.Nodes) {
+                        if ($node -in $platformTopology.Components.$component.Nodes.Keys) {
                             $platformTopology.Components.$component.Nodes.Remove($node)
                         }
                         if ($platformTopology.Components.$component.Nodes.Count -eq 0) {
