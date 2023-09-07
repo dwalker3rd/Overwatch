@@ -154,8 +154,15 @@ function global:Send-PlatformStatusMessage {
         [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Information,
         [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus),
         [switch]$ShowAll,
-        [switch]$NoThrottle
+        [switch]$NoThrottle,
+        [switch]$ShowOffline
     )
+
+    $facts = @()
+    $facts += @{
+        name = "$($global:Platform.Name)"
+        value = "**$($PlatformStatus.RollupStatus.ToUpper())**"        
+    }
 
     $sections = @(
         @{
@@ -163,39 +170,10 @@ function global:Send-PlatformStatusMessage {
             ActivitySubtitle = "Instance: $($global:Platform.Instance)"
             ActivityText = "[$($global:Platform.Uri)]($($global:Platform.Uri))"
             ActivityImage = $global:Platform.Image
-            Facts = @(@{
-                name = "$($global:Platform.Name)"
-                value = "**$($PlatformStatus.RollupStatus.ToUpper())**"
-            })
+            Facts = $facts
         }
     )
 
-    foreach ($node in (Get-PlatformTopology nodes -Offline -Keys)) {
-
-        $serverInfo = Get-ServerInfo -ComputerName $node
-
-        $section = @{
-            ActivityTitle = "**$($node.ToUpper())**"
-            ActivitySubTitle = "$($serverInfo.OSName)"
-            ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
-            ActivityImage = $global:OS.Image
-            Facts = @(
-                foreach ($component in (Get-PlatformTopology nodes.$node.components -Keys)) {
-                    @{
-                        name = $component
-                        value = "**OFFLINE**"
-                    }
-                    @{
-                        name = "Source"
-                        value = "Requested by **$($global:Product.Name)**"
-                    }
-                }
-            )
-        }
-        $sections += $section
-
-    }
-        
     foreach ($node in (Get-PlatformTopology nodes -Online -Keys)) {
 
         $serverInfo = Get-ServerInfo -ComputerName $node
@@ -223,7 +201,33 @@ function global:Send-PlatformStatusMessage {
             }
             $sections += $section
         }
-    }
+    }    
+
+    if ($ShowOffline) {
+        $osImageExtension = ($global:OS.Image -split "\.")[-1]
+        $osImageOffline = $global:OS.Image -replace "\.$osImageExtension","_offline.$osImageExtension"
+        foreach ($node in (Get-PlatformTopology nodes -Offline -Keys)) {
+
+            $serverInfo = Get-ServerInfo -ComputerName $node
+
+            $section = @{
+                ActivityTitle = "**$($node.ToUpper())**"
+                ActivitySubTitle = "$($serverInfo.OSName)"
+                ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
+                ActivityImage = $osImageOffline
+                Facts = @(
+                    foreach ($component in (Get-PlatformTopology nodes.$node.components -Keys)) {
+                        @{
+                            name = $component
+                            value = "**OFFLINE**"
+                        }
+                    }
+                )
+            }
+            $sections += $section
+
+        } 
+    }  
     
     $msg = @{
         Sections = $sections
