@@ -18,11 +18,6 @@
     $global:Product.Description = "Monitors the ssoLogger on the $($global:Platform.Name) platform."
     $global:Product.HasTask = $true
 
-    $global:Product.Config = @{
-        SleepUnits = "Seconds"
-        SleepDuration = 60
-    }
-
     return $global:Product
 
 #endregion PRODUCT DEFINITIONS

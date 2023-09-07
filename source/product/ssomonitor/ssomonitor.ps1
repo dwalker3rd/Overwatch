@@ -17,10 +17,11 @@ $global:Product = Get-Product -Id $global:Product.Id
 Write-Host+ -ResetIndentGlobal
 
 $ttlExceptionPattern = "Saml2 Status Code: Requester->  Saml2 Status Message: The request exceeds the allowable time to live."
+$ttlExceptionDisplayTest = "Requester-> The request exceeds the allowable time to live."
+$ssoRestartPattern = "SAML2 IdP .* successfully configured"
 
-# do {
+#region GALLERY CHECK
 
-    # check each gallery node that is online
     $galleryNodes = pt components.gallery.nodes -k -online
     foreach ($node in $galleryNodes) {
 
@@ -38,7 +39,7 @@ $ttlExceptionPattern = "Saml2 Status Code: Requester->  Saml2 Status Message: Th
             
             # abort if a server startup/reboot/shutdown is in progress
             if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
-                $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
+                $action = "Monitor"; $target = "SSOLogger"; $status = "Aborted"
                 $message = "  Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
                 Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
                 Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
@@ -53,31 +54,46 @@ $ttlExceptionPattern = "Saml2 Status Code: Requester->  Saml2 Status Message: Th
 
             # abort if a platform event is in progress
             if (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted) {
-                $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
+                $action = "Monitor"; $target = "SSOLogger"; $status = "Aborted"
                 $message = $platformStatus.IsStopped ? "  Platform is STOPPED" : "  Platform $($platformStatus.Event.ToUpper()) $($platformStatus.EventStatus.ToUpper())"
                 Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
                 Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
                 continue
             }    
 
-        #endregion SERVER CHECK
+        #endregion SERVER CHECK     
+        #region ALTERYXSERVICE CHECK
 
-        # get timestamp from last check for this gallery node
-        $ssoLogTimestampCache = Read-Cache ssoLogTimestamp
-        $ssoLogTimestamp = $ssoLogTimestampCache.$node ?? [datetime]::MinValue
-
-        # read SSO log
-        $ssoLogFile = Get-Files -Path "C:\ProgramData\Alteryx\Logs\alteryx-sso-$(Get-Date -Format 'yyyyMMdd').csv" -ComputerName $node
-        $ssoLogContent = Import-Csv -Path $ssoLogFile.Path -Encoding Unicode | Where-Object {$_.Date -gt $ssoLogTimestamp} | Sort-Object -Property Date
-
-        $isOk = $true
-
-        # process log entries since last timestamp
-        if ($ssoLogContent) {
-
-            # ensure alteryxservice is running
             $alteryxServerStatus = (Get-PlatformService AlteryxService -ComputerName $node).Status
-            if ($alteryxServerStatus -eq "Running") {
+            if ($alteryxServerStatus -ne "Running") { 
+
+                $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
+                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red   
+
+                $action = "Monitor"; $target = "SSOLogger"; $status = "Aborted"
+                $message = "AlteryxService on $node is $($alteryxServerStatus.ToUpper())"
+                Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType Error -Force
+                Write-Host+ -NoTrace $message -ForegroundColor Red
+
+                continue
+
+            }
+
+        #endregion ALTERYXSERVICE CHECK            
+        #region SSOLOGGER CHECK
+
+            # get timestamp from last check for this gallery node
+            $ssoLogTimestampCache = Read-Cache ssoLogTimestamp
+            $ssoLogTimestamp = $ssoLogTimestampCache.$node ?? [datetime]::MinValue
+
+            # read most recent SSO log
+            $ssoLogFilePath = ((Get-Files -Path "C:\ProgramData\Alteryx\Logs\alteryx-sso-*.csv" -ComputerName $node).FileInfo | Sort-Object -Property LastWriteTime | Select-Object -Last 1).FullName
+            $ssoLogContent = Import-Csv -Path $ssoLogFilePath -Encoding Unicode | Where-Object {$_.Date -gt $ssoLogTimestamp} | Sort-Object -Property Date
+
+            $isOk = $true
+
+            # process log entries since last timestamp
+            if ($ssoLogContent) {
 
                 # search for TTL error; if found restart gallery
                 foreach ($ssoLogEntry in $ssoLogContent) {
@@ -86,20 +102,19 @@ $ttlExceptionPattern = "Saml2 Status Code: Requester->  Saml2 Status Message: Th
                         $message = "$($emptyString.PadLeft(8,"`b")) TTLERROR"
                         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
 
-                        Write-Log -Context $ssoLogEntry.ProcessName -Target $ssoLogEntry.Location -EntryType Error -Status Error -TimeStamp $ssoLogEntry.Date -Message $ttlExceptionPattern
-                        Write-Host+ -NoTrace "  $ttlExceptionPattern" -ForegroundColor Red
-
-                        Write-Host+ -SetIndentGlobal 2
+                        Write-Log -Context $ssoLogEntry.ProcessName -Target $ssoLogEntry.Location -EntryType Error -Status Error -TimeStamp ([datetime]$ssoLogEntry.Date).ToString('u') -Message $ttlExceptionDisplayTest
+                        Write-Host+ -NoTrace "$ttlExceptionDisplayTest" -ForegroundColor Red
 
                         # using ptoffline and ptonline instead of restart-gallery
                         # this should prevent the monitor product from sending platform degraded messages
                         ptOffline $node
                         ptOnline $node
 
-                        Write-Host+ -ResetIndentGlobal
-
                         # re-read SSO log file to get content updates resulting from gallery restart
-                        $ssoLogContent = Import-Csv -Path $ssoLogFile.Path -Encoding Unicode | Where-Object {$_.Date -gt $ssoLogContent[-1].Date} | Sort-Object -Property Date
+                        $ssoLogContent = Import-Csv -Path $ssoLogFilePath -Encoding Unicode | 
+                            Where-Object {$_.Date -gt $ssoLogContent[-1].Date} | 
+                                Sort-Object -Property Date -Descending | 
+                                    Where-Object {$_.Message -match $ssoRestartPattern}
 
                         $isOk = $false
                         break
@@ -107,41 +122,30 @@ $ttlExceptionPattern = "Saml2 Status Code: Requester->  Saml2 Status Message: Th
                     }
                 }
 
+                if ($isOk) {
+                    $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
+                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen       
+                }     
+
+                # update last check timestamp for this node
+                if ($ssoLogTimestampCache.$node) {
+                    $ssoLogTimestampCache.$node = $ssoLogContent[-1].Date
+                }
+                else {
+                    $ssoLogTimestampCache += @{$node = $ssoLogContent[-1].Date}
+                }
+                $ssoLogTimestampCache | Write-Cache ssoLogTimeStamp
+
             }
             else {
-                $message = "$($emptyString.PadLeft(8,"`b")) NOALTERYXSERVICE"
-                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
-                $isOk = $false
-            }
-
-            if ($isOk) {
+                
                 $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
-                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen       
-            }     
+                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
-            # update last check timestamp for this node
-            if ($ssoLogTimestampCache.$node) {
-                $ssoLogTimestampCache.$node = $ssoLogContent[-1].Date
             }
-            else {
-                $ssoLogTimestampCache += @{ $node = $ssoLogContent[-1].Date}
-            }
-            $ssoLogTimestampCache | Write-Cache ssoLogTimeStamp
 
-        }
-        else {
-            
-            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
-            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-
-        }
+        #endregion SSOLOGGER CHECK            
 
     }
 
-    # $message = "SSOMonitor sleeping for $($Product.Config.sleepDuration) $($Product.Config.sleepUnits)"
-    # Write-Host+ -NoTrace $message -ForegroundColor DarkGray
-    # Invoke-Expression "Start-Sleep -$($Product.Config.sleepUnits) $($Product.Config.sleepDuration)"
-
-# } until (
-#     $false
-# )
+#endregion GALLERY CHECK  
