@@ -83,11 +83,10 @@ function global:Register-PlatformTask {
     }
     $action = New-ScheduledTaskAction @actionArgs
 
-    $settings = Get-CimClass MSFT_TaskSettings Root/Microsoft/Windows/TaskScheduler | New-CimInstance -ClientOnly -Property @{
-        Enabled = !$Disable
-        AllowDemandStart = $true 
-        ExecutionTimeLimit = $([system.xml.xmlconvert]::tostring($ExecutionTimeLimit))
-    }
+    $scheduleTaskSettingsSetParams = @{}
+    $scheduleTaskSettingsSetParams += @{ Disable = $Disable}
+    if ($ExecutionTimeLimit) { $scheduleTaskSettingsSetParams += @{ ExecutionTimeLimit = $ExecutionTimeLimit } }
+    $settings = New-ScheduledTaskSettingsSet @scheduleTaskSettingsSetParams
 
     $task = Register-ScheduledTask -TaskName $TaskName `
         -User $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password `
