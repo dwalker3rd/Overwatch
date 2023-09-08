@@ -148,7 +148,7 @@ function global:Get-ServerInfo {
                 if ($_ -like "*.*") {$_serverInfo | Add-Member -NotePropertyName Ipv4Address -NotePropertyValue $_}
             }
 
-        $_serverInfo | Add-Member -NotePropertyName OSType -NotePropertyValue (Get-OS -ComputerName $node).Id
+        $_serverInfo | Add-Member -NotePropertyName OSType -NotePropertyValue WindowsServer
         $_serverInfo | Add-Member -NotePropertyName FQDN -NotePropertyValue $("$($_serverInfo.Name)$($_serverInfo.PartOfDomain ? "." + $_serverInfo.Domain : $null)")
         $_serverInfo | Add-Member -NotePropertyName DisplayName -NotePropertyValue $("$($_serverInfo.FQDN) at $($_serverInfo.Ipv4Address)")
 
