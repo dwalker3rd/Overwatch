@@ -342,6 +342,7 @@ $global:Catalog.Product += @{ SSOMonitor =
         DisplayName = "SSOMonitor"
         Description = "Monitors the ssoLogger on the Alteryx Server platform."
         Publisher = "Walker Analytics Consulting"
+        Log = "SSOMonitor"
         HasTask = $true
         Installation = @{
             Prerequisite = @{
