@@ -76,7 +76,7 @@ $global:Catalog.Platform += @{ None =
         Name = "None"
         DisplayName = "None"
         Image = "../img/none.png"
-        Description = "Overwatch services for the None platform"
+        Description = "Ov"
         Publisher = "Walker Analytics Consulting"
     }
 }

@@ -76,3 +76,11 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
     # add overwatch remote controllers in platform instance definitions file
 
 #endregion OVERWATCH TOPOLOGY
+#region TRACE OVERWATCH CONTROLLERS
+
+    # The following line indicates a post-installation configuration to the installer
+    # Manual Configuration > Overwatch > Configuration > TestOverwatchControllers
+
+    $global:TestOverwatchControllers = $false
+
+#endregion TRACE OVERWATCH CONTROLLERS

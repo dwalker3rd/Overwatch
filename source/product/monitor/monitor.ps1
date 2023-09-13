@@ -84,11 +84,26 @@ Open-Monitor
         $message = "$($Product.Id) $($status.ToLower()) because server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
         Write-Log -Action "EventCheck" -Target "Server" -Status $status -Message $message -EntryType "Warning" -Force
         Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        
         return
     }
 
 #endregion SERVER CHECK
+#region SERVER TRACE
+
+    $nodesToTrace = @()
+    $nodesToTrace += pt nodes -k -Online
+    if ($global:TestOverwatchControllers) {
+        $nodesToTrace += $global:OverwatchControllers
+    }
+    $nodesToTrace = $nodesToTrace | Sort-Object -Unique
+    Test-OverwatchControllers -ComputerName $nodesToTrace # -Quiet
+
+#endregion SERVER TRACE
+#region PLATFORM NONE
+
+    if ($global:Platform.Id -eq "None") { return }
+
+#endregion PLATFORM NONE
 #region UPDATE PLATFORM JOBS
 
     Update-PlatformJob
