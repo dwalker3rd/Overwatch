@@ -812,12 +812,21 @@ function global:Write-Log {
     if (!$Force -and $LogLevels.$EntryType -gt $LogLevels.$LogLevel) { return }
 
     if ([string]::IsNullOrEmpty($Name)) {
-        # $Context can be something that is not a valid catalog object such as "Azure Update Management"
-        # thus the need to append -ErrorAction SilentlyContinue to the call to Get-Catalog
-        if ($Context -notmatch "\.") { $Context = "Product.$Context"}
-        $_catalogObjectLogFileName = (Get-Catalog -Uid $Context -ErrorAction SilentlyContinue).Log
-        $Name = ![string]::IsNullOrEmpty($_catalogObjectLogFileName) ? $_catalogObjectLogFileName : $global:Platform.Instance
+
+        # preserve original context for use when writing log entry
+        # note that $Context can be anything and not necessarily a valid catalog object name
+        $catalogContext = $Context
+        if ($catalogContext -notmatch "\.") { $catalogContext = "Product.$catalogContext"}
+
+        # get the log file name from the catalog
+        # if the catalog object doesn't specify a log file name, then use the default (the platform instance)
+        # use -ErrorAction SilentlyContinue in case $Context was not a valid catalog object name
+        $_catalogObjectLogFileName = (Get-Catalog -Uid $catalogContext -ErrorAction SilentlyContinue).Log
+        $Name = (![string]::IsNullOrEmpty($_catalogObjectLogFileName) ? $_catalogObjectLogFileName : $global:Platform.Instance).ToLower()
+
+        # if the log file doesn't yet exist, create it
         if (!(Test-Log -Name $Name)) { New-Log -Name $Name | Out-Null }
+
     }
 
     # $Path = $Path ? $Path : (Get-EnvironConfig -Key Location.Logs -ComputerName $node) + $($Name ? "\$($Name).log" : "\*.log")
