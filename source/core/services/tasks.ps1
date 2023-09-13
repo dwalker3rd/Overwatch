@@ -6,26 +6,51 @@ function global:Register-PlatformTask {
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$false)][string]$TaskName,
+        [Parameter(Mandatory=$false)][string]$Description,
         [Parameter(Mandatory=$true)][string]$Execute,        
         [Parameter(Mandatory=$true)][string]$Argument,
         [Parameter(Mandatory=$true)][string]$WorkingDirectory,
-        [Parameter(Mandatory=$true)][DateTime]$At,
+        [Parameter(Mandatory=$false)][System.Management.Automation.PSCredential]$Credentials = $(Get-Credentials "localadmin-$($Platform.Instance)"),
+
+        [Parameter(Mandatory=$false)][DateTime]$At,
+        [Parameter(Mandatory=$false)][string]$RandomDelay,
+
+        [switch]$Once,
         [Parameter(Mandatory=$false)][TimeSpan]$RepetitionInterval,
         [Parameter(Mandatory=$false)][TimeSpan]$RepetitionDuration,
-        [switch]$Once,
+
         [switch]$Daily,
+        [Parameter(Mandatory=$false)][UInt32]$DaysInterval,
+
         [switch]$Weekly,
-        [switch]$Monthly,
+        [Parameter(Mandatory=$false)][UInt32]$WeeksInterval,
+        [Parameter(Mandatory=$false)][ValidateSet("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")]
+            [string[]]$DaysOfWeek,
+
+        [switch]$AtStartup,
+        [Parameter(Mandatory=$false)][TimeSpan]$Delay,
+
+        [Parameter(Mandatory=$false)][string]$Subscription,
+
         [Parameter(Mandatory=$false)][TimeSpan]$ExecutionTimeLimit,
         [Parameter(Mandatory=$false)][ValidateSet("Limited","Highest")][string]$RunLevel="Highest",
-        [Parameter(Mandatory=$false)][System.Management.Automation.PSCredential]$Credentials = $(Get-Credentials "localadmin-$($Platform.Instance)"),
-        [switch]$Start,
-        [Parameter(Mandatory=$false)][string]$Subscription,
-        [switch]$SyncAcrossTimeZones,
-        [Parameter(Mandatory=$false)][string]$Description,
-        [Parameter(Mandatory=$false)][string]$RandomDelay,
-        [switch]$Disable
+        [switch]$Disable,
+        [switch]$Start
     )
+
+    if (!($At -or $AtStartup -or $Subscription)) { throw "One of the following is required:  -At, -AtStartup, -Subscription" }
+    if (!$At -and $Once) { throw "-Once is only valid with -At" }
+    if (!$At -and $Daily) { throw "-Daily is only valid with -At" }
+    if (!$At -and $Weekly) { throw "-Weekly is only valid with -At" }
+    if ($At -and !($Once -or $Daily -or $Weekly)) { throw "One of the following is required with -At:  -Once, -Daily, -Weekly"}
+    if (!$Once -and $RepetitionInterval) { throw "-RepetitionInterval is only valid with -Once" }
+    if (!$RepetitionInterval -and $RepetitionDuration) { throw "-RepetitionDuration is only valid with -Once and -RepetitionInterval" }
+    if (!$Daily -and $DaysInterval) { throw "-DaysInterval is only valid with -Daily" }
+    if (!$Weekly -and $WeeksInterval) { throw "-WeeksInterval is only valid with -Weekly" }
+    if (!$Weekly -and $DaysOfWeek) { throw "-DaysOfWeek is only valid with -Weekly" }
+    if ($Weekly -and !$DaysOfWeek) { throw "-DaysOfWeek is required with -Weekly" }
+    if (!$At -and $RandomDelay) { throw "-RandomDelay is only valid with -At" }
+    if (!$AtStartup -and $Delay) { throw "-Delay is only valid with -AtStartup" }
 
     $product = Get-Product -Id $Id
     if (!$TaskName) {$TaskName = $product.TaskName}
@@ -37,43 +62,44 @@ function global:Register-PlatformTask {
         return
     }
 
-    # if ($Once -and !($RepetitionInterval -and $RepetitionDuration)) {throw "RepetitionInterval and RepetitionDuration must be used together."}
+    $triggers = @()
 
-    $CimClass = $null
-    if ($Once) {$CimClass = "MSFT_TaskTimeTrigger"}
-    if ($Daily) {$CimClass = "MSFT_TaskDailyTrigger"}
-    if ($Weekly) {throw "Weekly triggers not yet supported."}
-    if ($Monthly) {throw "Monthly triggers not yet supported."}
-
-    $triggerProperties = @{
-        Enabled = $true
-        StartBoundary = $At.ToString($SyncAcrossTimeZones ? "o" : "s")
-    }
-    if ($RandomDelay) {$triggerProperties.RandomDelay = $RandomDelay}
-
-    $timeTrigger = Get-CimClass $CimClass root/Microsoft/Windows/TaskScheduler | 
-        New-CimInstance -ClientOnly -Property $triggerProperties
-
-    if ($Once) {
-        if ($RepetitionInterval) {
-            $repetition = Get-CimClass MSFT_TaskRepetitionPattern root/Microsoft/Windows/TaskScheduler | `
-                New-CimInstance -ClientOnly -Property @{Interval = $([system.xml.xmlconvert]::tostring($RepetitionInterval))}
-            if ($RepetitionDuration -eq [TimeSpan]::MaxValue) {
-                $repetition.StopAtDurationEnd = $true
+    if ($At) {
+        $timeTriggerParams = @{ At = $At }
+        if ($RandomDelay) { 
+            $timeTriggerParams += @{ RandomDelay = $RandomDelay }
+        }
+        if ($Once) {
+            $timeTriggerParams += @{ Once = $true }
+            if ($RepetitionInterval) {
+                $timeTriggerParams += @{ RepetitionInterval = $RepetitionInterval }
+                if ($RepetitionDuration) {
+                    $timeTriggerParams += @{ RepetitionDuration = $RepetitionDuration }
+                }
             }
-            else {
-                $repetition.StopAtDurationEnd = $false
-                $repetition.Duration = $([system.xml.xmlconvert]::tostring($RepetitionDuration))
-            }
-            $timeTrigger.Repetition = $repetition
+        }
+        elseif ($Daily) {
+            $timeTriggerParams += @{ Daily = $true }
+            $timeTriggerParams += @{ DaysInterval = $DaysInterval -gt 0 ? $DaysInterval : 1 }
+        }
+        elseif ($Weekly) {
+            $timeTriggerParams += @{ Weekly = $true }
+            $timeTriggerParams += @{ WeeksInterval = $WeeksInterval -gt 0 ? $WeeksInterval : 1 }
+            $timeTriggerParams += @{ DaysOfWeek = $DaysOfWeek }
         }
     }
-    [ciminstance[]]$triggers = $timeTrigger
+    $triggers += New-ScheduledTaskTrigger @timeTriggerParams
 
     if ($Subscription) {
         $eventTrigger = Get-CimClass MSFT_TaskEventTrigger root/Microsoft/Windows/TaskScheduler | 
             New-CimInstance -ClientOnly -Property @{Enabled = $true;Subscription = $Subscription}
         $triggers += $eventTrigger
+    }
+
+    if ($AtStartup) {
+        $bootTrigger = New-ScheduledTaskTrigger -AtStartup
+        if ($Delay) { $bootTrigger.Delay = $([system.xml.xmlconvert]::tostring($Delay)) }            
+        $triggers += $bootTrigger
     }
     
     $actionArgs = @{
@@ -86,6 +112,7 @@ function global:Register-PlatformTask {
     $scheduleTaskSettingsSetParams = @{}
     $scheduleTaskSettingsSetParams += @{ Disable = $Disable}
     if ($ExecutionTimeLimit) { $scheduleTaskSettingsSetParams += @{ ExecutionTimeLimit = $ExecutionTimeLimit } }
+
     $settings = New-ScheduledTaskSettingsSet @scheduleTaskSettingsSetParams
 
     $task = Register-ScheduledTask -TaskName $TaskName `
@@ -430,10 +457,14 @@ function global:Start-PlatformTask {
         $Id = $PlatformTask.ProductID
         $TaskName = $PlatformTask.Name
     }
-    else {
+    elseif ($Id) {
         $Id = $global:Catalog.Product.$Id.Id
         $TaskName = [string]::IsNullOrEmpty($TaskName) ? (Get-Product -Id $Id).TaskName : $TaskName
         $PlatformTask = Get-PlatformTask -Id $Id 
+    }
+    elseif ($TaskName) {
+        $PlatformTask = Get-PlatformTask -TaskName $TaskName
+        $Id = $PlatformTask.ProductID 
     }
 
     # check if PlatformTask is already started
@@ -603,6 +634,20 @@ function global:Show-PlatformTasks {
                     $_productPadRight = $emptyString.PadLeft($formatData.PlatformTask.Width-1-$_product.Length," ")
                     $_status = $platformTask.Status + " "
                     $_statusPadRight = $emptyString.PadLeft($formatData.Status.Width-1-$_status.Length," ")
+
+                    $_triggertypes = @()
+                    foreach ($_trigger in $platformTask.Instance.Triggers) {
+                        $_triggerType = ([regex]::match($_trigger.CimClass.CimClassName,"MSFT_Task(.*)Trigger")).Groups[1].Value
+                        if ($_triggerType -eq "Time") {
+                            $_triggerType = $_trigger.Repetition.Interval
+                        }
+                        if (![string]::IsNullOrEmpty($_triggerType)) {
+                            $_triggertypes += $_triggerType
+                        }
+                    }
+                    $_triggers = ($_triggertypes -join ", ") + " "
+                    $_triggersPadRight = $emptyString.PadLeft($formatData.Triggers.Width-1-$_triggers.Length," ")
+                    
                     $_nextRunTime = ""
                     if ($platformTask.ScheduledTaskInfo.NextRunTime) {
                         $_nextRunTime = ($platformTask.ScheduledTaskInfo.NextRunTime).ToString('u') + " "
@@ -627,6 +672,7 @@ function global:Show-PlatformTasks {
 
                     $_platformTaskColor = $global:consoleSequence.ForegroundWhite
                     $_statusColor = $global:consoleSequence.ForegroundDarkGray
+                    $_triggersColor = $global:consoleSequence.ForegroundDarkGray
                     $_nextRunTimeColor = $global:consoleSequence.ForegroundDarkGray
                     $_lastRunTimeColor = $global:consoleSequence.ForegroundDarkGray
                     $_lastTaskResultColor = $global:consoleSequence.ForegroundDarkGray
@@ -656,6 +702,7 @@ function global:Show-PlatformTasks {
                         # these fields ARE displayed
                         PlatformTask = "$($_platformTaskColor)$($_product)$($_defaultColor)$($_productPadRight)"
                         Status = "$($_statusColor)$($_status)$($_defaultColor)$($_statusPadRight)"
+                        Triggers = "$($_triggersColor)$($_triggers)$($_defaultColor)$($_triggersPadRight)"
                         NextRunTime = "$($_nextRunTimeColor)$($_nextRunTime)$($_defaultColor)$($_nextRunTimePadRight)"
                         LastRunTime = "$($_lastRunTimeColor)$($_lastRunTime)$($_defaultColor)$($_lastRunTimePadRight)"
                         LastTaskResult = "$($_lastTaskResultColor)$($_lastTaskResult)$($_defaultColor)$($_lastTaskResultPadRight)"

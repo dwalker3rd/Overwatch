@@ -54,7 +54,7 @@ if (Test-Path $sourceBgInfoConfigFile) {
     $productTask = Get-PlatformTask $_product.Id
     if (!$productTask) {
         Register-PlatformTask -Id $_product.Id -execute $pwsh -Argument "$($global:Location.Scripts)\$($_product.Id).ps1" -WorkingDirectory $global:Location.Scripts `
-            -Once -At $(Get-Date).AddMinutes(15) -RepetitionInterval $(New-TimeSpan -Hours 1) -RepetitionDuration ([timespan]::MaxValue) -RandomDelay "PT3M" `
+            -Once -At $(Get-Date).AddMinutes(15) -RepetitionInterval $(New-TimeSpan -Hours 1) -RandomDelay "PT3M" `
             -ExecutionTimeLimit $(New-TimeSpan -Minutes 10) -RunLevel Highest -Disable
         $productTask = Get-PlatformTask -Id $_product.Id
     }

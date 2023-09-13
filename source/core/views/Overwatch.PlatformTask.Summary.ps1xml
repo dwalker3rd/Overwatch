@@ -19,6 +19,11 @@
                         <Alignment>Left</Alignment>
                     </TableColumnHeader>
                     <TableColumnHeader>
+                        <Label>Triggers</Label>
+                        <Width>20</Width>
+                        <Alignment>Left</Alignment>
+                    </TableColumnHeader>                    
+                    <TableColumnHeader>
                         <Label>NextRunTime</Label>
                         <Width>22</Width>
                         <Alignment>Left</Alignment>
@@ -43,6 +48,9 @@
                             </TableColumnItem>
                             <TableColumnItem>
                                 <PropertyName>Status</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>Triggers</PropertyName>
                             </TableColumnItem>
                             <TableColumnItem>
                                 <PropertyName>NextRunTime</PropertyName>

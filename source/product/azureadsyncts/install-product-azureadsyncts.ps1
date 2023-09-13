@@ -61,7 +61,7 @@ foreach ($node in (pt nodes -k)) {
 $productTask = Get-PlatformTask -Id $Product.Id
 if (!$productTask) {
     Register-PlatformTask -Id $Product.Id -execute $pwsh -Argument "$($global:Location.Scripts)\$($Product.Id).ps1" -WorkingDirectory $global:Location.Scripts `
-        -Once -At $(Get-Date).AddMinutes(5) -RepetitionInterval $(New-TimeSpan -Minutes 15) -RepetitionDuration ([timespan]::MaxValue) -RandomDelay "PT3M" `
+        -Once -At $(Get-Date).AddMinutes(5) -RepetitionInterval $(New-TimeSpan -Minutes 15) -RandomDelay "PT3M" `
         -ExecutionTimeLimit $(New-TimeSpan -Minutes 30) -RunLevel Highest -Disable
     $productTask = Get-PlatformTask -Id $Product.Id
 }

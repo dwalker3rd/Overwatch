@@ -69,7 +69,7 @@ $productTask = Get-PlatformTask -Id "Backup"
 if (!$productTask) {
     $at = get-date -date "6:00Z"
     Register-PlatformTask -Id "Backup" -execute $pwsh -Argument "$($global:Location.Scripts)\$("Backup").ps1" -WorkingDirectory $global:Location.Scripts `
-        -Daily -At $at -ExecutionTimeLimit $(New-TimeSpan -Minutes 60) -RunLevel Highest -SyncAcrossTimeZones `
+        -Daily -At $at -ExecutionTimeLimit $(New-TimeSpan -Minutes 60) -RunLevel Highest `
         -Subscription $subscription -Disable
     $productTask = Get-PlatformTask -Id "Backup"
 }

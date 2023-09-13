@@ -14,8 +14,9 @@ Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\defi
 $productTask = Get-PlatformTask -Id "SSOMonitor"
 if (!$productTask) {
     Register-PlatformTask -Id "SSOMonitor" -execute $pwsh -Argument "$($global:Location.Scripts)\$("SSOMonitor").ps1" -WorkingDirectory $global:Location.Scripts `
-        -Once -At $(Get-Date).AddSeconds(5) -RepetitionInterval $(New-TimeSpan -Seconds 60) -RepetitionDuration ([timespan]::MaxValue) `
-        -ExecutionTimeLimit $(New-TimeSpan -Seconds 60) -RunLevel Highest -Disable
+        -Once -At $(Get-Date).AddSeconds(5) `
+        -AtStartup -Delay $(New-TimeSpan -Minutes 1) `
+        -ExecutionTimeLimit $(New-TimeSpan -Seconds 0) -RunLevel Highest -Start
     $productTask = Get-PlatformTask -Id "SSOMonitor"
 }
 
