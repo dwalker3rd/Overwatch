@@ -96,7 +96,7 @@ Open-Monitor
         $nodesToTrace += $global:OverwatchControllers
     }
     $nodesToTrace = $nodesToTrace | Sort-Object -Unique
-    Test-OverwatchControllers -ComputerName $nodesToTrace # -Quiet
+    Test-ServerStatus -ComputerName $nodesToTrace # -Quiet
 
 #endregion SERVER TRACE
 #region PLATFORM NONE

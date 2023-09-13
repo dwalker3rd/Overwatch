@@ -1126,7 +1126,7 @@ function global:Get-IpAddress {
 
     }
 
-    function global:Test-OverwatchControllers {
+    function global:Test-ServerStatus {
 
         [CmdletBinding()]
         param (
@@ -1136,8 +1136,8 @@ function global:Get-IpAddress {
 
         Write-Host+ -ResetIndentGlobal
 
-        $leader = Format-Leader -Length 46 -Adjust ((("  Overwatch Controllers").Length))
-        Write-Host+ -Iff $(!$Quiet) -NoTrace "  Overwatch Controllers",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        $leader = Format-Leader -Length 46 -Adjust ((("  Server Status").Length))
+        Write-Host+ -Iff $(!$Quiet) -NoTrace "  Server Status",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
     
         $results = [PSCustomObject]@()
     
@@ -1205,7 +1205,7 @@ function global:Get-IpAddress {
             Send-ServerInterventionMessage -ComputerName $alertResult.ComputerName -Message $alertResult.AlertReason -MessageType $global:PlatformMessageType.Intervention | Out-Null
         }
 
-        $message = "  Overwatch Controllers"
+        $message = "  Server Status"
         $leader = Format-Leader -Length 46 -Adjust $message.Length
         Write-Host+ -Iff $(!$Quiet) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")           
     

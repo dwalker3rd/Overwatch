@@ -823,7 +823,7 @@ function global:Send-ServerInterventionMessage {
     $sections += $sectionMain
 
     $msg = @{
-        Title = "Overwatch Monitor for Overwatch Controllers"
+        Title = "Overwatch Monitor for Server Status"
         Text = "Monitors the status of remote Overwatch controllers."
         Sections = $sections
         Type = $MessageType
