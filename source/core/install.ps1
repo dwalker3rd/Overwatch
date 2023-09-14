@@ -1520,7 +1520,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                 $message = "$($emptyString.PadLeft(9,"`b"))VERIFIED "
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
-                . $PSScriptRoot\services\services-overwatch-install.ps1
+                # . $PSScriptRoot\services\services-overwatch-install.ps1
 
             }
         
@@ -1545,6 +1545,8 @@ $global:Location.Definitions = $tempLocationDefinitions
         $message = "Overwatch installation is complete."
         Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
         Write-Host+
+
+        Write-Host+ -ResetAll
 
     Set-CursorVisible
 

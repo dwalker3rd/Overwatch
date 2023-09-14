@@ -1786,3 +1786,93 @@ function global:Get-IpAddress {
     }
 
 #endregion MISC
+#region POSTINSTALLATION
+
+function global:Show-PostInstallation {
+
+    $templateFiles = @()
+    $manualConfigFiles = @()
+    $templateFiles += Get-Item -Path "definitions\definitions-*.ps1"
+    $templateFiles += Get-Item -Path "initialize\initialize*.ps1"
+    $templateFiles += Get-Item -Path "preflight\preflight*.ps1"
+    $templateFiles += Get-Item -Path "postflight\postflight*.ps1"
+    $templateFiles += Get-Item -Path "install\install*.ps1"
+    foreach ($templateFile in $templateFiles) {
+        if (Select-String $templateFile -Pattern "Manual Configuration > " -SimpleMatch -Quiet) {
+            $manualConfigFiles += $templateFile
+        }
+    }
+
+    Write-Host+ -MaxBlankLines 1
+    Write-Host+ -NoTrace -NoTimestamp "Post-Installation" -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimestamp "-----------------" -ForegroundColor DarkGray
+
+    $postInstallConfig = $false
+    $disabledPlatformTasks = Get-PlatformTask -Disabled
+    if ($disabledPlatformTasks.Count -gt 0) {
+        Write-Host+ -NoTrace -NoTimeStamp "Product > All > Task > Enable disabled tasks"
+        Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
+        Get-PlatformTask | Show-PlatformTasks
+        Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
+        $postInstallConfig = $true
+    }
+
+    if ($manualConfigFiles) {
+        foreach ($manualConfigFile in $manualConfigFiles) {
+            $manualConfigStrings = Select-String $manualConfigFile -Pattern "Manual Configuration > " -SimpleMatch -NoEmphasis -Raw
+            foreach ($manualConfigString in $manualConfigStrings) {
+                $manualConfigMeta = $manualConfigString -split " > "
+                if ($manualConfigMeta) {
+                    $manualConfigObjectType = $manualConfigMeta[1]
+                    $manualConfigObjectId = $manualConfigMeta[2]
+                    $manualConfigAction = $manualConfigMeta[3]
+                    if ($manualConfigObjectType -in ("Product","Provider")) {
+                        # if the file belongs to a Product or Provider that is NOT installed, ignore the post-installation configuration
+                        if (!(Invoke-Expression "Get-$manualConfigObjectType $manualConfigObjectId")) { continue }
+                    }
+                    $postInstallConfig = $true
+                    $message = "$manualConfigObjectType > $manualConfigObjectId > $manualConfigAction > Edit $($manualConfigFile.FullName)"
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor Gray,DarkGray,Gray
+                }
+            }
+        }
+    }
+
+    #region FILES NOT IN SOURCE
+
+        $allowList = @()
+        $allowListFile = "$($global:Location.Data)\fileAllowList.csv"
+        if (Test-Path -Path $allowListFile) {
+            $allowList += Import-csv -Path $allowListFile
+        }
+        $source = (Get-ChildItem -Path $global:Location.Source -Recurse -File -Name | Split-Path -Leaf) -Replace "-template",""  | Sort-Object
+        $prod = $(foreach ($dir in (Get-ChildItem -Path $global:Location.Root -Directory -Exclude data,logs,temp,source,.*).FullName) {(Get-ChildItem -Path $dir -Name -File -Exclude LICENSE,README.md,install.ps1,.*) }) -Replace $global:Platform.Instance, $global:Platform.Id | Sort-Object
+        $obsolete = foreach ($file in $prod) {if ($file -notin $source) {$file}}
+        $obsolete = $(foreach ($dir in (Get-ChildItem -Path $global:Location.Root -Directory -Exclude data,logs,temp,source).FullName) {(Get-ChildItem -Path $dir -Recurse -File -Exclude LICENSE,README.md,install.ps1,.*) | Where-Object {$_.name -in $obsolete}}).FullName
+        $obsolete = $obsolete | Where-Object {$_ -notin $allowList.Path}
+
+        if ($obsolete) {
+            foreach ($file in $obsolete) {
+                Write-Host+ -NoTrace -NoTimestamp "File > Obsolete/Extraneous > Remove/AllowList* $file" -ForegroundColor Gray
+            }
+            $postInstallConfig = $true
+        }
+
+    #endregion FILES NOT IN SOURCE
+
+    if (!$postInstallConfig) {
+        Write-Host+ -NoTrace -NoTimeStamp "No post-installation configuration required."
+    }
+    elseif ($obsolete) {
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
+    }
+    
+    Write-Host+
+
+    Write-Host+ -ResetAll
+
+}
+Set-Alias -Name postInstall -Value Show-PostInstallation -Scope Global
+
+#endregion POSTINSTALLATION
