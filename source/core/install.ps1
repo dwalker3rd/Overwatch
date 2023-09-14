@@ -1189,7 +1189,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
             $installedColor = "DarkGray"
-            if (!(Get-InstalledModule -Name $package.name -ErrorAction SilentlyContinue)) {
+            if (!(Get-Package -Name $package.name -ErrorAction SilentlyContinue)) {
                 Install-Package -Name $package.name -SkipDependencies -Force | Out-Null
                 $installedColor = "DarkGreen"
             }
