@@ -78,8 +78,44 @@ if ($global:DisableConsoleSequences) {
     }
 }
 
-# defining these here b/c they belong with the console sequences
-function global:Set-CursorVisible { try { [System.Console]::CursorVisible = $true } catch {} }
-function global:Set-CursorInvisible { try { [System.Console]::CursorVisible = $false } catch {} }
-
 #endregion CONSOLE SEQUENCES 
+#region CONSOLE VIRTUAL KEY CODES    
+
+$global:virtualKeyCode = @{
+    CtrlC = 17
+}
+
+#endregion CONSOLE VIRTUAL KEY CODES   
+#region CONSOLE METHODS
+
+function global:Set-CursorVisible { try { [console]::CursorVisible = $true } catch {} }
+function global:Set-CursorInvisible { try { [console]::CursorVisible = $false } catch {} }
+function global:Set-CtrlCAsInput { 
+    try { 
+        [console]::TreatControlCAsInput = $true
+        Clear-ConsoleInputBuffer
+    } 
+    catch {}
+}
+function global:Set-CtrlCAsInterrupt { try { [console]::TreatControlCAsInput = $false } catch {} }
+function global:Clear-ConsoleInputBuffer { $Host.UI.RawUI.FlushInputBuffer() }
+function global:Read-ConsoleKeyInput { 
+    param(
+        [Parameter(Mandatory=$false)][string]$ReadKeyOptions
+    )
+    $key = $null
+    if ($Host.UI.RawUI.KeyAvailable) {
+        if ($ReadKeyOptions) {
+            $key = $Host.UI.RawUI.ReadKey($ReadKeyOptions) 
+        }
+        elseif ([console]::TreatControlCAsInput) {
+            $key = $Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp")
+        }
+        else {
+            key = $Host.UI.RawUI.ReadKey() 
+        }
+    }
+    return $key
+}
+
+#endregion CONSOLE METHODS

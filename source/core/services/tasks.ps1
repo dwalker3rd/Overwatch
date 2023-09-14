@@ -626,12 +626,11 @@ function global:Show-PlatformTasks {
         $RefreshPeriodSecondsTotal = 0
         do {
 
-            If ($Host.UI.RawUI.KeyAvailable -and ($Key = $Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp"))) {
-                If ([Int]$Key.Character -eq 3) {
-                    $Refresh = $false
-                }
-                Clear-InputBuffer
+            $keyPress = Read-CtrlAsInput
+            If ($keyPress.virtualKeyCode -eq $global:virtualKeyCode.CtrlC) {
+                $Refresh = $false
             }
+            Clear-ConsoleInputBuffer
 
             $platformTasksFormatted = @()
             foreach ($platformTask in $platformTasks) {
@@ -771,7 +770,7 @@ function global:Show-PlatformTasks {
         Write-Host+
         Set-CtrlCAsInterrupt
         Set-CursorVisible
-        
+
         Remove-PSSession+
 
     }
