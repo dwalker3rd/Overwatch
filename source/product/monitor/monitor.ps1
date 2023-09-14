@@ -15,16 +15,26 @@ $global:Product = @{Id="Monitor"}
 . $PSScriptRoot\definitions.ps1
 
 function Open-Monitor {
-    Write-Host+ -NoTrace "$($Product.Id)","...","RUNNING" -ForegroundColor DarkBlue,DarkGray,DarkGray
-    Write-Host+ -NoTrace ""
-}
-
-function Close-Monitor {
-    Write-Host+ -MaxBlankLines 1
-    Write-Host+ -NoTrace "$($Product.Id)","...","DONE" -ForegroundColor DarkBlue,DarkGray,DarkGray
+    param(
+        [Parameter(Mandatory=$false)][string]$Status = "RUNNING",
+        [Parameter(Mandatory=$false)][string]$StatusColor = "DarkGreen"
+    )
+    Write-Host+ -ReverseLineFeed 3
+    $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> $($Status.ToUpper())"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,$StatusColor 
     Write-Host+
 }
 
+function Close-Monitor {
+    param(
+        [Parameter(Mandatory=$false)][string]$Status = "DONE",
+        [Parameter(Mandatory=$false)][string]$StatusColor = "DarkGray"
+    )
+    Write-Host+ -MaxBlankLines 1
+    $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> $($Status.ToUpper())"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,$StatusColor 
+    Write-Host+
+}
 
 function global:Send-MonitorMessage {
 
@@ -73,6 +83,25 @@ function global:Send-MonitorMessage {
 
 Open-Monitor
 
+#region NOOP CHECK
+
+    if ($global:Platform.Id -eq "None" -and !$global:TestOverwatchControllers) { 
+
+        Write-Log -Action "NOOPCheck" -Target "Platform.Id" -Status "None" -EntryType "Warning" -Force
+        Write-Log -Action "NOOPCheck" -Target "TestOverwatchControllers" -Status "False" -Message $message -EntryType "Warning" -Force
+        Write-Log -Action "NOOPCheck" -Target $Product.Id -Status "Disabled" -EntryType "Warning" -Force
+
+        Write-Host+ -NoTrace "  $($global:Overwatch.Name) $($global:Product.Name) has nothing to do." -ForegroundColor DarkYellow
+
+        # No need for Monitor to run, so disable the platform task
+        Disable-PlatformTask $Product.Id
+
+        Close-Monitor -Status Disabled -StatusColor Red
+        return 
+
+    }
+
+#endregion NOOP CHECK
 #region SERVER CHECK
 
     # check for server shutdown/startup events
@@ -101,7 +130,10 @@ Open-Monitor
 #endregion SERVER TRACE
 #region PLATFORM NONE
 
-    if ($global:Platform.Id -eq "None") { return }
+    if ($global:Platform.Id -eq "None") { 
+        Close-Monitor
+        return 
+    }
 
 #endregion PLATFORM NONE
 #region UPDATE PLATFORM JOBS

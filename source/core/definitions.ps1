@@ -158,6 +158,11 @@
     if ($_platformTasksDisabled.Count -gt 0) {
         Write-Host+
         Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
+        if ($global:Product.HasTask) {
+            if (Get-PlatformTask -Id $global:Product.Id -Disabled) {
+                Write-Host+ -NoTrace "  The platform task for","$($Overwatch.DisplayName) $($Product.Id)","is DISABLED" -ForegroundColor DarkYellow,DarkBlue,DarkYellow
+            }
+        }
         Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
         $_platformTasksDisabled | Show-PlatformTasks
         Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
