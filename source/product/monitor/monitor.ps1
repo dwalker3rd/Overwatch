@@ -25,7 +25,6 @@ function Close-Monitor {
     Write-Host+
 }
 
-
 function global:Send-MonitorMessage {
 
     param (
@@ -73,6 +72,25 @@ function global:Send-MonitorMessage {
 
 Open-Monitor
 
+#region NOTHING TO DO
+
+    if ($global:Platform.Id -eq "None" -and !$global:TestOverwatchControllers) { 
+
+        Write-Log -Action "NOOPCheck" -Target "Platform.Id" -Status "None" -EntryType "Warning" -Force
+        Write-Log -Action "NOOPCheck" -Target "TestOverwatchControllers" -Status "False" -Message $message -EntryType "Warning" -Force
+        Write-Log -Action "NOOPCheck" -Target $Product.Id -Status "Disabled" -EntryType "Warning" -Force
+        $message = "$($Product.Id) disabled because `$global:Platform.Id = `"$($global:Platform.Id)`" and `$global:TestOverwatchControllers = `$$($global:TestOverwatchControllers.ToString())"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
+
+        # No need for Monitor to run, so disable the platform task
+        Disable-PlatformTask $Product.Id
+
+        Close-Monitor
+        return 
+
+    }
+
+#endregion NOTHING TO DO
 #region SERVER CHECK
 
     # check for server shutdown/startup events
@@ -101,7 +119,10 @@ Open-Monitor
 #endregion SERVER TRACE
 #region PLATFORM NONE
 
-    if ($global:Platform.Id -eq "None") { return }
+    if ($global:Platform.Id -eq "None") { 
+        Close-Monitor
+        return 
+    }
 
 #endregion PLATFORM NONE
 #region UPDATE PLATFORM JOBS
