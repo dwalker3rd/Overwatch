@@ -626,7 +626,7 @@ function global:Show-PlatformTasks {
         $RefreshPeriodSecondsTotal = 0
         do {
 
-            $keyPress = Read-CtrlCAsInput
+            $keyPress = Read-ConsoleKeyInput
             If ($keyPress.virtualKeyCode -eq $global:virtualKeyCode.CtrlC) {
                 $Refresh = $false
             }
