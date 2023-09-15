@@ -204,6 +204,7 @@ function global:Lock-Vault {
     }
 
     if ($lockRetryAttempts -gt 2) {
+        # this is only here b/c after this many times, something is probably wrong and we need to figure out what and why
         $message = "Lock acquired after $($lockRetryAttempts) attempts."
         # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
         Write-Log -Action "LockVault" -Target $vault.FileNameWithoutExtension -Status "Success" -Message $message -Force # -Data $lockMeta
