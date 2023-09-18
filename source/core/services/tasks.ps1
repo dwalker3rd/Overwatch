@@ -494,7 +494,7 @@ function global:Start-PlatformTask {
     }
 
     # start task
-    $PlatformTask.Instance = Start-ScheduledTask -TaskName $TaskName
+    Start-ScheduledTask -TaskName $TaskName
 
     # wait for PlatformTask to be enabled
     $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Started -OutputType PlatformTask -Timeout $Timeout
@@ -536,8 +536,7 @@ function global:Stop-PlatformTask {
     }
 
     # stop task
-    $PlatformTask.Instance = Stop-ScheduledTask -TaskName $TaskName
-    $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
+    Stop-ScheduledTask -TaskName $TaskName
 
     # wait for PlatformTask to be enabled
     $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Stopped -OutputType PlatformTask -Timeout $Timeout
