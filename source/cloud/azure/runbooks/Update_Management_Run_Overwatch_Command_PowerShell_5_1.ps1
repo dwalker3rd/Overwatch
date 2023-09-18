@@ -13,9 +13,9 @@
 .PARAMETER OverwatchCommand
     The Overwatch command to be executed.
 
-.PARAMETER OverwatchContext
-    String used by Overwatch to determine the context of the command.
-    Optional. The default value is "Azure Update Management"
+# .PARAMETER OverwatchContext
+#     String used by Overwatch to determine the context of the command.
+#     Optional. The default value is "Azure Update Management"
 
 .PARAMETER OverwatchReason
     The reason/purpose for executing the Overwatch command.
@@ -30,11 +30,13 @@
 
 param(
     [string]$SoftwareUpdateConfigurationRunContext,
-    [Parameter(Mandatory=$false)][string]$OverwatchCommand,
-    [Parameter(Mandatory=$false)][string]$OverwatchContext = "Azure Update Management",
+    [Parameter(Mandatory=$true)][string]$OverwatchCommand,
+    # [Parameter(Mandatory=$false)][string]$OverwatchContext = "Azure Update Management",
     [Parameter(Mandatory=$false)][string]$OverwatchReason,
 	[Parameter(Mandatory=$false)][string]$OverwatchController
 )
+
+$OverwatchContext = "Azure Update Management"
 
 $OverwatchRoot = "F:\Overwatch"
 $OverwatchCommandScript = "azureupdatemgmt.ps1"
@@ -43,14 +45,6 @@ $OverwatchControllers = @("tbl-prod-01","tbl-test-01","ayx-control-01","tbl-mgmt
 Import-Module ThreadJob
 
 #region Authentication
-
-    # $ServicePrincipalConnection = Get-AutomationConnection -Name 'AzureRunAsConnection'
-
-    # Connect-AzAccount `
-    #     -ServicePrincipal `
-    #     -TenantId $ServicePrincipalConnection.TenantId `
-    #     -ApplicationId $ServicePrincipalConnection.ApplicationId `
-    #     -CertificateThumbprint $ServicePrincipalConnection.CertificateThumbprint
 
     try
     {
@@ -144,7 +138,7 @@ Import-Module ThreadJob
 
 	$context = ConvertFrom-Json $SoftwareUpdateConfigurationRunContext
     $runId = $context.SoftwareUpdateConfigurationRunId
-    $configName = $context.SoftwareUpdateConfigurationName
+    # $configName = $context.SoftwareUpdateConfigurationName
 
     $vmIds = $context.SoftwareUpdateConfigurationSettings.AzureVirtualMachines
     if (!$vmIds) 
@@ -159,7 +153,7 @@ Import-Module ThreadJob
     }
 
 	if (!$OverwatchReason) {
-        $OverwatchReason = "Deployment schedule: $configName"
+        $OverwatchReason = "None"
     }
 	Write-Output "OverwatchReason: $OverwatchReason"
 
@@ -176,7 +170,7 @@ Import-Module ThreadJob
 @"
 Set-Location $OverwatchRoot
 If (Test-Path -Path $OverwatchCommandScript) {
-pwsh $OverwatchCommandScript -Command $OverwatchCommand -Context '$OverwatchContext' -Reason '$OverwatchReason' -RunId '$runId'
+pwsh $OverwatchCommandScript -Command $OverwatchCommand -Reason '$OverwatchReason' -RunId '$runId'
 }
 "@
     Out-File -FilePath $scriptPath -InputObject $scriptBlock
