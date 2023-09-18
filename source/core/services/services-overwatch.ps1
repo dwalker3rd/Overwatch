@@ -1173,7 +1173,7 @@ function global:Get-IpAddress {
             if ($cachedResults) { $results += $cachedResults }
         }
 
-        $results | Write-Cache serverstatus
+        $results | Where-Object {$_.ComputerName -in $ComputerName} | Write-Cache serverstatus
 
         $alertResults = @()
         foreach ($result in $results) {
