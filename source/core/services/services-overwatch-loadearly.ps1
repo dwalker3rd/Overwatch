@@ -166,8 +166,10 @@ function global:Write-Host+ {
 
     if ($NoIndent) {$Indent = 0}
 
-    if ($Clear) { Clear-Host }
-    # if ([console]::GetCursorPosition().Item2 -eq 1) { Write-Host "`e[2J" }
+    # i don't know why, but ...
+    # the extra Write-Host is necessary when using ReverseLineFeed to return to the first line
+    if ($Clear) { Clear-Host; Write-Host }
+
     if ($ReverseLineFeed -gt 0) { 
         Write-Host -NoNewline "`e[$($ReverseLineFeed)F" 
     }

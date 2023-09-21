@@ -494,7 +494,7 @@ function global:Start-PlatformTask {
     }
 
     # start task
-    $PlatformTask.Instance = Start-ScheduledTask -TaskName $TaskName
+    Start-ScheduledTask -TaskName $TaskName
 
     # wait for PlatformTask to be enabled
     $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Started -OutputType PlatformTask -Timeout $Timeout
@@ -536,8 +536,7 @@ function global:Stop-PlatformTask {
     }
 
     # stop task
-    $PlatformTask.Instance = Stop-ScheduledTask -TaskName $TaskName
-    $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
+    Stop-ScheduledTask -TaskName $TaskName
 
     # wait for PlatformTask to be enabled
     $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Stopped -OutputType PlatformTask -Timeout $Timeout
@@ -557,6 +556,7 @@ function global:Show-PlatformTasks {
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [switch]$Disabled,
         [switch]$Refresh,
+        [switch]$Clear,
 
         [ValidateRange(1,300)]
         [Parameter(Mandatory=$false)]
@@ -620,8 +620,14 @@ function global:Show-PlatformTasks {
             }
         }
 
+        if ($Clear) {
+            Write-Host+ -Clear
+        }
+
         Set-CursorInvisible
         Set-CtrlCAsInput
+
+        $refreshedAtColor = "DarkGray"
 
         $RefreshPeriodSecondsTotal = 0
         do {
@@ -722,8 +728,8 @@ function global:Show-PlatformTasks {
                 $platformTasksFormattedByNode = $platformTasksFormatted | Where-Object {$_.Node -eq $node}
                 if ($platformTasksFormattedByNode) {
         
-                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " 
-                    Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Darkgray
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Gray
                     Write-Host+
 
                     # write column labels
@@ -755,11 +761,12 @@ function global:Show-PlatformTasks {
                 $Refresh = $false
             }
             elseif ($Refresh) {
-                Write-Host+ -NoTrace -NoTimestamp "   Refreshed at $((Get-Date -AsUTC).ToString('u'))" -ForegroundColor DarkGray
+                $refreshedAtColor = $refreshedAtColor -eq "DarkGray" ? "Gray" : "DarkGray"
+                Write-Host+ -NoTrace -NoTimestamp "   Refreshed at","$((Get-Date -AsUTC).ToString('u'))" -ForegroundColor DarkGray,$refreshedAtColor
                 Set-CtrlCAsInterrupt
                 try { Start-Sleep -Seconds $RefreshIntervalSeconds }
                 catch { $Refresh = $false }
-                Set-CtrlCAsInput
+                Set-CtrlCAsInput 
                 Write-Host+ -ReverseLineFeed $($platformTasksFormatted.Count + ($ComputerName.Count * 5) + 4)
                 Write-Host+
                 $platformTasks = Get-PlatformTask -ComputerName $ComputerName
