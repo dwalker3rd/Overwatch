@@ -51,7 +51,7 @@ class CatalogObject {
     }
 
     hidden [string]GetSortProperty() {
-        $_typeSortOrder =  @{ CatalogObject = 0; Overwatch = 1; OS = 2; Cloud = 3; Platform = 4; Product = 5; Provider = 6 }
+        $_typeSortOrder =  @{ CatalogObject = 0; Overwatch = 1; OS = 2; Cloud = 3; Platform = 4; Product = 5; Provider = 6; Installer = 7; Driver = 8; }
         return "$($_typeSortOrder.($this.Type))$(![string]::IsNullOrEmpty($this.Id) ? ".$($this.Id)" : $null)"
     }
 
@@ -171,6 +171,28 @@ class Product : CatalogObject {
 }
 
 class Provider : CatalogObject {
+    [string]$Category
+    [string]$SubCategory
+    [string]$Log
+    [object]$Config
+}
+
+class Driver : CatalogObject {
+    [string]$Category
+    [string]$SubCategory
+    [string]$DatabaseType
+    [string]$DriverType
+    [string]$Log
+    [object]$Config
+    [object]$Version
+    [string]$Platform # "32-bit" or "64-bit"
+
+    [bool]IsInstalled() {
+        return $this.Installed
+    }
+}
+
+class Installer : CatalogObject {
     [string]$Category
     [string]$SubCategory
     [string]$Log

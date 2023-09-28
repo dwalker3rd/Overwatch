@@ -6,6 +6,8 @@ $global:Catalog.OS = @{}
 $global:Catalog.Platform = @{}
 $global:Catalog.Product = @{}
 $global:Catalog.Provider = @{}
+$global:Catalog.Installer = @{}
+$global:Catalog.Driver = @{}
 
 $global:Catalog.Overwatch += @{ Overwatch =  
     [Overwatch]@{
@@ -352,13 +354,50 @@ $global:Catalog.Product += @{ SSOMonitor =
     }
 }
 
+$global:Catalog.Provider += @{ "OnePassword" = 
+    [Provider]@{
+        Id = "OnePassword"
+        Name = "1Password"
+        DisplayName = "Overwatch Provider for 1Password"
+        Category = "Security"
+        SubCategory = "Vault"
+        Description = "Overwatch Provider for 1Password"
+        Publisher = "Walker Analytics Consulting"
+        Log = "OnePassword"
+        Installation = @{
+            Install = "scoop install 1password-cli"
+            Uninstall = "scoop uninstall 1password-cli"
+            Prerequisite = @{
+                Installer = "scoop"
+            }
+        }
+    }
+}
+
+$global:Catalog.Installer += @{ "scoop" = 
+    [Installer]@{
+        Id = "scoop"
+        Name = "scoop"
+        DisplayName = "scoop"
+        Category = "Installer"
+        Description = "A command-line installer for Windows"
+        Publisher = "Luke Sampson"
+        Installation = @{
+            Prerequisite = @{
+                OS = "WindowsServer"
+            }
+            Install = ". $($global:Location.Install)\install-scoop.ps1"
+        }
+    }
+}
+
 $global:Catalog.Provider += @{ SMTP = 
     [Provider]@{
         Id = "SMTP"
         Name = "SMTP"
         DisplayName = "SMTP"
         Category = "Messaging"
-        Description = "Overwatch provider for SMTP"
+        Description = "Overwatch Provider for SMTP"
         Publisher = "Walker Analytics Consulting"
         Log = "SMTP"
         Installation = @{
@@ -381,7 +420,7 @@ $global:Catalog.Provider += @{ TwilioSMS =
         Name = "Twilio SMS"
         DisplayName = "Twilio SMS"
         Category = "Messaging"
-        Description = "Overwatch provider for Twilio SMS"
+        Description = "Overwatch Provider for Twilio SMS"
         Publisher = "Walker Analytics Consulting"
         Log = "TwilioSMS"
         Installation = @{
@@ -396,7 +435,7 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         Name = "Microsoft Teams"
         DisplayName = "Microsoft Teams"
         Category = "Messaging"
-        Description = "Overwatch provider for Microsoft Teams"
+        Description = "Overwatch Provider for Microsoft Teams"
         Publisher = "Walker Analytics Consulting"
         Log = "MicrosoftTeams"
         Installation = @{
@@ -426,12 +465,51 @@ $global:Catalog.Provider += @{ Postgres =
         Name = "Postgres"
         DisplayName = "Postgres"
         Category = "Database"
-        Description = "Overwatch provider for Postgres."
+        Description = "Overwatch Provider for Postgres"
         Publisher = "Walker Analytics Consulting"
         Log = "Postgres"
         Installation = @{
-            Prerequisite = @{}
+            Prerequisite = @{
+                Provider = @("ODBC")
+                Driver = @("PostgreSQL Unicode(x64)")
+            }
         }
+    }
+}
+
+$global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" = 
+    [Driver]@{
+        Id = "PostgreSQL Unicode(x64)"
+        Name = "PostgreSQL Unicode(x64)"
+        DisplayName = "PostgreSQL Unicode(x64)"
+        Category = "Database"
+        DatabaseType = "PostgreSQL"
+        DriverType = "ODBC"
+        Publisher = "PostgreSQL Global Development Group"
+        Version = @{
+            Minimum = "12.02.00.00"
+            AutoUpdate = $false
+        }
+        Platform = "64-bit"
+        Installation = @{
+            Flag = @("Manual")
+            Prerequisite = @{
+                Platform = @("TableauServer")
+            }
+        }
+    }
+    
+}
+
+$global:Catalog.Provider += @{ ODBC = 
+    [Provider]@{
+        Id = "ODBC"
+        Name = "ODBC"
+        DisplayName = "ODBC"
+        Category = "Data Access"
+        Description = "Overwatch Provider for ODBC"
+        Publisher = "Walker Analytics Consulting"
+        Log = "ODBC"
     }
 }
 
@@ -441,7 +519,7 @@ $global:Catalog.Provider += @{ TableauServerWC =
         Name = "TableauServerWC"
         DisplayName = "Tableau Server Welcome Channel"
         Category = "Messaging"
-        Description = "Overwatch provider for Tableau Server Welcome Channel"
+        Description = "Overwatch Provider for Tableau Server Welcome Channel"
         Publisher = "Walker Analytics Consulting"
         Config = @{
             MessageType = $PlatformMessageType.UserNotification
@@ -461,7 +539,7 @@ $global:Catalog.Provider += @{ Okta =
         Name = "Okta"
         DisplayName = "Okta"
         Category = "Identity"
-        Description = "Overwatch provider for Okta"
+        Description = "Overwatch Provider for Okta"
         Publisher = "Walker Analytics Consulting"
         Log = "Okta"
         Installation = @{
@@ -476,7 +554,7 @@ $global:Catalog.Provider += @{ TableauServerRestApi =
         Name = "TableauServerRestApi"
         DisplayName = "Tableau Server REST API"
         Category = "TableauServer"
-        Description = "Overwatch provider for the Tableau Server REST API"
+        Description = "Overwatch Provider for the Tableau Server REST API"
         Publisher = "Walker Analytics Consulting"
         Initialization = @{
             Api = @{
@@ -503,7 +581,7 @@ $global:Catalog.Provider += @{ TableauServerTsmApi =
         Name = "TableauServerTsmApi"
         DisplayName = "Tableau Server TSM API"
         Category = "TableauServer"
-        Description = "Overwatch provider for the Tableau Server TSM API"
+        Description = "Overwatch Provider for the Tableau Server TSM API"
         Publisher = "Walker Analytics Consulting"
         Initialization = @{
             Api = @{
@@ -530,7 +608,7 @@ $global:Catalog.Provider += @{ TableauServerTabCmd =
         Name = "TableauServerTabCmd"
         DisplayName = "Tableau Server TabCmd"
         Category = "TableauServer"
-        Description = "Overwatch provider for Tableau Server TabCmd"
+        Description = "Overwatch Provider for Tableau Server TabCmd"
         Publisher = "Walker Analytics Consulting" 
         Initialization = @{
             Prerequisite = @(
@@ -550,7 +628,7 @@ $global:Catalog.Provider += @{ AzureAD =
         Id = "AzureAD"
         Name = "AzureAD"
         DisplayName = "AzureAD"
-        Description = "Overwatch provider for Azure AD and Azure AD B2C."
+        Description = "Overwatch Provider for Azure AD and Azure AD B2C."
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Prerequisite = @{

@@ -84,3 +84,9 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
     $global:TestOverwatchControllers = $false
 
 #endregion TRACE OVERWATCH CONTROLLERS
+#region VAULTS
+
+    $global:DefaultConnectionStringsVault = "connectionStrings"
+    $global:DefaultCredentialsVault = "credentials"
+
+#endregion VAULTS
