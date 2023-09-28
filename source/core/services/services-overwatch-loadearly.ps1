@@ -77,6 +77,29 @@ function global:Format-Leader {
 
 }
 
+function ConvertTo-PSCommand {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$Command,
+        [Parameter(Mandatory=$true)][string]$Arguments
+    )
+
+    if ($Command.EndsWith(".ps1")) { $Command = "./" + $Command }
+
+    $psCommandString = "$Command "
+    foreach ($argument in $Arguments.replace("{","").replace("}","").replace(", ",",").split(",")) {
+        if ([string]::IsNullOrEmpty($argument)) { continue }
+        $keyValuePair = $argument.split("=")
+        $key = $keyValuePair[0]
+        $value = ![string]::IsNullOrEmpty($keyValuePair[1]) ? " `"$($keyValuePair[1])`"" : ":`$false"
+        $psCommandString += "-$key$value "
+    }
+
+    return $psCommandString
+
+}
+
 function global:Write-Host+ {
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
@@ -184,8 +207,21 @@ function global:Write-Host+ {
         $global:WriteHostPlusBlankLineCount = 0
     }
 
-    $callStack = Get-PSCallStack
-    $caller = $callstack[1] ? ($callstack[1].FunctionName -eq "<ScriptBlock>" ? "" : "$($callstack[1].FunctionName.replace('global:','')): ") : ""
+    if (!$NoTrace) {
+        $callStack = Get-PSCallStack
+        $callStackMaxDepth = 5 # TODO: convert to a definition
+        $callStackStart = [math]::Min($callStack.Count-2,$callStackMaxDepth)
+        $leadingSpaces = 0
+        if ($Object[0] -match "^(\s*)") {
+            $leadingSpaces = $matches[1].Length
+        }
+        $callStackPrefix = "$($emptyString.PadLeft($Indent+$leadingSpaces," "))$($callStack.Count - 2 -gt $callStackMaxDepth ? "... > " : $null)"
+        for ($i = $callstackStart; $i -ge 1; $i--) { # decrement to display trace in the order that the calls occurred
+            $psCommandString= ConvertTo-PSCommand -Command $callstack[$i].Command -Arguments $callStack[$i].Arguments
+            Write-Host "[$([datetime]::Now.ToString('u'))] $callStackPrefix$($callstack[$i].ScriptName): line $($callStack[$i].ScriptLineNumber), $psCommandString " -ForegroundColor DarkGray
+        }
+        $NoTrace = $true
+    }
 
     if ($Object -ne "") {
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($NoTimestamp ? "" : "[$([datetime]::Now.ToString('u'))] ")
