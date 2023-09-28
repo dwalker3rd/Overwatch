@@ -5,13 +5,13 @@ function global:Disable-Messaging {
         [Parameter(Mandatory=$false,Position=0)][timespan]$Duration = $global:PlatformMessageDisabledTimeout,
         [switch]$Notify,
         [switch]$Quiet,
-        [switch]$Force
+        [switch]$Reset
     )
 
-    if ((IsMessagingDisabled) -and !$Force) {
+    if ((IsMessagingDisabled) -and !$Reset) {
         $_platformMessageStatus = Get-MessagingStatus
-        Write-Host+ -NoTrace "Messaging is already",$_platformMessageStatus.Status.ToUpper() -ForegroundColor Gray,($_platformMessageStatus.Status -eq "Disabled" ? "DarkYellow" : "DarkGreen")
-        Write-Host+ -NoTrace "Use -Force to $($_platformMessageStatus.Status.ToLower() -Replace 'd$','') messaging again." -ForegroundColor Gray
+        if (!$Quiet) { Show-MessagingStatus -Already}
+        Write-Host+ -NoTrace "Use -Reset to reset the countdown timer" -ForegroundColor Gray
         return
     }
 
@@ -85,6 +85,10 @@ function global:Get-MessagingStatus {
 }
 function global:Show-MessagingStatus {
 
+    param(
+        [switch]$Already
+    )
+
     if (isMessagingDisabled) {
 
         $_platformMessageStatus = Get-MessagingStatus
@@ -104,7 +108,7 @@ function global:Show-MessagingStatus {
             Enable-Messaging
         }
         else {
-            Write-Host+ -NoTrace "Messaging",$_platformMessageStatus.Status.ToUpper(),"until $expiry" -ForegroundColor Gray,DarkYellow,Gray
+            Write-Host+ -NoTrace "Messaging$($Already ? " is already" : $null)",$_platformMessageStatus.Status.ToUpper(),"until $expiry" -ForegroundColor Gray,DarkYellow,Gray
             Write-Host+ -NoTrace "$messagingCountdown" -ForegroundColor Gray
         }
     }  
