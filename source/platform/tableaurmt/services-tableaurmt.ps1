@@ -95,7 +95,7 @@ Set-Alias -Name ptInfo -Value Get-PlatformInfo -Scope Global
 #endregion PLATFORM INFO
 #region SERVICE
 
-function global:Get-PlatformService {
+function global:Get-PlatformServices {
 
     [CmdletBinding()]
     param (
@@ -115,7 +115,7 @@ function global:Get-PlatformService {
     $platformServices =
         foreach ($node in $ComputerName) {  
 
-            $cimSession = New-CimSession -ComputerName $node -Credential (Get-Credentials "localadmin-$($Platform.Instance)")
+            $cimSession = New-CimSession -ComputerName $node -Credential (Get-Credentials "localadmin-$($global:Platform.Instance)")
 
             $nodeRole = ""
             if ($node -in $global:PlatformTopologyBase.Components.Controller.Nodes.Keys) {

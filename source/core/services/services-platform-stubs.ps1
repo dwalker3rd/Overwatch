@@ -12,7 +12,7 @@
         return
     }
 
-    function global:Get-PlatformService {
+    function global:Get-PlatformServices {
 
         [CmdletBinding()]
         param (

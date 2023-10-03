@@ -91,7 +91,7 @@ if ($Command) {
             Disable-Messaging -Duration (New-Timespan -Minutes 90) 
         }
 
-        $creds = Get-Credentials "localadmin-$($Platform.Instance)" -LocalMachine
+        $creds = Get-Credentials "localadmin-$($global:Platform.Instance)" -LocalMachine
 
         $workingDirectory = $global:Location.Root
         $result = Invoke-Command -ComputerName $OverwatchController `

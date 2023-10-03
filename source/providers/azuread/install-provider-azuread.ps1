@@ -1,12 +1,9 @@
+param (
+    [switch]$UseDefaultResponses
+)
 
-$Provider = Get-Catalog -Type Provider AzureAD
-$Id = $Provider.Id 
-
-$cursorVisible = [console]::CursorVisible
-Set-CursorVisible
-
-$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING"
-Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+$_provider = Get-Catalog -Type $_provider AzureAD
+$_provider | Out-Null
 
 #region LOAD SETTINGS
 
@@ -79,15 +76,3 @@ Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0]
     $creds | Set-Credentials "$tenantKey-msgraph"
 
 #endregion SAVE SETTINGS
-
-if ($interaction) {
-    Write-Host+
-    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","INSTALLED"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGreen
-}
-else {
-    $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGreen
-}
-
-[console]::CursorVisible = $cursorVisible

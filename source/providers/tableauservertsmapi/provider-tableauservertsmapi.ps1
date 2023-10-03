@@ -60,19 +60,26 @@ class TsmApiMethod {
 
 function global:Initialize-TsmApiConfiguration {
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Server = $env:COMPUTERNAME, # TODO: Validate $Server
+        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($global:Platform.Instance)",
         [switch]$ResetCache
     )
 
-    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi -ComputerName $Server)) { return }
+    $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -ComputerName $Server -Quiet
+    if (!$prerequisiteTestResults.Pass) { 
+        Write-Host+ -NoTrace $prerequisiteTestResults.ErrorMessage -ForegroundColor Red
+        return 
+    }
 
     $global:tsmApiConfig = @{
-        Server = $Server ? $Server : "localhost"
+        Server = $Server
         Port = "8850"
         ApiVersion = "$($global:Catalog.Provider.TableauServerTsmApi.Initialization.Api.Version.Minimum)"
-        Credentials = "localadmin-$($global:Platform.Instance)"
+        Credentials = Get-Credentials $Credentials -ComputerName $Server
         Async = @{
             Status = @{
                 Succeeded = "Succeeded"
@@ -259,7 +266,7 @@ function global:New-TsmApiSession {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
     )
 
-    $creds = Get-Credentials $global:tsmApiConfig.Credentials
+    $creds = $global:tsmApiConfig.Credentials
     $headers = $global:tsmApiConfig.Method.Login.Headers
     $body = $global:tsmApiConfig.Method.Login.Body.replace("<0>",$creds.UserName).replace("<1>",$creds.GetNetworkCredential().Password)
     $uri = $global:tsmApiConfig.Method.Login.Uri() 
@@ -292,12 +299,12 @@ function global:Invoke-TsmApiMethod {
         [Parameter(Mandatory=$false)][int]$TimeoutSec = 15
     )
 
-    # if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTsmApi)) { return }
+    # if (!(Test-Prerequisites -Type Provider -Id TableauServerTsmApi)) { return }
 
-    # check method's prerequisites
+    # TODO: check method's prerequisites
     try {
-        if ($global:tsmApiConfig.Method.$Method.Prerequisite) {
-            $global:tsmApiConfig.Method.$Method.Prerequisite.Validate()
+        if ($global:tsmApiConfig.Method.$Method.Prerequisites) {
+            $global:tsmApiConfig.Method.$Method.Prerequisites.Validate()
         }
     }
     catch {

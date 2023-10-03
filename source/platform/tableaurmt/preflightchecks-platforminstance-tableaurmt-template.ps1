@@ -3,14 +3,14 @@
     # The following line indicates a post-installation configuration to the installer
     # Manual Configuration > Platform > Tableau Server > Trusted Hosts
 
-    $allowedRepositoryHosts = @()
-    if ($allowedRepositoryHosts) {
+    $repositoryAllowedList = @()
+    if ($repositoryAllowedList) {
 
-        Test-NetConnection+ $allowedRepositoryHosts | Out-Null
+        Test-NetConnection+ $repositoryAllowedList | Out-Null
 
         $heartbeat = Get-Heartbeat
         if ($heartbeat.IsOK) {        
-            Test-RepositoryAccess $allowedRepositoryHosts -SSL
+            Test-RepositoryAccess $repositoryAllowedList -SSL
         }
         else {
             $global:PreflightChecksCompleted = $false

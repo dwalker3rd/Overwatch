@@ -535,7 +535,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         $product = $global:Catalog.Product.$key
         
-        if ([string]::IsNullOrEmpty($product.Installation.Prerequisite.Platform) -or $product.Installation.Prerequisite.Platform -contains $platformId) {
+        if ([string]::IsNullOrEmpty($product.Installation.Prerequisites.Platform) -or $product.Installation.Prerequisites.Platform -contains $platformId) {
 
             if ($product.Id -notin $installedProducts.Id -and $product.Id -notin $dependencies.Id) {
 
@@ -586,7 +586,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     $_providerIds = @()
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
-        if ([string]::IsNullOrEmpty($provider.Installation.Prerequisite.Platform) -or $provider.Installation.Prerequisite.Platform -contains $platformId) {
+        if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId) {
             if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $dependencies.Id) {
                 if ($provider.Installation.Flag -contains "AlwaysInstall") {
                     $_providerIds += $provider.Id
@@ -611,6 +611,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                     if ($providerResponse -eq "Y") {
                         $_providerIds += $provider.Id
                         $dependencies += Get-CatalogDependencies -Type Provider -Id $provider.id -Include Product,Provider -NotInstalled -Platform $platformId
+                        $x=1
                     }
                 }
 
@@ -778,7 +779,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\config-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\config\config-platform-$($platformInstanceId).ps1 -WhatIf
             $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformId.ToLower())-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformId.ToLower()).ps1 -WhatIf
             $platformFiles += Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\initialize-platform-$($platformInstanceId)-template.ps1 $PSScriptRoot\initialize\initialize-platform-$($platformInstanceId).ps1 -WhatIf
-            foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
+            foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisites.Service) {
                 $platformFiles += Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services -WhatIf
             }
             $updatedFiles += $platformFiles
@@ -805,7 +806,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
             $providerFiles = @()
             $providerIdsToReinstall = @()
-            $allProductIds = $global:Environ.Provider
+            $allProviderIds = $global:Environ.Provider
             if ($providerIds) { $allProviderIds += $providerIds }
             foreach ($provider in $allProviderIds) {
                 $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\install-provider-$($provider.ToLower()).ps1 $PSScriptRoot\install\install-provider-$($provider.ToLower()).ps1 -WhatIf
@@ -1009,7 +1010,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             Copy-File $PSScriptRoot\source\platform\$($platformId.ToLower())\postflightupdates-platforminstance-$($platformId.ToLower())-template.ps1 $PSScriptRoot\postflight\postflightupdates-platforminstance-$($platformInstanceId).ps1
 
             $definitionsServicesUpdated = $false
-            foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisite.Service) {
+            foreach ($platformPrerequisiteService in $global:Catalog.Platform.$platformId.Installation.Prerequisites.Service) {
                 $platformPrerequisiteServiceFiles = Copy-File $PSScriptRoot\source\services\$($platformPrerequisiteService.ToLower())\services-$($platformPrerequisiteService.ToLower())*.ps1 $PSScriptRoot\services -WhatIf -Quiet
                 foreach ($platformPrerequisiteServiceFile in $platformPrerequisiteServiceFiles) {
                     Copy-File $platformPrerequisiteServiceFile.Source $platformPrerequisiteServiceFile.Destination
@@ -1432,9 +1433,48 @@ $global:Location.Definitions = $tempLocationDefinitions
                 $message = "  Provider            Status"
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
                 $message = "  --------            ------"
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray     
 
-                $providerIds | ForEach-Object { Install-CatalogObject -Type Provider -Id $_ -UseDefaultResponses:$UseDefaultResponses }
+                foreach ($providerId in $providerIds) {
+                                                         
+                    $cursorVisible = [console]::CursorVisible
+                    Set-CursorVisible
+
+                    $message = "  $providerId$($emptyString.PadLeft(20-$providerId.Length," "))","PENDING"
+                    $messageLength = $message[0].Length + $message[1].Length
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+
+                    $prerequisiteFail = @{}
+                    try {
+                        Install-CatalogObject -Type Provider -Id $providerId -UseDefaultResponses:$UseDefaultResponses
+
+                        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageLength,"`b")
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator `
+                            "  $providerId$($emptyString.PadLeft(20-$providerId.Length," "))", "INSTALLED" `
+                            -ForegroundColor Gray,DarkGreen,Gray,DarkGreen
+
+                    }
+                    catch {
+
+                        Write-Host+ -ReverseLineFeed 3
+                        $message = "  Provider            Installation        Prerequisite        Status"
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+                        $message = "  --------            ------------        ------------        ------"
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray  
+
+                        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageLength,"`b")
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator `
+                            "  $providerId$($emptyString.PadLeft(20-$providerId.Length," "))", "FAILED$($emptyString.PadLeft(13," "))", `
+                            "$($prerequisiteFail.Id)$($emptyString.PadLeft(20-$($prerequisiteFail.Id).Length," "))", "$($prerequisiteFail.Status)" `
+                            -ForegroundColor Gray,Red,Gray,Red
+
+                        Uninstall-CatalogObject -Type Provider -Id $providerId -DeleteAllData -Quiet -Force
+
+                    }
+                
+                    [console]::CursorVisible = $cursorVisible
+
+                }
                 
                 Write-Host+
                 $message = "<Providers <.>48> INSTALLED "
@@ -1460,23 +1500,65 @@ $global:Location.Definitions = $tempLocationDefinitions
 
                 foreach ($productId in $productIds) {
 
-                    if ((Get-Catalog -Uid "Product.$productId").HasTask) {
-                        Install-CatalogObject -Type Product -Id $productId -NoNewLine
-                        if (!$installOverwatch) {
-                            if ("Product.$productId" -notin $disabledProductIDs) {
-                                Enable-Product $productId -NoNewLine
+                    $cursorVisible = [console]::CursorVisible
+                    Set-CursorVisible
+
+                    $message = "  $productId$($emptyString.PadLeft(20-$productId.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+                    $messageLength = $message[0].Length + $message[1].Length
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+
+                    try {
+                        if ((Get-Catalog -Uid "Product.$productId").HasTask) {
+                            Install-CatalogObject -Type Product -Id $productId -NoNewLine
+                            if (!$installOverwatch) {
+                                if ("Product.$productId" -notin $disabledProductIDs) {
+                                    Enable-Product $productId -NoNewLine
+                                }
+                                else {
+                                    Disable-Product $productId -NoNewLine
+                                }
                             }
                             else {
-                                Disable-Product $productId -NoNewLine
+                                Write-Host+
                             }
                         }
                         else {
-                            Write-Host+
+
+                            $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
+
+                            Install-CatalogObject -Type Product -Id $productId -UseDefaultResponses:$UseDefaultResponses
+
+                            $message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))READY$($emptyString.PadLeft(15," "))"
+                            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, DarkGreen
+                            
                         }
                     }
-                    else {
-                        Install-CatalogObject -Type Product -Id $productId -UseDefaultResponses:$UseDefaultResponses
+                    catch {
+
+                        Write-Host+ -ReverseLineFeed 3
+                        $message = "  Product             Installation        Task                Prerequisite        Status"
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+                        $message = "  -------             ------------        ----                ------------        ------"
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
+
+                        $productTaskStatus = ""
+                        if ($global:Catalog.Product.$productId.Installed -and $global:Catalog.Product.$productId.HasTask) {
+                            $productTaskStatus = (Get-PlatformTask -Id $productId).Status
+                        }
+
+                        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageLength,"`b")
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator `
+                            "  $productId$($emptyString.PadLeft(20-$productId.Length," "))", "FAILED$($emptyString.PadLeft(13," "))", `
+                            "$($productTaskStatus.ToUpper())$($emptyString.PadLeft(20-$productTaskStatus.Length," "))" `
+                            "$($prerequisiteFail.Id)$($emptyString.PadLeft(20-$($prerequisiteFail.Id).Length," "))", "$($prerequisiteFail.Status)" `
+                            -ForegroundColor Gray,Red,Gray,Red
+
+                        Uninstall-CatalogObject -Type Provider -Id $productId -DeleteAllData -Quiet -Force
+
                     }
+                
+                    [console]::CursorVisible = $cursorVisible                    
 
                 }
 

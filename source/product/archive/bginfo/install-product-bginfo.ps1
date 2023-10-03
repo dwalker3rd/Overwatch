@@ -1,16 +1,12 @@
 param (
-    [switch]$UseDefaultResponses,
-    [switch]$NoNewLine
+    [switch]$UseDefaultResponses
 )
 
 $definitionsPath = $global:Location.Definitions
 . $definitionsPath\classes.ps1
 
 $_product = Get-Product "BgInfo" -NoCache
-$Id = $_product.Id
-
-$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
+$_product | Out-Null
 
 # create bgInfo data directory on local node
 $bgInfoDir = [DirectoryObject]::New($_product.Config.Location.Data)
@@ -59,9 +55,6 @@ if (Test-Path $sourceBgInfoConfigFile) {
         $productTask = Get-PlatformTask -Id $_product.Id
     }
 
-    $message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "Red")
-
 }
 else {
 
@@ -72,9 +65,6 @@ else {
     Write-Host+
 
     Uninstall-CatalogObject -Type Product -Id $_product.Id -DeleteAllData -Force -Quiet
-
-    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","FAILURE$($emptyString.PadLeft(13," "))","FAILURE$($emptyString.PadLeft(13," "))"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message[0],$message[1],$message[2] -ForegroundColor Gray,Red,Red
 
 }
 

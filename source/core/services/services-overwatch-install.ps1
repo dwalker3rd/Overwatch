@@ -273,7 +273,7 @@ function script:Copy-File {
         "`$imagesUri = [System.Uri]::new(""$($global:Location.Images)"")" | Add-Content -Path $global:InstallSettings
         "`$platformInstallLocation = ""$($global:Platform.InstallPath)""" | Add-Content -Path $global:InstallSettings
 
-        $_platformInstanceUri = ![string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : ""
+        $_platformInstanceUri = [string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : [System.Uri]::new($platformInstanceUri)
         "`$platformInstanceUri = ""$($_platformInstanceUri)""" | Add-Content -Path $global:InstallSettings
         
         "`$platformInstanceDomain = ""$($global:Platform.Domain)""" | Add-Content -Path $global:InstallSettings
@@ -289,6 +289,8 @@ function script:Copy-File {
         if ($global:RequiredPythonPackages.Count -gt 0) {
             "`$requiredPythonPackages = @('$($global:RequiredPythonPackages -join "', '")')" | Add-Content -Path $global:InstallSettings
         }
+
+        return
 
     }
 
@@ -597,7 +599,21 @@ function script:Copy-File {
         $logFile = $catalogObject.Log ? $catalogObject.Log.ToLower() : $Platform.Instance
         if (!(Test-Log -Name $logFile)) { New-Log -Name $logFile | Out-Null }
 
-        if (Test-Path -Path "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1") {. "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1" -UseDefaultResponses:$UseDefaultResponses.IsPresent -NoNewLine:$NoNewLine.IsPresent}
+        # TODO: automate registration of scheduled tasks from the catalog
+        # this is currently handled in the install-product-*.ps1 files
+
+        $prerequisiteTestResults = Test-Prerequisites -Type $Type -Id $Id -PrerequisiteType Installation -Quiet
+        if (!$prerequisiteTestResults.Pass) {
+            foreach ($prerequisite in $prerequisiteTestResults.Prerequisites | Where-Object {!$_.Pass}) {
+                # TODO: Prompt user for manual/automatic installation of prerequisites (including children) 
+                Install-CatalogObject -Type $prerequisite.Type -Id $prerequisite.Id -UseDefaultResponses:$UseDefaultResponses
+                Invoke-Command (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id).Installation.Install
+            }
+        }
+
+        if (Test-Path -Path "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1") {
+            . "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1" -UseDefaultResponses:$UseDefaultResponses.IsPresent -NoNewLine:$NoNewLine.IsPresent
+        }
 
         # $global:Catalog.$Type.$Id.IsInstalled = $false
     }
@@ -663,6 +679,8 @@ function script:Uninstall-CatalogObject {
 
     $message = "$($emptyString.PadLeft(20,"`b"))UNINSTALLED$($emptyString.PadLeft(9," "))"
     Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+    # TODO: Prompt for manual/automatic uninstall of catalogobject dependencies which no longer have dependents
 
 }
 

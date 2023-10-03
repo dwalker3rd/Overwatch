@@ -1,5 +1,5 @@
 try {
-    scoop update
+    scoop update --global
 }
 catch {
     $_progressPreference = $global:ProgressPreference

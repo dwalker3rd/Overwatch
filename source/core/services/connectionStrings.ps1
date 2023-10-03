@@ -6,8 +6,6 @@
 #     Get-Catalog
 # }
 
-$script:ComputerNameParam = @{}
-
 function global:New-ConnectionString {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
@@ -190,7 +188,7 @@ function global:Get-ConnectionString {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    if ((Get-Command Get-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+    $ComputerNameParam = (Get-Command Get-VaultItem).Parameters.Keys -contains "ComputerName" ? @{ ComputerName = $ComputerName } : @{}
     $vaultItem = Get-VaultItem -Id $Id -Vault $Vault @ComputerNameParam
     return $vaultItem
 

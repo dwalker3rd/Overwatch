@@ -111,7 +111,7 @@
             $contentUrl = ![string]::IsNullOrEmpty($contentUrl) ? $contentUrl : $defaultContentUrlResponse
         }
 
-        $defaultCredentialsNameResponse = $exportServerSiteResponse -eq "Server" ? "localadmin-$($Platform.Instance)" : $null
+        $defaultCredentialsNameResponse = $exportServerSiteResponse -eq "Server" ? "localadmin-$($global:Platform.Instance)" : $null
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Credentials","[$defaultCredentialsNameResponse]",": " -ForegroundColor Gray,Blue,Gray
         $credentialsName = Read-Host
         $credentialsName = ![string]::IsNullOrEmpty($credentialsName) ? $credentialsName : $defaultCredentialsNameResponse
@@ -142,7 +142,7 @@ function global:Export-TSServer {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Server = $global:tsRestApiConfig.Server,
-        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($Platform.Instance)"
+        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($global:Platform.Instance)"
     )
 
     # is the server export/download directory locked?

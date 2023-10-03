@@ -6,8 +6,6 @@ This script provides credential management for Overwatch services, tasks and pro
 stored in .secure files in the Overwatch data directory.
 #>
 
-$script:ComputerNameParam = @{}
-
 <# 
 .Synopsis
 Request credentials from a user.
@@ -127,7 +125,7 @@ function global:Get-Credentials {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    if ((Get-Command Get-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+    $ComputerNameParam = (Get-Command Get-VaultItem).Parameters.Keys -contains "ComputerName" ? @{ ComputerName = $ComputerName } : @{}
     $item = Get-VaultItem -Vault $Vault -Id $id @ComputerNameParam
     if (!$item) {return}
 

@@ -1,15 +1,9 @@
 param (
-    [switch]$UseDefaultResponses,
-    [switch]$NoNewLine
+    [switch]$UseDefaultResponses
 )
 
-$product = Get-Product "AzureADCache"
-$Id = $product.Id 
-
-$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
-
-Copy-File "$($global:Location.Root)\source\product\$($product.Id.ToLower())\definitions-product-$($product.Id.ToLower())-template.ps1" "$($global:Location.Root)\definitions\definitions-product-$($product.Id.ToLower()).ps1" -Quiet
+$_product = Get-Product "AzureADCache"
+$_product | Out-Null
 
 foreach ($node in (pt nodes -k)) {
     $remotedirectory = "\\$node\$(($global:Azure.Location.Data).Replace(":","$"))"
@@ -25,6 +19,3 @@ if (!$productTask) {
         -ExecutionTimeLimit $(New-TimeSpan -Minutes 30) -RunLevel Highest -Disable
     $productTask = Get-PlatformTask -Id "AzureADCache"
 }
-
-$message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
-Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "DarkRed")

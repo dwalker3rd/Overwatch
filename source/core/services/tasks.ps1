@@ -10,7 +10,7 @@ function global:Register-PlatformTask {
         [Parameter(Mandatory=$true)][string]$Execute,        
         [Parameter(Mandatory=$true)][string]$Argument,
         [Parameter(Mandatory=$true)][string]$WorkingDirectory,
-        [Parameter(Mandatory=$false)][System.Management.Automation.PSCredential]$Credentials = $(Get-Credentials "localadmin-$($Platform.Instance)"),
+        [Parameter(Mandatory=$false)][System.Management.Automation.PSCredential]$Credentials = $(Get-Credentials "localadmin-$($global:Platform.Instance)"),
 
         [Parameter(Mandatory=$false)][DateTime]$At,
         [Parameter(Mandatory=$false)][string]$RandomDelay,
@@ -576,7 +576,7 @@ function global:Show-PlatformTasks {
     end {
 
         # WriteHostPlusPreference is set to SilentlyContinue/Quiet.  nothing to write/output, so return
-        if ($global:WriteHostPlusPreference -ne "Continue") { return }
+        if ($global:WriteHostPlusPreference -eq "SilentlyContinue") { return }
 
         # restrict refresh feature to non-pipelined data for the local machine (for now)
         # if ((![string]::IsNullOrEmpty($ComputerName) -and $ComputerName -ne $env:COMPUTERNAME) -or $platformTasks) { $Refresh = $false }
