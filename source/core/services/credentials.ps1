@@ -6,6 +6,7 @@ This script provides credential management for Overwatch services, tasks and pro
 stored in .secure files in the Overwatch data directory.
 #>
 
+$script:ComputerNameParam = @{}
 
 <# 
 .Synopsis
@@ -75,22 +76,24 @@ function global:Set-Credentials {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$true,Position=0)][string]$id,
         [Parameter(Mandatory=$false,ValueFromPipeline)][System.Management.Automation.PsCredential]$Credentials,
         [Parameter(Mandatory=$false)][Alias("Id")][string]$UserName,
         [Parameter(Mandatory=$false)][Alias("Token")][string]$Password,
-        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
+        [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
-    
-    $Name = $Name.ToLower()
-    $Key = New-EncryptionKey $Name -ComputerName $ComputerName
-    $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
-    $PasswordEncrypted = $Credentials.Password | ConvertFrom-SecureString -Key $Key
 
-    # Add-ToVault -Vault $KeyVault -Name $Name -InputObject $Key -ComputerName $ComputerName
-    Add-ToVault -Vault $SecretVault -Name $Name -InputObject @{ $Credentials.UserName = $PasswordEncrypted } -ComputerName $ComputerName
+    $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
+
+    if (!(Get-Credentials -Id $id -Vault $Vault -ComputerName $ComputerName)) {
+        if ((Get-Command New-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+        New-VaultItem -Category Login -Id $id -UserName $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password -Vault $Vault @ComputerNameParam
+    }
+    else {
+        if ((Get-Command Update-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+        Update-VaultItem -Id $id -UserName $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password -Vault $Vault @ComputerNameParam
+    }
 
     return
 
@@ -118,23 +121,18 @@ function global:Get-Credentials {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][object]$Key,
-        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
+        [Parameter(Mandatory=$true,Position=0)][string]$id,
+        [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [switch]$LocalMachine,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    $Name = $Name.ToLower()
+    if ((Get-Command Get-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+    $item = Get-VaultItem -Vault $Vault -Id $id @ComputerNameParam
+    if (!$item) {return}
 
-    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name -ComputerName $ComputerName)
-
-    $creds = Get-FromVault -Vault $SecretVault -Name $Name -ComputerName $ComputerName
-    if (!$creds) {return}
-
-    $UserName = $creds.keys[0]
-    $PasswordEncrypted = $creds.$($username)
+    $UserName = $item.UserName
+    $Password = $item.Password | ConvertTo-SecureString -AsPlainText
 
     if ($LocalMachine) {
         if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine) { 
@@ -149,15 +147,7 @@ function global:Get-Credentials {
         }
     }
 
-    try {
-        $Password = $Key ? $($PasswordEncrypted | ConvertTo-SecureString -Key $Key) : $($PasswordEncrypted | ConvertTo-SecureString)
-        return New-Object System.Management.Automation.PSCredential($UserName, $Password)
-    }
-    catch {
-        Write-Error "Credentials error."
-    }
-
-    return
+    return New-Object System.Management.Automation.PSCredential($UserName, $Password)
 
 }
 
@@ -168,15 +158,16 @@ function global:Remove-Credentials {
         ConfirmImpact = 'High'
     )]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
+        [Parameter(Mandatory=$false,Position=0)][string]$id,
+        [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    if($PSCmdlet.ShouldProcess($Name)) {
-        Remove-FromVault -Vault $KeyVault -Name $Name -ComputerName $ComputerName
-        Remove-FromVault -Vault $SecretVault -Name $Name -ComputerName $ComputerName
+    if($PSCmdlet.ShouldProcess($id)) {
+        if ((Get-Command Remove-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+        Remove-VaultItem -Vault $Vault -Id $id @ComputerNameParam
+        if ((Get-Command Remove-VaultKey).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+        Remove-VaultKey -Id $id -Vault $Vault @ComputerNameParam
     }
 
 }
@@ -186,18 +177,16 @@ function global:Copy-Credentials {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Source,
-        [Parameter(Mandatory=$false)][object]$SourceSecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$SourceKeyVault = "key",
+        [Parameter(Mandatory=$true)][string]$SourceVault,
         [Parameter(Mandatory=$false)][string]$SourceComputerName = $env:COMPUTERNAME,
         
-        [Parameter(Mandatory=$true,Position=1)][string]$Destination,
-        [Parameter(Mandatory=$false)][object]$DestinationSecretVault = $SourceSecretVault,
-        [Parameter(Mandatory=$false)][object]$DestinationKeyVault = $SourceKeyVault,
+        [Parameter(Mandatory=$false,Position=1)][string]$Destination = $Source,
+        [Parameter(Mandatory=$false)][string]$DestinationVault = $SourceVault,
         [Parameter(Mandatory=$false)][string]$DestinationComputerName = $SourceComputerName
     )
 
-    $creds = Get-Credentials $Source -SecretVault $SourceSecretVault -KeyVault $SourceKeyVault -ComputerName (Get-OverwatchController $SourceComputerName)
-    Set-Credentials $Destination -Credentials $creds -SecretVault $DestinationSecretVault -KeyVault $DestinationKeyVault -ComputerName (Get-OverwatchController $DestinationComputerName)
+    $creds = Get-Credentials $Source -Vault $SourceVault -ComputerName (Get-OverwatchController $SourceComputerName)
+    Set-Credentials $Destination -Credentials $creds -Vault $DestinationVault -ComputerName (Get-OverwatchController $DestinationComputerName)
 
 }
 
@@ -216,21 +205,13 @@ function global:Test-Credentials {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][object]$Key,
-        [Parameter(Mandatory=$false)][object]$SecretVault = "secret",
-        [Parameter(Mandatory=$false)][object]$KeyVault = "key",
+        [Parameter(Mandatory=$false,Position=0)][string]$id,
+        [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [switch]$NoValidate,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
-
-    $Name = $Name.ToLower()
-
-    $Key = $Key ?? (Get-FromVault -Vault $KeyVault -Name $Name -ComputerName $ComputerName)
-
-    # if (!$(Test-Path -path $credentialFile)) {return $false}
     
-    $Credentials = Get-Credentials -Name $Name -SecretVault $SecretVault -KeyVault $KeyVault
+    $Credentials = Get-Credentials -Id $id -Vault $Vault -ComputerName $ComputerName
     if (!$Credentials) {return $false}
 
     if ($NoValidate) {return $Credentials ? $true : $false}

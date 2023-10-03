@@ -13,7 +13,7 @@ function global:Connect-Tabcmd {
 
     Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTabCmd -ThrowError
 
-    $creds = get-credentials -Name $Credentials
+    $creds = get-Credentials -Id $Credentials
     if (!$creds) { throw "`"$Credentials`" is not a valid credentials name" }
 
     . tabcmd login -s $Server -u $creds.Username -p $creds.GetNetworkCredential().Password --no-certcheck

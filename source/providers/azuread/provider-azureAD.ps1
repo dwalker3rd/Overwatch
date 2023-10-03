@@ -245,7 +245,7 @@ function global:Reset-AzureADUserPassword {
     #endregion RESET PASSWORD
 
     $creds = Request-Credentials -UserName $azureADUser.UserPrincipalName -Password $newPassword
-    Set-Credentials -Name $azureADUser.UserPrincipalName -Credentials $creds
+    Set-Credentials -Id $azureADUser.UserPrincipalName -Credentials $creds
 
     return
      

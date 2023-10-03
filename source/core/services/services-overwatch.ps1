@@ -277,7 +277,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver")]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
@@ -295,7 +295,7 @@
 
         $catalogObjectExpressionsUid = ""
         if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {
-            $catalogObjectExpressions += "`$global:Catalog.$Type.$Id"
+            $catalogObjectExpressions += "`$global:Catalog.$Type.`"$Id`""
             $catalogObjectExpressionsUid = "Type.Id"
         }
         elseif (![string]::IsNullOrEmpty($Type) -and [string]::IsNullOrEmpty($Id)) { 
@@ -305,7 +305,7 @@
         elseif ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) { 
             $params = @{ Id = $Id; AllowDuplicates = $AllowDuplicates.IsPresent }
             if ($PSBoundParameters.ErrorAction) {$params += @{ ErrorAction = $PSBoundParameters.ErrorAction }}
-            $catalogObjectExpressions += "`$global:Catalog.$((Search-Catalog @params).object).Type).$Id"
+            $catalogObjectExpressions += "`$global:Catalog.$((Search-Catalog @params).object).Type).`"$Id`""
             $catalogObjectExpressionsUid = "Type.Id"
         }
         else {
@@ -330,7 +330,6 @@
                             Set-Location $using:remoteOverwatchRoot
                             . $using:remoteOverwatchRoot/definitions.ps1 -MinimumDefinitions
                             $catalogObject = Invoke-Expression $using:catalogObjectExpression
-                            # $catalogObject.Refresh()
                             $catalogObject
                         }
                     }
@@ -380,10 +379,30 @@
 
         if ($remoteQuery){
             $environKeyValues = Get-EnvironConfig -Key Environ.$Type -ComputerName $ComputerName
-            $catalogObjects | Foreach-Object {$_.Refresh($environKeyValues)}
+            foreach ($catalogObject in $catalogObjects) {
+                switch ($catalogObject.Type) {
+                    "Driver" {
+                        $_installedDrivers = (Invoke-Expression "Get-$($catalogObject.DriverType)InstalledDrivers -Name `"$($catalogObject.Id)`" -ComputerName $ComputerName")
+                        $catalogObject.Installed = $catalogObject.Id -in $_installedDrivers.Name
+                    }
+                    "default" {
+                        $_.Refresh($environKeyValues)
+                    }
+                }
+            }
         }
         else {
-            $catalogObjects | Foreach-Object {$_.Refresh()}
+            foreach ($catalogObject in $catalogObjects) {
+                switch ($catalogObject.Type) {
+                    "Driver" {
+                        $_installedDrivers = (Invoke-Expression "Get-$($catalogObject.DriverType)InstalledDrivers -Name `"$($catalogObject.Id)`"")
+                        $catalogObject.Installed = $catalogObject.Id -in $_installedDrivers.Name
+                    }
+                    "default" {
+                        $_.Refresh()
+                    }
+                }
+            }
         }
 
         if ($Installed) { $catalogObjects = $catalogObjects | Where-Object {$_.IsInstalled()} }
@@ -450,7 +469,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver")]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
@@ -514,7 +533,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver")]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
@@ -546,7 +565,7 @@
             return
         }
 
-        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider") -join ","
+        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver") -join ","
         $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"(\w*,$Type),?.*$")
         $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
         $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
@@ -624,14 +643,14 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver")]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
             [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}), 
                     
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell")][string[]]$IncludeDependencyType,
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell")][string[]]$ExcludeDependencyType,
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","PowerShell")][string[]]$IncludeDependencyType,
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","PowerShell")][string[]]$ExcludeDependencyType,
             [Parameter(Mandatory=$false)][string[]]$History = @(),
             [switch]$DoNotRecurse,
             [Parameter(Mandatory=$false)][int]$RecurseLevel = 0,
@@ -682,6 +701,15 @@
             foreach ($skey in $global:Catalog.$Type.$Id.Installation.Prerequisite.$pkey) {
                 if ("$pkey.$skey" -notin $History) {
 
+                    if (![string]::IsNullOrEmpty($IncludeDependencyType) -and $pkey -notin $IncludeDependencyType) { continue }
+                    if (![string]::IsNullOrEmpty($ExcludeDependencyType) -and $pkey -in $ExcludeDependencyType) { continue }
+                    if (![string]::IsNullOrEmpty($Platform)) {
+                        $_platform = $global:Catalog.$pkey.$skey.Installation.Prerequisite.Platform ?? "Any"
+                        if ($_platform -ne "Any" -and $Platform -notin $_platform) { 
+                            continue 
+                        }
+                    }
+
                     $History += "$pkey.$skey"
 
                     $_dependencies = @()
@@ -689,14 +717,31 @@
                         "PowerShell" {
                             foreach ($tkey in $skey.Keys) {
                                 foreach ($_psObject in $skey.$tkey) {
-                                    $_dependencies += [PSCustomObject]@{ Uid = "$pkey.$tkey.$($_psObject.Name)"; Level = $RecurseLevel; Type = $pkey; Id = $tkey; Object = [PSCustomObject]$_psObject; Dependent = $dependent }
+                                    $_dependencies += [PSCustomObject]@{ 
+                                        Uid = "$pkey.$tkey.$($_psObject.Name)"
+                                        Level = $RecurseLevel
+                                        Type = $pkey
+                                        Id = $tkey
+                                        Object = [PSCustomObject]$_psObject
+                                        Dependent = $dependent
+                                        DependentObject = $catalogObject
+                                    }
                                 }
                             }
                         }
                         default { 
                             if ($Installed -and !$global:Catalog.$pkey.$skey.IsInstalled()) { continue }
                             if ($NotInstalled -and $global:Catalog.$pkey.$skey.IsInstalled()) { continue }
-                            $_dependencies += [PSCustomObject]@{ Uid = "$pkey.$skey"; Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $catalogObject; Dependent = $dependent }
+                            $_dependencies += [PSCustomObject]@{ 
+                                Uid = "$pkey.$skey"
+                                Level = $RecurseLevel
+                                Type = $pkey
+                                Id = $skey
+                                # Platform = $global:Catalog.$pkey.$skey.Installation.Prerequisite.Platform ?? "Any"
+                                Object = $global:Catalog.$pkey.$skey
+                                Dependent = $dependent
+                                DependentObject = $catalogObject
+                            }
                             if (!$DoNotRecurse) {
                                 foreach ($dependency in $_dependencies) {
                                     $params = @{
@@ -734,15 +779,15 @@
         if ($CatalogObjectsOnly) {
             $dependencies = $dependencies | Where-Object {$_.Type -in $global:Catalog.Keys}
         }
-        elseif (![string]::IsNullOrEmpty($IncludeDependencyType)) {
-            $dependencies = $dependencies | Where-Object {$_.Type -in $IncludeDependencyType}
-        }
-        elseif (![string]::IsNullOrEmpty($ExcludeDependencyType)) {
-            $dependencies = $dependencies | Where-Object {$_.Type -notin $ExcludeDependencyType}
-        }
+        # elseif (![string]::IsNullOrEmpty($IncludeDependencyType)) {
+        #     $dependencies = $dependencies | Where-Object {$_.Type -in $IncludeDependencyType}
+        # }
+        # elseif (![string]::IsNullOrEmpty($ExcludeDependencyType)) {
+        #     $dependencies = $dependencies | Where-Object {$_.Type -notin $ExcludeDependencyType}
+        # }
 
         If (![string]::IsNullOrEmpty($Platform)) {
-            $dependencies = $dependencies | Where-Object {$_.Dependent -eq "Platform.$Platform"}
+            $dependencies = $dependencies | Where-Object {$null -eq $_.Object.Installation.Prerequisite.Platform -or $_.Object.Installation.Prerequisite.Platform -eq "$Platform"}
         }
 
         return $dependencies

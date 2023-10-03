@@ -5,3 +5,4 @@ Overwatch.code-workspace
 !source
 !LICENSE
 !README.md
+source/providers/1password/*.json

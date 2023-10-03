@@ -575,7 +575,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         }
 
     }
-    $productIds = $productsSelected | Where-Object {$_ -notin $productIds}
+    $productIds = [array]($productsSelected | Where-Object {$_ -notin $productIds})
 
     Write-Host+ -Iff $productHeaderWritten
 
@@ -618,7 +618,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
         }
     }
-    $providerIds = $_providerIds | Where-Object {$_ -notin $providerIds}
+    $providerIds = [array]($_providerIds | Where-Object {$_ -notin $providerIds})
 
     Write-Host+ -Iff $providerHeaderWritten
 
@@ -632,10 +632,10 @@ $global:Location.Definitions = $tempLocationDefinitions
         foreach ($dependency in $dependencies) {
             $dependentType = ($dependency.Dependent -split "\.")[0]
             $dependentId = ($dependency.Dependent -split "\.")[1]
-            Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentType) $($dependentId))" -ForegroundColor Gray,DarkGray
+            Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentId)) $($dependentType.ToLower())" -ForegroundColor Gray,DarkGray
             switch ($dependency.Type) {
-                "Product" { $productIds += $dependency.Id | Where-Object {$_ -notin $productIds} }
-                "Provider" { $ProviderIds += $dependency.Id | Where-Object {$_ -notin $providerIds} }
+                "Product" { $productIds += [array]($dependency.Id | Where-Object {$_ -notin $productIds}) }
+                "Provider" { $providerIds += [array]($dependency.Id | Where-Object {$_ -notin $providerIds}) }
             }
         }
         Write-Host+
@@ -788,7 +788,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 
             $productFiles = @()
             $productIdsToReinstall = @()
-            foreach ($product in $global:Environ.Product + $productIds) {
+            $allProductIds = $global:Environ.Product
+            if ($productIds) { $allProductIds += $productIds }
+            foreach ($product in $allProductIds) {
                 $productFiles += Copy-File $PSScriptRoot\source\product\$($product.ToLower())\install-product-$($product.ToLower()).ps1 $PSScriptRoot\install\install-product-$($product.ToLower()).ps1 -WhatIf
                 $productTemplateFile = Copy-File $PSScriptRoot\source\product\$($product.ToLower())\definitions-product-$($product.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-product-$($product.ToLower()).ps1 -WhatIf
                 if ($productTemplateFile) { $productIdsToReinstall += $productTemplateFile.Product }
@@ -803,7 +805,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 
             $providerFiles = @()
             $providerIdsToReinstall = @()
-            foreach ($provider in $global:Environ.Provider + $providerIds) {
+            $allProductIds = $global:Environ.Provider
+            if ($providerIds) { $allProviderIds += $providerIds }
+            foreach ($provider in $allProviderIds) {
                 $providerFiles += Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\install-provider-$($provider.ToLower()).ps1 $PSScriptRoot\install\install-provider-$($provider.ToLower()).ps1 -WhatIf
                 $providerTemplateFile = Copy-File $PSScriptRoot\source\providers\$($provider.ToLower())\definitions-provider-$($provider.ToLower())-template.ps1 $PSScriptRoot\definitions\definitions-provider-$($provider.ToLower()).ps1 -WhatIf
                 if ($providerTemplateFile) { $providerIdsToReinstall += $providerTemplateFile.Provider }
@@ -1139,7 +1143,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         Write-Host+ -MaxBlankLines 1
         $message = "<Powershell modules/packages <.>48> INSTALLING"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
         $requiredModules = @()
         $requiredPackages = @()
@@ -1167,6 +1171,9 @@ $global:Location.Definitions = $tempLocationDefinitions
         $requiredModules += @()
         foreach ($module in $requiredModules) {
 
+            # complete -NoNewLine from above
+            Write-Host+ 
+
             $message = "<  $($module.name) <.>36> PENDING"
             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -1184,6 +1191,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         # $requiredPackages += @()
         foreach ($package in $requiredPackages) {
+
+            # complete -NoNewLine if not already done in required modules
+            Write-Host+ -Iff $(!$requiredModules) 
             
             $message = "<  $($package.name) <.>36> PENDING"
             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
@@ -1199,8 +1209,14 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         }
 
-        $message = "<Powershell modules/packages <.>48> INSTALLED"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+        if ($requiredModules -or $requiredPackages) {
+            $message = "<Powershell modules/packages <.>48> INSTALLED"
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+        }
+        else {
+            $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        }
 
     }
 

@@ -31,5 +31,5 @@ if (Test-Path -Path "$($global:Location.Services)\services-$($global:Overwatch.N
 . "$($global:Location.Services)\contacts.ps1"
 . "$($global:Location.Services)\python.ps1"
 . "$($global:Location.Services)\connectionstrings.ps1"
-. "$($global:Location.Services)\odbc.ps1"
+# . "$($global:Location.Services)\odbc.ps1"
 

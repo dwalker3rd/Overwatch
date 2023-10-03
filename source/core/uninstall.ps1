@@ -21,6 +21,26 @@ $global:Product = @{Id="Uninstall"}
 . $PSScriptRoot\definitions.ps1
 . $PSScriptRoot\services\services-overwatch-install.ps1
 
+#region LOCAL FUNCTIONS
+
+    function Get-DependenciesWithOutDependents {
+        param(
+            [Parameter(Mandatory=$true)][string]$Uid,
+            [switch]$Recurse
+        )
+        $dependenciesWithoutDependents = @()
+        $dependencies = Get-CatalogDependencies -Uid $Uid -Include Product, Provider -Installed
+        foreach ($dependency in $dependencies) {
+            $dependencyDependents = Get-CatalogDependents -Uid $dependency.Uid -Installed | Where-Object {$_.Uid -ne $Uid}
+            if (!$dependencyDependents) {
+                $dependenciesWithoutDependents += $dependency
+                if ($Recurse) { Get-DependenciesWithOutDependents -Uid $dependency.Uid }
+            }
+        } 
+        return $dependenciesWithoutDependents
+    }
+
+#endregion LOCAL FUNCTIONS
 #region MAIN
 
     Set-CursorInvisible
@@ -46,90 +66,108 @@ $global:Product = @{Id="Uninstall"}
 
         if (![string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) {
 
-            $Type = $global:Catalog.Keys | Where-Object {$_ -eq $Type}
-            $Id = $global:Catalog.$Type.$Id.Id
-            $catalogObject = Get-Catalog -Type $Type -Id $Id
+            function Uninstall-SingleCatalogObject {
 
-            # This component is not installed
-            if (!$catalogObject.IsInstalled()) {
-                Write-Host+ -NoTrace "WARN: $Type `"$Id`" is NOT installed." -ForegroundColor DarkYellow
-                Write-Host+ -Iff $(!($Force.IsPresent)) -NoTrace "INFO: To force the uninstall, add the -Force switch." -ForegroundColor DarkYellow
-                Write-Host+ -Iff $($Force.IsPresent) -NoTrace "INFO: Uninstalling with FORCE." -ForegroundColor DarkYellow
-                if (!$Force) { return }
-                $Force = $false
-                Write-Host+
-            }
+                param(
+                    [Parameter(Mandatory=$false,Position=0)][ValidateSet("Cloud","Provider","Product")][string]$Type,
+                    [Parameter(Mandatory=$false,Position=1)][string]$Id,
+                    [switch]$Force
+                )
 
-            Write-Host+ -Iff $($Force.IsPresent) -NoTrace "WARN: Ignoring -Force switch." -ForegroundColor DarkYellow
-            Write-Host+ -Iff $($Force.IsPresent) 
+                    $Type = $global:Catalog.Keys | Where-Object {$_ -eq $Type}
+                    $Id = $global:Catalog.$Type.$Id.Id
+                    $catalogObject = Get-Catalog -Type $Type -Id $Id
 
-            # This component is protected by the UninstallProtected catalog flag and cannot be uinstalled
-            if ($global:Catalog.$Type.$Id.Installation.Flag -contains "UninstallProtected") {
-                Write-Host+ -NoTrace "WARN: $Type `"$Id`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
-                return
-            }
+                    # This component is not installed
+                    if (!$catalogObject.IsInstalled()) {
+                        Write-Host+ -NoTrace "WARN: $Type `"$Id`" is NOT installed." -ForegroundColor DarkYellow
+                        Write-Host+ -Iff $(!($Force.IsPresent)) -NoTrace "INFO: To force the uninstall, add the -Force switch." -ForegroundColor DarkYellow
+                        Write-Host+ -Iff $($Force.IsPresent) -NoTrace "INFO: Uninstalling with FORCE." -ForegroundColor DarkYellow
+                        if (!$Force) { return }
+                        $Force = $false
+                        Write-Host+
+                    }
 
-            # check for dependencies on this component by other installed components
-            # this component cannot be uninstalled if other installed components have dependencies on it
-            $dependents = Get-CatalogDependents -Type $Type -Id $Id | 
-                ForEach-Object {Invoke-Expression "Get-$($_.Type) $($_.Id)"} | 
-                    Where-Object {$_.IsInstalled()}
-            if ($dependents) {
-                Write-Host+ -NoTrace "ERROR: Unable to uninstall the $Id $($Type.ToLower())" -ForegroundColor Red
-                foreach ($dependent in $dependents) {
-                    Write-Host+ -NoTrace "ERROR: The $($dependent.Id) $($dependent.Type) is dependent on the $Id $($Type.ToLower())" -ForegroundColor Red
+                    Write-Host+ -Iff $($Force.IsPresent) -NoTrace "WARN: Ignoring -Force switch." -ForegroundColor DarkYellow
+                    Write-Host+ -Iff $($Force.IsPresent) 
+
+                    # This component is protected by the UninstallProtected catalog flag and cannot be uinstalled
+                    if ($global:Catalog.$Type.$Id.Installation.Flag -contains "UninstallProtected") {
+                        Write-Host+ -NoTrace "WARN: $Type `"$Id`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
+                        return
+                    }
+
+                    # check for dependencies on this component by other installed components
+                    # this component cannot be uninstalled if other installed components have dependencies on it
+                    $dependents = Get-CatalogDependents -Type $Type -Id $Id -Installed
+                    if ($dependents) {
+                        Write-Host+ -NoTrace "ERROR: Unable to uninstall the $Id $($Type.ToLower())" -ForegroundColor Red
+                        foreach ($dependent in $dependents) {
+                            Write-Host+ -NoTrace "ERROR: The $($dependent.Id) $($dependent.Type.ToLower()) is dependent on the $Id $($Type.ToLower())" -ForegroundColor Red
+                        }
+                        Write-Host+
+                        return
+                    }
+            
+                    # delete/retain definitions, install setttings and data
+                    $deleteAllData = $false
+                    Set-CursorVisible
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Delete data for $Type $Id (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
+                    $continue = Read-Host
+                    Set-CursorInvisible
+                    $deleteAllData = $continue.ToUpper() -eq "Y"
+
+                    # the inevitable "Are you sure?" prompt
+                    Set-CursorVisible
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Uninstall $Type $Id $($deleteAllData ? "and delete ALL data" : $null) (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
+                    $continue = Read-Host
+                    Set-CursorInvisible
+                    if ($continue.ToUpper() -ne "Y") {
+                        Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
+                        return
+                    }
+                    Write-Host+
+
+                    $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ 
+
+                    switch ($Type) {
+                        default {
+                            $message = "    $($Type)$($emptyString.PadLeft(20-$Type.Length," "))Status"
+                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                            $message = "    $($emptyString.PadLeft($Type.Length,"-"))$($emptyString.PadLeft(20-$Type.Length," "))------"
+                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray                       
+                        }
+                        "Product" {
+                            $message = "    Product             Task                Status"
+                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                            $message = "    -------             ----                ------"
+                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                        }
+                    }
+
+                    Uninstall-CatalogObject -Type $Type -Id $Id -DeleteAllData:$deleteAllData -Force:$Force.IsPresent
+
+                    Write-Host+
+                    $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+                    Write-Host+   
+
+                    $dependenciesWithoutDependents = Get-DependenciesWithOutDependents -Uid "$Type.$Id"
+                    for ($i = $dependenciesWithoutDependents.count-1; $i -ge 0; $i--) {
+                        Set-CursorVisible
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "The $($dependenciesWithoutDependents[$i].Id) $($dependenciesWithoutDependents[$i].Type.ToLower()) is no longer required. Uninstall (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
+                        $uninstallDependency = Read-Host
+                        Set-CursorInvisible
+                        if ($uninstallDependency.ToUpper() -eq "Y") {
+                            Uninstall-SingleCatalogObject -Type $dependenciesWithoutDependents[$i].Type -Id $dependenciesWithoutDependents[$i].Id
+                        }
+                    }
+
                 }
-                Write-Host+
-                return
-            }
-    
-            # delete/retain definitions, install setttings and data
-            $deleteAllData = $false
-            Set-CursorVisible
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Delete data for $Type $Id (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
-            $continue = Read-Host
-            Set-CursorInvisible
-            $deleteAllData = $continue.ToUpper() -eq "Y"
 
-            # the inevitable "Are you sure?" prompt
-            Set-CursorVisible
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Uninstall $Type $Id $($deleteAllData ? "and delete ALL data" : $null) (Y/N)? ", "[N]", ": " -ForegroundColor DarkYellow, Blue, DarkYellow
-            $continue = Read-Host
-            Set-CursorInvisible
-            if ($continue.ToUpper() -ne "Y") {
-                Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
-                return
-            }
-            Write-Host+
-
-            $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
-            Write-Host+ 
-
-            switch ($Type) {
-                default {
-                    $message = "    $($Type)$($emptyString.PadLeft(20-$Type.Length," "))Status"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                    $message = "    $($emptyString.PadLeft($Type.Length,"-"))$($emptyString.PadLeft(20-$Type.Length," "))------"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray                       
-                }
-                "Product" {
-                    $message = "    Product             Task                Status"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                    $message = "    -------             ----                ------"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-                }
-            }
-
-            Uninstall-CatalogObject -Type $Type -Id $Id -DeleteAllData:$deleteAllData -Force:$Force.IsPresent
-            # $expression = "Uninstall-$Type $Id"
-            # $expression += $Force ? " -Force" : ""
-            # Invoke-Expression $expression
-
-            Write-Host+
-            $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
-            Write-Host+
+            Uninstall-SingleCatalogObject -Type $Type -Id $Id -Force:$Force.IsPresent                
 
         }
 
