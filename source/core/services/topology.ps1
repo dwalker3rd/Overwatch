@@ -287,15 +287,15 @@ function global:Get-OverwatchTopology {
         $k[$i] = "['$($NoAlias ? $k[$i] : ($overwatchTopology.Alias.($k[$i]) ?? $k[$i]))']"
     }
 
-    $ptExpression = "`$overwatchTopology"
-    if ($len -gt 0) {$ptExpression += "$($k -join '')"}
-    $result = Invoke-Expression $ptExpression
+    $owtExpression = "`$overwatchTopology"
+    if ($len -gt 0) {$owtExpression += "$($k -join '')"}
+    $result = Invoke-Expression $owtExpression
     if (!$result) {
         $keysRegex = [regex]"(\[.+?\])"
-        $groups = $keysRegex.Matches($ptExpression)
+        $groups = $keysRegex.Matches($owtExpression)
         $lastGroup = $groups[$groups.Count-1]
         $lastKey = $lastGroup.Value.replace("['","").replace("']","")
-        $parent = Invoke-Expression $ptExpression.replace($lastGroup.Value,"")
+        $parent = Invoke-Expression $owtExpression.replace($lastGroup.Value,"")
         if (!$parent.Contains($lastKey)) {
             throw "Invalid key sequence: $($Key)"
         }

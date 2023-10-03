@@ -57,7 +57,7 @@ catch {
     Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message)" -ForegroundColor DarkRed
     
     If (!$tsmApiAvailable) { 
-        $errorMessage = "  The TSM REST API is unavailable."
+        $errorMessage = "  The TSM API is unavailable."
         Write-Host+ -NoTrace -NoSeparator $errorMessage -ForegroundColor DarkRed
     }
     If (!$tsRestApiAvailable) {
