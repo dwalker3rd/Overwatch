@@ -30,6 +30,7 @@ function global:Get-Vaults {
 }
 
 Set-Alias -Name List-Vaults -Value Get-Vaults -Scope Global
+
 function global:Get-Vault {
     
     [CmdletBinding()]
@@ -37,7 +38,7 @@ function global:Get-Vault {
         [Parameter(Mandatory=$true,Position=0)][string]$Vault
     )
 
-    $op = "op vault get $Vault"
+    $op = "op vault get $Vault 2>`$null 3>`$null"
 
     return invoke-expression $op | ConvertFrom-Json
 
