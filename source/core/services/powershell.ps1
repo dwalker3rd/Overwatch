@@ -128,7 +128,7 @@ function global:Remove-PSSession+ {
 
     if (Compare-Object ($_psSession.ConfigurationName | Sort-Object -Unique) $ConfigurationName) {
         Write-Host+ -NoTrace -NoTimestamp "Remove-PSSession+ can only remove sessions using the $($global:PSSessionConfigurationName) session configuration." -ForegroundColor DarkYellow
-        Write-Host+ -NoTrace -NoTimestamp "Use the ConfigurationName parameter to remove other PSSession configurations." ForegroundColor DarkYellow
+        Write-Host+ -NoTrace -NoTimestamp "Use the ConfigurationName parameter to remove other PSSession configurations." -ForegroundColor DarkYellow
     }
 
     # Only remove PSSessions using $global:PSSessionConfigurationName as set by Overwatch 
@@ -142,7 +142,7 @@ function global:Remove-PSSession+ {
 
     if ($_psSession.Name -contains "WinPSCompatSession") {
         Write-Host+ -NoTrace -NoTimestamp "Remove-PSSession+ can only remove sessions using the $($global:PSSessionConfigurationName) session configuration." -ForegroundColor DarkYellow
-        Write-Host+ -NoTrace -NoTimestamp "Use the ConfigurationName parameter to remove other PSSession configurations." ForegroundColor DarkYellow
+        Write-Host+ -NoTrace -NoTimestamp "Use the ConfigurationName parameter to remove other PSSession configurations." -ForegroundColor DarkYellow
     }
 
     # Ensure that the WinPSCompatSession is NEVER removed
