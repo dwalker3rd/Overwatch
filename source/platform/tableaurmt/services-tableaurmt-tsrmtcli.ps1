@@ -60,7 +60,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
             ProductVersion = $version.productVersion
             Services = @()
         }
-        $controller.Services = Get-PlatformService -ComputerName $controller.Name
+        $controller.Services = Get-PlatformServices -ComputerName $controller.Name
 
         $controller.RollupStatus = $controller.Services.Status | Sort-Object -Unique
         if ($controller.RollupStatus -notin ("Running","Stopped")) {
@@ -114,7 +114,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
         foreach ($agent in $agents) {
             $agent.Name = $agent.Name.ToLower()
             $agent | Add-Member -NotePropertyName "Services" -NotePropertyValue @{}
-            $agent.Services = Get-PlatformService -ComputerName $agent.Name
+            $agent.Services = Get-PlatformServices -ComputerName $agent.Name
         }
 
         $message = "$($emptyString.PadLeft(10,"`b")) SUCCESS"

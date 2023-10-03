@@ -6,6 +6,9 @@ $global:Catalog.OS = @{}
 $global:Catalog.Platform = @{}
 $global:Catalog.Product = @{}
 $global:Catalog.Provider = @{}
+$global:Catalog.Installer = @{}
+$global:Catalog.Driver = @{}
+$global:Catalog.CLI = @{}
 
 $global:Catalog.Overwatch += @{ Overwatch =  
     [Overwatch]@{
@@ -29,9 +32,6 @@ $global:Catalog.OS += @{ WindowsServer =
         Name = "Windows Server"
         DisplayName = "Windows Server"
         Image = "../img/windows_server.png"  
-        Installation = @{
-            Prerequisite = @{}
-        }
         Description = "Overwatch services for the Microsoft Windows Server operating system"
         Publisher = "Walker Analytics Consulting"
     }
@@ -50,22 +50,25 @@ $global:Catalog.Cloud += @{ Azure =
             NoClobber = @(
                 "$($global:Location.Definitions)\definitions-cloud-azure.ps1"
             )
-            Prerequisite = @{
-                PowerShell = @{
-                    Module = @(
-                        @{ Name = "Az.Accounts" },
-                        @{ Name = "Az.Compute" },
-                        @{ Name = "Az.Resources" },
-                        @{ Name = "Az.Storage" },
-                        @{ Name = "Az.Network" },
-                        @{ Name = "Az.CosmosDb" },
-                        @{ Name = "Az.SqlVirtualMachine" },
-                        @{ Name = "Az.KeyVault" },
-                        @{ Name = "Az.DataFactory" },
-                        @{ Name = "Az.Batch" }
-                    )
+            Prerequisites = @(
+                @{
+                    Type = "Powershell"
+                    Powershell = @{
+                        Modules = @(
+                            @{ Name = "Az.Accounts" },
+                            @{ Name = "Az.Compute" },
+                            @{ Name = "Az.Resources" },
+                            @{ Name = "Az.Storage" },
+                            @{ Name = "Az.Network" },
+                            @{ Name = "Az.CosmosDb" },
+                            @{ Name = "Az.SqlVirtualMachine" },
+                            @{ Name = "Az.KeyVault" },
+                            @{ Name = "Az.DataFactory" },
+                            @{ Name = "Az.Batch" }
+                        )
+                    }
                 }
-            }
+            )
         }
     }
 }
@@ -91,10 +94,14 @@ $global:Catalog.Platform += @{ TableauServer =
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Discovery = @(
-                @{ Type = "Service"; Service = "tabadmincontroller_0"; Status = "Running" }
+                @{ Type = "Service"; Service = "tabadmincontroller_0" }
             )
-            Prerequisite = @{
-                Provider = @("TableauServerRestApi","TableauServerTsmApi","TableauServerTabCmd")
+            Installation = @{
+                Prerequisites = @(
+                    @{ Type = "Provider"; Provider = "TableauServerRestApi"},
+                    @{ Type = "Provider"; Provider = "TableauServerTsmApi"},
+                    @{ Type = "Provider"; Provider = "TableauServerTabCmd"}
+                )
             }
         }
     }
@@ -109,10 +116,10 @@ $global:Catalog.Platform += @{ TableauCloud =
         Description = "Overwatch services for the Tableau Cloud platform"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Discovery = @{}
-            Prerequisite = @{
-                Provider = @("TableauServerRestApi","TableauServerTabCmd")
-            }
+            Prerequisites = @(
+                @{ Type = "Provider"; Provider = "TableauServerRestApi"},
+                @{ Type = "Provider"; Provider = "TableauServerTabCmd"}
+            )
         }
     }
 }
@@ -126,11 +133,11 @@ $global:Catalog.Platform += @{ TableauRMT =
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Discovery = @(
-                @{ Type = "Service"; Service = "TableauResourceMonitoringTool"; Status = "Running" }
+                @{ Type = "Service"; Service = "TableauResourceMonitoringTool" }
             )
-            Prerequisite = @{
-                Provider = @("TableauServerTsmApi")
-            }
+            Prerequisites = @(
+                @{ Type = "Provider"; Provider = "TableauServerTsmApi"}
+            )
         }
     }
 }
@@ -145,9 +152,8 @@ $global:Catalog.Platform += @{ AlteryxServer =
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Discovery = @(
-                @{ Type = "Service"; Service = "AlteryxService"; Status = "Running" }
+                @{ Type = "Service"; Service = "AlteryxService" }
             )
-            Prerequisite = @{}
         }
     }
 }
@@ -162,7 +168,6 @@ $global:Catalog.Product += @{ Command =
         Log = "Command"
         Installation = @{
             Flag = @("AlwaysInstall","UninstallProtected")
-            Prerequisite = @{}
         }
     }
 }
@@ -175,9 +180,6 @@ $global:Catalog.Product += @{ Monitor =
         Description = "Monitors the health and activity of Overwatch platforms."
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
-        Installation = @{
-            Prerequisite = @{}
-        }
     }
 }
 
@@ -190,9 +192,9 @@ $global:Catalog.Product += @{ Backup =
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
         Installation = @{
-            Prerequisite = @{
-                Platform = @("TableauServer","AlteryxServer")
-            }
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = @("TableauServer","AlteryxServer")}
+            )
         }
     }
 }
@@ -205,9 +207,6 @@ $global:Catalog.Product += @{ Cleanup =
         Description = "Manages resource removal for the Overwatch environment."
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
-        Installation = @{
-            Prerequisite = @{}
-        }
     }
 }
 
@@ -219,9 +218,6 @@ $global:Catalog.Product += @{ DiskCheck =
         Description = "Monitors space on operating system disks in the Overwatch environment."
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
-        Installation = @{
-            Prerequisite = @{}
-        }
     }
 }
 
@@ -236,10 +232,10 @@ $global:Catalog.Product += @{ AzureADCache =
         HasTask = $true
         Installation = @{
             Flag = @("NoPrompt")
-            Prerequisite = @{
-                Cloud = @("Azure")
-                Provider = @("AzureAD")
-            }
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"},
+                @{ Type = "Provider"; Provider = "AzureAD"}
+            )
         }
     }
 }
@@ -254,12 +250,12 @@ $global:Catalog.Product += @{ AzureADSyncTS =
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
         Installation = @{
-            Prerequisite = @{
-                Platform = @("TableauServer")
-                Cloud = @("Azure")
-                Product = @("AzureADCache")
-                Provider = @("AzureAD")
-            }
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = "TableauServer"},
+                @{ Type = "Product"; Product = "AzureADCache"},
+                @{ Type = "Cloud"; Cloud = "Azure"},
+                @{ Type = "Provider"; Provider = "AzureAD"}
+            )
         }
     }
 }
@@ -274,14 +270,11 @@ $global:Catalog.Product += @{ AzureADSyncB2C =
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
         Installation = @{
-            Prerequisite = @{
-                Cloud = @("Azure")
-                Product = @("AzureADCache")
-                Provider = @("AzureAD")
-                # Condition = @(
-                #     $global:Azure.(Get-AzureTenantKeys).Tenant.Type -Contains "Azure AD B2C"
-                # )
-            }
+            Prerequisites = @(
+                @{ Type = "Product"; Product = "AzureADCache"},
+                @{ Type = "Cloud"; Cloud = "Azure"},
+                @{ Type = "Provider"; Provider = "AzureAD"}
+            )
         }
     }
 }
@@ -295,10 +288,10 @@ $global:Catalog.Product += @{ StartRMTAgents =
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
         Installation = @{
-            Prerequisite = @{
-                Platform = @("TableauRMT")
-                Provider = @("TableauServerTsmApi")
-            }
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = "TableauRMT"},
+                @{ Type = "Provider"; Provider = "TableauServerTsmApi"}
+            )
         }
     }
 }
@@ -312,10 +305,10 @@ $global:Catalog.Product += @{ AzureProjects =
         Publisher = "Walker Analytics Consulting"
         Log = "AzureProjects"
         Installation = @{
-            Prerequisite = @{
-                Cloud = @("Azure")
-                Provider = @("AzureAD")
-            }
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"},
+                @{ Type = "Provider"; Provider = "AzureAD"}
+            )
         }
     }
 }
@@ -328,9 +321,9 @@ $global:Catalog.Product += @{ AzureUpdateMgmt =
         Description = "Overwatch proxy for Microsoft Azure Automation Update Management."
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Prerequisite = @{
-                Cloud = @("Azure")
-            }
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"}
+            )
         }
     }
 }
@@ -345,8 +338,86 @@ $global:Catalog.Product += @{ SSOMonitor =
         Log = "SSOMonitor"
         HasTask = $true
         Installation = @{
-            Prerequisite = @{
-                Platform = @("AlteryxServer")
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = "AlteryxServer"}
+            )
+        }
+    }
+}
+
+$global:Catalog.Provider += @{ "OnePassword" = 
+    [Provider]@{
+        Id = "OnePassword"
+        Name = "1Password"
+        DisplayName = "Overwatch Provider for 1Password"
+        Category = "Security"
+        SubCategory = "Vault"
+        Description = "Overwatch Provider for 1Password"
+        Publisher = "Walker Analytics Consulting"
+        Log = "OnePassword"
+        Initialization = @{
+            Prerequisites = @(
+                @{ 
+                    CLI = "OnePasswordCLI"
+                    Type = "CLI"
+                }
+            )
+        }
+        Installation = @{
+            Prerequisites = @(
+                @{ 
+                    CLI = "OnePasswordCLI"
+                    Type = "CLI"
+                }
+            )
+        }
+    }
+}
+
+$global:Catalog.CLI += @{ "OnePasswordCLI" = 
+    [CLI]@{
+        Id = "OnePasswordCLI"
+        Name = "1Password CLI"
+        DisplayName = "1Password CLI"
+        Category = "DataAccess"
+        SubCategory = "CLI"
+        Description = "1Password CLI"
+        Publisher = "1Password"
+        Installation = @{
+            Install = [scriptblock]{scoop install 1password-cli --global *> $null}
+            Update = [scriptblock]{scoop update 1password-cli --global *> $null}
+            Uninstall = [scriptblock]{scoop uninstall 1password-cli --global *> $null}
+            IsInstalled = [scriptblock]{try{op --version *> $null;$true}catch{$false}}
+            Prerequisites = @(
+                @{ 
+                    Type = "Installer"
+                    Installer = "scoop"
+                }
+            )
+        }
+    }
+}
+
+$global:Catalog.Installer += @{ "scoop" = 
+    [Installer]@{
+        Id = "scoop"
+        Name = "scoop"
+        DisplayName = "scoop"
+        Category = "Installer"
+        Description = "A command-line installer for Windows"
+        Publisher = "Luke Sampson"
+        Uri = [uri]"https://scoop.sh/"
+        Installation = @{
+            IsInstalled = [scriptblock]{try{scoop update scoop *> $null;$true}catch{$false}}
+            Prerequisites = @(
+                @{ Type = "OS"; OS = "WindowsServer"}
+            )
+            Install = [scriptblock]{
+                Invoke-RestMethod get.scoop.sh -outfile "$($global:Location.Temp)\install-scoop.ps1" *> $null
+                . \install-scoop.ps1 -ScoopDir "$env:ProgramData\scoop"  -RunAsAdmin -scoopglobaldir "$env:ProgramData\scoop" *> $null
+            }
+            Uninstall = [scriptblock]{
+                scoop uninstall scoop *> $null
             }
         }
     }
@@ -358,19 +429,22 @@ $global:Catalog.Provider += @{ SMTP =
         Name = "SMTP"
         DisplayName = "SMTP"
         Category = "Messaging"
-        Description = "Overwatch provider for SMTP"
+        Description = "Overwatch Provider for SMTP"
         Publisher = "Walker Analytics Consulting"
         Log = "SMTP"
         Installation = @{
-            Prerequisite = @{
-                PowerShell = @{
-                    Package = @(
-                        @{ Name = "Portable.BouncyCastle" },
-                        @{ Name = "MimeKit" },
-                        @{ Name = "MailKit" }
-                    )
+            Prerequisites = @(
+                @{
+                    Type = "Powershell"
+                    Powershell = @{
+                        Packages = @(
+                            @{ Name = "Portable.BouncyCastle" },
+                            @{ Name = "MimeKit" },
+                            @{ Name = "MailKit" }
+                        )
+                    }
                 }
-            }
+            )
         }
     }
 }
@@ -381,12 +455,9 @@ $global:Catalog.Provider += @{ TwilioSMS =
         Name = "Twilio SMS"
         DisplayName = "Twilio SMS"
         Category = "Messaging"
-        Description = "Overwatch provider for Twilio SMS"
+        Description = "Overwatch Provider for Twilio SMS"
         Publisher = "Walker Analytics Consulting"
         Log = "TwilioSMS"
-        Installation = @{
-            Prerequisite = @{}
-        }
     }
 }
 
@@ -396,12 +467,9 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         Name = "Microsoft Teams"
         DisplayName = "Microsoft Teams"
         Category = "Messaging"
-        Description = "Overwatch provider for Microsoft Teams"
+        Description = "Overwatch Provider for Microsoft Teams"
         Publisher = "Walker Analytics Consulting"
         Log = "MicrosoftTeams"
-        Installation = @{
-            Prerequisite = @{}
-        }
     }
 }
 
@@ -415,7 +483,6 @@ $global:Catalog.Provider += @{ Views =
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Flag = @("AlwaysInstall","UninstallProtected")
-            Prerequisite = @{}
         }
     }
 }
@@ -426,12 +493,49 @@ $global:Catalog.Provider += @{ Postgres =
         Name = "Postgres"
         DisplayName = "Postgres"
         Category = "Database"
-        Description = "Overwatch provider for Postgres."
+        Description = "Overwatch Provider for Postgres"
         Publisher = "Walker Analytics Consulting"
         Log = "Postgres"
         Installation = @{
-            Prerequisite = @{}
+            Prerequisites = @(
+                @{ Type = "Provider"; Provider = "ODBC"}
+                @{ Type = "Driver"; Driver = "PostgreSQL Unicode(x64)"}
+            )
         }
+    }
+}
+
+$global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" = 
+    [Driver]@{
+        Id = "PostgreSQL Unicode(x64)"
+        Name = "PostgreSQL Unicode(x64)"
+        DisplayName = "PostgreSQL Unicode(x64)"
+        Category = "Database"
+        DatabaseType = "PostgreSQL"
+        DriverType = "ODBC"
+        Publisher = "PostgreSQL Global Development Group"
+        Version = @{
+            Minimum = "12.02.00.00"
+            AutoUpdate = $false
+        }
+        Platform = "64-bit"
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = "TableauServer"}
+            )
+        }
+    }
+}
+
+$global:Catalog.Provider += @{ ODBC = 
+    [Provider]@{
+        Id = "ODBC"
+        Name = "ODBC"
+        DisplayName = "ODBC"
+        Category = "Data Access"
+        Description = "Overwatch Provider for ODBC"
+        Publisher = "Walker Analytics Consulting"
+        Log = "ODBC"
     }
 }
 
@@ -441,16 +545,16 @@ $global:Catalog.Provider += @{ TableauServerWC =
         Name = "TableauServerWC"
         DisplayName = "Tableau Server Welcome Channel"
         Category = "Messaging"
-        Description = "Overwatch provider for Tableau Server Welcome Channel"
+        Description = "Overwatch Provider for Tableau Server Welcome Channel"
         Publisher = "Walker Analytics Consulting"
         Config = @{
             MessageType = $PlatformMessageType.UserNotification
         }
         Installation = @{
-            Prerequisite = @{
-                Platform = @("TableauServer")
-                Provider = @("Postgres")
-            }
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = "TableauServer"}
+                @{ Type = "Provider"; Provider = "Postgres"}
+            )
         }
     }
 }
@@ -461,12 +565,9 @@ $global:Catalog.Provider += @{ Okta =
         Name = "Okta"
         DisplayName = "Okta"
         Category = "Identity"
-        Description = "Overwatch provider for Okta"
+        Description = "Overwatch Provider for Okta"
         Publisher = "Walker Analytics Consulting"
         Log = "Okta"
-        Installation = @{
-            Prerequisite = @{}
-        }
     }
 }
 
@@ -476,23 +577,20 @@ $global:Catalog.Provider += @{ TableauServerRestApi =
         Name = "TableauServerRestApi"
         DisplayName = "Tableau Server REST API"
         Category = "TableauServer"
-        Description = "Overwatch provider for the Tableau Server REST API"
+        Description = "Overwatch Provider for the Tableau Server REST API"
         Publisher = "Walker Analytics Consulting"
         Initialization = @{
             Api = @{
-                Version = @{
-                    Minimum = "3.15"
-                    AutoUpdate = $true
-                }
+                Version = @{ Minimum = "3.15"; AutoUpdate = $true }
             }
-            Prerequisite = @(
-                @{ Type = "PlatformService"; PlatformService = "vizportal"; Status = "Running" }
+            Prerequisites = @(
+                @{ Type = "PlatformService"; PlatformService = "vizportal" }
             )
         }
         Installation = @{
-            Prerequisite = @{
-                Platform = @("TableauServer","TableauCloud")
-            }
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = @("TableauServer","TableauCloud")}
+            )
         }
     }
 }
@@ -503,23 +601,20 @@ $global:Catalog.Provider += @{ TableauServerTsmApi =
         Name = "TableauServerTsmApi"
         DisplayName = "Tableau Server TSM API"
         Category = "TableauServer"
-        Description = "Overwatch provider for the Tableau Server TSM API"
+        Description = "Overwatch Provider for the Tableau Server TSM API"
         Publisher = "Walker Analytics Consulting"
         Initialization = @{
-            Api = @{
-                Version = @{
-                    Minimum = "0.5"
-                    AutoUpdate = $true
-                }
+            Api = @{ 
+                Version = @{ Minimum = "0.5"; AutoUpdate = $true }
             }
-            Prerequisite = @(
-                @{ Type = "Service"; Service = "tabadmincontroller_0"; Status = "Running" }
+            Prerequisites = @(
+                @{ Type = "Service"; Service = "tabadmincontroller_0" }
             )
         }
         Installation = @{
-            Prerequisite = @{
-                Platform = @("TableauServer","TableauRMT")
-            }
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = @("TableauServer","TableauRMT")}
+            )
         }
     }
 }
@@ -530,17 +625,17 @@ $global:Catalog.Provider += @{ TableauServerTabCmd =
         Name = "TableauServerTabCmd"
         DisplayName = "Tableau Server TabCmd"
         Category = "TableauServer"
-        Description = "Overwatch provider for Tableau Server TabCmd"
+        Description = "Overwatch Provider for Tableau Server TabCmd"
         Publisher = "Walker Analytics Consulting" 
         Initialization = @{
             Prerequisite = @(
-                @{ Type = "PlatformService"; PlatformService = "backgrounder"; Status = "Running" }
+                @{ Type = "PlatformService"; PlatformService = "backgrounder" }
             )
         }
         Installation = @{
-            Prerequisite = @{
-                Platform = @("TableauServer","TableauCloud")
-            }
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = @("TableauServer","TableauRMT")}
+            )
         }
     }
 }
@@ -550,12 +645,12 @@ $global:Catalog.Provider += @{ AzureAD =
         Id = "AzureAD"
         Name = "AzureAD"
         DisplayName = "AzureAD"
-        Description = "Overwatch provider for Azure AD and Azure AD B2C."
+        Description = "Overwatch Provider for Azure AD and Azure AD B2C."
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Prerequisite = @{
-                Cloud = @("Azure")
-            }
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"}
+            )
         }
     }
 }

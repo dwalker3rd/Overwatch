@@ -134,16 +134,16 @@ function global:Read-Log {
         [Parameter(Mandatory=$false)][Alias("Instance")][string[]]$Context,
         [Parameter(Mandatory=$false)][int32]$Tail,
         [Parameter(Mandatory=$false)][int32]$Head,
-        [Parameter(Mandatory=$false)][Alias("Since")][DateTime]$After,
-        [Parameter(Mandatory=$false)][DateTime]$Before,
+        [Parameter(Mandatory=$false)][Alias("Since")][object]$After,
+        [Parameter(Mandatory=$false)][object]$Before,
         [Parameter(Mandatory=$false)][string]$Message,
         [Parameter(Mandatory=$false)][Alias("Id")][int64]$Index,
         [Parameter(Mandatory=$false)][int64]$FromIndex,
         [Parameter(Mandatory=$false)][int64]$ToIndex,
         [Parameter(Mandatory=$false)][Alias("Class")][string]$EntryType,
         [Parameter(Mandatory=$false)][Alias("Event")][string]$Action,
-        [Parameter(Mandatory=$false)][int32]$Newest,
-        [Parameter(Mandatory=$false)][int32]$Oldest,
+        [Parameter(Mandatory=$false)][Alias("Last")][int32]$Newest,
+        [Parameter(Mandatory=$false)][Alias("First")][int32]$Oldest,
         [Parameter(Mandatory=$false)][string]$View,
         [Parameter(Mandatory=$false)][string]$Status,
         [switch]$UseDefaultView
@@ -159,6 +159,37 @@ function global:Read-Log {
     # if $Path specifies a node, replace $ComputerName with the node in $Path
     if (![string]::IsNullOrEmpty($Path) -and $Path -match "^\\\\(.*?)\\") { 
         $ComputerName = $matches[1]
+    }
+
+    # $After and $Before are datetimes passed as objects
+    # This allows using strings to specify today or yesterday
+
+    If (![string]::IsNullOrEmpty($After)) {
+        $After = switch ($After) {
+            "Today" { [datetime]::Now }
+            "Yesterday" { ([datetime]::Now).AddDays(-1) }
+            default { 
+                switch ($After.GetType().Name) {
+                    "String" { Get-Date ($After) }
+                    "DateTime" { $After }
+                    "TimeSpan" { [datetime]::Now.Add(-$After.Duration()) }
+                }
+            }
+        }
+    }
+
+    If (![string]::IsNullOrEmpty($Before)) {
+        $Before = switch ($Before) {
+            "Today" { [datetime]::Now }
+            "Yesterday" { ([datetime]::Now).AddDays(-1) }
+            default { 
+                switch ($Before.GetType().Name) {
+                    "String" { Get-Date ($Before) }
+                    "DateTime" { $Before }
+                    "TimeSpan" { [datetime]::Now.Add(-$Before.Duration()) }
+                }
+            }
+        }
     }
 
     $logEntry = @()
@@ -238,11 +269,8 @@ function global:Summarize-Log {
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][Alias("Since")][object]$After,
-        [Parameter(Mandatory=$false)][int32]$Days,
-        [Parameter(Mandatory=$false)][int32]$Hours,
-        [Parameter(Mandatory=$false)][int32]$Minutes,
         [Parameter(Mandatory=$false)][Alias("Until")][object]$Before,
-        # [Parameter(Mandatory=$false)][object]$During,
+        [Parameter(Mandatory=$false)][Alias("Last")][int32]$Newest,
         [Parameter(Mandatory=$false)][string]$View,
         [switch]$UseDefaultView,
         [switch]$Today,
@@ -257,22 +285,18 @@ function global:Summarize-Log {
 
     $defaultColor = $global:consoleSequence.BackgroundForegroundDefault
 
-    # $After is a datetime passed as an object
+    # $After and $Before are datetimes passed as objects
     # This allows using strings to specify today or yesterday
-
-    $After = $Days ? ([datetime]::Today).AddDays(-1 * [math]::Abs($Days)) : $After
-    $After = $Hours ? ([datetime]::Now).AddHours(-1 * [math]::Abs($Hours)) : $After
-    $After = $Minutes ? ([datetime]::Now).AddMinutes(-1 * [math]::Abs($Minutes)) : $After
 
     If (![string]::IsNullOrEmpty($After)) {
         $After = switch ($After) {
-            "Today" { [datetime]::Today }
-            "Yesterday" { ([datetime]::Today).AddDays(-1) }
+            "Today" { [datetime]::Now }
+            "Yesterday" { ([datetime]::Now).AddDays(-1) }
             default { 
                 switch ($After.GetType().Name) {
                     "String" { Get-Date ($After) }
                     "DateTime" { $After }
-                    "TimeSpan" { [datetime]::Today.Add(-$After.Duration()) }
+                    "TimeSpan" { [datetime]::Now.Add(-$After.Duration()) }
                 }
             }
         }
@@ -280,13 +304,13 @@ function global:Summarize-Log {
 
     If (![string]::IsNullOrEmpty($Before)) {
         $Before = switch ($Before) {
-            "Today" { [datetime]::Today }
-            "Yesterday" { ([datetime]::Today).AddDays(-1) }
+            "Today" { [datetime]::Now }
+            "Yesterday" { ([datetime]::Now).AddDays(-1) }
             default { 
                 switch ($Before.GetType().Name) {
                     "String" { Get-Date ($Before) }
                     "DateTime" { $Before }
-                    "TimeSpan" { [datetime]::Today.Add(-$Before.Duration()) }
+                    "TimeSpan" { [datetime]::Now.Add(-$Before.Duration()) }
                 }
             }
         }
@@ -629,6 +653,8 @@ function global:Summarize-Log {
                 #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine " "
                 # }
             }
+
+            if ($Newest) {$summaryDetailsFormattedByNode = $summaryDetailsFormattedByNode | Select-Object -Last $Newest}
 
             $summaryDetailsFormattedByNode | Sort-Object -Property _Timestamp -Descending | Format-Table -HideTableHeaders #-View (Get-FormatData Overwatch.Log.Summary.Details)
 

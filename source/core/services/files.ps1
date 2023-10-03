@@ -138,7 +138,7 @@ function global:Copy-Files {
         throw "`$ExcludeComputerName cannot be used when `$ComputerName is null."
     }
     if ($ComputerName -and $ComputerName.Count -eq 1 -and $ComputerName -eq $env:COMPUTERNAME -and $ExcludeComputerName) {
-        throw "`$ExcludeComputerName cannot be used when `$ComputerName only contains `$env:COMPUTERNAME."
+        return
     }
     if (!$ComputerName -and $Path -eq $Destination) {
         throw "`$Path and `$Destination cannot point to the same location when `$ComputerName is null."

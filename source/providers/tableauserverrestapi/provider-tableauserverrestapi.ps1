@@ -125,11 +125,15 @@ function global:Initialize-TSRestApiConfiguration {
     param (
         [Parameter(Mandatory=$false)][string]$Server = $global:Platform.Uri.Host,
         [Parameter(Mandatory=$false)][Alias("Site")][string]$ContentUrl = "",
-        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($Platform.Instance)",
+        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($global:Platform.Instance)",
         [switch]$Reset
     )
 
-    if (!(Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerRestApi -ComputerName $Server)) { return }
+    $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerRestApi" -ComputerName $Server -Quiet
+    if (!$prerequisiteTestResults.Pass) { 
+        Write-Host+ -NoTrace $prerequisiteTestResults.ErrorMessage -ForegroundColor Red
+        return 
+    }
 
     if ($Reset) {
         $global:tsRestApiConfig = @{}
@@ -138,8 +142,8 @@ function global:Initialize-TSRestApiConfiguration {
     $_provider = Get-Provider -Id "TableauServerRestApi"
 
     $global:tsRestApiConfig = @{
-        Server = $Server ? $Server : $global:Platform.Uri.Host
-        Credentials = $Credentials
+        Server = $Server
+        Credentials = Get-Credentials $Credentials -ComputerName $Server
         Token = $null
         SiteId = $null
         ContentUrl = $ContentUrl
@@ -188,9 +192,7 @@ function global:Initialize-TSRestApiConfiguration {
         }
     }
 
-    $creds = Get-Credentials $global:tsRestApiConfig.Credentials
-
-    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$global:tsRestApiConfig.ContentUrl)
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Login -Params @($global:tsRestApiConfig.Credentials.UserName,$global:tsRestApiConfig.Credentials.GetNetworkCredential().Password,$global:tsRestApiConfig.ContentUrl)
     if ($responseError) {
         if ($responseError.code) {
             throw "$($responseError.code) ($($responseError.summary)): $($responseError.detail)"
@@ -948,9 +950,7 @@ function global:Invoke-TSRestApiMethod {
     # if not the ServerInfo or Login methods AND the token is null, login
     if ($Method -notin $global:tsRestApiConfig.SpecialMethods -and !$global:tsRestApiConfig.Token) {
 
-        $creds = Get-Credentials $global:tsRestApiConfig.Credentials
-
-        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Login -Params @($creds.UserName,$creds.GetNetworkCredential().Password,$global:tsRestApiConfig.ContentUrl)
+        $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method Login -Params @($global:tsRestApiConfig.Credentials.UserName,$global:tsRestApiConfig.Credentials.GetNetworkCredential().Password,$global:tsRestApiConfig.ContentUrl)
         if (!$responseError) {
             $global:tsRestApiConfig.Token = $response.token
             $global:tsRestApiConfig.SiteId = $response.site.id

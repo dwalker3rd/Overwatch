@@ -4,7 +4,7 @@ Set-CursorInvisible
 
 Write-Host+
 $message = "<Platform Initialization <.>48> PENDING"
-Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
 $tsRestApiAvailable = $false
 $tsmApiAvailable = $false
@@ -14,7 +14,7 @@ try {
     # check for server shutdown/startup events
     $computerName = $null
     try { $computerName = Get-PlatformTopology nodes -Keys } catch {}
-    $serverStatus = Get-ServerStatus -ComputerName $computerName
+    $serverStatus = Get-ServerStatus -ComputerName $computerName -Quiet
     # abort if a server startup/reboot/shutdown is in progress
     if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
         $errormessage = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
@@ -43,19 +43,21 @@ try {
     Initialize-TSRestApiConfiguration
     $tsRestApiAvailable = $true
 
-    $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
+    Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
+    $message = "<Platform Initialization <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
 
 }
 catch {
 
-    $message = "$($emptyString.PadLeft(8,"`b")) WARNING$($emptyString.PadLeft(8," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed 
+    Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
+    $message = "<Platform Initialization <.>48> WARNING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkRed
 
     Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message)" -ForegroundColor DarkRed
     
     If (!$tsmApiAvailable) { 
-        $errorMessage = "  The TSM REST API is unavailable."
+        $errorMessage = "  The TSM API is unavailable."
         Write-Host+ -NoTrace -NoSeparator $errorMessage -ForegroundColor DarkRed
     }
     If (!$tsRestApiAvailable) {

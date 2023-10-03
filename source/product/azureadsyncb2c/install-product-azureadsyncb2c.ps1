@@ -1,16 +1,9 @@
 param (
-    [switch]$UseDefaultResponses,
-    [switch]$NoNewLine
+    [switch]$UseDefaultResponses
 )
 
-$product = Get-Product "AzureADSyncB2C"
-$Id = $product.Id 
-
-$cursorVisible = [console]::CursorVisible
-Set-CursorVisible
-
-$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
+$_product = Get-Product "AzureADSyncB2C"
+$_product
 
 Remove-Variable subscriptionId -ErrorAction SilentlyContinue
 Remove-Variable tenantId -ErrorAction SilentlyContinue
@@ -30,8 +23,6 @@ if (!(Get-AzureTenantKeys -AzureADB2C)) {
 # if there is an Azure AD B2C tenant, but not an Azure AD tenant, configure an Azure AD tenant
 # TODO: this section of code is duplicated in install-product-azureadsyncb2c.ps1, install-product-azureadsyncts.ps1 and install-azure.ps1; convert to a function in services-azure.ps1
 if (!(Get-AzureTenantKeys -AzureAD)) {
-
-    $interaction = [string]::IsNullOrEmpty($subscriptionId) -or [string]::IsNullOrEmpty($tenantId) -or [string]::IsNullOrEmpty($azureAdmin)
 
     $azConfigUpdate = Update-AzureConfig -SubscriptionId $subscriptionId -TenantId $tenantId -Credentials $azureADAdmin
     
@@ -62,15 +53,3 @@ if (!$productTask) {
         -ExecutionTimeLimit $(New-TimeSpan -Minutes 30) -RunLevel Highest -Disable
     $productTask = Get-PlatformTask -Id "AzureADSyncB2C"
 }
-
-if ($interaction) {
-    Write-Host+
-    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
-}
-else {
-    $message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "DarkRed")
-}
-
-[console]::CursorVisible = $cursorVisible

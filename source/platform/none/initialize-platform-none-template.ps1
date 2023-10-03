@@ -4,7 +4,7 @@ Set-CursorInvisible
 
 Write-Host+
 $message = "<Platform Initialization <.>48> PENDING"
-Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
 try {
 
@@ -21,16 +21,16 @@ try {
     $platformTopology = Initialize-PlatformTopology -ResetCache
     $platformTopology | Out-Null
 
-    $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
+    Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
+    $message = "<Platform Initialization <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
 
 }
 catch {
 
-    $message = "$($emptyString.PadLeft(8,"`b")) WARNING$($emptyString.PadLeft(8," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed 
-
-    Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message)" -ForegroundColor DarkRed
+    Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
+    $message = "<Platform Initialization <.>48> WARNING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkRed
     
 }
 

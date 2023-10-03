@@ -135,7 +135,7 @@ function global:Get-PlatformProcess {
 #endregion PROCESS
 #region SERVICE
 
-function global:Get-PlatformService {
+function global:Get-PlatformServices {
 
     [CmdletBinding()]
     param (
@@ -343,7 +343,7 @@ function global:Get-AlteryxServerStatus {
     $serviceStatus = @()
     $serviceNodes = $null
 
-    $platformCimInstance = Get-PlatformService -ComputerName $ComputerName
+    $platformCimInstance = Get-PlatformServices -ComputerName $ComputerName
 
     $controllerService = $platformCimInstance | Where-Object {$platformTopology.Components.Controller.Active.Nodes.Keys -contains $_.Node}
     if ($controllerService) {

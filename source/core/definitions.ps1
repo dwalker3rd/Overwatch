@@ -120,18 +120,18 @@
     $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
     Write-Host+
-    Write-Host+ "  Control","$($global:Overwatch.DisplayName) $($global:Overwatch.Release)" -ForegroundColor Gray,DarkBlue -Separator ":    "
-    Write-Host+ "  Product","$($global:Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
-    Write-Host+ "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    Write-Host+ "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
+    Write-Host+ -NoTrace "  Control","$($global:Overwatch.DisplayName) $($global:Overwatch.Release)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+    Write-Host+ -NoTrace "  Product","$($global:Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+    Write-Host+ -NoTrace "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
+    Write-Host+ -NoTrace "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
     if ($global:Platform.Version) {
-        Write-Host+ "  Version","$($global:Platform.Version)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+        Write-Host+ -NoTrace "  Version","$($global:Platform.Version)" -ForegroundColor Gray,DarkBlue -Separator ":    "
     }
     if ($global:Platform.Build) {
-        Write-Host+ "  Build","$($global:Platform.Build)" -ForegroundColor Gray,DarkBlue -Separator ":      "
+        Write-Host+ -NoTrace "  Build","$($global:Platform.Build)" -ForegroundColor Gray,DarkBlue -Separator ":      "
     }
-    Write-Host+ "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    Write-Host+ "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
+    Write-Host+ -NoTrace "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
+    Write-Host+ -NoTrace "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
 
 #endregion INTRO
 #region PREFLIGHT
@@ -157,10 +157,10 @@
     $_platformTasksDisabled = Get-PlatformTask -Disabled
     if ($_platformTasksDisabled.Count -gt 0) {
         Write-Host+
-        Write-Host+ -NoTrace "  Some platform tasks are DISABLED" -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace "Some platform tasks are DISABLED" -ForegroundColor DarkYellow
         if ($global:Product.HasTask) {
             if (Get-PlatformTask -Id $global:Product.Id -Disabled) {
-                Write-Host+ -NoTrace "  The platform task for","$($Overwatch.DisplayName) $($Product.Id)","is DISABLED" -ForegroundColor DarkYellow,DarkBlue,DarkYellow
+                Write-Host+ -NoTrace "The platform task for","$($Overwatch.DisplayName) $($Product.Id)","is DISABLED" -ForegroundColor DarkYellow,DarkBlue,DarkYellow
             }
         }
         Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude

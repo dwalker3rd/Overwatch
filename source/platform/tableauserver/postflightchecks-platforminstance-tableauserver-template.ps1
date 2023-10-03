@@ -5,12 +5,12 @@
 
     #region IncompletePreflightChecks
 
-        $allowedRepositoryHosts = @("")
+        $repositoryAllowedList = @("")
 
         if (!$global:PreflightChecksCompleted) {
 
-            if ($allowedRepositoryHosts) {
-                Test-RepositoryAccess $allowedRepositoryHosts -SSL
+            if ($repositoryAllowedList) {
+                Test-RepositoryAccess $repositoryAllowedList -SSL
             }
 
         }

@@ -51,7 +51,7 @@ class CatalogObject {
     }
 
     hidden [string]GetSortProperty() {
-        $_typeSortOrder =  @{ CatalogObject = 0; Overwatch = 1; OS = 2; Cloud = 3; Platform = 4; Product = 5; Provider = 6 }
+        $_typeSortOrder =  @{ CatalogObject = 0; Overwatch = 1; OS = 2; Cloud = 3; Platform = 4; Product = 5; Provider = 6; Installer = 7; Driver = 8; }
         return "$($_typeSortOrder.($this.Type))$(![string]::IsNullOrEmpty($this.Id) ? ".$($this.Id)" : $null)"
     }
 
@@ -81,6 +81,9 @@ class CatalogObject {
 
 }
 
+# move properties/members up if used in multiple class instances
+# consolidate classes if possible/desired
+
 class Overwatch : CatalogObject {}
 
 class OS : CatalogObject {}
@@ -100,6 +103,62 @@ class Platform : CatalogObject {
     [string]$Domain
     [string]$InstallPath
     [string]$Log
+}
+
+class Product : CatalogObject {
+    [string]$Status
+    [bool]$HasTask
+    [string]$TaskName
+    [string]$Log
+    [object]$Config
+    [timespan]$ShutdownMax
+}
+
+class Provider : CatalogObject {
+    [string]$Category
+    [string]$SubCategory
+    [string]$Log
+    [object]$Config
+}
+
+class Installer : CatalogObject {
+    [string]$Category
+    [string]$SubCategory
+    [string]$Log
+    [object]$Config
+    [System.Uri]$Uri
+
+    [bool]IsInstalled() {
+        return $this.Installed
+    }
+}
+
+
+class Driver : CatalogObject {
+    [string]$Category
+    [string]$SubCategory
+    [string]$DatabaseType
+    [string]$DriverType
+    [string]$Log
+    [object]$Config
+    [object]$Version
+    [string]$Platform # "32-bit" or "64-bit"
+
+    [bool]IsInstalled() {
+        return $this.Installed
+    }
+}
+
+class CLI : CatalogObject {
+    [string]$Category
+    [string]$SubCategory
+    [string]$Log
+    [object]$Config
+    [System.Uri]$Uri
+
+    [bool]IsInstalled() {
+        return $this.Installed
+    }
 }
 
 class PlatformStatus {
@@ -159,22 +218,6 @@ class PlatformCim {
     [int]$ParentId
     [string]$ProductID
     [string[]]$Component
-}
-
-class Product : CatalogObject {
-    [string]$Status
-    [bool]$HasTask
-    [string]$TaskName
-    [string]$Log
-    [object]$Config
-    [timespan]$ShutdownMax
-}
-
-class Provider : CatalogObject {
-    [string]$Category
-    [string]$SubCategory
-    [string]$Log
-    [object]$Config
 }
 
 class Heartbeat {

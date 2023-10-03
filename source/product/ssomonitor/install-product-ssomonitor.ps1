@@ -1,13 +1,9 @@
 param (
-    [switch]$UseDefaultResponses,
-    [switch]$NoNewLine
+    [switch]$UseDefaultResponses
 )
 
-$product = Get-Product "SSOMonitor"
-$Id = $product.Id 
-
-$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message[0],$message[1] -ForegroundColor Gray,DarkGray
+$_product = Get-Product "SSOMonitor"
+$_product | Out-Null
 
 $productTask = Get-PlatformTask -Id "SSOMonitor"
 if (!$productTask) {
@@ -18,6 +14,3 @@ if (!$productTask) {
         -ExecutionTimeLimit $(New-TimeSpan -Seconds 0) -RunLevel Highest -Start
     $productTask = Get-PlatformTask -Id "SSOMonitor"
 }
-
-$message = "$($emptyString.PadLeft(40,"`b"))INSTALLED$($emptyString.PadLeft(11," "))","$($productTask.Status.ToUpper())$($emptyString.PadLeft(20-$productTask.Status.Length," "))"
-Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine:$NoNewLine.IsPresent $message -ForegroundColor DarkGreen, ($productTask.Status -in ("Ready","Running") ? "DarkGreen" : "DarkRed")

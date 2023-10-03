@@ -6,8 +6,8 @@ This script provides file-based caching for Overwatch objects via Powershell's I
 and Export-Clixml cmdlets.
 #>
 
-$global:lockRetryDelay = New-Timespan -Milliseconds 1500
-$global:lockRetryMaxAttempts = 5
+$script:lockRetryDelay = New-Timespan -Milliseconds 1500
+$script:lockRetryMaxAttempts = 5
 
 <# 
 .Synopsis
@@ -275,7 +275,7 @@ function global:Wait-CacheUnlocked {
     while (Test-IsCacheLocked $cache.FileNameWithoutExtension) {
         if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
             $message = "Timeout waiting for lock to be released."
-            # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+            # $lockMeta = @{retryDelay = $script:lockRetryDelay; retryMaxAttempts = $script:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
             Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "Timeout" -Message $message -EntryType "Warning" # -Data $lockMeta 
             throw "($message -replace ".","") on $($cache.FileNameWithoutExtension)."
         }
@@ -285,7 +285,7 @@ function global:Wait-CacheUnlocked {
 
     if ($lockRetryAttempts -gt 1) {
         $message = "Lock released."
-        # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+        # $lockMeta = @{retryDelay = $script:lockRetryDelay; retryMaxAttempts = $script:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
         Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "CacheAvailable" -Message $message -Force # -Data $lockMeta
     }
 

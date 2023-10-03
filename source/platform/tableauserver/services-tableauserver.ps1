@@ -114,7 +114,7 @@ function global:Show-PlatformStatus {
     #region SERVICES
 
         if ($All -or ($Issues -and $platformIssues)) {
-            $services = Get-PlatformService
+            $services = Get-PlatformServices
             if ($Required) { $services = $services | Where-Object {$_.Required} }
             if ($Issues) { $services = $services | Where-Object {!$_.StatusOK.Contains($_.Status)} }
             $services | Select-Object Node, @{Name='NodeId';Expression={ptGetAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK | 
@@ -205,7 +205,7 @@ return
 #endregion PLATFORMINFO
 #region SERVICE
 
-function global:Get-PlatformService {
+function global:Get-PlatformServices {
 
 [CmdletBinding()]
 param (
@@ -1010,7 +1010,8 @@ foreach ($nodeId in $response.topologyVersion.nodes.psobject.properties.name) {
     $node = $nodeInfo.address
 
     $platformTopology.Alias.$nodeId = $node
-    $platformTopology.Alias.$node = $nodeId
+    $platformTopology.Alias.$node = $node
+    # $platformTopology.Alias.$node = $nodeId
     # if (![string]::IsNullOrEmpty($global:RegexPattern.PlatformTopology.Alias.Match)) {
     #     if ($node -match $RegexPattern.PlatformTopology.Alias.Match) {
     #         $ptAlias = ""

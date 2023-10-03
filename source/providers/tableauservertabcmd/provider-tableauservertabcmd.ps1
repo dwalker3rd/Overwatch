@@ -6,17 +6,18 @@ function global:Connect-Tabcmd {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string]$Server = "localhost",
-        [Parameter(Mandatory=$false)][Alias("Site")][string]$ContentUrl = "",
-        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($Platform.Instance)"
+        [Parameter(Mandatory=$false)][string]$Server = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($global:Platform.Instance)"
     )
 
-    Confirm-CatalogInitializationPrerequisites -Type Provider -Id TableauServerTabCmd -ThrowError
+    $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTabCmd" -Quiet
+    if (!$prerequisiteTestResults.Pass) { 
+        throw $prerequisiteTestResults.ErrorMessage
+    }
 
-    $creds = get-credentials -Name $Credentials
-    if (!$creds) { throw "`"$Credentials`" is not a valid credentials name" }
+    $_credentials = get-Credentials -Id $Credentials -ComputerName $Server
 
-    . tabcmd login -s $Server -u $creds.Username -p $creds.GetNetworkCredential().Password --no-certcheck
+    . tabcmd login -s $Server -u $_credentials.Username -p $_credentials.GetNetworkCredential().Password --no-certcheck
 
     return
         

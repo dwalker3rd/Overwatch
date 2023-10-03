@@ -2,36 +2,28 @@ param (
     [switch]$UseDefaultResponses
 )
 
-$Provider = Get-Provider -Id 'TableauServerWC'
-$Id = $Provider.Id 
+$_provider = Get-Provider -Id 'TableauServerWC'
+$_provider | Out-Null
 
-$interaction = $false
+#region PROVIDER-SPECIFIC INSTALLATION
 
-$cursorVisible = [console]::CursorVisible
-Set-CursorVisible
+    $tblwgadminCreds = Request-Credentials -Username "tblwgadmin" -Password (. tsm configuration get -k pgsql.adminpassword)
+    $readonlyCreds = Request-Credentials -Username "readonly" -Password (. tsm configuration get -k pgsql.readonly_password)
 
-$message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING"
-Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+    Set-Credentials -Id "tblwgadmin-$($Platform.Instance)" -Credentials $tblwgadminCreds
+    Set-Credentials -Id "readonly-$($Platform.Instance)" -Credentials $readonlyCreds
 
+    if (!(Get-ConnectionString -Id "workgroup-admin-$($Platform.Instance)")) {
+        New-ConnectionString -Id "workgroup-admin-$($Platform.Instance)" -DatabaseType "PostgreSQL" -DriverType "ODBC" -Driver "PostgreSQL Unicode(x64)" -Server (pt initialnode) -Port "8060" -Database "workgroup" -Credentials $tblwgadminCreds -SslMode require
+    }
+    else {
+        Update-ConnectionString -Id "workgroup-admin-$($Platform.Instance)" -DatabaseType "PostgreSQL" -DriverType "ODBC" -Driver "PostgreSQL Unicode(x64)" -Server (pt initialnode) -Port "8060" -Database "workgroup" -Credentials $tblwgadminCreds -SslMode require
+    }
+    if (!(Get-ConnectionString -Id "workgroup-readonly-$($Platform.Instance)")) {
+        New-ConnectionString -Id "workgroup-readonly-$($Platform.Instance)" -DatabaseType "PostgreSQL" -DriverType "ODBC" -Driver "PostgreSQL Unicode(x64)" -Server (pt initialnode) -Port "8060" -Database "workgroup" -Credentials $readonlyCreds -SslMode require
+    }
+    else {
+        Update-ConnectionString -Id "workgroup-readonly-$($Platform.Instance)" -DatabaseType "PostgreSQL" -DriverType "ODBC" -Driver "PostgreSQL Unicode(x64)" -Server (pt initialnode) -Port "8060" -Database "workgroup" -Credentials $readonlyCreds -SslMode require
+    }
 
-#region PRODUCT-SPECIFIC INSTALLATION
-
-    Set-Credentials -Name "tblwgadmin-$($Platform.Instance)" -Username "tblwgadmin" -Password (. tsm configuration get -k pgsql.adminpassword)
-    Set-Credentials -Name "readonly-$($Platform.Instance)" -Username "readonly" -Password (. tsm configuration get -k pgsql.readonly_password)
-
-    Set-PostgresConnectionString -Name "workgroup-admin-$($Platform.Instance)" -Driver "PostgreSQL Unicode(x64)" -Server (pt initialnode) -Port "8060" -Database "workgroup" -Credentials "tblwgadmin-$($Platform.Instance)" -SslMode require
-    Set-PostgresConnectionString -Name "workgroup-readonly-$($Platform.Instance)" -Driver "PostgreSQL Unicode(x64)" -Server (pt initialnode) -Port "8060" -Database "workgroup" -Credentials "readonly-$($Platform.Instance)" -SslMode require
-
-#endregion PRODUCT-SPECIFIC INSTALLATION
-
-if ($interaction) {
-    Write-Host+
-    $message = "  $Id$($emptyString.PadLeft(20-$Id.Length," "))","INSTALLED"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGreen
-}
-else {
-    $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED"
-    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGreen
-}
-
-[console]::CursorVisible = $cursorVisible
+#endregion PROVIDER-SPECIFIC INSTALLATION

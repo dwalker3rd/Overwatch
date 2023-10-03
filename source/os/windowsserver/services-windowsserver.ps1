@@ -162,12 +162,12 @@ function global:Get-ServerStatus {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME
+        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+        [switch]$Quiet
     )
 
     $lastRunTime = Read-Cache lastruntime
     if (!$lastRunTime) {$lastRunTime = $(Get-Date).AddHours(-1)}
-    Write-Verbose  "Get events since $($lastRunTime)"
 
     $filterHashtable = @{
         Logname = "System"
@@ -185,8 +185,6 @@ function global:Get-ServerStatus {
             # if this fails when run from Azure Update Management, ignore the error
         }
     } 
-
-    Write-Verbose  "$($winEvents.Count) events since $($lastRunTime)"
 
     $shutdownEvents = @()
     if ($winEvents) {
@@ -279,7 +277,7 @@ function global:Get-ServerStatus {
                 }
 
                 Write-Log -EntryType $PlatformMessageType.Warning -Action $shutdown.event -Target $node -Status $shutdown.status -Message $shutdown.reason
-                Write-Host+ -NoTrace -NoTimestamp -ForegroundColor ($shutdown.level -eq $PlatformMessageType.Alert ? "DarkRed" : "DarkYellow") "[$($shutdown.timeCreated.ToString('u'))] $($shutdown.event.ToUpper()) of $($node.ToUpper()) $($be) $($shutdown.status.ToUpper())" 
+                Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -ForegroundColor ($shutdown.level -eq $PlatformMessageType.Alert ? "DarkRed" : "DarkYellow") "[$($shutdown.timeCreated.ToString('u'))] $($shutdown.event.ToUpper()) of $($node.ToUpper()) $($be) $($shutdown.status.ToUpper())" 
 
                 Send-ServerStatusMessage -ComputerName $shutdown.node -Event $shutdown.event -Status $shutdown.status -Reason $shutdown.reason -Comment $shutdown.comment -User $shutdown.user -Level $shutdown.level -TimeCreated $shutdown.timeCreated | Out-Null
 
