@@ -74,10 +74,10 @@ function global:Set-Credentials {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$id,
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$false,ValueFromPipeline)][System.Management.Automation.PsCredential]$Credentials,
-        [Parameter(Mandatory=$false)][Alias("Id")][string]$UserName,
-        [Parameter(Mandatory=$false)][Alias("Token")][string]$Password,
+        [Parameter(Mandatory=$false)][string]$UserName,
+        [Parameter(Mandatory=$false)][string]$Password,
         [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
