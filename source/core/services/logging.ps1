@@ -166,8 +166,8 @@ function global:Read-Log {
 
     If (![string]::IsNullOrEmpty($After)) {
         $After = switch ($After) {
-            "Today" { [datetime]::Now }
-            "Yesterday" { ([datetime]::Now).AddDays(-1) }
+            "Today" { [datetime]::Today }
+            "Yesterday" { ([datetime]::Today).AddDays(-1) }
             default { 
                 switch ($After.GetType().Name) {
                     "String" { Get-Date ($After) }
@@ -180,8 +180,8 @@ function global:Read-Log {
 
     If (![string]::IsNullOrEmpty($Before)) {
         $Before = switch ($Before) {
-            "Today" { [datetime]::Now }
-            "Yesterday" { ([datetime]::Now).AddDays(-1) }
+            "Today" { [datetime]::Today }
+            "Yesterday" { ([datetime]::Today).AddDays(-1) }
             default { 
                 switch ($Before.GetType().Name) {
                     "String" { Get-Date ($Before) }
@@ -290,8 +290,8 @@ function global:Summarize-Log {
 
     If (![string]::IsNullOrEmpty($After)) {
         $After = switch ($After) {
-            "Today" { [datetime]::Now }
-            "Yesterday" { ([datetime]::Now).AddDays(-1) }
+            "Today" { [datetime]::Today }
+            "Yesterday" { ([datetime]::Today).AddDays(-1) }
             default { 
                 switch ($After.GetType().Name) {
                     "String" { Get-Date ($After) }
@@ -304,8 +304,8 @@ function global:Summarize-Log {
 
     If (![string]::IsNullOrEmpty($Before)) {
         $Before = switch ($Before) {
-            "Today" { [datetime]::Now }
-            "Yesterday" { ([datetime]::Now).AddDays(-1) }
+            "Today" { [datetime]::Today }
+            "Yesterday" { ([datetime]::Today).AddDays(-1) }
             default { 
                 switch ($Before.GetType().Name) {
                     "String" { Get-Date ($Before) }
