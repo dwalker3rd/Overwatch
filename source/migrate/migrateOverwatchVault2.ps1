@@ -1,6 +1,10 @@
 
-$vaultVersion = Get-VaultVersion
-if ($vaultVersion -ne "OverwatchVault1") { return }
+$migrateToOverwatchVault2 = $false
+try {
+    $migrateToOverwatchVault2 = (Get-Vault secret).Exists -and !(Get-Vault connectionStringsKeys).Exists -and !(Get-Catalog -Type "Provider" -Id $_provider.Id).IsInstalled
+}
+catch {}
+if (!$migrateToOverwatchVault2) { return }
 
 $vaultItems = Read-Vault -Vault secret
 $vaultItemNames = $vaultItems.Keys
