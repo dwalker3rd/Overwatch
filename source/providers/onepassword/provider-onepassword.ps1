@@ -1,4 +1,36 @@
-#region VAULT
+$script:OnePassword = Get-Provider "OnePassword"
+
+function Write-OpError {
+
+    param (
+        [Parameter(Mandatory=$true,Position=0)][object]$ErrorRecord
+    )
+
+    $errorMessageType = "Error"
+    $errorMessageText = $ErrorRecord.Exception.Message
+
+    if ($errorMessageText -match $OnePassword.Config.RegexPattern.ErrorMessage) {
+        $errorMessageType = (Get-Culture).TextInfo.ToTitleCase($matches[1])
+        $errorMessageText = $matches[3].Replace('"',"'")
+    }
+
+    $_callStack = Get-PSCallStack
+    $_caller = $_callStack[1]
+    $_args = ([regex]::Matches($_caller.Arguments,"^\{?(.*?)\}?$").Groups[1].Value).Replace(",","`n") | ConvertFrom-StringData 
+
+    $target = ""
+    if ($_args.Vault) { $target += $_args.Vault}
+    if ($_args.Id -or $_args.User) { 
+        $target += "\"
+        $target += $_args.Id ?? $_args.User
+    }
+
+    Write-Log -Name $OnePassword.Log -EntryType Error -Action $_caller.Command -Target $target -Status $errorMessageType -Message $errorMessageText -Force
+    Write-Host+ -NoTrace $errorMessageText -ForegroundColor Red
+
+    return
+
+}
 
 function global:New-Vault {
 
@@ -13,8 +45,17 @@ function global:New-Vault {
     }
 
     $op = "op vault create $Vault"
+    $op += " 2>&1"
 
-    return invoke-expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
@@ -24,8 +65,17 @@ function global:Get-Vaults {
     param () 
 
     $op = "op vault list"
+    $op += " 2>&1"
 
-    return invoke-expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
@@ -38,9 +88,18 @@ function global:Get-Vault {
         [Parameter(Mandatory=$true,Position=0)][string]$Vault
     )
 
-    $op = "op vault get $Vault 2>`$null 3>`$null"
+    $op = "op vault get $Vault"
+    $op += " 2>&1"
 
-    return invoke-expression $op | ConvertFrom-Json
+    $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
@@ -51,16 +110,25 @@ function global:Remove-Vault {
         [Parameter(Mandatory=$true,Position=0)][string]$Vault
     ) 
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
+    # if ($Vault -notin (Get-Vaults).name) {
+    #     Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
+    #     return
+    # }
+    # $_vault = Get-Vault -Vault $Vault
+    # $Vault = $_vault.Name
 
     $op = "op vault delete $Vault"
+    $op += " 2>&1"
 
-    return invoke-expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
@@ -73,16 +141,25 @@ function global:Grant-VaultAccess {
         [Parameter(Mandatory=$true)][ValidateSet("allow_viewing","allow_editing","allow_managing")][string[]]$Permissions
     )
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
+    # if ($Vault -notin (Get-Vaults).name) {
+    #     Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
+    #     return
+    # }
+    # $_vault = Get-Vault -Vault $Vault
+    # $Vault = $_vault.Name
 
     $op = "op vault user grant --user $User --vault $Vault --permissions $($Permissions -join ",")"
+    $op += " 2>&1"
 
-    return invoke-expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
@@ -95,17 +172,26 @@ function global:Revoke-VaultAccess {
         [Parameter(Mandatory=$false)][ValidateSet("allow_viewing","allow_editing","allow_managing")][string[]]$Permissions
     ) 
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
+    # if ($Vault -notin (Get-Vaults).name) {
+    #     Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
+    #     return
+    # }
+    # $_vault = Get-Vault -Vault $Vault
+    # $Vault = $_vault.Name
 
     $op = "op vault user revoke --user $User --vault $Vault"
     if ($Permissions) { $op += " --permissions $($Permissions -join ",")"}
+    $op += " 2>&1"
 
-    return invoke-expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
@@ -116,16 +202,25 @@ function global:Get-VaultUsers {
         [Parameter(Mandatory=$true)][string]$Vault
     ) 
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
+    # if ($Vault -notin (Get-Vaults).name) {
+    #     Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
+    #     return
+    # }
+    # $_vault = Get-Vault -Vault $Vault
+    # $Vault = $_vault.Name
 
     $op = "op user list --vault $Vault"
+    $op += " 2>&1"
 
-    return invoke-expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 Set-Alias -Name List-Users -Value Get-Users -Scope Global
@@ -140,7 +235,17 @@ function global:Get-OpUser {
         [Parameter(Mandatory=$true)][string]$User
     ) 
     $op = "op user get $User"
-    return invoke-expression $op | ConvertFrom-Json
+    $op += " 2>&1"
+
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 }
 
 function global:Get-OpCurrentUser {
@@ -148,7 +253,17 @@ function global:Get-OpCurrentUser {
     [CmdletBinding()]
     param () 
     $op = "op user get --me"
-    return invoke-expression $op | ConvertFrom-Json
+    $op += " 2>&1"
+
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 }
 
 #endregion USER
@@ -201,17 +316,19 @@ function global:New-VaultItem {
 
     )
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
+    # if ($Vault -notin (Get-Vaults).name) {
+    #     Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
+    #     return
+    # }
+    # $_vault = Get-Vault -Vault $Vault
+    # $Vault = $_vault.Name
 
-    if ($Title -in (Get-VaultItems -Vault $Vault).name) {
-        Write-Host+ "Item '$Title' already exists" -ForegroundColor Red
-        return
-    }
+    # $_vaultItems = Get-VaultItems -Vault $Vault
+
+    # if ($Title -in ($_vaultItems).name) {
+    #     Write-Host+ "Item '$Title' already exists" -ForegroundColor Red
+    #     return
+    # }
 
     $op = "op item create --category $Category --title $Title --vault $Vault"
 
@@ -268,8 +385,17 @@ function global:New-VaultItem {
     if ($Tags) { $op += " --tags $Tags" }
     if (![string]::IsNullOrEmpty($Url)) { $op += " --url $Url" }
     if ($Notes) { $op += " notesPlain[text]=`"$Notes`"" }
+    $op += " 2>&1"
 
-    return Invoke-Expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
@@ -316,18 +442,22 @@ function global:Update-VaultItem {
         
     )
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
+    # if ($Vault -notin (Get-Vaults).name) {
+    #     Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
+    #     return
+    # }
+    # # $_vault = Get-Vault -Vault $Vault
+    # # $Vault = $_vault.Name
 
-    if ($Id -notin (Get-VaultItems -Vault $Vault).id -and $Id -notin (Get-VaultItems -Vault $Vault).title) {
-        Write-Host+ "Item '$Id' not found" -ForegroundColor Red
-        return
-    }
+    # $_vaultItems = Get-VaultItems -Vault $Vault
+
+    # if ($Id -notin ($_vaultItems).id -and $Id -notin ($_vaultItems).title) {
+    #     Write-Host+ "Item '$Id' not found" -ForegroundColor Red
+    #     return
+    # }
+
     $item = Get-VaultItem -Id $Id -Vault $Vault
+    if (!$item) { return }
 
     if ($item.Category -ne $Category) {
         Write-Host+ "Unable to update item '$Id' from category '$($item.Category)' to $Category" -ForegroundColor Red
@@ -367,8 +497,17 @@ function global:Update-VaultItem {
     if ($Tags) { $op += " --tags $Tags" }
     if (![string]::IsNullOrEmpty($Url)) { $op += " --url $Url" }
     if ($Notes) { $op += " notesPlain[text]=`"$Notes`"" }
+    $op += " 2>&1"
 
-    return Invoke-Expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 Set-Alias -Name Edit-VaultItem -Value Update-VaultItem -Scope Global
@@ -382,18 +521,20 @@ function global:Get-VaultItems {
         [Parameter(Mandatory=$true)][string]$Vault
     ) 
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
-
     $op = "op item list --vault $Vault"
     if ($Categories) { $op += " --categories $Categories" }
     if ($Tags) { $op += " --tags $Tags" }
+    $op += " 2>&1"
 
-    return Invoke-Expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 Set-Alias -Name List-VaultItems -Value Get-VaultItems -Scope Global
@@ -407,27 +548,29 @@ function global:Get-VaultItem {
         [Parameter(Mandatory=$false)][string]$Fields
     ) 
 
-    if ($Vault -notin (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
-        return
-    }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
-
     $op = "op item get $Id --vault $Vault"
     if ($Fields) { $op += " --fields $Fields" }
+    $op += " 2>&1"
 
-    $itemRaw = Invoke-Expression $op | ConvertFrom-Json
+   $result = Invoke-Expression $op
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    $result = $result | ConvertFrom-Json
 
     $item = @{
-        id = $itemRaw.Id
-        title = $itemRaw.title
-        category = $itemRaw.category
+        id = $result.Id
+        title = $result.title
+        category = $result.category
     }
-    foreach ($field in $itemRaw.fields) {
+    foreach ($field in $result.fields) {
         if (![string]::IsNullOrEmpty($field.value)) {
             $_key = $field.label
-            switch ($itemRaw.category) {
+            switch ($result.category) {
                 "Database" {
                     switch ($_key) {
                         "Type" { $_key = "databasetype" }
@@ -460,17 +603,28 @@ function global:Remove-VaultItem {
         Write-Host+ -NoTrace "The vault '$Vault' was not found" -ForegroundColor Red
         return
     }
-    $_vault = Get-Vault -Vault $Vault
-    $Vault = $_vault.Name
+    # $_vault = Get-Vault -Vault $Vault
+    # $Vault = $_vault.Name
 
-    if ($Id -notin (Get-VaultItems -Vault $Vault).id -and $Id -notin (Get-VaultItems -Vault $Vault).title) {
+    $_vaultItems = Get-VaultItems -Vault $Vault
+
+    if ($Id -notin $_vaultItems.id -and $Id -notin $_vaultItems.title) {
         Write-Host+ "Item '$Id' not found" -ForegroundColor Red
         return
     }
 
     $op = "op item delete $Id --vault $Vault"
+    $op += " 2>&1"
 
-    return Invoke-Expression $op | ConvertFrom-Json
+    $result = Invoke-Expression $op 
+    if (!$result) { return }
+    
+    if ($result.GetType().Name -eq "ErrorRecord") {
+        Write-OpError $result
+        return
+    }
+    
+    return $result | ConvertFrom-Json
 
 }
 
