@@ -305,7 +305,7 @@
         elseif ([string]::IsNullOrEmpty($Type) -and ![string]::IsNullOrEmpty($Id)) { 
             $params = @{ Id = $Id; AllowDuplicates = $AllowDuplicates.IsPresent }
             if ($PSBoundParameters.ErrorAction) {$params += @{ ErrorAction = $PSBoundParameters.ErrorAction }}
-            $catalogObjectExpressions += "`$global:Catalog.$((Search-Catalog @params).object).Type).`"$Id`""
+            $catalogObjectExpressions += "`$global:Catalog.$((Search-Catalog @params).object).`"$Id`""
             $catalogObjectExpressionsUid = "Type.Id"
         }
         else {
