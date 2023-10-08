@@ -275,7 +275,8 @@ function global:Summarize-Log {
         [switch]$UseDefaultView,
         [switch]$Today,
         [switch]$Yesterday,
-        [Parameter(Mandatory=$false)][ValidateSet("All","Event","Error","Warning","Information","None","Default")][string[]]$ShowDetails = "Default"
+        [Parameter(Mandatory=$false)][ValidateSet("All","Event","Error","Warning","Information","None","Default")][string[]]$ShowDetails = "Default",
+        [switch]$Descending
     )
 
     if ($ShowDetails -eq "All") { $ShowDetails += @("Event","Error","Warning","Information") }
@@ -656,7 +657,7 @@ function global:Summarize-Log {
 
             if ($Newest) {$summaryDetailsFormattedByNode = $summaryDetailsFormattedByNode | Select-Object -Last $Newest}
 
-            $summaryDetailsFormattedByNode | Sort-Object -Property _Timestamp -Descending | Format-Table -HideTableHeaders #-View (Get-FormatData Overwatch.Log.Summary.Details)
+            $summaryDetailsFormattedByNode | Sort-Object -Property _Timestamp -Descending:$Descending | Format-Table -HideTableHeaders #-View (Get-FormatData Overwatch.Log.Summary.Details)
 
         }
 
@@ -842,12 +843,16 @@ function global:Write-Log {
         # preserve original context for use when writing log entry
         # note that $Context can be anything and not necessarily a valid catalog object name
         $catalogContext = $Context
-        if ($catalogContext -notmatch "\.") { $catalogContext = "Product.$catalogContext"}
 
         # get the log file name from the catalog
         # if the catalog object doesn't specify a log file name, then use the default (the platform instance)
         # use -ErrorAction SilentlyContinue in case $Context was not a valid catalog object name
-        $_catalogObjectLogFileName = (Get-Catalog -Uid $catalogContext -ErrorAction SilentlyContinue).Log
+        if ($catalogContext -match "\.") { 
+            $_catalogObjectLogFileName = (Get-Catalog -Uid $catalogContext -ErrorAction SilentlyContinue).Log
+        }
+        else {
+            $_catalogObjectLogFileName = (Get-Catalog -Id $catalogContext -ErrorAction SilentlyContinue).Log
+        }
         $Name = (![string]::IsNullOrEmpty($_catalogObjectLogFileName) ? $_catalogObjectLogFileName : $global:Platform.Instance).ToLower()
 
         # if the log file doesn't yet exist, create it
