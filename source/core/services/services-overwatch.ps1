@@ -1538,6 +1538,7 @@ function global:Get-IpAddress {
             [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Type,
             [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Id,
             [Parameter(Mandatory=$false)][ValidateSet("Initialization","Installation")][string]$PrerequisiteType = "Initialization",
+            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")][string[]]$IncludePrerequisiteType = @("Overwatch","Cloud","OS","Platform","Product","Provider"),
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
             [switch]$Quiet
         )
@@ -1562,7 +1563,8 @@ function global:Get-IpAddress {
             Pass = $true
         }
 
-        foreach ($prerequisite in $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites) {
+        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Where-Object {$_.Type -in $IncludePrerequisiteType}
+        foreach ($prerequisite in $prerequisites) {
 
             switch ($prerequisite) {
 
