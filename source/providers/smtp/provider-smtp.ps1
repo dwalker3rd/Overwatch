@@ -42,9 +42,9 @@ function global:Send-SMTP {
 
     $Message = $json | ConvertFrom-Json -Depth 99
 
-    $provider = get-provider -id 'SMTP'  # TODO: pass this in from Send-Message?
+    $provider = get-provider -id 'SMTP'
     $providerCredentials = Get-Credentials $provider.Id
-    if (!$From) {$From = $provider.Config.From}
+    $From = ![string]::IsNullOrEmpty($From) ? $From : (![string]::IsNullOrEmpty($provider.Config.From) ? $provider.Config.From : $providerCredentials.UserName)
     if (!$To) {$To = $(get-contact).Email}
     if (!$Subject) {$Subject = $Message.Subject}
 
@@ -64,7 +64,7 @@ function global:Send-SMTP {
     $SMTPMessage.Subject = $Subject
     $SMTPMessage.Body = $builder.ToMessageBody()
 
-    $logEntry = read-log $provider.Id -Context "SMTP" -Action $To -Status $global:PlatformMessageStatus.Transmitted -Message $Message.Summary -Newest 1
+    $logEntry = read-log $provider.Id -Context "Provider.SMTP" -Action $To -Status $global:PlatformMessageStatus.Transmitted -Message $Message.Summary -Newest 1
     $throttle = $logEntry -and $logEntry.Message -eq $Message.Summary ? ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds -le $Message.Throttle.TotalSeconds : $null
 
     if (!$throttle) {
