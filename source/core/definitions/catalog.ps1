@@ -498,7 +498,6 @@ $global:Catalog.Provider += @{ Postgres =
         Log = "Postgres"
         Installation = @{
             Prerequisites = @(
-                @{ Type = "Provider"; Provider = "ODBC"}
                 @{ Type = "Driver"; Driver = "PostgreSQL Unicode(x64)"}
             )
         }
@@ -524,18 +523,6 @@ $global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" =
                 @{ Type = "Platform"; Platform = "TableauServer"}
             )
         }
-    }
-}
-
-$global:Catalog.Provider += @{ ODBC = 
-    [Provider]@{
-        Id = "ODBC"
-        Name = "ODBC"
-        DisplayName = "ODBC"
-        Category = "Data Access"
-        Description = "Overwatch Provider for ODBC"
-        Publisher = "Walker Analytics Consulting"
-        Log = "ODBC"
     }
 }
 
