@@ -1538,7 +1538,6 @@ function global:Get-IpAddress {
             [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Type,
             [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Id,
             [Parameter(Mandatory=$false)][ValidateSet("Initialization","Installation")][string]$PrerequisiteType = "Initialization",
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")][string[]]$IncludePrerequisiteType = @("Overwatch","Cloud","OS","Platform","Product","Provider"),
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
             [switch]$Quiet
         )
@@ -1563,10 +1562,27 @@ function global:Get-IpAddress {
             Pass = $true
         }
 
-        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Where-Object {$_.Type -in $IncludePrerequisiteType}
+        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites
         foreach ($prerequisite in $prerequisites) {
 
             switch ($prerequisite) {
+
+                {$_.Type -eq "Powershell"} {
+                    $prerequisiteIsOk = $true
+                    $prerequisite.TargetStatus = "Installed"
+                    if (!($prerequisite.$($prerequisite.Type).Modules -or $prerequisite.$($prerequisite.Type).Packages)) {
+                        $prerequisiteIsOk = $false
+                        continue
+                    }
+                    foreach ($module in $prerequisite.$($prerequisite.Type).Modules) {
+                        $prerequisiteIsOk = $prerequisiteIsOk -and ($null -ne (Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue))
+                    }
+                    foreach ($package in $prerequisite.$($prerequisite.Type).Packages) {
+                        $prerequisiteIsOk = $prerequisiteIsOk -and ($null -ne (Get-Package -Name $package.name -ErrorAction SilentlyContinue))
+                    }
+                    $status = $prerequisiteIsOk ? "Installed" : "NotInstalled"
+                    continue
+                }
 
                 # test for prerequisite types which are os or platform services
                 {$_.Type -in @("Service","PlatformService")} {
@@ -1575,7 +1591,7 @@ function global:Get-IpAddress {
                     continue
                 }
 
-                # test for prerequisites with the member 'Command'
+                # test for prerequisites which have the Installation.IsInstalled test defined
                 {$null -ne (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled} {
                     $prerequisite.TargetStatus = "Installed"
                     $status = (Invoke-Command (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled -ComputerName $ComputerName) ? "Installed" : "NotInstalled"
@@ -1588,6 +1604,7 @@ function global:Get-IpAddress {
                     $status = (Get-Catalog -Type $prerequisite.Type -Installed).Id -in $prerequisite.$($prerequisite.Type) ? "Installed" : "NotInstalled"
                     continue
                 }
+
             }
 
             #+++
@@ -1604,7 +1621,7 @@ function global:Get-IpAddress {
 
             # $prerequisite.Remove($prerequisite.Type)
             $results.Pass = $results.Pass -and $prerequisite.Pass
-            $results.Prerequisites += $prerequisite
+            $results.Prerequisites += @{ $prerequisite.Id = $prerequisite }
 
         }
 
