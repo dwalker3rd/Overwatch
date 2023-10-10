@@ -45,7 +45,7 @@ function global:Send-TwilioSMS {
     foreach ($t in $To) {
         $params = @{ To = $t; From = $From; Body = $Message.Summary }
 
-        $logEntry = read-log $Provider.Id -Context "SMS" -Action $t -Status $global:PlatformMessageStatus.Transmitted -Message $Message.Summary -Newest 1
+        $logEntry = read-log $Provider.Id -Context "Provider.TwilioSMS" -Action $t -Status $global:PlatformMessageStatus.Transmitted -Message $Message.Summary -Newest 1
         $throttle = $logEntry -and $logEntry.Message -eq $Message.Summary ? ([datetime]::Now - $logEntry.TimeStamp).TotalSeconds -le $Message.Throttle.TotalSeconds : $null
 
         if (!$throttle) {
