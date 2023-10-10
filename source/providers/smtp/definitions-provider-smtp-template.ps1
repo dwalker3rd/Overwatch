@@ -17,9 +17,9 @@ $Provider = $global:Catalog.Provider.SMTP
 
 $SmtpConfig = 
     @{
-        Server = "smtp.office365.com"
-        Port = "587"
-        UseSsl = $true
+        Server = "<server>"
+        Port = "<port>"
+        UseSsl = "<useSsl>"
         MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
         From = $null # deferred to provider
         To = @()
