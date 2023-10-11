@@ -4,7 +4,7 @@ function global:Get-RMTRole {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true,Position=0)][string[]]$ComputerName
+        [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = $env:COMPUTERNAME
     )
 
     if ($ComputerName -in $global:PlatformTopologyBase.Components.Controller.Nodes.Keys) {return "Controller"}
