@@ -174,17 +174,17 @@ function global:Copy-Credentials {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Source,
-        [Parameter(Mandatory=$true)][string]$SourceVault,
-        [Parameter(Mandatory=$false)][string]$SourceComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$true,Position=0)][Alias("Id")][string]$SourceId,
+        [Parameter(Mandatory=$true)][Alias("Vault")][string]$SourceVault,
+        [Parameter(Mandatory=$false)][Alias("ComputerName")][string]$SourceComputerName = $env:COMPUTERNAME,
         
-        [Parameter(Mandatory=$false,Position=1)][string]$Destination = $Source,
+        [Parameter(Mandatory=$false,Position=1)][string]$DestinationId = $SourceId,
         [Parameter(Mandatory=$false)][string]$DestinationVault = $SourceVault,
         [Parameter(Mandatory=$false)][string]$DestinationComputerName = $SourceComputerName
     )
 
-    $creds = Get-Credentials $Source -Vault $SourceVault -ComputerName (Get-OverwatchController $SourceComputerName)
-    Set-Credentials $Destination -Credentials $creds -Vault $DestinationVault -ComputerName (Get-OverwatchController $DestinationComputerName)
+    $creds = Get-Credentials $SourceId -Vault $SourceVault -ComputerName (Get-OverwatchController $SourceComputerName)
+    Set-Credentials $DestinationId -Credentials $creds -Vault $DestinationVault -ComputerName (Get-OverwatchController $DestinationComputerName)
 
 }
 

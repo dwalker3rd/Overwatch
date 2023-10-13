@@ -20,7 +20,7 @@ $Provider.Config = @{
     }
 }
 
-$env:OP_SERVICE_ACCOUNT_TOKEN = "<serviceAccountToken>"
+$env:OP_SERVICE_ACCOUNT_TOKEN = (Get-Credentials OP-SERVICE-ACCOUNT-TOKEN).GetNetworkCredential().Password
 $env:OP_FORMAT = "json"
 
 return $Provider

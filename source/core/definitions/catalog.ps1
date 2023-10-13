@@ -81,6 +81,14 @@ $global:Catalog.Platform += @{ None =
         Image = "../img/none.png"
         Description = "Ov"
         Publisher = "Walker Analytics Consulting"
+        Installation = @{
+            Flag = @("UnInstallable")
+            PlatformInstanceId = @{
+                Input = "None"
+                Pattern = ""
+                Replacement = ""
+            }
+        }
     }
 }
 
@@ -93,15 +101,18 @@ $global:Catalog.Platform += @{ TableauServer =
         Description = "Overwatch services for the Tableau Server platform"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Discovery = @(
+            IsInstalled = @(
                 @{ Type = "Service"; Service = "tabadmincontroller_0" }
             )
-            Installation = @{
-                Prerequisites = @(
-                    @{ Type = "Provider"; Provider = "TableauServerRestApi"},
-                    @{ Type = "Provider"; Provider = "TableauServerTsmApi"},
-                    @{ Type = "Provider"; Provider = "TableauServerTabCmd"}
-                )
+            Prerequisites = @(
+                @{ Type = "Provider"; Provider = "TableauServerRestApi"},
+                @{ Type = "Provider"; Provider = "TableauServerTsmApi"},
+                @{ Type = "Provider"; Provider = "TableauServerTabCmd"}
+            )
+            PlatformInstanceId = @{
+                Input = "`$global:Platform.Uri.Host"
+                Pattern = "\."
+                Replacement = "-"
             }
         }
     }
@@ -120,6 +131,12 @@ $global:Catalog.Platform += @{ TableauCloud =
                 @{ Type = "Provider"; Provider = "TableauServerRestApi"},
                 @{ Type = "Provider"; Provider = "TableauServerTabCmd"}
             )
+            Flag = @("UnInstallable")
+            PlatformInstanceId = @{
+                Input = "`$global:Platform.Uri.Host"
+                Pattern = "\."
+                Replacement = "-"
+            }
         }
     }
 }
@@ -132,12 +149,17 @@ $global:Catalog.Platform += @{ TableauRMT =
         Description = "Overwatch services for Tableau Resource Monitoring Tool, part of Tableau Advanced Management for Tableau Server and Tableau Cloud"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Discovery = @(
+            IsInstalled = @(
                 @{ Type = "Service"; Service = "TableauResourceMonitoringTool" }
             )
             Prerequisites = @(
                 @{ Type = "Provider"; Provider = "TableauServerTsmApi"}
             )
+            PlatformInstanceId = @{
+                Input = "`$global:Platform.Uri.Host"
+                Pattern = "\."
+                Replacement = "-"
+            }
         }
     }
 }
@@ -151,9 +173,14 @@ $global:Catalog.Platform += @{ AlteryxServer =
         Description = "Overwatch services for the Alteryx Server platform"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Discovery = @(
+            IsInstalled = @(
                 @{ Type = "Service"; Service = "AlteryxService" }
             )
+            PlatformInstanceId = @{
+                Input = "`$global:Platform.Uri.Host"
+                Pattern = "\."
+                Replacement = "-"
+            }
         }
     }
 }
@@ -379,7 +406,7 @@ $global:Catalog.CLI += @{ "OnePasswordCLI" =
         Id = "OnePasswordCLI"
         Name = "1Password CLI"
         DisplayName = "1Password CLI"
-        Category = "DataAccess"
+        Category = "External"
         SubCategory = "CLI"
         Description = "1Password CLI"
         Publisher = "1Password"
@@ -387,12 +414,11 @@ $global:Catalog.CLI += @{ "OnePasswordCLI" =
             Install = [scriptblock]{scoop install 1password-cli --global *> $null}
             Update = [scriptblock]{scoop update 1password-cli --global *> $null}
             Uninstall = [scriptblock]{scoop uninstall 1password-cli --global *> $null}
-            IsInstalled = [scriptblock]{try{op --version *> $null;$true}catch{$false}}
+            IsInstalled = @(
+                @{ Type = "Command"; Command = [scriptblock]{try{op --version *> $null;$true}catch{$false}} }
+            )
             Prerequisites = @(
-                @{ 
-                    Type = "Installer"
-                    Installer = "scoop"
-                }
+                @{ Type = "Installer"; Installer = "scoop"}
             )
         }
     }
@@ -403,12 +429,15 @@ $global:Catalog.Installer += @{ "scoop" =
         Id = "scoop"
         Name = "scoop"
         DisplayName = "scoop"
-        Category = "Installer"
+        Category = "External"
+        SubCategory = "Installer"
         Description = "A command-line installer for Windows"
         Publisher = "Luke Sampson"
         Uri = [uri]"https://scoop.sh/"
         Installation = @{
-            IsInstalled = [scriptblock]{try{scoop update scoop *> $null;$true}catch{$false}}
+            IsInstalled = @(
+                @{ Type = "Command"; Command = [scriptblock]{try{scoop update scoop *> $null;$true}catch{$false}} }
+            )
             Prerequisites = @(
                 @{ Type = "OS"; OS = "WindowsServer"}
             )
@@ -498,7 +527,6 @@ $global:Catalog.Provider += @{ Postgres =
         Log = "Postgres"
         Installation = @{
             Prerequisites = @(
-                @{ Type = "Provider"; Provider = "ODBC"}
                 @{ Type = "Driver"; Driver = "PostgreSQL Unicode(x64)"}
             )
         }
@@ -510,7 +538,8 @@ $global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" =
         Id = "PostgreSQL Unicode(x64)"
         Name = "PostgreSQL Unicode(x64)"
         DisplayName = "PostgreSQL Unicode(x64)"
-        Category = "Database"
+        Category = "External"
+        SubCategory = "Database"
         DatabaseType = "PostgreSQL"
         DriverType = "ODBC"
         Publisher = "PostgreSQL Global Development Group"
@@ -524,18 +553,6 @@ $global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" =
                 @{ Type = "Platform"; Platform = "TableauServer"}
             )
         }
-    }
-}
-
-$global:Catalog.Provider += @{ ODBC = 
-    [Provider]@{
-        Id = "ODBC"
-        Name = "ODBC"
-        DisplayName = "ODBC"
-        Category = "Data Access"
-        Description = "Overwatch Provider for ODBC"
-        Publisher = "Walker Analytics Consulting"
-        Log = "ODBC"
     }
 }
 

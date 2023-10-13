@@ -124,15 +124,9 @@ $providerIds = @()
         $message = "<Overwatch <.>24> SEARCHING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-        # try{
-            $global:WriteHostPlusPreference = "SilentlyContinue"
-            $global:Product = @{Id="Command"}
-            . $PSScriptRoot\definitions.ps1
-        # }
-        # catch {}
-        # finally {
-            # $global:WriteHostPlusPreference = "Continue"
-        # }
+        $global:WriteHostPlusPreference = "SilentlyContinue"
+        $global:Product = @{Id="Command"}
+        . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
 
         $installedProducts = Get-Catalog -Type Product -Installed
         $installedProviders = Get-Catalog -Type Provider -Installed
@@ -167,11 +161,21 @@ $providerIds = @()
     $operatingSystemId = $installedOperatingSystem
 
     $installedPlatforms = @()
-    $localServices = Get-Service -ErrorAction SilentlyContinue
-    foreach ($key in $global:Catalog.Platform.Keys) { 
-        if ($localServices.Name -contains $global:Catalog.Platform.$key.Installation.Discovery.Service) {
-            $installedPlatforms += $key
+    foreach ($key in $global:Catalog.Platform.Keys) {
+        $platformIsInstalled = $global:Catalog.Platform.$key.Installation.Flag -contains "UnInstallable" ? $false : $true
+        foreach ($installationTest in $global:Catalog.Platform.$key.Installation.IsInstalled) {
+            switch ($installationTest) {
+                # test for os or platform services
+                {$_.Type -in @("Service","PlatformService")} {
+                    $platformIsInstalled = $platformIsInstalled -and (Invoke-Expression "Wait-$($installationTest.Type) -Name $($installationTest.$($installationTest.Type)) -Status Running -TimeoutInSeconds 1 -WaitTimeInSeconds 1")
+                }
+                # test for platforms which have the Installation.IsInstalled test defined
+                {$_.Type -in @("Command")} {
+                    $platformIsInstalled = $platformIsInstalled -and (Invoke-Command $installationTest.Command)
+                }
+            }
         }
+        if ($platformIsInstalled) { $installedPlatforms += $key }
     }
     Write-Host+ -NoTrace -NoTimestamp -Parse "<Platform <.>24> $($installedPlatforms ? ($installedPlatforms -join ", ") : "None")" -ForegroundColor Gray,DarkGray,$($installedPlatforms ? "Blue" : "Gray")
 
@@ -277,8 +281,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion CLOUD
 #region PLATFORM ID
 
+    $unInstallablePlatforms = (Get-Catalog -Type Platform | Where-Object {$_.Installation.Flag -contains "UnInstallable"}).Id
     if ([string]::IsNullOrEmpty($installedPlatforms)) {
-        $installedPlatforms += @("None")
+        $installedPlatforms += $unInstallablePlatforms
     }
     $platformId = $installedPlatforms[0]
     do {
@@ -301,7 +306,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion PLATFORM ID
 #region PLATFORM INSTALL LOCATION
 
-    if ($platformId -ne "None") {
+    if ($platformId -notin $unInstallablePlatforms) {
         do {
             $platformInstallLocationResponse = $null
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
@@ -327,7 +332,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion PLATFORM INSTALL LOCATION
 #region PLATFORM INSTANCE URI
 
-    if ($platformId -ne "None") {
+    if ($platformId -notin $unInstallablePlatforms) {
         do {
             try {
                 $platformInstanceUriResponse = $null
@@ -363,7 +368,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion PLATFORM INSTANCE URI
 #region PLATFORM INSTANCE DOMAIN
 
-    if ($platformId -ne "None") {
+    if ($platformId -notin $unInstallablePlatforms) {
         $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
         do {
             $platformInstanceDomainResponse = $null
@@ -386,11 +391,19 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion PLATFORM INSTANCE DOMAIN
 #region PLATFORM INSTANCE ID
 
-    if ($platformId -eq "None") {
-        $platformInstanceId = "None"
-    }
-    else {
-        $platformInstanceId ??= $platformInstanceUri.Host -replace "\.","-"
+    # if ($platformId -eq "None") {
+    #     $platformInstanceId = "None"
+    # }
+    # else {
+        $platformInstanceIdRegex = (Get-CatalogObject -Type "Platform" -Id $platformId).Installation.PlatformInstanceId
+        if (!$platformInstanceIdRegex) {
+            $platformInstanceIdRegex = @{
+                Input = "`$global:Platform.Uri.Host"
+                Pattern = "\."
+                Replacement = "-"
+            }
+        }
+        $platformInstanceId ??= (Invoke-Expression $platformInstanceIdRegex.Input) -replace $platformInstanceIdRegex.Pattern,$platformInstanceIdRegex.Replacement
         do {
             $platformInstanceIdResponse = $null
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
@@ -411,7 +424,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
         } until ($platformInstanceId)
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance ID: $platformInstanceId" -IfDebug -ForegroundColor Yellow
-    }
+    # }
 
 #endregion PLATFORM INSTANCE ID
 #region PLATFORM INSTANCE NODES
@@ -1446,6 +1459,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
                     $prerequisiteFail = @{}
                     try {
+                        
                         Install-CatalogObject -Type Provider -Id $providerId -UseDefaultResponses:$UseDefaultResponses
 
                         Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageLength,"`b")
