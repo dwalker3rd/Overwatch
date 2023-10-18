@@ -256,6 +256,7 @@ $global:Catalog.Product += @{ AzureADCache =
         DisplayName = "AzureADCache"
         Description = "Cache for Azure AD and Azure AD B2C data."
         Publisher = "Walker Analytics Consulting"
+        Log = "AzureADSync"
         HasTask = $true
         Installation = @{
             Flag = @("NoPrompt")
@@ -275,6 +276,7 @@ $global:Catalog.Product += @{ AzureADSyncTS =
         DisplayName = "AzureADSyncTS"
         Description = "Syncs Azure AD users to Tableau Server."
         Publisher = "Walker Analytics Consulting"
+        Log = "AzureADSync"
         HasTask = $true
         Installation = @{
             Prerequisites = @(
@@ -295,6 +297,7 @@ $global:Catalog.Product += @{ AzureADSyncB2C =
         DisplayName = "AzureADSyncB2C"
         Description = "Syncs Azure AD users to Azure AD B2C."
         Publisher = "Walker Analytics Consulting"
+        Log = "AzureADSync"
         HasTask = $true
         Installation = @{
             Prerequisites = @(
