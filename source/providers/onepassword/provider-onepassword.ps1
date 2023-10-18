@@ -277,7 +277,7 @@ function global:New-VaultItem {
     param (
 
         [Parameter(Mandatory=$false)][ValidateSet("Login","SSH Key","Database")][string]$Category = "Login",
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        # [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
         [Parameter(Mandatory=$false)][string]$Title,
         [Parameter(Mandatory=$false)][string]$Tags,

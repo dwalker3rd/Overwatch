@@ -411,7 +411,7 @@
                         continue
                     }
                     {$_ -in @("CLI","Installer")} {
-                        $catalogObject.Installed = Invoke-Command $global:Catalog.$($catalogObject.Type).$($catalogObject.Id).Installation.IsInstalled
+                        $catalogObject.Installed = Invoke-Command $global:Catalog.$($catalogObject.Type).$($catalogObject.Id).Installation.IsInstalled.Command
                         continue
                     }
                     "default" {
@@ -976,7 +976,30 @@
         
         }
 
-        function global:Wait-Service {
+        function global:Get-Service+ {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+                [Parameter(Mandatory=$true,Position=0)][string]$Name
+            )
+            
+            if ($ComputerName -ne $env:COMPUTERNAME) {
+                $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+            }
+
+            if ($ComputerName -eq $env:COMPUTERNAME) {
+                $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+            }
+            else {
+                $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
+            }
+        
+            return $service
+        
+        }
+
+        function global:Wait-Service+ {
 
             [CmdletBinding()]
             param (
@@ -989,16 +1012,7 @@
             
             $totalWaitTimeInSeconds = 0
             
-            if ($ComputerName -ne $env:COMPUTERNAME) {
-                $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
-            }
-
-            if ($ComputerName -eq $env:COMPUTERNAME) {
-                $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
-            }
-            else {
-                $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
-            }
+            $service = Get-Service+ $Name -ComputerName $ComputerName
             if (!$service) { return $false }
 
             while ($service.Status -ne $Status) {
@@ -1558,7 +1572,7 @@ function global:Get-IpAddress {
         $results = @{
             Type = $Type
             Id = $Id
-            Prerequisites = @{}
+            Prerequisites = @()
             Pass = $true
         }
 
@@ -1594,7 +1608,7 @@ function global:Get-IpAddress {
                 # test for prerequisites which have the Installation.IsInstalled test defined
                 {$null -ne (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled} {
                     $prerequisite.TargetStatus = "Installed"
-                    $status = (Invoke-Command (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled -ComputerName $ComputerName) ? "Installed" : "NotInstalled"
+                    $status = (Invoke-Command -ScriptBlock (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled.Command -ComputerName $ComputerName) ? "Installed" : "NotInstalled"
                     continue
                 }
 
@@ -1621,7 +1635,7 @@ function global:Get-IpAddress {
 
             # $prerequisite.Remove($prerequisite.Type)
             $results.Pass = $results.Pass -and $prerequisite.Pass
-            $results.Prerequisites += @{ $prerequisite.Id = $prerequisite }
+            $results.Prerequisites += $prerequisite
 
         }
 
@@ -2019,8 +2033,6 @@ function global:Show-PostInstallation {
         Write-Host+
         Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
     }
-    
-    Write-Host+
 
     Write-Host+ -ResetAll
 

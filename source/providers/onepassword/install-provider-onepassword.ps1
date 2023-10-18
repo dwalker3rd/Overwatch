@@ -2,63 +2,61 @@ param (
     [switch]$UseDefaultResponses
 )
 
-$_provider = Get-Provider -Id "OnePassword"
-$_provider | Out-Null
+$_providerId = "OnePassword"
+# $_provider = Get-Provider -Id $_providerId
+# $_provider | Out-Null
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
-    $installSettings = "$PSScriptRoot\data\$($_provider.Id)InstallSettings.ps1"
-    if (Test-Path -Path $installSettings) {
-        . $installSettings
-    }
+    Write-Host+; Write-Host+
 
-    $overwatchRoot = $PSScriptRoot -replace "\\install",""
-    if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-$($_provider.Id).ps1 | Select-String "<serviceAccountToken>" -Quiet) {
+    # switch to Overwatch vault service to get/set the 1Password service account token
+    . "$($global:Location.Services)\vault.ps1"
 
-        do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Service Account Token ", "$($serviceAccountToken ? "[$serviceAccountToken] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
-            if (!$UseDefaultResponses) {
-                $serviceAccountTokenResponse = Read-Host
-            }
-            else {
-                Write-Host+
-            }
-            $serviceAccountToken = ![string]::IsNullOrEmpty($serviceAccountTokenResponse) ? $serviceAccountTokenResponse : $serviceAccountToken
-            if ([string]::IsNullOrEmpty($server)) {
-                Write-Host+ -NoTrace -NoTimestamp "NULL: Service account token is required" -ForegroundColor Red
-                $serviceAccountToken = $null
-            }
-        } until ($serviceAccountToken)
+    $opServiceAccountToken = $null
+    $migrateToOnePassword = $false
+    $opServiceAccountCredentials = Get-Credentials "op-service-account-token"
+    if ($opServiceAccountCredentials) { $opServiceAccountToken = $opServiceAccountCredentials.GetNetworkCredential().Password }
+    if (!$opServiceAccountCredentials) { $migrateToOnePassword = $true }
+    $opServiceAccountTokenMasked = $opServiceAccountToken -match "^(.{8}).*(.{4})$" ? $matches[1] + "..." + $matches[2] : $null
 
-        $definitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-$($_provider.Id).ps1
-        $definitionsFile = $definitionsFile -replace "<serviceAccountToken>", $serviceAccountToken
-        $definitionsFile | Set-Content -Path $overwatchRoot\definitions\definitions-provider-$($_provider.Id).ps1
+    do {
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    1Password Service Account Token ", "$($opServiceAccountToken ? "[$opServiceAccountTokenMasked] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+        if (!$UseDefaultResponses) {
+            $opServiceAccountTokenResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
+        $opServiceAccountToken = ![string]::IsNullOrEmpty($opServiceAccountTokenResponse) ? $opServiceAccountTokenResponse : $opServiceAccountToken
+        if ([string]::IsNullOrEmpty($opServiceAccountToken)) {
+            Write-Host+ -NoTrace -NoTimestamp "    NULL: Service account token is required" -ForegroundColor Red
+            $opServiceAccountToken = $null
+        }
+    } until ($opServiceAccountToken)
 
-        if (Test-Path $installSettings) {Clear-Content -Path $installSettings}
-        '[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]' | Add-Content -Path $installSettings
-        "Param()" | Add-Content -Path $installSettings
-        "`$serviceAccountToken = `"$serviceAccountToken`"" | Add-Content -Path $installSettings
-
-    }
-
-    $migrateToOnePassword = ((Get-Vault credentialsKeys).Exists -or (Get-Vault connectionStringsKeys).Exists) -and !(Get-Catalog -Type "Provider" -Id $_provider.Id).IsInstalled
+    Set-Credentials -Id "op-service-account-token" -Account "Overwatch" -Token $opServiceAccountToken
 
     if ($migrateToOnePassword) {
 
-        .\source\providers\$($_provider.Id.ToLower())\provider-$($_provider.Id.ToLower()).ps1
+        Write-Host+
 
-        $env:OP_SERVICE_ACCOUNT_TOKEN = $serviceAccountToken
+        $overwatchVaults = (Get-Vaults).FileNameWithoutExtension | Where-Object {$_ -notlike "*Keys"}
+
+        # switch back to 1Password provider
+        . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
+
+        $env:OP_SERVICE_ACCOUNT_TOKEN = $opServiceAccountToken
         $env:OP_FORMAT = "json"
         
         New-Item -ItemType Directory "$($global:Location.Data)\vaultArchive" -ErrorAction SilentlyContinue
 
-        $overwatchVaults = @("Credentials","ConnectionStrings")
         foreach ($vault in $overwatchVaults) {
 
-            Write-Host+ -NoTrace "Migrating Overwatch ",$vault," to 1Password" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
+            Write-Host+ -NoTrace -NoTimestamp "    Migrating Overwatch vault ",$vault," to 1Password" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
 
             if ($vault -notin (Get-Vaults).name) { 
-                Write-Host+ -NoTrace "  Creating 1Password Vault ",$vault -NoSeparator -ForegroundColor DarkGray,DarkBlue
+                Write-Host+ -NoTrace -NoTimestamp "      Creating 1Password vault ",$vault -NoSeparator -ForegroundColor DarkGray,DarkBlue
                 New-Vault -Vault $vault 
             }
 
@@ -74,12 +72,12 @@ $_provider | Out-Null
                         $vaultItem.Password = $vaultItem.Password | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
 
                         if ($Id -notin (Get-VaultItems -Vault $vault).id -and $Id -notin (Get-VaultItems -Vault $vault).title) {
-                            Write-Host+ -NoTrace "  Creating ","LOGIN"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                            Write-Host+ -NoTrace -NoTimestamp "      Creating ","LOGIN"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                             $_vaultItem = New-VaultItem -Vault credentials -Title $Id @vaultItem -Category Login
                         }
                         else {
-                            Write-Host+ -NoTrace "  Updating ","LOGIN"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                            $_vaultItem = Update-VaultItem -Vault credentials -Title $Id @vaultItem -Category Login
+                            Write-Host+ -NoTrace -NoTimestamp "      Found ","LOGIN"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                            # $_vaultItem = Update-VaultItem -Vault credentials -Id $Id @vaultItem -Category Login
                         }
                     }
                     "SSH Key" {}
@@ -89,27 +87,38 @@ $_provider | Out-Null
                         $vaultItem.Password = $vaultItem.Password | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
 
                         if ($Id -notin (Get-VaultItems -Vault $vault).id -and $Id -notin (Get-VaultItems -Vault $vault).title) {
-                            Write-Host+ -NoTrace "  Creating ","DATABASE"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                            Write-Host+ -NoTrace -NoTimestamp "      Creating ","DATABASE"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                             $_vaultItem = New-VaultItem -Vault connectionStrings -Title $Id @vaultItem -Category Database -DriverType ODBC 
                         }
                         else {
-                            Write-Host+ -NoTrace "  Updating ","DATABASE"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                            $_vaultItem = Update-VaultItem -Vault connectionStrings -Title $Id @vaultItem -DriverType ODBC -Category Database
+                            Write-Host+ -NoTrace -NoTimestamp "      Found ","DATABASE"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                            # $_vaultItem = Update-VaultItem -Vault connectionStrings -Id $Id @vaultItem -DriverType ODBC -Category Database
                         } 
                     }
                 }
                 $_vaultItem | Out-Null
             }
 
-            Move-Item $vault.Path "$($global:Location.Data)\vaultArchive"
+            Move-Item "$($global:Location.Data)\$($vault).vault" "$($global:Location.Data)\vaultArchive" -ErrorAction SilentlyContinue
+            Move-Item "$($global:Location.Data)\$($vault)Keys.vault" "$($global:Location.Data)\vaultArchive" -ErrorAction SilentlyContinue
 
-            Write-Host+ -NoTrace "Migration of Overwatch ",$vault," to 1Password ","COMPLETED" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkGreen
+            # Write-Host+ -NoTrace -NoTimestamp "    Migration of Overwatch vault ",$vault," to 1Password ","COMPLETED" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkGreen
             Write-Host+
 
         }
 
-        Write-Host+ -NoTrace "Migration to 1Password","COMPLETED" -ForegroundColor DarkGray,DarkGreen
+        # Write-Host+ -NoTrace -NoTimestamp "    Migration to 1Password","COMPLETED" -ForegroundColor DarkGray,DarkGreen
     
     }
+
+    # switch to Overwatch vault service to get/set the 1Password service account token
+    . "$($global:Location.Services)\vault.ps1"
+
+    Set-Credentials -Id "op-service-account-token" -Account "Overwatch" -Token $opServiceAccountToken
+
+    # switch back to 1Password provider
+    . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
+
+    Write-Host+
 
 #endregion PROVIDER-SPECIFIC INSTALLATION

@@ -1,35 +1,11 @@
-﻿<# 
-.Synopsis
-Credential service for Overwatch
-.Description
-This script provides credential management for Overwatch services, tasks and providers.  Credentials are 
-stored in .secure files in the Overwatch data directory.
-#>
-
-<# 
-.Synopsis
-Request credentials from a user.
-.Description
-Prompts user for username and password and returns a Powershell credential object to the caller.
-.Parameter Title
-Optional title for the credential request.
-.Parameter Message
-Optional message for the credential request.
-.Parameter Prompt1
-Optional prompt for a user or account name.
-.Parameter Prompt2
-Optional prompt for a password or token
-.Outputs
-System.Management.Automation.PSCredential object.
-#>
-function global:Request-Credentials {
+﻿function global:Request-Credentials {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$UserName,
-        [Parameter(Mandatory=$false)][string]$Password,
+        [Parameter(Mandatory=$false,Position=0)][Alias("Account")][string]$UserName,
+        [Parameter(Mandatory=$false)][Alias("Token")][string]$Password,
         [Parameter(Mandatory=$false)][string]$Title,
         [Parameter(Mandatory=$false)][string]$Message,
         [Parameter(Mandatory=$false)][string]$Prompt1 = "User",
@@ -45,29 +21,6 @@ function global:Request-Credentials {
 
 }
 
-<# 
-.Synopsis
-Stores credentials in an Overwatch credential object/file.
-.Description
-Stores specified credentials in an Overwatch .secure file.  Credentials may be specified with the 
-PSCredential parameter or, optionally, with the userName and password parameters.
-.Parameter Name
-Name of the credential object.
-.Parameter Credentials
-A System.Management.Automation.PSCredential object.
-.Parameter UserName
-Optional user or account name.
-.Parameter Password
-Optional password or token
-.Parameter Key
-If an encryption key is specified:
-    - ConvertFrom-SecureString uses the AES encryption algorithm to encrypt the credentials.
-    - The encryption key must have a length of 128, 192, or 256 bits.
-    - The credentials can be encrypted locally or remotely.
-If no encryption key is specified:
-    - ConvertFrom-SecureString uses the Windows Data Protection API (DPAPI) to encrypt the credentials.
-    - The credentials can only be encrypted on the local machine.
-#>
 function global:Set-Credentials {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
@@ -76,57 +29,39 @@ function global:Set-Credentials {
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$false,ValueFromPipeline)][System.Management.Automation.PsCredential]$Credentials,
-        [Parameter(Mandatory=$false)][string]$UserName,
-        [Parameter(Mandatory=$false)][string]$Password,
+        [Parameter(Mandatory=$false)][Alias("Account")][string]$UserName,
+        [Parameter(Mandatory=$false)][Alias("Token")][string]$Password,
         [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
 
-    if (!(Get-Credentials -Id $id -Vault $Vault -ComputerName $ComputerName)) {
-        if ((Get-Command New-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
-        New-VaultItem -Category Login -Id $id -UserName $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password -Vault $Vault @ComputerNameParam
+    if (!(Get-Credentials -Id $Id -Vault $Vault -ComputerName $ComputerName)) {
+        $ComputerNameParam = ((Get-Command New-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
+        New-VaultItem -Category Login -Id $Id -UserName $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password -Vault $Vault @ComputerNameParam
     }
     else {
-        if ((Get-Command Update-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
-        Update-VaultItem -Id $id -UserName $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password -Vault $Vault @ComputerNameParam
+        $ComputerNameParam = ((Get-Command Update-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
+        Update-VaultItem -Id $Id -UserName $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password -Vault $Vault @ComputerNameParam
     }
 
     return
 
 }
 
-<# 
-.Synopsis
-Gets/retrieves credentials from an Overwatch credential object/file.
-.Description
-Get the credentials, specified by NAME, from the Overwatch .secure file. 
-.Parameter Name
-Name of the credential file.
-.Parameter Key
-If an encryption key is specified:
-    - ConvertTo-SecureString uses the AES encryption algorithm to decrypt the credentials.
-    - The encryption key must have a length of 128, 192, or 256 bits.
-    - The credentials can be decrypted locally or remotely.
-If no encryption key is specified:
-    - ConvertTo-SecureString uses the Windows Data Protection API (DPAPI) to decrypt the credentials.
-    - The credentials can only be decrypted on the local machine.
-.Outputs
-System.Management.Automation.PSCredential object.
-#>
 function global:Get-Credentials {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$id,
+        [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [switch]$LocalMachine,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
     $ComputerNameParam = (Get-Command Get-VaultItem).Parameters.Keys -contains "ComputerName" ? @{ ComputerName = $ComputerName } : @{}
-    $item = Get-VaultItem -Vault $Vault -Id $id @ComputerNameParam
+    $item = Get-VaultItem -Vault $Vault -Id $Id @ComputerNameParam
     if (!$item) {return}
 
     $UserName = $item.UserName
@@ -156,16 +91,16 @@ function global:Remove-Credentials {
         ConfirmImpact = 'High'
     )]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$id,
+        [Parameter(Mandatory=$false,Position=0)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    if($PSCmdlet.ShouldProcess($id)) {
-        if ((Get-Command Remove-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
-        Remove-VaultItem -Vault $Vault -Id $id @ComputerNameParam
-        if ((Get-Command Remove-VaultKey).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
-        Remove-VaultKey -Id $id -Vault $Vault @ComputerNameParam
+    if($PSCmdlet.ShouldProcess($Id)) {
+        $ComputerNameParam = ((Get-Command Remove-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
+        Remove-VaultItem -Vault $Vault -Id $Id @ComputerNameParam
+        $ComputerNameParam = ((Get-Command Remove-VaultKey).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
+        Remove-VaultKey -Id $Id -Vault $Vault @ComputerNameParam
     }
 
 }
@@ -188,28 +123,17 @@ function global:Copy-Credentials {
 
 }
 
-<# 
-.Synopsis
-Validates credentials.
-.Description
-Validates the specified credentials.  Note that this only applies to Windows authentication against
-local machines or domains.
-.Parameter Name
-Name of the credential object.
-.Outputs
-True or False
-#>
 function global:Test-Credentials {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$false,Position=0)][string]$id,
+        [Parameter(Mandatory=$false,Position=0)][string]$Id,
         [Parameter(Mandatory=$false)][string]$Vault = $global:DefaultCredentialsVault,
         [switch]$NoValidate,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     
-    $Credentials = Get-Credentials -Id $id -Vault $Vault -ComputerName $ComputerName
+    $Credentials = Get-Credentials -Id $Id -Vault $Vault -ComputerName $ComputerName
     if (!$Credentials) {return $false}
 
     if ($NoValidate) {return $Credentials ? $true : $false}
@@ -228,28 +152,6 @@ function global:Test-Credentials {
 
 }
 
-<# 
-.Synopsis
-Generates a new random password.
-.Description
-Generates a new random password.
-.Parameter Length
-The length of the password.
-.Parameter MinimumSpecialCharacters
-The number of special characters to include in the password.
-.Parameter MinimumNumberCharacters
-The number of numeric digits to include in the password.
-.Parameter MinimumUpperCaseCharacters
-The number of special characters to include in the password.
-.Parameter ExcludeSpecialCharacters
-Exclude special characters.
-.Parameter ExcludeNumberCharacters
-Exclude numeric digits.
-.Parameter ExcludeUpperCaseCharacters
-Exclude upper case characters.
-.Outputs
-A password
-#>
 function global:New-RandomPassword {
 
     [CmdletBinding()]

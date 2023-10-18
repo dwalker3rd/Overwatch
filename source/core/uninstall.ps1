@@ -18,8 +18,10 @@ $global:WriteHostPlusPreference = "Continue"
 $global:ConfirmPreference = "None"
 
 $global:Product = @{Id="Uninstall"}
-. $PSScriptRoot\definitions.ps1
+. $PSScriptRoot\definitions.ps1 -MinimumDefinitions
 . $PSScriptRoot\services\services-overwatch-install.ps1
+
+Write-Host+
 
 #region LOCAL FUNCTIONS
 

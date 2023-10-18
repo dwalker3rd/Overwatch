@@ -395,7 +395,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     #     $platformInstanceId = "None"
     # }
     # else {
-        $platformInstanceIdRegex = (Get-CatalogObject -Type "Platform" -Id $platformId).Installation.PlatformInstanceId
+        $platformInstanceIdRegex = (Get-Catalog -Type "Platform" -Id $platformId).Installation.PlatformInstanceId
         if (!$platformInstanceIdRegex) {
             $platformInstanceIdRegex = @{
                 Input = "`$global:Platform.Uri.Host"
@@ -1279,7 +1279,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     try{
         $global:WriteHostPlusPreference = "SilentlyContinue"
         $global:Product = @{Id="Command"}
-        . $PSScriptRoot\definitions.ps1
+        . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
     }
     catch {}
     finally {
