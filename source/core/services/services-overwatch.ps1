@@ -999,7 +999,7 @@
         
         }
 
-        function global:Wait-Service+ {
+        function global:Wait-Service {
 
             [CmdletBinding()]
             param (
