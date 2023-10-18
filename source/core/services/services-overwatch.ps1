@@ -1569,71 +1569,143 @@ function global:Get-IpAddress {
         Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<Prerequisites <.>48> PENDING" -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<  $Type $Id <.>48> PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
-        $results = @{
+        $global:Catalog.$Type.$Id.Refresh()
+
+        $results = [ordered]@{
             Type = $Type
             Id = $Id
+            Installed = $global:Catalog.$Type.$Id.Installed
             Prerequisites = @()
             Pass = $true
+            Condition = "AND"
         }
 
-        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites
-        foreach ($prerequisite in $prerequisites) {
+        if (!($global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites)) { 
+            return $results 
+        }
 
-            switch ($prerequisite) {
+        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Copy-Object
+        foreach ($_prerequisite in $prerequisites) {
 
-                {$_.Type -eq "Powershell"} {
-                    $prerequisiteIsOk = $true
-                    $prerequisite.TargetStatus = "Installed"
+            $prerequisite = [ordered]@{
+                Type = $_prerequisite.Type
+                Id = $_prerequisite.$($_prerequisite.Type) | Copy-Object
+                Status = $null 
+                Pass = $false
+                Condition = "OR"
+                Tests = @()
+            }            
+
+            $prerequisite.Pass = $false
+            $prerequisite.Tests = @()
+            $prerequisite.Condition = "OR"
+
+            foreach ($prerequisiteId in $prerequisite.$($prerequisite.Type)) {
+
+                $prerequisiteTest = [ordered]@{
+                    Type = $prerequisite.Type
+                    Id = $prerequisiteId
+                    Status = $null
+                    Pass = $false
+                }
+
+                # test for powershell modules/packages
+                if ($prerequisite.Type -eq "Powershell") {
+                    $_isInstalled = $true
                     if (!($prerequisite.$($prerequisite.Type).Modules -or $prerequisite.$($prerequisite.Type).Packages)) {
-                        $prerequisiteIsOk = $false
-                        continue
+                        $_isInstalled = $false
+                    }                    
+                    else {
+                        if ($prerequisite.$($prerequisite.Type).Modules) {
+                            $prerequisiteTest.$($prerequisite.Type) += @{ Modules = @() }
+                            foreach ($module in $prerequisite.$($prerequisite.Type).Modules) {
+                                $psModuleIsInstalled = $null -ne (Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue)
+                                $prerequisiteTest.$($prerequisite.Type).Modules += @{ 
+                                    Name = $module.name 
+                                    Status = $psModuleIsInstalled ? "Installed" : "NotInstalled"
+                                }
+                                $_isInstalled = $_isInstalled -and $psModuleIsInstalled
+                            }
+                        }
+                        if ($prerequisite.$($prerequisite.Type).Packages) {
+                            $prerequisiteTest.$($prerequisite.Type) += @{ Packages = @() }
+                            foreach ($package in $prerequisite.$($prerequisite.Type).Packages) {
+                                $psPackageIsInstalled = $null -ne (Get-Package -Name $package.name -ErrorAction SilentlyContinue)
+                                $prerequisiteTest.$($prerequisite.Type).Packages += @{ 
+                                    Name = $package.name 
+                                    Status = $psPackageIsInstalled ? "Installed" : "NotInstalled"
+                                }
+                                $_isInstalled = $_isInstalled -and $psPackageIsInstalled
+                            }
+                        }
                     }
-                    foreach ($module in $prerequisite.$($prerequisite.Type).Modules) {
-                        $prerequisiteIsOk = $prerequisiteIsOk -and ($null -ne (Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue))
-                    }
-                    foreach ($package in $prerequisite.$($prerequisite.Type).Packages) {
-                        $prerequisiteIsOk = $prerequisiteIsOk -and ($null -ne (Get-Package -Name $package.name -ErrorAction SilentlyContinue))
-                    }
-                    $status = $prerequisiteIsOk ? "Installed" : "NotInstalled"
-                    continue
+                    $prerequisiteTest.Status = $_isInstalled ? "Installed" : "NotInstalled"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
                 }
 
                 # test for prerequisite types which are os or platform services
-                {$_.Type -in @("Service","PlatformService")} {
-                    $prerequisite.TargetStatus = "Running"
-                    $status = (Invoke-Expression "Wait-$($prerequisite.Type) -ComputerName $ComputerName -Name $($prerequisite.$($prerequisite.Type)) -Status $($prerequisite.TargetStatus) -TimeoutInSeconds 5 -WaitTimeInSeconds 20") ? $prerequisite.TargetStatus : "NOT $($prerequisite.TargetStatus)"
-                    continue
+                if ($prerequisite.Type -in @("Service","PlatformService")) {
+                    $_service = switch ($prerequisite.Type) {
+                        "Service" {
+                            Get-Service+ -ComputerName $ComputerName -Name $prerequisiteId 
+                        }
+                        "PlatformService" {
+                            Get-PlatformService -ComputerName $ComputerName -Name $prerequisiteId 
+                        }
+                    }
+                    $_isInstalled = $_service.Status -eq "Running"
+                    $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
+                    $prerequisiteTest.Status = $_service.Status
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
                 }
 
                 # test for prerequisites which have the Installation.IsInstalled test defined
-                {$null -ne (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled} {
-                    $prerequisite.TargetStatus = "Installed"
-                    $status = (Invoke-Command -ScriptBlock (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled.Command -ComputerName $ComputerName) ? "Installed" : "NotInstalled"
-                    continue
-                }
+                $installationTest = $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.IsInstalled
+                if ($installationTest) {
+                    if ($installationTest.Command) {
+                        $_scriptBlock = (Get-Catalog -Type $prerequisite.Type -Id $prerequisiteId -ComputerName $ComputerName).Installation.IsInstalled.Command
+                        $_isInstalled = Invoke-Command -ScriptBlock $_scriptBlock -ComputerName $ComputerName
+                    }
+                    else {
+                        $_service = switch ($installationTest.Type) {
+                            "Service" {
+                                Get-Service+ -ComputerName $ComputerName -Name $($installationTest.$($installationTest.Type))
+                            }
+                            "PlatformService" {
+                                Get-PlatformService -ComputerName $ComputerName -Name $($installationTest.$($installationTest.Type))
+                            }
+                        }
+                        $_isInstalled = $_service.Status -eq "Running"
+                    }
+                    $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
+                    $prerequisiteTest.Status = $_isInstalled ? "Installed" : "NotInstalled"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
+                }                
 
                 # test for prerequisite types which are catalog objects
-                default {
-                    $prerequisite.TargetStatus = "Installed"
-                    $status = (Get-Catalog -Type $prerequisite.Type -Installed).Id -in $prerequisite.$($prerequisite.Type) ? "Installed" : "NotInstalled"
-                    continue
+                if (!$installationTest -and $prerequisite.Type -in $global:Catalog.Keys) {
+                    $global:Catalog.$($prerequisite.Type).$prerequisiteId.Refresh()
+                    $_isInstalled = $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installed
+                    $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
+                    $prerequisiteTest.Status = $_isInstalled ? "Installed" : "NotInstalled"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
                 }
+
+                $prerequisite.tests += $prerequisiteTest
 
             }
 
-            #+++
-            # order-sensitive!
-            #
-            $prerequisite.Pass = $status -eq $prerequisite.TargetStatus
-            $prerequisite.Status = $status
-            #
-            #---
-            $prerequisite.Id = $($prerequisite.$($prerequisite.Type))
+            $prerequisite.Status = $prerequisite.Pass ? "Installed" : "NotInstalled"
+            # $prerequisite.Id = $prerequisite.$($prerequisite.Type)
+            $prerequisite.Remove($prerequisite.Type)
 
-            Write-Host+ -Iff $(!$Quiet) -NoTrace "    $($prerequisite.$($prerequisite.Type)) is","$($prerequisite.Pass ? '' : 'NOT ')$($prerequisite.TargetStatus.ToUpper())" -ForegroundColor Gray,($prerequisite.Pass ? "DarkGreen" : "Red")
-            Write-Log -Context "$Type.$Id" -Target "Prerequisite.$($prerequisite.Type).$($prerequisite.$($prerequisite.Type))" -Action "Test-Prerequisites" -Status $status -EntryType ($prerequisite.Pass ? "Information" : "Error")
+            Write-Host+ -Iff $(!$Quiet) -NoTrace "    $($prerequisite.$($prerequisite.Type)) is", $prerequisite.Status.ToUpper() -ForegroundColor Gray,($prerequisite.Pass ? "DarkGreen" : "Red")
+            Write-Log -Context "$Type.$Id" -Target "Prerequisite.$($prerequisite.Type).$($prerequisite.$($prerequisite.Type))" -Action "Test-Prerequisites" -Status $prerequisite.Status -EntryType ($prerequisite.Pass ? "Information" : "Error")
 
-            # $prerequisite.Remove($prerequisite.Type)
             $results.Pass = $results.Pass -and $prerequisite.Pass
             $results.Prerequisites += $prerequisite
 
@@ -1682,7 +1754,7 @@ function global:Get-IpAddress {
             # return $outputObject  | ConvertTo-Json -Depth 99 | ConvertFrom-Json -Depth 99
             return [System.Management.Automation.PSSerializer]::Deserialize(
                 [System.Management.Automation.PSSerializer]::Serialize(
-                    $InputObject
+                    $outputObject
                 )
             )
         }

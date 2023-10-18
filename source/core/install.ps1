@@ -250,7 +250,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
 #endregion OVERWATCH INSTALL LOCATION
 
-    $dependencies = @()
+    $requiredDependenciesNotInstalled = @()
 
 #region CLOUD
 
@@ -275,7 +275,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         }
     } until ($supportedCloudProviderIds -contains $cloudId -or $cloudId -eq "None")
     if (![string]::IsNullOrEmpty($cloudId) -and $cloudId -ne "None") {
-        $dependencies += Get-CatalogDependencies -Type Cloud -Id $cloudId -Include Product,Provider -NotInstalled
+        $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Cloud -Id $cloudId -Include Product,Provider -NotInstalled
     }
 
 #endregion CLOUD
@@ -301,7 +301,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             Write-Host+ -NoTrace -NoTimestamp "Platform must be one of the following: $($installedPlatforms -join ", ")" -ForegroundColor Red
         }
     } until ($installedPlatforms -contains $platformId)
-    $dependencies += Get-CatalogDependencies -Type Platform -Id $platformId -Include Cloud,Product,Provider -NotInstalled
+    $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Platform -Id $platformId -Include Cloud,Product,Provider -NotInstalled
 
 #endregion PLATFORM ID
 #region PLATFORM INSTALL LOCATION
@@ -545,15 +545,10 @@ $global:Location.Definitions = $tempLocationDefinitions
     $productHeaderWritten = $false
 
     foreach ($key in $global:Catalog.Product.Keys) {
-
         $product = $global:Catalog.Product.$key
-        
         if ([string]::IsNullOrEmpty($product.Installation.Prerequisites.Platform) -or $product.Installation.Prerequisites.Platform -contains $platformId) {
-
-            if ($product.Id -notin $installedProducts.Id -and $product.Id -notin $dependencies.Id) {
-
+            if ($product.Id -notin $installedProducts.Id -and $product.Id -notin $requiredDependenciesNotInstalled.Id -and (Test-Prerequisites -Type "Product" -Id $product.Id -PrerequisiteType "Installation" -Quiet).Pass) {
                 $productResponse = $null
-
                 if ($product.Installation.Flag -contains "AlwaysInstall") {
                     $productsSelected += $product.id
                     $productResponse = "Y"
@@ -579,14 +574,11 @@ $global:Location.Definitions = $tempLocationDefinitions
                         $productsSelected += $product.id
                     }
                 }
-
                 if ($productResponse -eq "Y") {
-                    $dependencies += Get-CatalogDependencies -Type Product -Id $product.id -Include Product,Provider -NotInstalled -Platform $platformId
+                    $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Product -Id $product.id -Include Product,Provider -NotInstalled -Platform $platformId
                 }
             }
-
         }
-
     }
     $productIds = [array]($productsSelected | Where-Object {$_ -notin $productIds})
 
@@ -599,8 +591,8 @@ $global:Location.Definitions = $tempLocationDefinitions
     $_providerIds = @()
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
-        if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId) {
-            if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $dependencies.Id) {
+        if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId -and (Test-Prerequisites -Type "Provider" -Id $provider.Id -PrerequisiteType "Installation" -Quiet).Pass) {
+            if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $requiredDependenciesNotInstalled.Id) {
                 if ($provider.Installation.Flag -contains "AlwaysInstall") {
                     $_providerIds += $provider.Id
                 }
@@ -623,7 +615,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                     if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
                     if ($providerResponse -eq "Y") {
                         $_providerIds += $provider.Id
-                        $dependencies += Get-CatalogDependencies -Type Provider -Id $provider.id -Include Product,Provider -NotInstalled -Platform $platformId
+                        $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Provider -Id $provider.id -Include Product,Provider -NotInstalled -Platform $platformId
                         $x=1
                     }
                 }
@@ -639,11 +631,11 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion PROVIDERS
 #region DEPENDENCIES 
 
-    if ($dependencies) {
+    if ($requiredDependenciesNotInstalled) {
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "Dependencies" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "------------" -ForegroundColor DarkGray
-        foreach ($dependency in $dependencies) {
+        foreach ($dependency in $requiredDependenciesNotInstalled) {
             $dependentType = ($dependency.Dependent -split "\.")[0]
             $dependentId = ($dependency.Dependent -split "\.")[1]
             Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentId)) $($dependentType.ToLower())" -ForegroundColor Gray,DarkGray
