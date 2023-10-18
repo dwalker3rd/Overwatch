@@ -143,7 +143,7 @@ function global:Initialize-TSRestApiConfiguration {
 
     $global:tsRestApiConfig = @{
         Server = $Server
-        Credentials = Get-Credentials $Credentials -ComputerName $Server
+        Credentials = Get-Credentials $Credentials
         Token = $null
         SiteId = $null
         ContentUrl = $ContentUrl
