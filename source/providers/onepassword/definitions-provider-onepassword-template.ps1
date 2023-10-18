@@ -20,6 +20,9 @@ $Provider.Config = @{
     }
 }
 
+# switch to Overwatch vault service to get/set the 1Password service account token
+. "$($global:Location.Services)\vault.ps1"
+
 $env:OP_SERVICE_ACCOUNT_TOKEN = (Get-Credentials OP-SERVICE-ACCOUNT-TOKEN).GetNetworkCredential().Password
 $env:OP_FORMAT = "json"
 

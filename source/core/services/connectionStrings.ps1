@@ -85,7 +85,7 @@ function global:New-ConnectionString {
         throw "$DriverType driver '$Driver' is not installed on $($ComputerName.ToUpper())"
     }
     
-    if ((Get-Command New-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+    $ComputerNameParam = ((Get-Command New-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
     New-VaultItem -Id $Id @vaultItem -Vault $Vault @ComputerNameParam
 
     return
@@ -172,7 +172,7 @@ function global:Update-ConnectionString {
         throw "$DriverType driver '$Driver' is not installed on $($ComputerName.ToUpper())"
     }
     
-    if ((Get-Command Update-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+    $ComputerNameParam = ((Get-Command Update-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
     Update-VaultItem -Id $Id @vaultItem -Vault $Vault @ComputerNameParam
 
     return
@@ -207,9 +207,9 @@ function global:Remove-ConnectionString {
     )
 
     if($PSCmdlet.ShouldProcess($Id)) {
-        if ((Get-Command Remove-VaultItem).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+        $ComputerNameParam = ((Get-Command Remove-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
         Remove-VaultItem -Id $Id -Vault $Vault @ComputerNameParam
-        if ((Get-Command Remove-VaultKey).Parameters.Keys -contains "ComputerName") { $ComputerNameParam = @{ ComputerName = $ComputerName }}
+        $ComputerNameParam = ((Get-Command Remove-VaultKey).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
         Remove-VaultKey -Id $Id -Vault $Vault @ComputerNameParam
     }
 

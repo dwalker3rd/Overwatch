@@ -1279,7 +1279,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     try{
         $global:WriteHostPlusPreference = "SilentlyContinue"
         $global:Product = @{Id="Command"}
-        . $PSScriptRoot\definitions.ps1
+        . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
     }
     catch {}
     finally {

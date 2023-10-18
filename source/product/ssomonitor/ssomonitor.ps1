@@ -68,12 +68,13 @@ do {
             #endregion SERVER CHECK     
             #region ALTERYXSERVICE CHECK
 
-                $alteryxServerStatus = (Get-AlteryxServerStatus -ComputerName $node).Status
-                if ($alteryxServerStatus -ne "Running") { 
-                    $message = "$($emptyString.PadLeft(8,"`b")) FAILURE"
-                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red   
-                    $action = "Monitor"; $target = "SSOLogger"; $status = "Aborted"
-                    $message = "Gallery on $node is $($alteryxServerStatus.ToUpper())"
+                $alteryxService = Get-Service+ "AlteryxService" -ComputerName $node
+                if (!$alteryxService -or $alteryxService.Status -ne "Running") {
+                    $status  = $alteryxService.Status.ToUpper() ?? "NOSERVICE"
+                    $message = "$($emptyString.PadLeft(8,"`b")) $status"
+                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow   
+                    $message = "AlteryxService on $node is $status"
+                    $action = "Monitor"; $target = "SSOLogger"
                     Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType Error -Force
                     Write-Host+ -NoTrace $message -ForegroundColor Red
                     continue
@@ -116,7 +117,7 @@ do {
                             # ptOnline $node
 
                             # but using Invoke-AlteryxService is way faster!
-                            Invoke-AlteryxService stop -ComputerName $node    
+                            Invoke-AlteryxService stop -ComputerName $node
                             Invoke-AlteryxService start -ComputerName $node
 
                             # re-read SSO log file to get content updates resulting from gallery restart
@@ -126,7 +127,7 @@ do {
                                         Where-Object {$_.Message -match $ssoRestartPattern}
 
                             $isOk = $false
-                            break
+                            continue
 
                         }
                     }

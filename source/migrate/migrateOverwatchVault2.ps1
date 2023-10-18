@@ -1,12 +1,12 @@
 
 $migrateToOverwatchVault2 = $false
 try {
-    $migrateToOverwatchVault2 = (Get-Vault secret).Exists -and !(Get-Vault connectionStringsKeys).Exists -and !(Get-Catalog -Type "Provider" -Id $_provider.Id).IsInstalled
+    $migrateToOverwatchVault2 = (Get-Vault secret).Exists -and !(Get-Vault credentialsKeys).Exists -and !(Get-Catalog -Type "Provider" -Id "OnePassword").Installed
 }
 catch {}
 if (!$migrateToOverwatchVault2) { return }
 
-$vaultItems = Read-Vault -Vault secret
+$vaultItems = Read-Vault secret
 $vaultItemNames = $vaultItems.Keys
 foreach ($name in $vaultItemNames) {
     $encryptionKey = (Read-Vault key -ComputerName $ComputerName).$name
