@@ -591,8 +591,8 @@ $global:Location.Definitions = $tempLocationDefinitions
     $_providerIds = @()
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
-        if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId -and (Test-Prerequisites -Type "Provider" -Id $provider.Id -PrerequisiteType "Installation" -Quiet).Pass) {
-            if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $requiredDependenciesNotInstalled.Id) {
+        if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId) {
+            if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $requiredDependenciesNotInstalled.Id -and (Test-Prerequisites -Type "Provider" -Id $provider.Id -PrerequisiteType "Installation" -Quiet).Pass) {
                 if ($provider.Installation.Flag -contains "AlwaysInstall") {
                     $_providerIds += $provider.Id
                 }
