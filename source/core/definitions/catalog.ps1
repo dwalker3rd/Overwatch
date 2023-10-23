@@ -7,7 +7,7 @@ $global:Catalog.Platform = @{}
 $global:Catalog.Product = @{}
 $global:Catalog.Provider = @{}
 $global:Catalog.Installer = @{}
-$global:Catalog.Driver = @{}
+# $global:Catalog.Driver = @{}
 $global:Catalog.CLI = @{}
 
 $global:Catalog.Overwatch += @{ Overwatch =  
@@ -527,34 +527,39 @@ $global:Catalog.Provider += @{ Postgres =
         Log = "Postgres"
         Installation = @{
             Prerequisites = @(
-                @{ Type = "Driver"; Driver = "PostgreSQL Unicode(x64)"}
+                @{ Type = "Driver"; Driver = "PostgreSQL"; DriverType = "ODBC"; Platform = "64-bit"}
+            )
+        }
+        Initialization = @{
+            Prerequisites = @(
+                @{ Type = "Driver"; Driver = "PostgreSQL"; DriverType = "ODBC"; Platform = "64-bit"}
             )
         }
     }
 }
 
-$global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" = 
-    [Driver]@{
-        Id = "PostgreSQL Unicode(x64)"
-        Name = "PostgreSQL Unicode(x64)"
-        DisplayName = "PostgreSQL Unicode(x64)"
-        Category = "External"
-        SubCategory = "Database"
-        DatabaseType = "PostgreSQL"
-        DriverType = "ODBC"
-        Publisher = "PostgreSQL Global Development Group"
-        Version = @{
-            Minimum = "12.02.00.00"
-            AutoUpdate = $false
-        }
-        Platform = "64-bit"
-        Installation = @{
-            Prerequisites = @(
-                @{ Type = "Platform"; Platform = "TableauServer"}
-            )
-        }
-    }
-}
+# $global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" = 
+#     [Driver]@{
+#         Id = "PostgreSQL Unicode(x64)"
+#         Name = "PostgreSQL Unicode(x64)"
+#         DisplayName = "PostgreSQL Unicode(x64)"
+#         Category = "Driver"
+#         SubCategory = "Database"
+#         DatabaseType = "PostgreSQL"
+#         DriverType = "ODBC"
+#         Publisher = "PostgreSQL Global Development Group"
+#         Version = @{
+#             Minimum = "12.02.00.00"
+#             AutoUpdate = $false
+#         }
+#         Platform = "64-bit"
+#         Installation = @{
+#             Prerequisites = @(
+#                 @{ Type = "Platform"; Platform = "TableauServer"}
+#             )
+#         }
+#     }
+# }
 
 $global:Catalog.Provider += @{ TableauServerWC = 
     [Provider]@{
@@ -644,12 +649,28 @@ $global:Catalog.Provider += @{ TableauServerTabCmd =
         Category = "TableauServer"
         Description = "Overwatch Provider for Tableau Server TabCmd"
         Publisher = "Walker Analytics Consulting" 
-        Initialization = @{
-            Prerequisite = @(
-                @{ Type = "PlatformService"; PlatformService = "backgrounder" }
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = @("TableauServer","TableauRMT")}
+                @{ Type = "CLI"; CLI = "TableauServerTabCmdCLI"}
             )
         }
+    }
+}
+
+$global:Catalog.CLI += @{ "TableauServerTabCmdCLI" = 
+    [CLI]@{
+        Id = "TableauServerTabCmdCLI"
+        Name = "Tableau Server TabCmd CLI"
+        DisplayName = "Tableau Server TabCmd CLI"
+        Category = "External"
+        SubCategory = "CLI"
+        Description = "Tableau Server TabCmd CLI"
+        Publisher = "Tableau Software, LLC"
         Installation = @{
+            IsInstalled = @(
+                @{ Type = "Command"; Command = [scriptblock]{try{tabcmd version *> $null;$true}catch{$false}} }
+            )
             Prerequisites = @(
                 @{ Type = "Platform"; Platform = @("TableauServer","TableauRMT")}
             )

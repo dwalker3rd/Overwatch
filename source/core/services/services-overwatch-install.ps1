@@ -637,11 +637,11 @@ function script:Uninstall-CatalogObject {
 
     if ($catalogObject.HasTask) {
         $message = "    $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
     }
     else {
         $message = "    $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))"
-        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
     }
     
     if (Test-Path -Path "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1") {. "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"}
@@ -653,12 +653,12 @@ function script:Uninstall-CatalogObject {
         if ($platformTask) {
 
             $message = "$($emptyString.PadLeft(40,"`b"))STOPPING$($emptyString.PadLeft(12," "))PENDING$($emptyString.PadLeft(13," "))"
-            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor DarkYellow
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message -ForegroundColor DarkYellow
 
             $platformTask = Stop-PlatformTask -PlatformTask $platformTask -OutputType PlatformTask
 
             $message = "$($emptyString.PadLeft(40,"`b"))STOPPED$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoTimeStamp -NoNewLine $message -ForegroundColor Red
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message -ForegroundColor Red
 
             Unregister-PlatformTask -Id $Id | Out-Null
 
@@ -678,7 +678,7 @@ function script:Uninstall-CatalogObject {
     $catalogObject.Refresh()
 
     $message = "$($emptyString.PadLeft(20,"`b"))UNINSTALLED$($emptyString.PadLeft(9," "))"
-    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGreen
 
     # TODO: Prompt for manual/automatic uninstall of catalogobject dependencies which no longer have dependents
 

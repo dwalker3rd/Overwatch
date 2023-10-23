@@ -277,7 +277,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","CLI")]
+            [Parameter(Mandatory=$false)]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
@@ -383,11 +383,11 @@
 
                 # this is clumsy: need a better way to determine if an object is installed or running
                 switch ($catalogObject.Type) {
-                    "Driver" {
-                        $_installedDrivers = (Invoke-Expression "Get-$($catalogObject.DriverType)InstalledDrivers -Name `"$($catalogObject.Id)`" -ComputerName $ComputerName")
-                        $catalogObject.Installed = $catalogObject.Id -in $_installedDrivers.Name
-                        continue
-                    }
+                    # "Driver" {
+                    #     $_installedDrivers = (Invoke-Expression "Get-$($catalogObject.DriverType)InstalledDrivers -Name `"$($catalogObject.Id)`" -ComputerName $ComputerName")
+                    #     $catalogObject.Installed = $catalogObject.Id -in $_installedDrivers.Name
+                    #     continue
+                    # }
                     {$_ -in @("CLI","Installer")} {
                         $catalogObject.Installed = Invoke-Command $global:Catalog.$($catalogObject.Type).$($catalogObject.Id).Installation.IsInstalled -ComputerName $ComputerName
                         continue
@@ -405,11 +405,11 @@
 
                 # this is clumsy: need a better way to determine if an object is installed or running
                 switch ($catalogObject.Type) {
-                    "Driver" {
-                        $_installedDrivers = (Invoke-Expression "Get-$($catalogObject.DriverType)InstalledDrivers -Name `"$($catalogObject.Id)`"")
-                        $catalogObject.Installed = $catalogObject.Id -in $_installedDrivers.Name
-                        continue
-                    }
+                    # "Driver" {
+                    #     $_installedDrivers = (Invoke-Expression "Get-$($catalogObject.DriverType)InstalledDrivers -Name `"$($catalogObject.Id)`"")
+                    #     $catalogObject.Installed = $catalogObject.Id -in $_installedDrivers.Name
+                    #     continue
+                    # }
                     {$_ -in @("CLI","Installer")} {
                         $catalogObject.Installed = Invoke-Command $global:Catalog.$($catalogObject.Type).$($catalogObject.Id).Installation.IsInstalled.Command
                         continue
@@ -487,7 +487,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","CLI")]
+            [Parameter(Mandatory=$false)]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
@@ -551,7 +551,7 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","CLI")]
+            [Parameter(Mandatory=$false)]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
@@ -583,28 +583,21 @@
             return
         }
 
-        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","CLI") -join ","
-        $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"(\w*,$Type),?.*$")
-        $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
-        $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
+        $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider") -join ","
+        if ($Type -in $validCatalogObjectsToRecurse) { 
+            $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"(\w*,$Type),?.*$")
+            $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
+            $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
+        }
+        else {
+            $validCatalogObjectsToRecurse = @("Product","Provider") 
+        }
 
         $RecurseLevel--
 
         $dependents = @()
-        $dependency = "$($Type).$($global:Catalog.$Type.$Id.Id)"
+        $dependency = "$($Type).$($global:Catalog.$Type.$Id.Id)"     
 
-        # if ($Type -in ("Overwatch","OS")) {
-        #     foreach ($pkey in $global:Catalog.Keys | Where-Object {$_ -notin ("Overwatch","OS")}) {
-        #         foreach ($skey in $global:Catalog.$pkey.keys) {
-        #             if ([string]::IsNullOrEmpty($global:Catalog.$pkey.$skey.Installation.Prerequisites.$Type) -or ($global:Catalog.$pkey.$skey.Installation.Prerequisites.$Type -contains $environ.$Type)) {
-        #                 $dependents += [PSCustomObject]@{ Uid = "$pkey.$skey"; Level = $RecurseLevel; Type = $pkey; Id = $skey; Object = $global:Catalog.$pkey.$skey; Dependency = $dependency }
-        #             }
-        #         }
-        #     }
-        #     return $dependents
-        # }        
-
-        # foreach ($pkey in $global:Catalog.Keys) {
         foreach ($pkey in $validCatalogObjectsToRecurse) {
             foreach ($skey in $global:Catalog.$pkey.Keys) {
                 if ($Installed -and !$global:Catalog.$pkey.$skey.IsInstalled()) { continue }
@@ -661,14 +654,14 @@
             [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
             [Parameter(Mandatory=$false)][string]$Uid,
             
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider")]
+            [Parameter(Mandatory=$false)]
             [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
             
             [Parameter(Mandatory=$false,Position=0)]
             [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}), 
                     
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","PowerShell","CLI")][string[]]$IncludeDependencyType,
-            [Parameter(Mandatory=$false)][ValidateSet("Overwatch","Cloud","OS","Platform","Product","Provider","Installer","Driver","PowerShell","CLI")][string[]]$ExcludeDependencyType,
+            [Parameter(Mandatory=$false)][string[]]$IncludeDependencyType,
+            [Parameter(Mandatory=$false)][string[]]$ExcludeDependencyType,
             [Parameter(Mandatory=$false)][string[]]$History = @(),
             [switch]$DoNotRecurse,
             [Parameter(Mandatory=$false)][int]$RecurseLevel = 0,
@@ -699,23 +692,13 @@
 
         if ($RecurseLevel -eq 0) { $History += "$Type.$Id" }
 
-        # $validCatalogObjectsToRecurse = @("Overwatch","Cloud","OS","Platform","Product","Provider","PowerShell") -join ","
-        # $regexMatches = [regex]::Matches($validCatalogObjectsToRecurse,"^.*?($Type,?.*)$")
-        # $validCatalogObjectsToRecurse = $RecurseLevel -eq 0 ? ($regexMatches.Groups[1].Value) : ($regexMatches.Groups[1].Value -replace "$Type,?","")
-        # $validCatalogObjectsToRecurse = ![string]::IsNullOrEmpty($validCatalogObjectsToRecurse) ? $validCatalogObjectsToRecurse -split "," : $null
-
         $RecurseLevel++
 
         $dependencies = @()
         $dependent = "$($Type).$($global:Catalog.$Type.$Id.Id)" 
 
-        # $dependencies += [PSCustomObject]@{ Uid = "Overwatch.Overwatch"; Level = $RecurseLevel; Type = "Overwatch"; Id = "Overwatch"; Object = $global:Catalog.Overwatch.Overwatch; Dependent = $dependent }
-        # if ([string]::IsNullOrEmpty($catalogObject.Installation.Prerequisites.OS) -or ($catalogObject.Installation.Prerequisites.OS -contains $environ.OS)) {
-        #     $dependencies += [PSCustomObject]@{ Uid = "OS.$($environ.OS)"; Level = $RecurseLevel; Type = "OS"; Id = "$($environ.OS)"; Object = $global:Catalog.OS.$($environ.OS); Dependent = $dependent }
-        # }
-
-        foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisites.Keys)) { # | Where-Object {$_ -in $validCatalogObjectsToRecurse})) {
-        # foreach ($pkey in ($global:Catalog.$Type.$Id.Installation.Prerequisites.Keys)) {
+        foreach ($prerequisite in $global:Catalog.$Type.$Id.Installation.Prerequisites) {
+            $pkey = $prerequisite.Type
             foreach ($skey in $global:Catalog.$Type.$Id.Installation.Prerequisites.$pkey) {
                 if ("$pkey.$skey" -notin $History) {
 
@@ -755,7 +738,6 @@
                                 Level = $RecurseLevel
                                 Type = $pkey
                                 Id = $skey
-                                # Platform = $global:Catalog.$pkey.$skey.Installation.Prerequisites.Platform ?? "Any"
                                 Object = $global:Catalog.$pkey.$skey
                                 Dependent = $dependent
                                 DependentObject = $catalogObject
@@ -797,12 +779,6 @@
         if ($CatalogObjectsOnly) {
             $dependencies = $dependencies | Where-Object {$_.Type -in $global:Catalog.Keys}
         }
-        # elseif (![string]::IsNullOrEmpty($IncludeDependencyType)) {
-        #     $dependencies = $dependencies | Where-Object {$_.Type -in $IncludeDependencyType}
-        # }
-        # elseif (![string]::IsNullOrEmpty($ExcludeDependencyType)) {
-        #     $dependencies = $dependencies | Where-Object {$_.Type -notin $ExcludeDependencyType}
-        # }
 
         If (![string]::IsNullOrEmpty($Platform)) {
             $dependencies = $dependencies | Where-Object {$null -eq $_.Object.Installation.Prerequisites.Platform -or $_.Object.Installation.Prerequisites.Platform -eq "$Platform"}
@@ -1038,21 +1014,21 @@
 #endregion PLATFORM
 #region TESTS
 
-function global:Get-IpAddress {
+    function global:Get-IpAddress {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName,
-        [Parameter(Mandatory=$false,Position=1)][ValidateSet("IP4","IP6")][string]$Type = "IP4",
-        [Parameter(Mandatory=$false,Position=2)][string]$Mask = "255.255.255.255"
-    )
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string]$ComputerName,
+            [Parameter(Mandatory=$false,Position=1)][ValidateSet("IP4","IP6")][string]$Type = "IP4",
+            [Parameter(Mandatory=$false,Position=2)][string]$Mask = "255.255.255.255"
+        )
 
-    $ipAddress = (Resolve-DnsName $ComputerName | Where-Object {$null -ne $_."$($Type)Address"}).IPAddress
-    $ipAddress = [ipaddress] (([ipaddress]$ipAddress).Address -band ([ipaddress]$Mask).Address)
+        $ipAddress = (Resolve-DnsName $ComputerName | Where-Object {$null -ne $_."$($Type)Address"}).IPAddress
+        $ipAddress = [ipaddress] (([ipaddress]$ipAddress).Address -band ([ipaddress]$Mask).Address)
 
-    return $ipAddress.IPAddressToString
+        return $ipAddress.IPAddressToString
 
-}
+    }
 
     function global:Test-NetConnection+ {
 
@@ -1561,86 +1537,198 @@ function global:Get-IpAddress {
             $Id = ($Uid -split "\.")[1]
         }
 
-        if (!(Get-Catalog -Type $Type -Id $Id)) {
+        $catalogObject = Get-Catalog -Type $Type -Id $Id
+        if (!$catalogObject) {
             Write-Host+ -NoTrace "'$Type.$Id' not found in catalog" -ForegroundColor Red
             return
         }
+        $Type = $catalogObject.Type
+        $Id = $catalogObject.Id
 
-        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<Prerequisites <.>48> PENDING" -ForegroundColor Gray,DarkGray,DarkGray
-        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<  $Type $Id <.>48> PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<$Type $Id <.>48> PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
-        $results = @{
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<  Prerequisites <.>48> PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+
+        $global:Catalog.$Type.$Id.Refresh()
+
+        $results = [ordered]@{
             Type = $Type
             Id = $Id
+            Installed = $global:Catalog.$Type.$Id.Installed
             Prerequisites = @()
             Pass = $true
+            Installable = $true
         }
 
-        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites
-        foreach ($prerequisite in $prerequisites) {
+        if (!($global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites)) { 
+            return $results 
+        }
 
-            switch ($prerequisite) {
+        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Copy-Object
+        foreach ($_prerequisite in $prerequisites) {
 
-                {$_.Type -eq "Powershell"} {
-                    $prerequisiteIsOk = $true
-                    $prerequisite.TargetStatus = "Installed"
-                    if (!($prerequisite.$($prerequisite.Type).Modules -or $prerequisite.$($prerequisite.Type).Packages)) {
-                        $prerequisiteIsOk = $false
-                        continue
+            $prerequisite = [ordered]@{}
+            $prerequisite += [ordered]@{
+                Type = $_prerequisite.Type
+                Id = $_prerequisite.$($_prerequisite.Type) | Copy-Object
+            }
+
+            foreach ($key in ($_prerequisite.keys | Where-Object {$_ -notin @("Type",$_prerequisite.Type)} | Sort-Object)) {
+                $prerequisite += [ordered]@{ $key = $_prerequisite.$key | Copy-Object }
+            }
+            
+            $prerequisite += [ordered]@{
+                Status = $null 
+                Pass = $false
+                Block = $false
+                Tests = @()
+            }
+
+            foreach ($prerequisiteId in $prerequisite.Id) {
+
+                $prerequisiteTest = [ordered]@{
+                    Type = $prerequisite.Type
+                    Id = $prerequisiteId
+                    DisplayName = "$($prerequisite.Type) $prerequisiteId"
+                    Status = $null
+                    Pass = $false
+                    Block = $false
+                    Results = $null
+                }
+                
+                # test for prerequisite types which are drivers
+                if ($prerequisite.Type -eq "Driver") {
+                    $_driverParams = @{ Name = "*$($prerequisite.Driver)*"; ComputerName = $ComputerName }
+                    if (![string]::IsNullOrEmpty($prerequisite.Platform)) { $_driverParams += @{ Platform = $prerequisite.Platform } }
+                    $_installedDrivers = (Invoke-Expression "Get-$($prerequisite.DriverType)InstalledDrivers @_driverParams")
+                    $_isInstalled = $null -ne $_installedDrivers
+                    $prerequisiteTest.DisplayName = "$($prerequisite.Driver) $($prerequisite.DriverType) Driver"
+                    $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
+                }
+
+                # test for prerequisite types which are powershell modules/packages
+                if ($prerequisite.Type -eq "Powershell") {
+                    $_isInstalled = $true
+                    if (!($prerequisite.Id.Modules -or $prerequisite.Id.Packages)) {
+                        $_isInstalled = $false
+                    }                    
+                    else {
+                        if ($prerequisite.Id.Modules) {
+                            $prerequisiteTest.DisplayName = "Powershell Modules"
+                            $prerequisiteTest.$($prerequisite.Type) += @{ Modules = @() }
+                            foreach ($module in $prerequisite.Id.Modules) {
+                                $psModuleIsInstalled = $null -ne (Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue)
+                                $prerequisiteTest.$($prerequisite.Type).Modules += @{ 
+                                    Name = $module.name 
+                                    Status = $psModuleIsInstalled ? "Installed" : "Not Installed"
+                                }
+                                $_isInstalled = $_isInstalled -and $psModuleIsInstalled
+                            }
+                        }
+                        if ($prerequisite.Id.Packages) {
+                            $prerequisiteTest.DisplayName = "Powershell Packages"
+                            $prerequisiteTest.$($prerequisite.Type) += @{ Packages = @() }
+                            foreach ($package in $prerequisite.Id.Packages) {
+                                $psPackageIsInstalled = $null -ne (Get-Package -Name $package.name -ErrorAction SilentlyContinue)
+                                $prerequisiteTest.$($prerequisite.Type).Packages += @{ 
+                                    Name = $package.name 
+                                    Status = $psPackageIsInstalled ? "Installed" : "Not Installed"
+                                }
+                                $_isInstalled = $_isInstalled -and $psPackageIsInstalled
+                            }
+                        }
                     }
-                    foreach ($module in $prerequisite.$($prerequisite.Type).Modules) {
-                        $prerequisiteIsOk = $prerequisiteIsOk -and ($null -ne (Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue))
-                    }
-                    foreach ($package in $prerequisite.$($prerequisite.Type).Packages) {
-                        $prerequisiteIsOk = $prerequisiteIsOk -and ($null -ne (Get-Package -Name $package.name -ErrorAction SilentlyContinue))
-                    }
-                    $status = $prerequisiteIsOk ? "Installed" : "NotInstalled"
-                    continue
+                    $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
                 }
 
                 # test for prerequisite types which are os or platform services
-                {$_.Type -in @("Service","PlatformService")} {
-                    $prerequisite.TargetStatus = "Running"
-                    $status = (Invoke-Expression "Wait-$($prerequisite.Type) -ComputerName $ComputerName -Name $($prerequisite.$($prerequisite.Type)) -Status $($prerequisite.TargetStatus) -TimeoutInSeconds 5 -WaitTimeInSeconds 20") ? $prerequisite.TargetStatus : "NOT $($prerequisite.TargetStatus)"
-                    continue
+                if ($prerequisite.Type -in @("Service","PlatformService")) {
+                    $_service = switch ($prerequisite.Type) {
+                        "Service" {
+                            Get-Service+ -ComputerName $ComputerName -Name $prerequisiteId 
+                        }
+                        "PlatformService" {
+                            Get-PlatformService -ComputerName $ComputerName -Name $prerequisiteId 
+                        }
+                    }
+                    $_isInstalled = $_service.Status -eq "Running"
+                    $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
+                    $prerequisiteTest.Status = $_service.Status ?? "Not Running"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
                 }
 
                 # test for prerequisites which have the Installation.IsInstalled test defined
-                {$null -ne (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled} {
-                    $prerequisite.TargetStatus = "Installed"
-                    $status = (Invoke-Command -ScriptBlock (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id -ComputerName $ComputerName).Installation.IsInstalled.Command -ComputerName $ComputerName) ? "Installed" : "NotInstalled"
-                    continue
-                }
+                $installationTest = $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.IsInstalled
+                if ($installationTest) {
+                    if ($installationTest.Command) {
+                        $_scriptBlock = (Get-Catalog -Type $prerequisite.Type -Id $prerequisiteId -ComputerName $ComputerName).Installation.IsInstalled.Command
+                        $_isInstalled = Invoke-Command -ScriptBlock $_scriptBlock -ComputerName $ComputerName
+                    }
+                    else {
+                        $_service = switch ($installationTest.Type) {
+                            "Service" {
+                                Get-Service+ -ComputerName $ComputerName -Name $($installationTest.$($installationTest.Type))
+                            }
+                            "PlatformService" {
+                                Get-PlatformService -ComputerName $ComputerName -Name $($installationTest.$($installationTest.Type))
+                            }
+                        }
+                        $_isInstalled = $_service.Status -eq "Running"
+                    }
+                    $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
+                    $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
+                }                
 
                 # test for prerequisite types which are catalog objects
-                default {
-                    $prerequisite.TargetStatus = "Installed"
-                    $status = (Get-Catalog -Type $prerequisite.Type -Installed).Id -in $prerequisite.$($prerequisite.Type) ? "Installed" : "NotInstalled"
-                    continue
+                if (!$installationTest -and $prerequisite.Type -in $global:Catalog.Keys) {
+                    $global:Catalog.$($prerequisite.Type).$prerequisiteId.Refresh()
+                    $_isInstalled = $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installed
+                    $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisiteTest.Status = $prerequisiteTest.Pass ? "Installed" : "Not Installed"
+                    # Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +4
+                    # $prerequisiteTest.Results = Test-Prerequisites -Type $prerequisite.Type -Id $prerequisiteId -PrerequisiteType Installation -Quiet:$Quiet
+                    # Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -4
+                    if (!$prerequisiteTest.Pass) {
+                        $prerequisiteTest.Block = $true
+                        if ($global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag) {
+                            if (Compare-Object $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag @("AlwaysInstall","NoPrompt") -ExcludeDifferent -PassThru) {
+                                $prerequisiteTest.Block = $false
+                                # if (!$PrerequisiteTest.Results.Pass) {
+                                #     $prerequisiteTest.Block = $true
+                                # }
+                            }
+                        }
+                    }
                 }
+
+                $prerequisite.Pass = $prerequisite.Pass -or $prerequisiteTest.Pass
+                $prerequisite.Block = $prerequisite.Block -or $prerequisiteTest.Block
+                $prerequisite.Tests += $prerequisiteTest
+
+                $statusMessage = $prerequisiteTest.Pass ? "INSTALLED" : "NOT INSTALLED"
+                $blockMessage = $prerequisiteTest.Pass ? "" : $($prerequisiteTest.Block ? "" : "NON-BLOCKING") 
+                Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator "    $($prerequisiteTest.DisplayName) ", $statusMessage, $(![string]::IsNullOrEmpty($blockMessage) ? ", " : ""), $blockMessage -ForegroundColor Gray,($prerequisiteTest.Pass ? "DarkGreen" : "Red"),DarkGray,($prerequisiteTest.Block ? "Red" : "DarkGreen")
 
             }
 
-            #+++
-            # order-sensitive!
-            #
-            $prerequisite.Pass = $status -eq $prerequisite.TargetStatus
-            $prerequisite.Status = $status
-            #
-            #---
-            $prerequisite.Id = $($prerequisite.$($prerequisite.Type))
+            $prerequisite.Status = $prerequisite.Pass ? "Installed" : "Not Installed"
 
-            Write-Host+ -Iff $(!$Quiet) -NoTrace "    $($prerequisite.$($prerequisite.Type)) is","$($prerequisite.Pass ? '' : 'NOT ')$($prerequisite.TargetStatus.ToUpper())" -ForegroundColor Gray,($prerequisite.Pass ? "DarkGreen" : "Red")
-            Write-Log -Context "$Type.$Id" -Target "Prerequisite.$($prerequisite.Type).$($prerequisite.$($prerequisite.Type))" -Action "Test-Prerequisites" -Status $status -EntryType ($prerequisite.Pass ? "Information" : "Error")
-
-            # $prerequisite.Remove($prerequisite.Type)
             $results.Pass = $results.Pass -and $prerequisite.Pass
+            $results.Installable = $results.Installable -and !$prerequisite.Block
             $results.Prerequisites += $prerequisite
 
         }
 
-        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<  $Type $Id <.>48> $($results.Pass ? "SUCCESS" : "FAIL" )" -ForegroundColor Gray,DarkGray,($results.Pass ? "DarkGreen" : "Red")
-        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<Prerequisites <.>48> COMPLETED" -ForegroundColor Gray,DarkGray,DarkGreen
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<  Prerequisites <.>48> COMPLETED" -ForegroundColor Gray,DarkGray,DarkGreen
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse "<$Type $Id <.>48> $($results.Pass ? "SUCCESS" : "FAIL" )" -ForegroundColor Gray,DarkGray,($results.Pass ? "DarkGreen" : "Red")
 
         return $results
 
@@ -1682,7 +1770,7 @@ function global:Get-IpAddress {
             # return $outputObject  | ConvertTo-Json -Depth 99 | ConvertFrom-Json -Depth 99
             return [System.Management.Automation.PSSerializer]::Deserialize(
                 [System.Management.Automation.PSSerializer]::Serialize(
-                    $InputObject
+                    $outputObject
                 )
             )
         }

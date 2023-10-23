@@ -250,7 +250,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
 #endregion OVERWATCH INSTALL LOCATION
 
-    $dependencies = @()
+    $requiredDependenciesNotInstalled = @()
 
 #region CLOUD
 
@@ -275,7 +275,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         }
     } until ($supportedCloudProviderIds -contains $cloudId -or $cloudId -eq "None")
     if (![string]::IsNullOrEmpty($cloudId) -and $cloudId -ne "None") {
-        $dependencies += Get-CatalogDependencies -Type Cloud -Id $cloudId -Include Product,Provider -NotInstalled
+        $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Cloud -Id $cloudId -Include Product,Provider -NotInstalled
     }
 
 #endregion CLOUD
@@ -301,7 +301,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             Write-Host+ -NoTrace -NoTimestamp "Platform must be one of the following: $($installedPlatforms -join ", ")" -ForegroundColor Red
         }
     } until ($installedPlatforms -contains $platformId)
-    $dependencies += Get-CatalogDependencies -Type Platform -Id $platformId -Include Cloud,Product,Provider -NotInstalled
+    $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Platform -Id $platformId -Include Cloud,Product,Provider -NotInstalled
 
 #endregion PLATFORM ID
 #region PLATFORM INSTALL LOCATION
@@ -538,55 +538,68 @@ $global:Location.Definitions = $tempLocationDefinitions
 
 #endregion LOCAL DIRECTORIES
 #region PRODUCTS
+
+    if ($installedProducts) {
+        Write-Host+ # -MaxBlankLines 1
+        Write-Host+ -NoTrace -NoTimestamp "Installed Products" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
+        ($installedProducts.Id | Sort-Object) -join ", "
+    }
+
+    # $uninstalledProducts = Get-Catalog -Type Product -NotInstalled | 
+    #     Where-Object {[string]::IsNullOrEmpty($_.Installation.Prerequisites.Platform) -or $_.Installation.Prerequisites.Platform -contains $global:Platform.Id}
+    # if ($uninstalledProducts) {
+    #     Write-Host+ # -MaxBlankLines 1
+    #     Write-Host+ -NoTrace -NoTimestamp "Unavailable Products" -ForegroundColor DarkGray
+    #     Write-Host+ -NoTrace -NoTimestamp "--------------------" -ForegroundColor DarkGray
+    #     foreach ($uninstalledProduct in $uninstalledProducts) {
+    #         $testResults = Test-Prerequisites -Type $uninstalledProduct.Type -Id $uninstalledProduct.Id -PrerequisiteType Installation -Quiet
+    #         if (!$testResults.Pass) {
+    #             foreach ($productPrerequisite in ($testResults.Prerequisites | Where-Object {!$_.Pass}) ) {
+    #                 foreach ($productPrerequisiteTest in $productPrerequisite.Tests) {
+    #                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $uninstalledProduct.Id, ", Prerequisite, $($productPrerequisiteTest.Type) `'$($productPrerequisiteTest.Id)`', $($productPrerequisiteTest.Status)" -ForegroundColor Gray,DarkGray
+    #                 }
+    #             }
+    #         }
+    #     }
+    # }
     
-    $productsSelected = @()
-    # $productSpecificServices = @()
-    # $productDependencies = @()
     $productHeaderWritten = $false
-
+    $productsSelected = @()
     foreach ($key in $global:Catalog.Product.Keys) {
-
         $product = $global:Catalog.Product.$key
-        
         if ([string]::IsNullOrEmpty($product.Installation.Prerequisites.Platform) -or $product.Installation.Prerequisites.Platform -contains $platformId) {
-
-            if ($product.Id -notin $installedProducts.Id -and $product.Id -notin $dependencies.Id) {
-
-                $productResponse = $null
-
-                if ($product.Installation.Flag -contains "AlwaysInstall") {
-                    $productsSelected += $product.id
-                    $productResponse = "Y"
-                }
-                elseif ($product.Installation.Flag -notcontains "NoPrompt") {
+            if ($product.Id -notin $installedProducts.Id -and $product.Id -notin $requiredDependenciesNotInstalled.Id) {
+                # if ((Test-Prerequisites -Type "Product" -Id $product.Id -PrerequisiteType "Installation" -Quiet).Pass) {
                     if (!$productHeaderWritten) {
-                        Write-Host+
+                        Write-Host+ # -MaxBlankLines 1
                         Write-Host+ -NoTrace -NoTimestamp "Select Products" -ForegroundColor DarkGray
                         Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
                         $productHeaderWritten = $true
                     }
-                    $productResponseDefault = $product.id -in $productIds ? "Y" : "N"
-                    $productResponse = $null
-                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-                    if (!$UseDefaultResponses) {
-                        $productResponse = Read-Host
+                    if ($product.Installation.Flag -contains "AlwaysInstall") {
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Install $($product.Id) ","[Y]",": Always Install" -ForegroundColor DarkGray,DarkBlue,DarkGray
+                        $productsSelected += $product.Id
                     }
-                    else {
-                        Write-Host+
+                    elseif ($product.Installation.Flag -notcontains "NoPrompt") {
+                        $productResponseDefault = $product.ID -in $productIds ? "Y" : "N"
+                        $productResponse = $null
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.Id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
+                        if (!$UseDefaultResponses) {
+                            $productResponse = Read-Host
+                        }
+                        else {
+                            Write-Host+
+                        }
+                        if ([string]::IsNullOrEmpty($productResponse)) {$productResponse = $productResponseDefault}
+                        if ($productResponse -eq "Y") {
+                            $productsSelected += $product.Id
+                            $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Product -Id $product.id -Exclude Overwatch,Cloud,OS,Platform -NotInstalled -Platform $platformId
+                        }
                     }
-                    if ([string]::IsNullOrEmpty($productResponse)) {$productResponse = $productResponseDefault}
-                    if ($productResponse -eq "Y") {
-                        $productsSelected += $product.id
-                    }
-                }
-
-                if ($productResponse -eq "Y") {
-                    $dependencies += Get-CatalogDependencies -Type Product -Id $product.id -Include Product,Provider -NotInstalled -Platform $platformId
-                }
+                # }
             }
-
         }
-
     }
     $productIds = [array]($productsSelected | Where-Object {$_ -notin $productIds})
 
@@ -595,55 +608,80 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion PRODUCTS
 #region PROVIDERS
 
+    if ($installedProviders) {
+        Write-Host+ # -MaxBlankLines 1
+        Write-Host+ -NoTrace -NoTimestamp "Installed Providers" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
+        ($installedProviders.Id | Sort-Object) -join ", "
+    }
+
+    # $uninstalledProviders = Get-Catalog -Type Provider -NotInstalled | 
+    #     Where-Object {[string]::IsNullOrEmpty($_.Installation.Prerequisites.Platform) -or $_.Installation.Prerequisites.Platform -contains $global:Platform.Id}
+    # if ($uninstalledProviders) {
+    #     Write-Host+ # -MaxBlankLines 1
+    #     Write-Host+ -NoTrace -NoTimestamp "Unavailable Providers" -ForegroundColor DarkGray
+    #     Write-Host+ -NoTrace -NoTimestamp "--------------------" -ForegroundColor DarkGray
+    #     foreach ($uninstalledProvider in $uninstalledProviders) {
+    #         $testResults = Test-Prerequisites -Type $uninstalledProvider.Type -Id $uninstalledProvider.Id -PrerequisiteType Installation -Quiet
+    #         if (!$testResults.Pass) {
+    #             foreach ($providerPrerequisite in ($testResults.Prerequisites | Where-Object {!$_.Pass}) ) {
+    #                 foreach ($providerPrerequisiteTest in $providerPrerequisite.Tests) {
+    #                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $uninstalledProvider.Id, ", Prerequisite, $($providerPrerequisiteTest.Type) `'$($providerPrerequisiteTest.Id)`', $($providerPrerequisiteTest.Status)" -ForegroundColor Gray,DarkGray
+    #                 }
+    #             }
+    #         }
+    #     }
+    # }
+
     $providerHeaderWritten = $false
-    $_providerIds = @()
+    $providersSelected = @()
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
         if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId) {
-            if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $dependencies.Id) {
-                if ($provider.Installation.Flag -contains "AlwaysInstall") {
-                    $_providerIds += $provider.Id
-                }
-                elseif ($provider.Installation.Flag -notcontains "NoPrompt") {
+            if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $requiredDependenciesNotInstalled.Id) {
+                # if ((Test-Prerequisites -Type "Provider" -Id $provider.Id -PrerequisiteType "Installation" -Quiet).Pass) {
                     if (!$providerHeaderWritten) {
-                        Write-Host+ -MaxBlankLines 1
+                        Write-Host+ # -MaxBlankLines 1
                         Write-Host+ -NoTrace -NoTimestamp "Select Providers" -ForegroundColor DarkGray
                         Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
                         $providerHeaderWritten = $true
                     }
-                    $providerResponseDefault = $provider.ID -in $providerIds ? "Y" : "N"
-                    $providerResponse = $null
-                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($provider.Id) ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-                    if (!$UseDefaultResponses) {
-                        $providerResponse = Read-Host
+                    if ($provider.Installation.Flag -contains "AlwaysInstall") {
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Install $($provider.Id) ","[Y]",": Always Install" -ForegroundColor DarkGray,DarkBlue,DarkGray
+                        $providersSelected += $provider.Id
                     }
-                    else {
-                        Write-Host+
+                    elseif ($provider.Installation.Flag -notcontains "NoPrompt") {
+                        $providerResponseDefault = $provider.ID -in $providerIds ? "Y" : "N"
+                        $providerResponse = $null
+                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($provider.Id) ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
+                        if (!$UseDefaultResponses) {
+                            $providerResponse = Read-Host
+                        }
+                        else {
+                            Write-Host+
+                        }
+                        if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
+                        if ($providerResponse -eq "Y") {
+                            $providersSelected += $provider.Id
+                            $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Provider -Id $provider.id -Exclude Overwatch,Cloud,OS,Platform -NotInstalled -Platform $platformId
+                        }
                     }
-                    if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
-                    if ($providerResponse -eq "Y") {
-                        $_providerIds += $provider.Id
-                        $dependencies += Get-CatalogDependencies -Type Provider -Id $provider.id -Include Product,Provider -NotInstalled -Platform $platformId
-                        $x=1
-                    }
-                }
-
-                
+                # }
             }
         }
     }
-    $providerIds = [array]($_providerIds | Where-Object {$_ -notin $providerIds})
+    $providerIds = [array]($providersSelected | Where-Object {$_ -notin $providerIds})
 
     Write-Host+ -Iff $providerHeaderWritten
 
 #endregion PROVIDERS
 #region DEPENDENCIES 
 
-    if ($dependencies) {
+    if ($requiredDependenciesNotInstalled) {
         Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "Dependencies" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "------------" -ForegroundColor DarkGray
-        foreach ($dependency in $dependencies) {
+        foreach ($dependency in $requiredDependenciesNotInstalled) {
             $dependentType = ($dependency.Dependent -split "\.")[0]
             $dependentId = ($dependency.Dependent -split "\.")[1]
             Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentId)) $($dependentType.ToLower())" -ForegroundColor Gray,DarkGray

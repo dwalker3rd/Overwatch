@@ -82,20 +82,20 @@ Write-Host+
 
                     # This component is not installed
                     if (!$catalogObject.IsInstalled()) {
-                        Write-Host+ -NoTrace "WARN: $Type `"$Id`" is NOT installed." -ForegroundColor DarkYellow
-                        Write-Host+ -Iff $(!($Force.IsPresent)) -NoTrace "INFO: To force the uninstall, add the -Force switch." -ForegroundColor DarkYellow
-                        Write-Host+ -Iff $($Force.IsPresent) -NoTrace "INFO: Uninstalling with FORCE." -ForegroundColor DarkYellow
+                        Write-Host+ -NoTrace -NoTimestamp "WARN: $Type `"$Id`" is NOT installed." -ForegroundColor DarkYellow
+                        Write-Host+ -Iff $(!($Force.IsPresent)) -NoTrace -NoTimestamp "INFO: To force the uninstall, add the -Force switch." -ForegroundColor DarkYellow
+                        Write-Host+ -Iff $($Force.IsPresent) -NoTrace -NoTimestamp "INFO: Uninstalling with FORCE." -ForegroundColor DarkYellow
                         if (!$Force) { return }
                         $Force = $false
                         Write-Host+
                     }
 
-                    Write-Host+ -Iff $($Force.IsPresent) -NoTrace "WARN: Ignoring -Force switch." -ForegroundColor DarkYellow
+                    Write-Host+ -Iff $($Force.IsPresent) -NoTrace -NoTimestamp "WARN: Ignoring -Force switch." -ForegroundColor DarkYellow
                     Write-Host+ -Iff $($Force.IsPresent) 
 
                     # This component is protected by the UninstallProtected catalog flag and cannot be uinstalled
                     if ($global:Catalog.$Type.$Id.Installation.Flag -contains "UninstallProtected") {
-                        Write-Host+ -NoTrace "WARN: $Type `"$Id`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
+                        Write-Host+ -NoTrace -NoTimestamp "WARN: $Type `"$Id`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
                         return
                     }
 
@@ -103,9 +103,9 @@ Write-Host+
                     # this component cannot be uninstalled if other installed components have dependencies on it
                     $dependents = Get-CatalogDependents -Type $Type -Id $Id -Installed
                     if ($dependents) {
-                        Write-Host+ -NoTrace "ERROR: Unable to uninstall the $Id $($Type.ToLower())" -ForegroundColor Red
+                        Write-Host+ -NoTrace -NoTimestamp "ERROR: Unable to uninstall the $Id $($Type.ToLower())" -ForegroundColor Red
                         foreach ($dependent in $dependents) {
-                            Write-Host+ -NoTrace "ERROR: The $($dependent.Id) $($dependent.Type.ToLower()) is dependent on the $Id $($Type.ToLower())" -ForegroundColor Red
+                            Write-Host+ -NoTrace -NoTimestamp "ERROR: The $($dependent.Id) $($dependent.Type.ToLower()) is dependent on the $Id $($Type.ToLower())" -ForegroundColor Red
                         }
                         Write-Host+
                         return
@@ -125,27 +125,27 @@ Write-Host+
                     $continue = Read-Host
                     Set-CursorInvisible
                     if ($continue.ToUpper() -ne "Y") {
-                        Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
+                        Write-Host+ -NoTrace -NoTimestamp "Uninstall canceled." -ForegroundColor DarkYellow
                         return
                     }
                     Write-Host+
 
                     $message = "<  Uninstalling $($Type.ToLower())s <.>48> PENDING"
-                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
                     Write-Host+ 
 
                     switch ($Type) {
                         default {
                             $message = "    $($Type)$($emptyString.PadLeft(20-$Type.Length," "))Status"
-                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
                             $message = "    $($emptyString.PadLeft($Type.Length,"-"))$($emptyString.PadLeft(20-$Type.Length," "))------"
-                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray                       
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray                       
                         }
                         "Product" {
                             $message = "    Product             Task                Status"
-                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
                             $message = "    -------             ----                ------"
-                            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
                         }
                     }
 
@@ -153,7 +153,7 @@ Write-Host+
 
                     Write-Host+
                     $message = "<  Uninstalling $($Type.ToLower())s <.>48> SUCCESS"
-                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+                    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
                     Write-Host+   
 
                     $dependenciesWithoutDependents = Get-DependenciesWithOutDependents -Uid "$Type.$Id"
@@ -192,105 +192,105 @@ Write-Host+
             $continue = Read-Host
             Set-CursorInvisible
             if ($continue.ToUpper() -ne "Y") {
-                Write-Host+ -NoTimestamp -NoTrace "Uninstall canceled." -ForegroundColor DarkYellow
+                Write-Host+ -NoTrace -NoTimestamp "Uninstall canceled." -ForegroundColor DarkYellow
                 return
             }
             Write-Host+
 
             Write-Host+
             $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLING"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
             Write-Host+
 
                 #region PROVIDERS
 
                     $message = "<  Uninstalling providers <.>48> PENDING"
-                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
                     Write-Host+
 
                     $message = "    Provider            Status"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
                     $message = "    --------            ------"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray            
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray            
 
                     $global:Environ.Provider | ForEach-Object {Uninstall-CatalogObject -Type Provider -Id $_}
                     
                     Write-Host+
                     $message = "<  Uninstalling providers <.>48> SUCCESS"
-                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+                    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
                     Write-Host+
 
                 #region PROVIDERS
                 #region PRODUCTS
 
                     $message = "<  Uninstalling products <.>48> PENDING"
-                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
                     Write-Host+
 
                     $message = "    Product             Task                Status"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
                     $message = "    -------             ----                ------"
-                    Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor DarkGray
 
                     $global:Environ.Product | ForEach-Object {Uninstall-CatalogObject -Type Provider -Id $_}
                     
                     Write-Host+
                     $message = "<  Uninstalling products <.>48> SUCCESS"
-                    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+                    Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
                     Write-Host+
 
                 #endregion PRODUCTS    
                 #region CLOUD
 
                     $message = "<  Uninstalling $($global:Environ.Cloud) Cloud <.>48> PENDING"
-                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
                     Uninstall-CatalogObject -Type Cloud -Id $global:Environ.Cloud
 
                     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
                     Write-Host+
 
                 #endregion OS 
                 #region PLATFORM
 
                     $message = "<  Uninstalling $($global:Environ.Platform) platform <.>48> PENDING"
-                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
                     Uninstall-CatalogObject -Type Platform -Id $global:Environ.Platform
 
                     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
                     Write-Host+
 
                 #endregion PLATFORM    
                 #region OS
 
                     $message = "<  Uninstalling $($global:Environ.OS) OS <.>48> PENDING"
-                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
                     Uninstall-CatalogObject -Type OS -$global:Environ.OS
 
                     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
                     Write-Host+
 
                 #endregion OS    
                 #region OVERWATCH
 
                     $message = "<  Uninstalling Overwatch <.>48> PENDING"
-                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
                     Uninstall-Overwatch
 
                     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                    Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
                     Write-Host+
 
                 #endregion OVERWATCH  
 
             $message = "<$($Overwatch.DisplayName) <.>48> UNINSTALLED"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
 
         }
 
