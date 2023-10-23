@@ -30,7 +30,7 @@ $_provider | Out-Null
         else {
             Write-Host+
         }
-        $tenantKey = ![string]::IsNullOrEmpty($tenantResponse) ? $tenantResponse : $tenantKey
+        $tenantKey = ![string]::IsNullOrEmpty($tenantResponse) ? $tenantResponse : ($configuredTenants.Count -eq 1 ? $configuredTenants : $tenantKey)
         Write-Host+ -NoTrace -NoTimestamp "Tenant: $tenantKey" -IfDebug -ForegroundColor Yellow
         if ($configuredTenants -notcontains $tenantKey) {
             Write-Host+ -NoTrace -NoTimestamp "    Tenant must be one of the following: $($configuredTenants -join ", ")" -ForegroundColor Red
