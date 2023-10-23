@@ -1565,15 +1565,24 @@
         }
 
         $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Copy-Object
-        $prerequisites | ForEach-Object {
+        foreach ($_prerequisite in $prerequisites) {
 
-            $prerequisite = $_ | Copy-Object
-            $prerequisite.Type = $_.Type
-            $prerequisite.Id = $_.$($_.Type) | Copy-Object
-            $prerequisite.Status = $null 
-            $prerequisite.Pass = $false
-            $prerequisite.Block = $false
-            $prerequisite.Tests = @()          
+            $prerequisite = [ordered]@{}
+            $prerequisite += [ordered]@{
+                Type = $_prerequisite.Type
+                Id = $_prerequisite.$($_prerequisite.Type) | Copy-Object
+            }
+
+            foreach ($key in ($_prerequisite.keys | Where-Object {$_ -notin @("Type",$_prerequisite.Type)} | Sort-Object)) {
+                $prerequisite += [ordered]@{ $key = $_prerequisite.$key | Copy-Object }
+            }
+            
+            $prerequisite += [ordered]@{
+                Status = $null 
+                Pass = $false
+                Block = $false
+                Tests = @()
+            }
 
             foreach ($prerequisiteId in $prerequisite.Id) {
 
@@ -1596,7 +1605,7 @@
                     $prerequisiteTest.DisplayName = "$($prerequisite.Driver) $($prerequisite.DriverType) Driver"
                     $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
                     $prerequisiteTest.Pass = $_isInstalled
-                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
                 }
 
                 # test for prerequisite types which are powershell modules/packages
@@ -1633,7 +1642,7 @@
                     }
                     $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
                     $prerequisiteTest.Pass = $_isInstalled
-                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
                 }
 
                 # test for prerequisite types which are os or platform services
@@ -1650,7 +1659,7 @@
                     $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
                     $prerequisiteTest.Status = $_service.Status ?? "Not Running"
                     $prerequisiteTest.Pass = $_isInstalled
-                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
                 }
 
                 # test for prerequisites which have the Installation.IsInstalled test defined
@@ -1674,7 +1683,7 @@
                     $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
                     $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
                     $prerequisiteTest.Pass = $_isInstalled
-                    $prerequisite.Pass = $prerequisite.Pass -or $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
                 }                
 
                 # test for prerequisite types which are catalog objects
@@ -1684,17 +1693,24 @@
                     $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
                     $prerequisiteTest.Pass = $_isInstalled
                     $prerequisiteTest.Status = $prerequisiteTest.Pass ? "Installed" : "Not Installed"
-                    Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +4
-                    $prerequisiteTest.Results = Test-Prerequisites -Type $prerequisite.Type -Id $prerequisiteId -PrerequisiteType Installation -Quiet:$Quiet
-                    Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -4
-                    $prerequisiteTest.Block = $_isInstalled ? $false :
-                        !($global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag -contains "AlwaysInstall" -or 
-                        $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag -contains "NoPrompt") -and 
-                        $prerequisiteTest.Results.Pass
-                    $prerequisite.Pass = $prerequisite.Pass -or $prerequisiteTest.Pass
-                    $prerequisite.Block = $prerequisite.Block -or $prerequisiteTest.Block
+                    # Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +4
+                    # $prerequisiteTest.Results = Test-Prerequisites -Type $prerequisite.Type -Id $prerequisiteId -PrerequisiteType Installation -Quiet:$Quiet
+                    # Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -4
+                    if (!$prerequisiteTest.Pass) {
+                        $prerequisiteTest.Block = $true
+                        if ($global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag) {
+                            if (Compare-Object $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag @("AlwaysInstall","NoPrompt") -ExcludeDifferent -PassThru) {
+                                $prerequisiteTest.Block = $false
+                                # if (!$PrerequisiteTest.Results.Pass) {
+                                #     $prerequisiteTest.Block = $true
+                                # }
+                            }
+                        }
+                    }
                 }
 
+                $prerequisite.Pass = $prerequisite.Pass -or $prerequisiteTest.Pass
+                $prerequisite.Block = $prerequisite.Block -or $prerequisiteTest.Block
                 $prerequisite.Tests += $prerequisiteTest
 
                 $statusMessage = $prerequisiteTest.Pass ? "INSTALLED" : "NOT INSTALLED"
