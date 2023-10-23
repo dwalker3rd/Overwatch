@@ -1955,6 +1955,29 @@ function global:Find-TSGroup {
     return Find-TSObject -Type "Group" -Groups $Groups @params
 }    
 
+function global:New-TSGroup {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Site,
+        [Parameter(Mandatory=$false)][string]$Name
+    )
+
+    # $response is a group object or an error object
+    $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method "AddGroupToSite" -Params @($Name)
+    if ($responseError) {
+        return
+    }
+    else {
+        $tsGroup = $response # $response is a group object
+        Write-Log -Action "AddGroupToSite" -Target "$($Site.contentUrl)\$($tsGroup.name)" -Message "$($tsGroup.name)" -Status "Success" -Force 
+    }
+
+    # $response is a group object, an update object or an error object
+    return $response
+
+}
+
 function global:Get-TSGroupMembership {
 
     [CmdletBinding()]
