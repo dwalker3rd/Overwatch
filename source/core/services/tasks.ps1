@@ -329,6 +329,7 @@ function global:Disable-PlatformTask {
     }
 
     # disable PlatformTask
+    $PlatformTask.Instance = Stop-PlatformTask -PlatformTask $platformTask -OutputType PlatformTask
     $PlatformTask.Instance = Disable-ScheduledTask -TaskName $TaskName
     $PlatformTask.Status = $PlatformTask.Instance.State.ToString()
 
