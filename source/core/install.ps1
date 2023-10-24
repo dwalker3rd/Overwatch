@@ -684,7 +684,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         foreach ($dependency in $requiredDependenciesNotInstalled) {
             $dependentType = ($dependency.Dependent -split "\.")[0]
             $dependentId = ($dependency.Dependent -split "\.")[1]
-            Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentId)) $($dependentType.ToLower())" -ForegroundColor Gray,DarkGray
+            Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentId) $($dependentType.ToLower()))" -ForegroundColor Gray,DarkGray
             switch ($dependency.Type) {
                 "Product" { $productIds += [array]($dependency.Id | Where-Object {$_ -notin $productIds}) }
                 "Provider" { $providerIds += [array]($dependency.Id | Where-Object {$_ -notin $providerIds}) }
