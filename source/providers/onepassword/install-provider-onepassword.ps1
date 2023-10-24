@@ -71,7 +71,7 @@ $_providerId = "OnePassword"
                     "Login" {
                         $vaultItem.Password = $vaultItem.Password | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
 
-                        if ($Id -notin (Get-VaultItems -Vault $vault).id -and $Id -notin (Get-VaultItems -Vault $vault).title) {
+                        if ($Id -notin (Get-VaultItems -Vault $vault).id -and $Id -notin (Get-VaultItems -Vault $vault).name) {
                             Write-Host+ -NoTrace -NoTimestamp "      Creating ","LOGIN"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                             $_vaultItem = New-VaultItem -Vault credentials -Title $Id @vaultItem -Category Login
                         }
@@ -86,7 +86,7 @@ $_providerId = "OnePassword"
                         $vaultItem.remove("ConnectionString")
                         $vaultItem.Password = $vaultItem.Password | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
 
-                        if ($Id -notin (Get-VaultItems -Vault $vault).id -and $Id -notin (Get-VaultItems -Vault $vault).title) {
+                        if ($Id -notin (Get-VaultItems -Vault $vault).id -and $Id -notin (Get-VaultItems -Vault $vault).name) {
                             Write-Host+ -NoTrace -NoTimestamp "      Creating ","DATABASE"," item ",$Id -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                             $_vaultItem = New-VaultItem -Vault connectionStrings -Title $Id @vaultItem -Category Database -DriverType ODBC 
                         }

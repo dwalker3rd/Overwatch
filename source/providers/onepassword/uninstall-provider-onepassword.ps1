@@ -16,8 +16,8 @@ $_providerId = "OnePassword"
     $vaults = @()
     foreach ($vault in (Get-Vaults)) {
         $vaults += @{
-            Id = $vault.Title
-            VaultItems = Get-VaultItems -Vault $vault.Id
+            Id = $vault.name
+            VaultItems = Get-VaultItems -Vault $vault.id
         }
     }
 
@@ -26,32 +26,32 @@ $_providerId = "OnePassword"
 
     foreach ($vault in $vaults) {
 
-        Write-Host+ -NoTrace -NoTimestamp "    Migrating 1Password vault ",$vault.Id," to Overwatch" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "    Migrating 1Password vault ",$vault.id," to Overwatch" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
 
-        if ($vault.Id -notin (Get-Vaults).Name) { 
-            Write-Host+ -NoTrace -NoTimestamp "      Creating Overwatch vault ",$vault.Id -NoSeparator -ForegroundColor DarkGray,DarkBlue
-            New-Vault -Vault $vault.Id 
+        if ($vault.id -notin (Get-Vaults).Name) { 
+            Write-Host+ -NoTrace -NoTimestamp "      Creating Overwatch vault ",$vault.id -NoSeparator -ForegroundColor DarkGray,DarkBlue
+            New-Vault -Vault $vault.id 
         }
 
-        foreach ($vaultItem in $vaults.$($vault.Id).VaultItems) {
+        foreach ($vaultItem in $vaults.$($vault.id).VaultItems) {
             switch ($vaultItem.Category) {
                 "Login" {
-                    if ($vaultItem.Title -notin (Get-VaultItems -Vault $vault).Name) {
-                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","LOGIN"," item ",$vaultItem.Title -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                        $newVaultItem = New-VaultItem -Vault credentials -Name $vaultItem.Title @vaultItem
+                    if ($vaultItem.name -notin (Get-VaultItems -Vault $vault).Name) {
+                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","LOGIN"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        $newVaultItem = New-VaultItem -Vault credentials -Name $vaultItem.name @vaultItem
                     }
                     else {
-                        Write-Host+ -NoTrace -NoTimestamp "      Found ","LOGIN"," item ",$vaultItem.Title -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        Write-Host+ -NoTrace -NoTimestamp "      Found ","LOGIN"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                     }
                 }
                 "SSH Key" {}
                 "Database" {
-                    if ($vaultItem.Title -notin (Get-VaultItems -Vault $vault).Name) {
-                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","DATABASE"," item ",$vaultItem.Title -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                        $newVaultItem  = New-VaultItem -Vault connectionStrings -Name $vaultItem.Title @vaultItem
+                    if ($vaultItem.name -notin (Get-VaultItems -Vault $vault).Name) {
+                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","DATABASE"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        $newVaultItem  = New-VaultItem -Vault connectionStrings -Name $vaultItem.name @vaultItem
                     }
                     else {
-                        Write-Host+ -NoTrace -NoTimestamp "      Found ","DATABASE"," item ",$vaultItem.Title -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        Write-Host+ -NoTrace -NoTimestamp "      Found ","DATABASE"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                     } 
                 }
             }
