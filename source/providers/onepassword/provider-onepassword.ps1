@@ -587,18 +587,46 @@ function global:Get-VaultItems {
     # result is an array of item objects
     $_items = $result | ConvertFrom-Json
 
+    $_customItems = @()
+    foreach ($_item in $_items) {
+        $_customItem = @{
+            id = $_item.Id
+            name = $_item.title
+            title = $_item.title
+            category = $_item.category
+        }
+        foreach ($field in $_item.fields) {
+            if (![string]::IsNullOrEmpty($field.value)) {
+                $_key = $field.label
+                switch ($_item.category) {
+                    "Database" {
+                        switch ($_key) {
+                            "Type" { $_key = "databasetype" }
+                            "Driver_Type" { $_key = "drivertype" }
+                            # "UserName" { $_key = "uid" }
+                            # "Password" { $_key = "pwd" }
+                        }
+                    }
+                }
+                $_value = $field.value
+                $_customItem += @{ $_key = $_value }
+            }
+        }
+        $_customItems += $_customItem | ConvertTo-PSCustomObject
+    }
+
     $onePasswordItems = @{}
     if ((Get-Cache onePasswordItems).Exists) {
         $onePasswordItems = Read-Cache onePasswordItems
     }
-    foreach ($_item in $_items) {
-        if (!$onePasswordItems.$($_item.name)) {
-            $onePasswordItems += @{ $_item.name = $_item.id }
+    foreach ($_customItem in $_customItems) {
+        if (!$onePasswordItems.$($_customItem.name)) {
+            $onePasswordItems += @{ $_customItem.name = $_customItem.id }
         }
     }
     $onePasswordItems | Write-Cache onePasswordItems
 
-    return $_items
+    return $_customItems
 
 }
 Set-Alias -Name List-VaultItems -Value Get-VaultItems -Scope Global
@@ -645,7 +673,7 @@ function global:Get-VaultItem {
 
     $_customItem = @{
         id = $_item.Id
-        name = $_item.name
+        name = $_item.title
         title = $_item.title
         category = $_item.category
     }
@@ -666,6 +694,7 @@ function global:Get-VaultItem {
             $_customItem += @{ $_key = $_value }
         }
     }
+    $_customItem = $_customItem | ConvertTo-PSCustomObject
 
     if (!$onePasswordItems.$($_customItem.name)) {
         $onePasswordItems += @{ $_customItem.name = $_customItem.id }
