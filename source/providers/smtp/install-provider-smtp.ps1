@@ -8,6 +8,8 @@ $_provider | Out-Null
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
+    $interaction = $false
+
     $smtpSettings = "$PSScriptRoot\data\smtpInstallSettings.ps1"
     if (Test-Path -Path $smtpSettings) {
         . $smtpSettings
@@ -18,12 +20,14 @@ $_provider | Out-Null
 
         $interaction = $true
 
-        Write-Host+; Write-Host+
-        # Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
-        # Write-Host+ -NoTrace -NoTimestamp "      -----------------"
+        # complete previous Write-Host+ -NoNewLine
+        Write-Host+
+
+        Write-Host+ -SetIndentGlobal 8
+        Write-Host+
 
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Server ", "$($server ? "[$server] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Server ", "$($server ? "[$server] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $serverResponse = Read-Host
             }
@@ -37,7 +41,7 @@ $_provider | Out-Null
             }
         } until ($server)
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Port ", "$($port ? "[$port] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Port ", "$($port ? "[$port] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $portResponse = Read-Host
             }
@@ -53,7 +57,7 @@ $_provider | Out-Null
         $useSslDefault = "Y"
         $useSslChar = $useSsl ? "Y" : "N"
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Use SSL? (Y/N) ", "$($useSslChar ? "[$useSslChar] " : $useSslDefault)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Use SSL? (Y/N) ", "$($useSslChar ? "[$useSslChar] " : $useSslDefault)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $useSslResponse = Read-Host
             }
@@ -70,11 +74,6 @@ $_provider | Out-Null
             }
         } until ($useSslChar -match "^(Y|N)$")
         $useSsl = $useSslChar -eq "Y" ? "`$true" : "`$false"
-
-        # $server =  Read-Host "    Server"
-        # $port =    Read-Host "    Port"
-        # $useSsl = (Read-Host "    Use SSL? (Y/N)") -eq "Y" ? "`$true" : "`$false"
-
 
         $smtpDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-smtp.ps1
         $smtpDefinitionsFile = $smtpDefinitionsFile -replace "<server>", $server
@@ -96,13 +95,16 @@ $_provider | Out-Null
     }
 
     if (!$(Test-Credentials $Provider.Id -NoValidate)) {
-        if(!$interaction) {
-            Write-Host+
-            # Write-Host+ -NoTrace -NoTimestamp "      SMTP Configuration"
-            # Write-Host+ -NoTrace -NoTimestamp "      -----------------"
-        }
+        if(!$interaction) { Write-Host+ }
         $interaction = $true
-        Request-Credentials -Prompt1 "    Account" -Prompt2 "    Password" | Set-Credentials $Provider.Id
+        Request-Credentials -Prompt1 "Account" -Prompt2 "Password" | Set-Credentials $Provider.Id
     }
+
+    if ($interaction) {
+        Write-Host+
+        Write-Host+ -SetIndentGlobal -8
+    }
+    
+    return
 
 #endregion PROVIDER-SPECIFIC INSTALLATION

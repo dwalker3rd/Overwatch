@@ -602,6 +602,9 @@ function script:Copy-File {
         # TODO: automate registration of scheduled tasks from the catalog
         # this is currently handled in the install-product-*.ps1 files
 
+        $customInstallScript = "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1"
+        $hasCustomInstallScript = Test-Path -Path $customInstallScript
+
         $prerequisiteTestResults = Test-Prerequisites -Type $Type -Id $Id -PrerequisiteType Installation -Quiet
         if (!$prerequisiteTestResults.Pass) {
             foreach ($prerequisite in $prerequisiteTestResults.Prerequisites | Where-Object {!$_.Pass}) {
@@ -611,11 +614,10 @@ function script:Copy-File {
             }
         }
 
-        if (Test-Path -Path "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1") {
-            . "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1" -UseDefaultResponses:$UseDefaultResponses.IsPresent -NoNewLine:$NoNewLine.IsPresent
+        if ($hasCustomInstallScript) {
+            . $customInstallScript -UseDefaultResponses:$UseDefaultResponses.IsPresent
         }
 
-        # $global:Catalog.$Type.$Id.IsInstalled = $false
     }
 
 function script:Uninstall-CatalogObject {
@@ -635,6 +637,9 @@ function script:Uninstall-CatalogObject {
 
     if (!$Force -and $catalogObject.Installation.Flag -eq "UninstallProtected") { return }
 
+    $customUninstallScript = "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"
+    $hasCustomUninstallScript = Test-Path -Path $customUninstallScript
+
     if ($catalogObject.HasTask) {
         $message = "    $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
         Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
@@ -644,7 +649,24 @@ function script:Uninstall-CatalogObject {
         Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
     }
     
-    if (Test-Path -Path "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1") {. "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"}
+    if ($hasCustomUninstallScript) { 
+
+        # execute the custom uninstall script
+        $interaction = . $customUninstallScript 
+
+        # rewrite headers if there was user interaction in the custom uninstall script
+        if ($interaction) {
+            if ($catalogObject.HasTask) {
+                $message = "    $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+                Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+            }
+            else {
+                $message = "    $Id$($emptyString.PadLeft(20-$Id.Length," "))","PENDING$($emptyString.PadLeft(13," "))"
+                Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+            }
+        }
+
+    }
 
     if ($catalogObject.HasTask) {
             
@@ -692,11 +714,21 @@ function script:Remove-CatalogObjectFiles {
         [switch]$DeleteAllData
     )
 
+    $typeArchiveFolder = ($Type -in @("Provider") ? "$($Type)s" : $Type).ToLower()
+    $idArchiveFolder = $Id.ToLower()
+    $archivePath = "$($global:Location.Archive)\$typeArchiveFolder\$idArchiveFolder"
+
+    New-Item -ItemType Directory $archivePath -ErrorAction SilentlyContinue | Out-Null
+
     if ($DeleteAllData) {
-        Remove-Files "$($global:Location.Data)\$($Id.ToLower())\*.*" -Recurse -Force
-        Remove-Files "$($global:Location.Scripts)\definitions\definitions-$($Type.ToLower())-$($Id.ToLower()).ps1"
-        Remove-Files "$($global:Location.Scripts)\install\data\$($Id.ToLower())InstallSettings.ps1"
+        New-Item -ItemType Directory "$archivePath\data" -ErrorAction SilentlyContinue | Out-Null
+        Move-Files -Path "$($global:Location.Data)\$($Id.ToLower())\*.*" -Destination "$archivePath\data" -Recurse -Force
     }
+
+    # copy to archive folder (don't delete in case the catalog object is reinstalled)
+    Copy-Files -Path "$($global:Location.Scripts)\install\data\$($Id.ToLower())InstallSettings.ps1" -Destination $archivePath -Quiet
+    # move the definitions file to the archive folder (for reference purposes)
+    Move-Files -Path "$($global:Location.Scripts)\definitions\definitions-$($Type.ToLower())-$($Id.ToLower()).ps1" -Destination $archivePath -Quiet
 
     Remove-Files "$($global:Location.Scripts)\config\config-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\initialize\initialize-$($Type.ToLower())-$($Id.ToLower()).ps1"
@@ -717,7 +749,6 @@ function script:Remove-CatalogObjectFiles {
             Remove-Files "$($global:Location.Scripts)\providers\provider-$($Id.ToLower()).ps1"
         }
     }
-    
 
 }
 

@@ -327,7 +327,7 @@ function global:New-VaultItem {
         [Parameter(Mandatory=$false)][ValidateSet("Login","SSH Key","Database")][string]$Category = "Login",
         # [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$false)][string]$Title,
+        [Parameter(Mandatory=$false)][Alias("Name")][string]$Title,
         [Parameter(Mandatory=$false)][string]$Tags,
         [Parameter(Mandatory=$false)][string]$Url,
         [Parameter(Mandatory=$false)][string]$Notes,
@@ -441,8 +441,8 @@ function global:New-VaultItem {
     $onePasswordItems = @{}
     if ((Get-Cache onePasswordItems).Exists) {
         $onePasswordItems = Read-Cache onePasswordItems
-        if (!$onePasswordItems.$($_item.name)) {
-            $onePasswordItems += @{ $_item.name = $_item.id }
+        if (!$onePasswordItems.$($_item.title)) {
+            $onePasswordItems += @{ $_item.title = $_item.id }
             $onePasswordItems | Write-Cache onePasswordItems
         }        
     }
@@ -461,7 +461,7 @@ function global:Update-VaultItem {
         [Parameter(Mandatory=$false)][ValidateSet("Login","SSH Key","Database")][string]$Category = "Login",
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$false)][string]$Title,
+        [Parameter(Mandatory=$false)][Alias("Name")][string]$Title,
         [Parameter(Mandatory=$false)][string]$Tags,
         [Parameter(Mandatory=$false)][string]$Url,
         [Parameter(Mandatory=$false)][string]$Notes,
@@ -574,6 +574,7 @@ function global:Get-VaultItems {
     $op = "op item list --vault $($_vault.id)"
     if ($Categories) { $op += " --categories $Categories" }
     if ($Tags) { $op += " --tags $Tags" }
+    $op += " | op item get -"
     $op += " 2>&1"
 
     $result = Invoke-Expression $op
@@ -585,11 +586,19 @@ function global:Get-VaultItems {
     }
 
     # result is an array of item objects
+    # the results from this expression are not valid JSON
+    # step1 injects a comma between json objects
+    # step2 wraps the json with []
+    $result = $result -join "`n" -replace "\}`n\{","},`n{"
+    if ($result[0] -ne "[") {
+        $result = "[$result]"
+    }
+
     $_items = $result | ConvertFrom-Json
 
     $_customItems = @()
     foreach ($_item in $_items) {
-        $_customItem = @{
+        $_customItem = [ordered]@{
             id = $_item.Id
             name = $_item.title
             title = $_item.title
@@ -612,7 +621,7 @@ function global:Get-VaultItems {
                 $_customItem += @{ $_key = $_value }
             }
         }
-        $_customItems += $_customItem | ConvertTo-PSCustomObject
+        $_customItems += $_customItem
     }
 
     $onePasswordItems = @{}
@@ -635,7 +644,7 @@ function global:Get-VaultItem {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$true,Position=0)][Alias("Name")][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
         [Parameter(Mandatory=$false)][string]$Fields
     )
@@ -694,7 +703,7 @@ function global:Get-VaultItem {
             $_customItem += @{ $_key = $_value }
         }
     }
-    $_customItem = $_customItem | ConvertTo-PSCustomObject
+    $_customItem = $_customItem
 
     if (!$onePasswordItems.$($_customItem.name)) {
         $onePasswordItems += @{ $_customItem.name = $_customItem.id }
@@ -709,7 +718,7 @@ function global:Remove-VaultItem {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$true,Position=0)][Alias("Name")][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault
     ) 
 
