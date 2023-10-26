@@ -104,7 +104,8 @@ $providerIds = @()
 
 #region INSTALLER UPDATE CHECK
 
-    $installUpdateRestartData = (read-cache installUpdateRestart).installUpdateRestart
+    $installUpdateRestartData = read-cache installUpdateRestart
+    $installUpdateRestart = $installUpdateRestartData.installUpdateRestart
     if ($installUpdateRestart) { $UseDefaultResponses = $true }
 
 #endregion INSTALLER UPDATE CHECK
@@ -1707,3 +1708,4 @@ $global:Location.Definitions = $tempLocationDefinitions
     Set-CursorVisible
 
 #endregion MAIN
+
