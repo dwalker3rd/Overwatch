@@ -14,6 +14,8 @@
 
     if ($Title) {Write-Host+ -NoTimestamp -NoTrace $Title}
     if ($Message) {Write-Host+ -NoTimestamp -NoTrace $Message}
+    $Prompt1 = $emptyString.PadLeft($global:WriteHostPlusIndentGlobal," ") + $Prompt1
+    $Prompt2 = $emptyString.PadLeft($global:WriteHostPlusIndentGlobal," ") + $Prompt2
     $UserName = $UserName ? $UserName : (Read-Host -Prompt $Prompt1)
     $PasswordSecure = $Password ? (ConvertTo-SecureString $Password -AsPlainText -Force) : (Read-Host -Prompt $Prompt2 -AsSecureString)
 
