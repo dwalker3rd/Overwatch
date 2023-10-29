@@ -95,7 +95,12 @@ $_provider | Out-Null
     }
 
     if (!$(Test-Credentials $Provider.Id -NoValidate)) {
-        if(!$interaction) { Write-Host+ }
+        if (!$interaction) {
+            # complete previous Write-Host+ -NoNewLine
+            Write-Host+
+            Write-Host+ -SetIndentGlobal 8
+        }
+        Write-Host+
         $interaction = $true
         Request-Credentials -Prompt1 "Account" -Prompt2 "Password" | Set-Credentials $Provider.Id
     }

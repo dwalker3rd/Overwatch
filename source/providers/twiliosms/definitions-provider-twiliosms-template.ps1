@@ -16,7 +16,7 @@
     $Provider = $global:Catalog.Provider.TwilioSMS
 
     $SMSConfig = @{
-        From = "+12075582078"
+        From = "<fromPhone>"
         To = @()
         Throttle = New-TimeSpan -Minutes 15
         MessageType = @($PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
