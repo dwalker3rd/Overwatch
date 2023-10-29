@@ -273,8 +273,10 @@ function script:Copy-File {
         "`$imagesUri = [System.Uri]::new(""$($global:Location.Images)"")" | Add-Content -Path $global:InstallSettings
         "`$platformInstallLocation = ""$($global:Platform.InstallPath)""" | Add-Content -Path $global:InstallSettings
 
-        $_platformInstanceUri = [string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : [System.Uri]::new($platformInstanceUri)
-        "`$platformInstanceUri = ""$($_platformInstanceUri)""" | Add-Content -Path $global:InstallSettings
+        if ($_platformInstanceUri) {
+            $_platformInstanceUri = [string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : [System.Uri]::new($platformInstanceUri)
+            "`$platformInstanceUri = ""$($_platformInstanceUri)""" | Add-Content -Path $global:InstallSettings
+        }
         
         "`$platformInstanceDomain = ""$($global:Platform.Domain)""" | Add-Content -Path $global:InstallSettings
         if ($global:Environ.Product.Count -gt 0) {
@@ -722,13 +724,13 @@ function script:Remove-CatalogObjectFiles {
 
     if ($DeleteAllData) {
         New-Item -ItemType Directory "$archivePath\data" -ErrorAction SilentlyContinue | Out-Null
-        Move-Files -Path "$($global:Location.Data)\$($Id.ToLower())\*.*" -Destination "$archivePath\data" -Recurse -Force
+        Move-Files -Path "$($global:Location.Data)\$($Id.ToLower())\*.*" -Destination "$archivePath\data" -Recurse -Overwrite
     }
 
     # copy to archive folder (don't delete in case the catalog object is reinstalled)
     Copy-Files -Path "$($global:Location.Scripts)\install\data\$($Id.ToLower())InstallSettings.ps1" -Destination $archivePath -Quiet
     # move the definitions file to the archive folder (for reference purposes)
-    Move-Files -Path "$($global:Location.Scripts)\definitions\definitions-$($Type.ToLower())-$($Id.ToLower()).ps1" -Destination $archivePath -Quiet
+    Move-Files -Path "$($global:Location.Scripts)\definitions\definitions-$($Type.ToLower())-$($Id.ToLower()).ps1" -Destination $archivePath -Quiet -Overwrite
 
     Remove-Files "$($global:Location.Scripts)\config\config-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\initialize\initialize-$($Type.ToLower())-$($Id.ToLower()).ps1"
