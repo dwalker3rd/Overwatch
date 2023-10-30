@@ -1667,7 +1667,7 @@
                 if ($installationTest) {
                     if ($installationTest.Command) {
                         $_scriptBlock = (Get-Catalog -Type $prerequisite.Type -Id $prerequisiteId -ComputerName $ComputerName).Installation.IsInstalled.Command
-                        $_isInstalled = Invoke-Command -ScriptBlock $_scriptBlock -ComputerName $ComputerName
+                        $_isInstalled = Invoke-Command -ScriptBlock $_scriptBlock #-ComputerName $ComputerName
                     }
                     else {
                         $_service = switch ($installationTest.Type) {

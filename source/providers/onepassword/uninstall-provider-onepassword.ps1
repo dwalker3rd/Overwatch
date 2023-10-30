@@ -56,7 +56,7 @@ $_providerId = "OnePassword"
                     if ($opVaultItem.name -notin $owVaultItems.Keys) {
                         Write-Host+ -NoTrace -NoTimestamp "  Creating ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                         $opVaultItem.Id = $opVaultItem.Name 
-                        $opNewVaultItem = New-VaultItem -Vault credentials -Name $opVaultItem.name @vaultItem
+                        $opNewVaultItem = New-VaultItem -Vault credentials -Name $opVaultItem.name @opVaultItem
                     }
                     else {
                         Write-Host+ -NoTrace -NoTimestamp "  Found ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
@@ -67,7 +67,7 @@ $_providerId = "OnePassword"
                     if ($opVaultItem.name -notin $owVaultItems.Keys) {
                         Write-Host+ -NoTrace -NoTimestamp "  Creating ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                         $opVaultItem.Id = $opVaultItem.Name 
-                        $opNewVaultItem = New-VaultItem -Vault connectionStrings -Name $opVaultItem.name @vaultItem
+                        $opNewVaultItem = New-VaultItem -Vault connectionStrings -Name $opVaultItem.name @opVaultItem
                     }
                     else {
                         Write-Host+ -NoTrace -NoTimestamp "  Found ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue

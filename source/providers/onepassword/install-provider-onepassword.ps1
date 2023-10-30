@@ -39,6 +39,11 @@ $_providerId = "OnePassword"
         }
     } until ($opServiceAccountToken)
 
+    # this seems redundant given that the credentials are set below, but ...
+    # it is needed for when the migration script calls Get-Provider which loads providers w/their definition files
+    # and the definition file for this provider sets the 1password service token
+    Set-Credentials -Id $opServiceAccountTokenId -Account "Overwatch" -Token $opServiceAccountToken
+
     $owVaults = (Get-Vaults).FileNameWithoutExtension | Where-Object {$_ -notlike "*Keys"}
 
     New-Item -ItemType Directory "$($global:Location.Archive)\vault" -ErrorAction SilentlyContinue
@@ -81,7 +86,7 @@ $_providerId = "OnePassword"
                     if ($key -notin $opVaultItems.id -and $key -notin $opVaultItems.name) {
                         Write-Host+ -NoTrace -NoTimestamp "  Creating ","LOGIN"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                         $owVaultItem.Password = $owVaultItem.Password | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
-                        $owNewVaultItem = New-VaultItem -Vault credentials -Title $key @vaultItem -Category Login
+                        $owNewVaultItem = New-VaultItem -Vault credentials -Title $key @owVaultItem -Category Login
                     }
                     else {
                         Write-Host+ -NoTrace -NoTimestamp "  Found ","LOGIN"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
@@ -94,7 +99,7 @@ $_providerId = "OnePassword"
                         $owVaultItem.remove("Category")
                         $owVaultItem.remove("ConnectionString")
                         $owVaultItem.Pwd = $owVaultItem.Pwd | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
-                        $owNewVaultItem = New-VaultItem -Vault connectionStrings -Title $key @vaultItem -Category Database -DriverType ODBC 
+                        $owNewVaultItem = New-VaultItem -Vault connectionStrings -Title $key @owVaultItem -Category Database -DriverType ODBC 
                     }
                     else {
                         Write-Host+ -NoTrace -NoTimestamp "  Found ","DATABASE"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
