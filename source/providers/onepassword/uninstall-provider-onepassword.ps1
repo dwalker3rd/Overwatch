@@ -8,63 +8,90 @@ $_providerId = "OnePassword"
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
-    Write-Host+; Write-Host+
+    $interaction = $false
 
     # switch to 1Password provider to get vaults and items
-    . "$($global:Location.Providers)\$($_providerId.ToLower())\provider-$($_providerId).ps1"
+    if (Test-Path -Path "$($global:Location.Providers)\provider-$($_providerId).ps1") {
+        . "$($global:Location.Providers)\provider-$($_providerId).ps1"
+    }
+    else {
+        . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
+    }
 
-    $vaults = @()
-    foreach ($vault in (Get-Vaults)) {
-        $vaults += @{
-            Id = $vault.name
-            VaultItems = Get-VaultItems -Vault $vault.id
+    $opVaults = @()
+    foreach ($opVault in (Get-Vaults)) {
+        $opVaults += @{
+            id = $opVault.name
+            vaultItems = Get-VaultItems -Vault $opVault.id
         }
     }
 
     # switch to Overwatch vault service to migrate vaults and items
     . "$($global:Location.Services)\vault.ps1"
 
-    foreach ($vault in $vaults) {
+    $interaction = $opVaults.Count -gt 0
 
-        Write-Host+ -NoTrace -NoTimestamp "    Migrating 1Password vault ",$vault.id," to Overwatch" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
+    if ($interaction) {
+        # complete previous Write-Host+ -NoNewLine
+        Write-Host+
 
-        if ($vault.id -notin (Get-Vaults).Name) { 
-            Write-Host+ -NoTrace -NoTimestamp "      Creating Overwatch vault ",$vault.id -NoSeparator -ForegroundColor DarkGray,DarkBlue
-            New-Vault -Vault $vault.id 
+        Write-Host+ -SetIndentGlobal 8
+    }
+
+    foreach ($opVault in $opVaults) {
+
+        Write-Host+
+        Write-Host+ -NoTrace -NoTimestamp "Migrating 1Password vault ",$opVault.id," to Overwatch" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
+
+        if ($opVault.id -notin (Get-Vaults).FileNameWithoutExtension) { 
+            Write-Host+ -NoTrace -NoTimestamp "  Creating Overwatch vault ",$opVault.id -NoSeparator -ForegroundColor DarkGray,DarkBlue
+            New-Vault -Vault $opVault.id 
         }
 
-        foreach ($vaultItem in $vaults.$($vault.id).VaultItems) {
-            switch ($vaultItem.Category) {
+        $owVaultItems = Get-VaultItems -Vault $opVault.id
+
+        foreach ($opVaultItem in $opVault.vaultItems) {
+            switch ($opVaultItem.Category) {
                 "Login" {
-                    if ($vaultItem.name -notin (Get-VaultItems -Vault $vault).Name) {
-                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","LOGIN"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                        $newVaultItem = New-VaultItem -Vault credentials -Name $vaultItem.name @vaultItem
+                    if ($opVaultItem.name -notin $owVaultItems.Keys) {
+                        Write-Host+ -NoTrace -NoTimestamp "  Creating ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        $opVaultItem.Id = $opVaultItem.Name 
+                        $opNewVaultItem = New-VaultItem -Vault credentials -Name $opVaultItem.name @opVaultItem
                     }
                     else {
-                        Write-Host+ -NoTrace -NoTimestamp "      Found ","LOGIN"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        Write-Host+ -NoTrace -NoTimestamp "  Found ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                     }
                 }
                 "SSH Key" {}
                 "Database" {
-                    if ($vaultItem.name -notin (Get-VaultItems -Vault $vault).Name) {
-                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","DATABASE"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                        $newVaultItem  = New-VaultItem -Vault connectionStrings -Name $vaultItem.name @vaultItem
+                    if ($opVaultItem.name -notin $owVaultItems.Keys) {
+                        Write-Host+ -NoTrace -NoTimestamp "  Creating ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        $opVaultItem.Id = $opVaultItem.Name 
+                        $opNewVaultItem = New-VaultItem -Vault connectionStrings -Name $opVaultItem.name @opVaultItem
                     }
                     else {
-                        Write-Host+ -NoTrace -NoTimestamp "      Found ","DATABASE"," item ",$vaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        Write-Host+ -NoTrace -NoTimestamp "  Found ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                     } 
                 }
             }
-            $newVaultItem  | Out-Null
+            $opNewVaultItem  | Out-Null
         }
-
-        Write-Host+
 
     }
 
-    # switch back to 1Password provider
-    . "$($global:Location.Providers)\$($_providerId.ToLower())\provider-$($_providerId).ps1"
+    # switch back to 1Password provider IFF the password provider files still exist
+    if (Test-Path -Path "$($global:Location.Providers)\provider-$($_providerId).ps1") {
+        . "$($global:Location.Providers)\provider-$($_providerId).ps1"
+    }
 
-    Write-Host+
+    Clear-Cache -Name onePasswordVaults
+    Clear-Cache -Name onePasswordItems
+
+    if ($interaction) {
+        Write-Host+
+        Write-Host+ -SetIndentGlobal -8
+    }
+
+    return $interaction
 
 #endregion PROVIDER-SPECIFIC INSTALLATION

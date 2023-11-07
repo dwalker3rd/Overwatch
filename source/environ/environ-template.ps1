@@ -18,6 +18,7 @@
         Images = "<imagesURI>"
     }
     $global:Location += @{
+        Archive = "$($global:Location.Root)\archive"
         Config = "$($global:Location.Root)\config"
         Credentials = "$($global:Location.Root)\data"
         Data = "$($global:Location.Root)\data"

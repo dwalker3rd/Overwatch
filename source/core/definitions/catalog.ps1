@@ -444,6 +444,7 @@ $global:Catalog.Installer += @{ "scoop" =
             Install = [scriptblock]{
                 Invoke-RestMethod get.scoop.sh -outfile "$($global:Location.Temp)\install-scoop.ps1" *> $null
                 . "$($global:Location.Temp)\install-scoop.ps1" -ScoopDir "$env:ProgramData\scoop"  -RunAsAdmin -scoopglobaldir "$env:ProgramData\scoop" *> $null
+                $env:PATH = "$($env:ProgramData)\scoop\shims;" + $env:PATH
             }
             Uninstall = [scriptblock]{
                 scoop uninstall scoop *> $null

@@ -85,16 +85,24 @@ Open-Monitor
 
 #region NOOP CHECK
 
-    if ($global:Platform.Id -eq "None" -and !$global:TestOverwatchControllers) { 
+    $platformStatus = Get-PlatformStatus
+    if ($global:Platform.Id -eq "None" -and !$global:TestOverwatchControllers -and $platformStatus.RollupStatus -eq "Running") { 
 
         Write-Log -Action "NOOPCheck" -Target "Platform.Id" -Status "None" -EntryType "Warning" -Force
         Write-Log -Action "NOOPCheck" -Target "TestOverwatchControllers" -Status "False" -Message $message -EntryType "Warning" -Force
         Write-Log -Action "NOOPCheck" -Target $Product.Id -Status "Disabled" -EntryType "Warning" -Force
 
-        Write-Host+ -NoTrace "  $($global:Overwatch.Name) $($global:Product.Name) has nothing to do." -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace "  NOOP:  The $($platform.Name) platform has no operations configured" -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace "  SHUTDOWN: The $($platform.Name) platform is shutting down" -ForegroundColor DarkYellow
+
+        # send message that this node has no operations
+        Send-GenericMessage -MessageType Alert -Message "$($global:Overwatch.Name) $($global:Product.Name) is shutting down because no operations are configured" | Out-Null
 
         # No need for Monitor to run, so disable the platform task
         Disable-PlatformTask $Product.Id
+
+        # send platformstatus
+        Send-PlatformStatusMessage -MessageType Alert | Out-Null
 
         Close-Monitor -Status Disabled -StatusColor Red
         return 

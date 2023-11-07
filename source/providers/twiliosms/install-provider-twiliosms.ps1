@@ -7,6 +7,8 @@ $_provider | Out-Null
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
+    $interaction = $false
+
     $twilioSmsSettings = "$PSScriptRoot\data\twilioInstallSettings.ps1"
     if (Test-Path -Path $twilioSmsSettings) {
         . $twilioSmsSettings
@@ -15,12 +17,16 @@ $_provider | Out-Null
     $overwatchRoot = $PSScriptRoot -replace "\\install",""
     if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1 | Select-String "<fromPhone>" -Quiet) {
 
-        Write-Host+; Write-Host+
-        # Write-Host+ -NoTrace -NoTimestamp "    Twilio SMS Configuration"
-        # Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
+        $interaction = $true
+
+        # complete previous Write-Host+ -NoNewLine
+        Write-Host+
+
+        Write-Host+ -SetIndentGlobal 8
+        Write-Host+
 
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Twilio phone number ", "$($fromPhone ? "[$fromPhone] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Twilio phone number ", "$($fromPhone ? "[$fromPhone] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $fromPhoneResponse = Read-Host
             }
@@ -55,13 +61,19 @@ $_provider | Out-Null
     }
 
     if (!$(Test-Credentials $Provider.Id -NoValidate)) { 
-        if(!$interaction) {
+        if (!$interaction) {
+            # complete previous Write-Host+ -NoNewLine
             Write-Host+
-            # Write-Host+ -NoTrace -NoTimestamp "    Twilio SMS Configuration"
-            # Write-Host+ -NoTrace -NoTimestamp "    ------------------------"
+            Write-Host+ -SetIndentGlobal 8
         }
+        Write-Host+
         $interaction = $true
-        Request-Credentials -Prompt1 "    Account SID" -Prompt2 "    Auth Token" | Set-Credentials $Provider.Id
+        Request-Credentials -Prompt1 "Account SID" -Prompt2 "Auth Token" | Set-Credentials $Provider.Id
+    }
+
+    if ($interaction) {
+        Write-Host+
+        Write-Host+ -SetIndentGlobal -8
     }
 
 #endregion PROVIDER-SPECIFIC INSTALLATION

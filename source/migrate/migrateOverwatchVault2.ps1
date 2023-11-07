@@ -27,6 +27,6 @@ foreach ($name in $vaultItemNames) {
     }
 }
 
-New-Item -ItemType Directory "$($global:Location.Data)\vaultArchive" -ErrorAction SilentlyContinue
-Move-Item "$($global:Location.Data)\secret.vault" "$($global:Location.Data)\vaultArchive"
-Move-Item "$($global:Location.Data)\key.vault" "$($global:Location.Data)\vaultArchive"
+New-Item -ItemType Directory "$($global:Location.Archive)\vault" -ErrorAction SilentlyContinue
+Move-Item "$($global:Location.Data)\secret.vault" "$($global:Location.Archive)\vault"
+Move-Item "$($global:Location.Data)\key.vault" "$($global:Location.Archive)\vault"

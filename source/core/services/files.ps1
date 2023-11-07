@@ -16,12 +16,17 @@ function global:Get-Files {
     $files = @()
     foreach ($node in $ComputerName) {
         $_fileObject = ([FileObject]::new($Path, $node, $params))
-        foreach ($_fileInfo in $_fileObject.FileInfo) {
-            if ($_fileObject.IsDirectory($_fileInfo)) {
-                $files += [DirectoryObject]::new($_fileInfo.FullName)
-            }
-            else {
-                $files += [FileObject]::new($_fileInfo.FullName)
+        if ($_fileObject.IsDirectory() -and $params.Count -eq 0) {
+            $files += [DirectoryObject]::new($Path, $node)
+        }
+        else {
+            foreach ($_fileInfo in $_fileObject.FileInfo) {
+                if ($_fileObject.IsDirectory($_fileInfo)) {
+                    $files += [DirectoryObject]::new($_fileInfo.FullName)
+                }
+                else {
+                    $files += [FileObject]::new($_fileInfo.FullName)
+                }
             }
         }
     } 
@@ -51,6 +56,7 @@ function global:Remove-Files {
     # if $Keep -gt 0 -and $Days.IsPresent, then retain $Keep days of the most recent files
     
     $getParams = @{}
+    if ($Recurse) {$getParams += @{Recurse = $Recurse}}  
     if (![string]::IsNullOrEmpty($ComputerName)) {$getParams += @{ComputerName = $ComputerName}}
     if (![string]::IsNullOrEmpty($Filter)) {$getParams += @{Filter = $Filter}}
 
@@ -129,6 +135,7 @@ function global:Copy-Files {
         [Parameter(Mandatory=$false,Position=1)][string]$Destination,
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName,
+        [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Overwrite,
         [switch]$Quiet,
         [switch]$Recurse
@@ -143,39 +150,97 @@ function global:Copy-Files {
     if (!$ComputerName -and $Path -eq $Destination) {
         throw "`$Path and `$Destination cannot point to the same location when `$ComputerName is null."
     }
-
-    if ($Path -eq $Destination) { $Destination = $null }
-    if ([string]::IsNullOrEmpty($Destination)) { 
-        $ExcludeComputerName = (Get-Files -Path $Path).ComputerName
+    if ($Path -eq $Destination) {
+        $Destination = $null
     }
-
     if ($ComputerName -and $ComputerName.Count -eq 1 -and [string]::IsNullOrEmpty($ExcludeComputerName)) {
         $ExcludeComputerName = $env:COMPUTERNAME
     }
+    if (!$ComputerName -and !$ExcludeComputerName) {
+        $ComputerName = $env:COMPUTERNAME
+    }
+
+    $params = @{}
+    if ($Filter) {$params += @{Filter = $Filter}}
+    if ($Recurse) {$params += @{Recurse = $true}}
+
+    $pathAsFileObject = [FileObject]::new($Path)
+    $sourceDirectory = $pathAsFileObject.IsDirectory() ? $pathAsFileObject : [DirectoryObject]::new($pathAsFileObject.Directory.FullName)
+    $sourcefiles = Get-Files $Path @params
+    $copyDirectoryandContents = $sourcefiles.count -eq 1 -and $sourcefiles[0].IsDirectory()
 
     foreach ($node in $ComputerName) {
 
         if ($ExcludeComputerName -notcontains $node.ToUpper()) {
-
-            # $files = Get-ChildItem $Path -Recurse:$Recurse.IsPresent
-            $files = Get-Files $Path -Recurse:$Recurse.IsPresent
-
-            foreach ($file in $files) {
-
-                if ($file.GetType().Name -eq "DirectoryObject") {
-                    $directory = [DirectoryObject]::new($file.Path,$node)
-                    if (!$directory.Exists) {
-                        $directory.DirectoryInfo.Create()
+            
+            if ($copyDirectoryandContents) {
+                Copy-Item -Path $Path -Destination $Destination -Recurse -Force:$Overwrite.IsPresent
+                Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ", $Path, " -Destination ", $Destination -ForegroundColor DarkGray,Gray,DarkGray,Gray
+            }
+            else {
+                foreach ($sourcefile in $sourcefiles) {
+                    $destinationFile = [FileObject]::new($sourceFile.Path.Replace($sourceDirectory.FullName, $Destination), $node)
+                    $destinationDirectory = $destinationFile.Directory
+                    if (!$destinationDirectory.Exists) {
+                        New-Item -ItemType Directory -Path $destinationDirectory.FullName -Force | Out-Null
                     }
+                    Copy-Item -Path $sourcefile.Path -Destination $destinationFile.Path -Force:$Overwrite.IsPresent
+                    Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ",$sourcefile.Path," -Destination ", $destinationFile.Path -ForegroundColor DarkGray,Gray,DarkGray,Gray
                 }
-                else {
-                    $destinationFile = [FileObject]::new(([string]::IsNullOrEmpty($Destination) ? $file.Path : $Destination), $node)
-                    Copy-Item -Path $file.Path -Destination $destinationFile.Path -Force:$Overwrite.IsPresent
-                    Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ",$file.Path," -Destination ", $destinationFile.Path -ForegroundColor DarkGray,Gray,DarkGray,Gray
-                }
-                
             }
 
+        }
+
+    }
+
+}
+
+function global:Move-Files {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Path,
+        [Parameter(Mandatory=$false,Position=1)][string]$Destination,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+        [switch]$Overwrite,
+        [switch]$Quiet,
+        [switch]$Recurse
+    )
+
+    if ($ComputerName -eq $env:COMPUTERNAME -and $Path -eq $Destination) {
+        throw "`$Path and `$Destination cannot point to the same location when `$ComputerName is the local machine"
+    }
+    if ($Path -eq $Destination) { $Destination = $null }
+
+    $params = @{}
+    if ($Filter) {$params += @{Filter = $Filter}}
+    if ($Recurse) {$params += @{Recurse = $true}}
+
+    $files = Get-Files $Path @params
+    $moveDirectoryandContents = $files.count -eq 1 -and $files[0].IsDirectory()
+
+    if ($moveDirectoryandContents) {
+        $directory = $files[0]
+        $destinationDirectory = [DirectoryObject]::new(([string]::IsNullOrEmpty($Destination) ? $directory.Path : $Destination), $ComputerName)
+        if (!$destinationDirectory.Exists) {
+            New-Item -ItemType Directory $destinationDirectory.Path -ErrorAction SilentlyContinue
+        }
+        Move-Item -Path $directory.Path -Destination $destinationDirectory.Path -Force:$Overwrite.IsPresent
+        Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Move-Item -Path ",$directory.Path," -Destination ", $destinationDirectory.Path -ForegroundColor DarkGray,Gray,DarkGray,Gray
+    }
+    else {
+        foreach ($file in $files) {
+            if ($file.IsDirectory()) {
+                $directory = [DirectoryObject]::new($file.Path,$ComputerName)
+                if (!$directory.Exists) {
+                    $directory.DirectoryInfo.Create()
+                }
+            }
+            else {
+                $destinationFile = [FileObject]::new(([string]::IsNullOrEmpty($Destination) ? $file.Path : $Destination), $ComputerName)
+                Move-Item -Path $file.Path -Destination $destinationFile.Path -Force:$Overwrite.IsPresent
+                Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Move-Item -Path ",$file.Path," -Destination ", $destinationFile.Path -ForegroundColor DarkGray,Gray,DarkGray,Gray
+            }
         }
     }
 
@@ -184,20 +249,20 @@ function global:Copy-Files {
 
 function global:Edit-Files {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$true,Position=0)][string]$Path,
-    [Parameter(Mandatory=$true,Position=1)][string]$Find,
-    [Parameter(Mandatory=$true,Position=2)][string]$Replace,
-    [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME
-)
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,Position=0)][string]$Path,
+        [Parameter(Mandatory=$true,Position=1)][string]$Find,
+        [Parameter(Mandatory=$true,Position=2)][string]$Replace,
+        [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME
+    )
 
-if (Select-String -Path $Path -Pattern $Find) {
-    Select-String -Path $Path -Pattern $Find
-    (Get-Content -Path $Path) -replace $Find,$Replace | Set-Content -Path $Path
-}
+    if (Select-String -Path $Path -Pattern $Find) {
+        Select-String -Path $Path -Pattern $Find
+        (Get-Content -Path $Path) -replace $Find,$Replace | Set-Content -Path $Path
+    }
 
-return 
+    return 
 
 }
 

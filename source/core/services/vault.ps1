@@ -8,8 +8,8 @@ function global:New-Vault {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     ) 
 
-    $_vault = Get-Vault -Vault $Vault -ComputerName $ComputerName 
-    $_vault.New()
+    @{} | Write-Vault -Vault $Vault -ComputerName $ComputerName
+    @{} | Write-Vault -Vault "$($Vault)Keys" -ComputerName $ComputerName
     
     return
 
@@ -80,9 +80,14 @@ function Read-Vault {
     if ($_vault.Exists) {
         $lock = Lock-Vault $Vault -ComputerName $ComputerName -Share "Read"
         if ($lock) {
-            $outputObject = Import-Clixml $_vault.Path
-            # $outputObject = Get-Content $_vault.Path | ConvertFrom-Json | ConvertTo-Hashtable
-            Unlock-Vault $lock
+            $outputObject = $null
+            try {
+                $outputObject = Import-Clixml $_vault.Path
+            }
+            catch {}
+            finally {
+                Unlock-Vault $lock
+            }
             return $outputObject
         }
         else {
@@ -233,7 +238,7 @@ function global:New-VaultItem {
         [Parameter(Mandatory=$false)][ValidateSet("Login","SSH Key","Database")][string]$Category = "Login",
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$false)][string]$Title,
+        [Parameter(Mandatory=$false)][Alias("Name")][string]$Title,
         [Parameter(Mandatory=$false)][string]$Tags,
         [Parameter(Mandatory=$false)][string]$Url,
         [Parameter(Mandatory=$false)][string]$Notes,
@@ -349,7 +354,7 @@ function global:Update-VaultItem {
         [Parameter(Mandatory=$false)][ValidateSet("Login","SSH Key","Database")][string]$Category = "Login",
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$false)][string]$Title,
+        [Parameter(Mandatory=$false)][Alias("Name")][string]$Title,
         [Parameter(Mandatory=$false)][string]$Tags,
         [Parameter(Mandatory=$false)][string]$Url,
         [Parameter(Mandatory=$false)][string]$Notes,
@@ -443,12 +448,25 @@ function global:Update-VaultItem {
 }
 Set-Alias -Name Edit-VaultItem -Value Update-VaultItem -Scope Global
 
+function global:Get-VaultItems {
+
+    param (
+        [Parameter(Mandatory=$false)][string]$Categories,
+        [Parameter(Mandatory=$false)][string]$Tags,
+        [Parameter(Mandatory=$true,Position=0)][String]$Vault,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
+    )
+
+    return Read-Vault -Vault $Vault -ComputerName $ComputerName
+
+}
+
 function global:Get-VaultItem {
 
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$true,Position=0)][Alias("Name")][string]$Id,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
@@ -488,7 +506,7 @@ function global:Remove-VaultItem {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$true,Position=0)][string]$Id,
+        [Parameter(Mandatory=$true,Position=0)][Alias("Name")][string]$Id,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     

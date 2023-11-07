@@ -104,7 +104,8 @@ $providerIds = @()
 
 #region INSTALLER UPDATE CHECK
 
-    $installUpdateRestartData = (read-cache installUpdateRestart).installUpdateRestart
+    $installUpdateRestartData = read-cache installUpdateRestart
+    $installUpdateRestart = $installUpdateRestartData.installUpdateRestart
     if ($installUpdateRestart) { $UseDefaultResponses = $true }
 
 #endregion INSTALLER UPDATE CHECK
@@ -515,7 +516,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion IMAGES
 #region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","install\data","views")
+    $requiredDirectories = @("archive","config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","install\data","views")
 
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
@@ -682,9 +683,15 @@ $global:Location.Definitions = $tempLocationDefinitions
         Write-Host+ -NoTrace -NoTimestamp "Dependencies" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "------------" -ForegroundColor DarkGray
         foreach ($dependency in $requiredDependenciesNotInstalled) {
+            $dependencyType = $dependency.Type
+            $dependencyId = $dependency.Id
             $dependentType = ($dependency.Dependent -split "\.")[0]
             $dependentId = ($dependency.Dependent -split "\.")[1]
-            Write-Host+ -NoTrace -NoTimestamp "$($dependency.Type) $($dependency.Id)","(required by $($dependentId)) $($dependentType.ToLower())" -ForegroundColor Gray,DarkGray
+            if ($dependentType -cne $dependentType.ToUpper()) { $dependentType = $dependentType.ToLower() }
+            if ($dependencyType -eq "Powershell") {
+                $dependencyId = "$($dependencyId -replace "s$") $($dependency.Object.Name)"
+            }
+            Write-Host+ -NoTrace -NoTimestamp "$($dependencyType) $($dependencyId)","(required by $dependentId $dependentType)" -ForegroundColor Gray,DarkGray
             switch ($dependency.Type) {
                 "Product" { $productIds += [array]($dependency.Id | Where-Object {$_ -notin $productIds}) }
                 "Provider" { $providerIds += [array]($dependency.Id | Where-Object {$_ -notin $providerIds}) }
@@ -1701,3 +1708,4 @@ $global:Location.Definitions = $tempLocationDefinitions
     Set-CursorVisible
 
 #endregion MAIN
+
