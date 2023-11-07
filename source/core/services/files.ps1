@@ -145,6 +145,9 @@ function global:Copy-Files {
     }
 
     if ($Path -eq $Destination) { $Destination = $null }
+    if ([string]::IsNullOrEmpty($Destination)) { 
+        $ExcludeComputerName = (Get-Files -Path $Path).ComputerName
+    }
 
     if ($ComputerName -and $ComputerName.Count -eq 1 -and [string]::IsNullOrEmpty($ExcludeComputerName)) {
         $ExcludeComputerName = $env:COMPUTERNAME
