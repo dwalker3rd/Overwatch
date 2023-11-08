@@ -89,16 +89,18 @@ do {
 
                 # read most recent SSO log
                 $ssoLogFilePath = ((Get-Files -Path "C:\ProgramData\Alteryx\Logs\alteryx-sso-*.csv" -ComputerName $node).FileInfo | Sort-Object -Property LastWriteTime | Select-Object -Last 1).FullName
-                $ssoLogContent = Import-Csv -Path $ssoLogFilePath -Encoding Unicode | Where-Object {$_.Date -gt $ssoLogTimestamp} | Sort-Object -Property Date
+                $ssoLogContent = Import-Csv -Path $ssoLogFilePath -Encoding Unicode | Where-Object {$_.Exception -match $ttlExceptionPattern -and $_.Date -gt $ssoLogTimestamp} | Sort-Object -Property Date -Descending
 
-                $isOk = $true
+                # $isOk = $true
 
                 # process log entries since last timestamp
                 if ($ssoLogContent) {
 
+                    $ssoLogEntry = $ssoLogContent[0]
+
                     # search for TTL error; if found restart gallery
-                    foreach ($ssoLogEntry in $ssoLogContent) {
-                        if ($ssoLogEntry.Exception -match $ttlExceptionPattern) { 
+                    # foreach ($ssoLogEntry in $ssoLogContent) {
+                    #     if ($ssoLogEntry.Exception -match $ttlExceptionPattern) { 
 
                             $message = "$($emptyString.PadLeft(8,"`b")) ERROR  "
                             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
@@ -122,27 +124,27 @@ do {
 
                             # re-read SSO log file to get content updates resulting from gallery restart
                             $ssoLogContent = Import-Csv -Path $ssoLogFilePath -Encoding Unicode | 
-                                Where-Object {$_.Date -gt $ssoLogContent[-1].Date} | 
+                                Where-Object {$_.Date -gt $ssoLogEntry.Date} | 
                                     Sort-Object -Property Date -Descending | 
                                         Where-Object {$_.Message -match $ssoRestartPattern}
 
-                            $isOk = $false
-                            continue
+                            # $isOk = $false
+                            # continue
 
-                        }
-                    }
+                    #     }
+                    # }
 
-                    if ($isOk) {
-                        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
-                        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen       
-                    }     
+                    # if ($isOk) {
+                        $message = "<SSO status on $node <.>48> SUCCESS"
+                        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen   
+                    # }     
 
                     # update last check timestamp for this node
                     if ($ssoLogTimestampCache.$node) {
-                        $ssoLogTimestampCache.$node = $ssoLogContent[-1].Date
+                        $ssoLogTimestampCache.$node = $ssoLogContent[0].Date
                     }
                     else {
-                        $ssoLogTimestampCache += @{$node = $ssoLogContent[-1].Date}
+                        $ssoLogTimestampCache += @{$node = $ssoLogEntry.Date}
                     }
                     $ssoLogTimestampCache | Write-Cache ssoLogTimeStamp
 
