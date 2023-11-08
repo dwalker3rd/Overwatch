@@ -11,6 +11,13 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
             [Parameter(Mandatory=$false,Position=0)][string]$Sql
         )
 
+        $prerequisiteTestResults = Test-Prerequisites -Type "Platform" -Id "TableauRMT" -PrerequisiteType Initialization -Quiet
+        $postgresqlPrerequisiteTestResult = $prerequisiteTestResults.Prerequisites | Where-Object {$_.id -eq "TableauResourceMonitoringToolPostgreSQL"}
+        if (!$postgresqlPrerequisiteTestResult.Pass) { 
+            Write-Log -Action "PrerequisiteTest" -Target "$($postgresqlPrerequisiteTestResult.Type)\$($postgresqlPrerequisiteTestResult.Id)" -EntryType Warning -Status $postgresqlPrerequisiteTestResult.Status -Force
+            throw "The $($postgresqlPrerequisiteTestResult.Id) $($postgresqlPrerequisiteTestResult.Type) is $($postgresqlPrerequisiteTestResult.Status.ToUpper())"
+        }
+
         $queryTimeout = 10
 
         $guid = [guid]::NewGuid()
@@ -39,6 +46,20 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
 #endregion DATABASE
 #region TOPOLOGY
 
+    function script:Get-RMTRole {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = $env:COMPUTERNAME
+        )
+
+        if ($ComputerName -in (pt components.controller.nodes -k)) {return "Controller"}
+        if ($ComputerName -in (pt components.agents.nodes -k)) {return "Agent"}
+
+        throw "Node `"$ComputerName`" is not part of this platform's topology."
+
+    }
+
     function global:Get-RMTController {
 
         [CmdletBinding()]
@@ -50,14 +71,19 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
         $version = Get-RMTVersion
-
+        if (!$version) {
+            if ($(Get-Cache platforminfo).Exists) {
+                $version = Read-Cache platforminfo | Where-Object {$_.Role -eq "Controller"}
+            }
+        }
+        
         $controller = [PSCustomObject]@{
             IsOK = $true
             RollupStatus = ""
             Name = [string]$global:PlatformTopologyBase.Components.Controller.Nodes.Keys
-            BuildVersion = $version.buildVersion
-            InfoVersion = $version.infoVersion
-            ProductVersion = $version.productVersion
+            BuildVersion = $version.BuildVersion
+            InfoVersion = $version.InfoVersion
+            ProductVersion = $version.ProductVersion
             Services = @()
         }
         $controller.Services = Get-PlatformServices -ComputerName $controller.Name
@@ -68,7 +94,7 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
         }
         $controller.IsOK = $controller.RollupStatus -eq "Running"
 
-        $message = "$($emptyString.PadLeft(10,"`b")) SUCCESS"
+        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen 
         $message = "/",$controller.RollupStatus.ToUpper()
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
@@ -80,88 +106,109 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
     
     function global:Get-RMTAgent {
         
-        [CmdletBinding()]
+        [CmdletBinding(DefaultParameterSetName="AllAgents")]
         param(
-            [Parameter(Mandatory=$false)][string]$EnvironmentIdentifier,
-            [Parameter(Mandatory=$false)][object]$Controller,
+            [Parameter(Mandatory=$false,ParameterSetName="ByEnvironment")][string]$EnvironmentIdentifier,
+            [Parameter(Mandatory=$false,ParameterSetName="ByAgent")][string]$Agent,
+
+            [Parameter(Mandatory=$false,ParameterSetName="AllAgents")]
+            [Parameter(Mandatory=$false,ParameterSetName="ByEnvironment")]
+            [Parameter(Mandatory=$false,ParameterSetName="ByAgent")]
             [switch]$Quiet
         )
 
-        if (!$Controller) {$Controller = Get-RMTController -Quiet}
-
         $message = "<Tableau RMT Agents <.>48> PENDING"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-        if (!$Controller.IsOK) {
-            $message = "$($emptyString.PadLeft(10,"`b")) FAILURE"
-            Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
-            return
-        }
 
         $sql = "select public.agent.*,public.serverenvironment.\`"Identifier\`" as \`"EnvironmentIdentifier\`" from public.agent " +
                     " join public.server on public.agent.\`"ServerId\`" = public.server.\`"Id\`" " + 
                     " join public.serverenvironment on public.server.\`"ServerEnvironmentId\`" = public.serverenvironment.\`"Id\`""
         if ($EnvironmentIdentifier) {
-            $sql += " where public.serverenvironment.\`"Identifier\`" = '$EnvironmentIdentifier'"
+            $sql += " where LOWER(public.serverenvironment.\`"Identifier\`") = '$($EnvironmentIdentifier.ToLower())'"
         }
+        if ($Agent) {
+            $sql += " where LOWER(public.agent.\`"Name\`") = '$($Agent.ToLower())'"
+        }
+
+        try {
+            $agents = Query-RMTDatabase $sql
+        }
+        catch {
+            Write-Host+ -Iff (!$Quiet)
+            Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace "Unable to query the RMT database for version information" -ForegroundColor DarkYellow
+
+            $message = "<Tableau RMT Environments <.>48> FAIL"
+            Write-Host+ -Iff (!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
+
+            return
+        }       
         
-        $agents = Query-RMTDatabase $sql
-
         if (!$agents) {
-            throw "No such environment `"$EnvironmentIdentifier`"."
-        }
+            if ($EnvironmentIdentifier) {
+                throw "No environment found with the name '$($EnvironmentIdentifier)'"
+            }
+            if ($Agent) {
+                throw "No agent found with the name '$($Agent)'"
+            }
+            throw "No agents found"
+        }    
 
-        foreach ($agent in $agents) {
-            $agent.Name = $agent.Name.ToLower()
-            $agent | Add-Member -NotePropertyName "Services" -NotePropertyValue @{}
-            $agent.Services = Get-PlatformServices -ComputerName $agent.Name
-        }
-
-        $message = "$($emptyString.PadLeft(10,"`b")) SUCCESS"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen
+        foreach ($_agent in $agents) {
+            $_agent.Name = $_agent.Name.ToLower()
+            $_agent | Add-Member -NotePropertyName "Services" -NotePropertyValue @{}
+            $_agent.Services = Get-PlatformServices -ComputerName $_agent.Name
+        }            
+        
+        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen        
 
         return $agents | Sort-Object -Property Name
 
     }
     Set-Alias -Name rmtAgent -Value Get-RMTAgent -Scope Global
 
-    function global:Get-RMTEnvironments {
+    function global:Get-RMTEnvironment {
         
         [CmdletBinding()]
         param (
             [Parameter(Mandatory=$false,Position=0)][string]$EnvironmentIdentifier,
-            [Parameter(Mandatory=$false)][object]$Controller,
             [switch]$Quiet
         )
 
-        if (!$Controller) {$Controller = Get-RMTController -Quiet}
-
         $message = "<Tableau RMT Environments <.>48> PENDING"
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-        if (!$Controller.IsOK) {
-            $message = "$($emptyString.PadLeft(10,"`b")) FAILURE"
-            Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red
-            return
-        }
 
         $sql = "select * from public.serverenvironment"
         if ($EnvironmentIdentifier) {
             $sql += " where public.serverenvironment.\`"Identifier\`" = '$EnvironmentIdentifier'"
         }
-        $environ = Query-RMTDatabase $sql
 
-        if (!$environ) {
+        try {
+            $rmtEnviron = Query-RMTDatabase $sql
+        }
+        catch {
+            Write-Host+ -Iff (!$Quiet)
+            Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace "Unable to query the RMT database for version information" -ForegroundColor DarkYellow
+
+            $message = "<Tableau RMT Environments <.>48> FAIL"
+            Write-Host+ -Iff (!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
+
+            return
+        }
+
+        if (!$rmtEnviron) {
             throw "No such environment `"$EnvironmentIdentifier`"."
         }
 
-        $message = "$($emptyString.PadLeft(10,"`b")) SUCCESS"
-        Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen
+        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
+        Write-Host+ -Iff (!$Quiet)  -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen        
 
-        return $environ
+        return $rmtEnviron
 
     }
-    Set-Alias -Name rmtEnvirons -Value Get-RMTEnvironments -Scope Global
+    Set-Alias -Name rmtEnvirons -Value Get-RMTEnvironment -Scope Global
 
     function global:Get-RMTVersion {
 
@@ -181,7 +228,14 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
                 $sql = "select \`"ProductVersion\`",\`"BuildVersion\`",\`"InfoVersion\`" from public.agent where public.agent.\`"Name\`" = '$($ComputerName.ToUpper())'"
             }
         }
-        $versions = Query-RMTDatabase $sql
+
+        try {
+            $versions = Query-RMTDatabase $sql
+        }
+        catch {
+            return
+        }
+
         return [PSCustomObject]@{
             Node = $ComputerName.ToLower()
             Role = $role

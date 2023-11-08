@@ -148,6 +148,13 @@ $global:Catalog.Platform += @{ TableauRMT =
         DisplayName = "Tableau Resource Monitoring Tool"
         Description = "Overwatch services for Tableau Resource Monitoring Tool, part of Tableau Advanced Management for Tableau Server and Tableau Cloud"
         Publisher = "Walker Analytics Consulting"
+        Initialization = @{
+            Prerequisites = @(
+                @{ Type = "Service"; Service = "TableauResourceMonitoringTool" },
+                @{ Type = "Service"; Service = "TableauResourceMonitoringToolPostgreSQL" },
+                @{ Type = "Service"; Service = "TableauResourceMonitoringToolRabbitMQ" }
+            )
+        }        
         Installation = @{
             IsInstalled = @(
                 @{ Type = "Service"; Service = "TableauResourceMonitoringTool" }

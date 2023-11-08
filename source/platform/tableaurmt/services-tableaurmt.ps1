@@ -1,13 +1,13 @@
 #region TOPOLOGY
 
-function global:Get-RMTRole {
+function script:Get-RMTRole {
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = $env:COMPUTERNAME
     )
 
-    if ($ComputerName -in $global:PlatformTopologyBase.Components.Controller.Nodes.Keys) {return "Controller"}
+    if ($ComputerName -in (pt components.controller.nodes -k)) {return "Controller"}
     if ($ComputerName -in (pt components.agents.nodes -k)) {return "Agent"}
 
     throw "Node `"$ComputerName`" is not part of this platform's topology."
@@ -78,15 +78,46 @@ Set-Alias -Name ptInit -Value Initialize-PlatformTopology -Scope Global
 function global:Get-PlatformInfo {
 
     [CmdletBinding()]
-    param ()
+    param (
+        [switch][Alias("Update")]$ResetCache
+    )
 
-    $version = Get-RMTVersion
-    $global:Platform.Version = $version.ProductVersion
-    $global:Platform.Build = $version.BuildVersion
+    if (!$ResetCache) {
+        if ($(Get-Cache platforminfo).Exists) {
+            $platformInfo = Read-Cache platforminfo 
+            if ($platformInfo) {
+                $controllerInfo = $platformInfo | Where-Object {$_.Role -eq "Controller"}
+                $global:Platform.Version = $controllerInfo.Version
+                $global:Platform.Build = $controllerInfo.Build
+                $global:Platform.DisplayName = $global:Platform.Name + " " + $controllerInfo.Version
+                return
+            }
+        }
+    }
+
+    $platformInfo = @()
+
+    $prerequisiteTestResults = Test-Prerequisites -Type "Platform" -Id "TableauRMT" -PrerequisiteType Initialization -Quiet
+    $postgresqlPrerequisiteTestResult = $prerequisiteTestResults.Prerequisites | Where-Object {$_.id -eq "TableauResourceMonitoringToolPostgreSQL"}
+    if (!$postgresqlPrerequisiteTestResult.Pass) { 
+        Write-Host+ -NoTrace "The $($postgresqlPrerequisiteTestResult.Id) $($postgresqlPrerequisiteTestResult.Type) is $($postgresqlPrerequisiteTestResult.Status.ToUpper())" -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace "Unable to query the RMT database for updated platform information" -ForegroundColor DarkYellow
+        return 
+    }
+
+    $controllerInfo = Get-RMTVersion
+    $global:Platform.Version = $controllerInfo.ProductVersion
+    $global:Platform.Build = $controllerInfo.BuildVersion
     if ($global:Platform.DisplayName -notlike "*$($global:Platform.Version)*") {
         $global:Platform.DisplayName += " " + $global:Platform.Version
     }
-    
+
+    $platformInfo += $controllerInfo
+    foreach ($node in (pt components.agents.nodes -k)) {
+        $platformInfo += Get-RMTVersion $node
+    }
+    $platformInfo | Write-Cache platforminfo
+
     return
 
 }
@@ -178,7 +209,7 @@ function global:Get-RMTTableauServerStatus {
     )
 
     if ($Environment.GetType().Name -eq "String") {
-        $Environment = Get-RMTEnvironments -EnvironmentIdentifier $Environment
+        $Environment = Get-RMTEnvironment -EnvironmentIdentifier $Environment
     }
 
     $message = "<Tableau Server $($Environment.Identifier) <.>48> PENDING"
@@ -274,7 +305,7 @@ function global:Get-RMTStatus {
     
         #region Agents
 
-            $agents = Get-RMTAgent -Controller $controller -Quiet:$Quiet.IsPresent
+            $agents = Get-RMTAgent -Quiet:$Quiet.IsPresent
 
             foreach ($agent in $agents) {
 
@@ -308,7 +339,7 @@ function global:Get-RMTStatus {
         #endregion Agents
         #region Environments
 
-            $environments = Get-RMTEnvironments -Controller $controller -Quiet:$Quiet.IsPresent
+            $environments = Get-RMTEnvironment -Quiet:$Quiet.IsPresent
 
             Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +2
 
