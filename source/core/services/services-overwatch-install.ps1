@@ -273,7 +273,7 @@ function script:Copy-File {
         "`$imagesUri = [System.Uri]::new(""$($global:Location.Images)"")" | Add-Content -Path $global:InstallSettings
         "`$platformInstallLocation = ""$($global:Platform.InstallPath)""" | Add-Content -Path $global:InstallSettings
 
-        if ($_platformInstanceUri) {
+        if ($platformId -notin $unInstallablePlatforms) {
             $_platformInstanceUri = [string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : [System.Uri]::new($platformInstanceUri)
             "`$platformInstanceUri = ""$($_platformInstanceUri)""" | Add-Content -Path $global:InstallSettings
         }
