@@ -188,6 +188,7 @@ function global:Write-Host+ {
     }
 
     if ($NoIndent) {$Indent = 0}
+    if (!$global:WriteHostPlusEndOfLine) {$Indent = 0}
 
     # i don't know why, but ...
     # the extra Write-Host is necessary when using ReverseLineFeed to return to the first line
