@@ -75,12 +75,12 @@ function global:Get-Credentials {
 
     if ($LocalMachine) {
         if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine) { 
-            if ($creds.UserName -notlike ".\*" -and $creds.UserName -notlike "$($env:COMPUTERNAME)\*") {
+            if ($UserName -notlike ".\*" -and $UserName -notlike "$($env:COMPUTERNAME)\*") {
                 $UserName = ".\$UserName"
             }
         }
         if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Domain) {
-            if ($creds.UserName -notlike "$($global:Platform.Domain)\*") {
+            if ($UserName -notlike "$($global:Platform.Domain)\*") {
                 $UserName = "$($global:Platform.Domain)\$UserName"
             }
         }
