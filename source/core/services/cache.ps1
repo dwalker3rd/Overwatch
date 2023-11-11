@@ -467,14 +467,14 @@ function global:Lock-Cache {
     )
     
     if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
-        $message = "Unable to acquire lock after $($lockRetryAttempts) attempts."
+        $message = "Unable to acquire lock on cache '$cache' after $($lockRetryAttempts) attempts."
         Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error"
         return $null
     }
 
     if ($lockRetryAttempts -gt 2) {
         # this is only here b/c after this many times, something is probably wrong and we need to figure out what and why
-        $message = "Lock acquired after $($lockRetryAttempts) attempts."
+        $message = "Lock acquired on cache '$cache' after $($lockRetryAttempts) attempts."
         Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Success" -Message $message -Force
     }
 
