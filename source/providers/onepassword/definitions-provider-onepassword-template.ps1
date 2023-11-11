@@ -1,31 +1,50 @@
 #region PROVIDER DEFINITIONS
 
-    param(
-        [switch]$MinimumDefinitions
-    )
+param(
+    [switch]$MinimumDefinitions
+)
 
-    if ($MinimumDefinitions) {
-        $root = $PSScriptRoot -replace "\\definitions",""
-        Invoke-Command  -ScriptBlock { . $root\definitions.ps1 -MinimumDefinitions }
-    }
-    else {
-        . $PSScriptRoot\classes.ps1
-    }
+if ($MinimumDefinitions) {
+    $root = $PSScriptRoot -replace "\\definitions",""
+    Invoke-Command  -ScriptBlock { . $root\definitions.ps1 -MinimumDefinitions }
+}
+else {
+    . $PSScriptRoot\classes.ps1
+}
 
-    $Provider = $null
-    $Provider = $global:Catalog.Provider."OnePassword"
-    $Provider.Config = @{
-        RegexPattern = @{
-            ErrorMessage = "^\[(.*)\]\s*(\d{4}\/\d{2}\/\d{2}\s*\d{2}\:\d{2}\:\d{2})\s*(.*)$"
+$Provider = $null
+$Provider = $global:Catalog.Provider."OnePassword"
+$Provider.Config = @{
+    RegexPattern = @{
+        ErrorMessage = "^\[(.*)\]\s*(\d{4}\/\d{2}\/\d{2}\s*\d{2}\:\d{2}\:\d{2})\s*(.*)$"
+    }
+    Cache = @{
+        Vaults = @{
+            Enabled = $true
+            Name = "opVaults"
+            MaxAge = [timespan]::MaxValue
+        }
+        VaultItems = @{
+            Enabled = $true
+            Name = "opVaultItems"
+            MaxAge = New-TimeSpan -Minutes 15
         }
     }
+}
 
-    # switch to Overwatch vault service to get/set the 1Password service account token
-    . "$($global:Location.Services)\vault.ps1"
+if (!$Provider.Config.Cache.Vaults.Enabled) {
+    Clear-Cache $Provider.Config.Cache.Vaults.Name
+}
+if (!$Provider.Config.Cache.VaultItems.Enabled) {
+    Clear-Cache $Provider.Config.Cache.VaultItems.Name
+}
 
-    $env:OP_SERVICE_ACCOUNT_TOKEN = (Get-Credentials OP-SERVICE-ACCOUNT-TOKEN).GetNetworkCredential().Password
-    $env:OP_FORMAT = "json"
+# switch to Overwatch vault service to get/set the 1Password service account token
+. "$($global:Location.Services)\vault.ps1"
 
-    return $Provider
+$env:OP_SERVICE_ACCOUNT_TOKEN = (Get-Credentials OP-SERVICE-ACCOUNT-TOKEN).GetNetworkCredential().Password
+$env:OP_FORMAT = "json"
+
+return $Provider
 
 #endregion PROVIDER DEFINITION

@@ -1,4 +1,10 @@
 $script:OnePassword = Get-Provider "OnePassword"
+$script:opVaultsCacheName = $OnePassword.Config.Cache.Vaults.Name ?? "opVaults"
+$script:opVaultsCacheEnabled = $OnePassword.Config.Cache.Vaults.Enabled ?? $true
+$script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge ?? [timespan]::MaxValue
+$script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
+$script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled ?? $true
+$script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge ?? (New-TimeSpan -Minutes 15)
 
 function Write-OpError {
 
@@ -40,7 +46,7 @@ function global:New-Vault {
     ) 
 
     if ($Vault -in (Get-Vaults).name) {
-        Write-Host+ -NoTrace "The vault '$Vault' already exists" -ForegroundColor Red
+        Write-Host+ "The vault '$Vault' already exists" -ForegroundColor Red
         return
     }
 
@@ -58,12 +64,9 @@ function global:New-Vault {
     # result is a vault object
     $_vault = $result | ConvertFrom-Json
 
-    $onePasswordVaults = @{}
-    if ((Get-Cache onePasswordVaults).Exists) {
-        $onePasswordVaults = Read-Cache onePasswordVaults
+    if ($opVaultsCacheEnabled) {
+        Add-CacheItem -Name $opVaultsCacheName -Key $_vault.name -Value $_vault
     }
-    $onePasswordVaults += @{ $_vault.name = $_vault.id }
-    $onePasswordVaults | Write-Cache onePasswordVaults
     
     return $_vault
 
@@ -88,16 +91,18 @@ function global:Get-Vaults {
     # result is an array of vault objects
     $_vaults = $result | ConvertFrom-Json
 
-    $onePasswordVaults = @{}
-    if ((Get-Cache onePasswordVaults).Exists) {
-        $onePasswordVaults = Read-Cache onePasswordVaults
-    }
     foreach ($_vault in $_vaults) {
-        if (!$onePasswordVaults.$($_vault.name)) {
-            $onePasswordVaults += @{ $_vault.name = $_vault.id }
+        if ($opVaultsCacheEnabled) {
+            if (!(Get-CacheItem -Name $opVaultsCacheName -Key $_vault.name)) {
+                Add-CacheItem -Name $opVaultsCacheName -Key $_vault.name -Value $_vault
+            }
+        }
+        if ($opVaultItemsCacheEnabled) {
+            if (!(Get-CacheItem -Name $opVaultItemsCacheName -Key $_vault.name)) {
+                Add-CacheItem -Name $opVaultItemsCacheName -Key $_vault.name -Value @{}
+            }
         }
     }
-    $onePasswordVaults | Write-Cache onePasswordVaults
     
     return $_vaults
 
@@ -111,21 +116,22 @@ function global:Get-Vault {
     
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Vault
+        [Parameter(Mandatory=$true,Position=0)][Alias("Id")][string]$Vault
     )
 
-    # $vaultId defaults to $Vault even if $Vault is the vault name
-    $vaultId = $Vault
-
-    $onePasswordVaults = @{}
-    if ((Get-Cache onePasswordVaults).Exists) {
-        $onePasswordVaults = Read-Cache onePasswordVaults
-        if ($onePasswordVaults.$Vault) {
-            $vaultId = $onePasswordVaults.$Vault
+    if ($opVaultsCacheEnabled) {
+        $_vault = Get-CacheItem -Name $opVaultsCacheName -Key $Vault -MaxAge $opVaultsCacheItemsMaxAge
+        if ($_vault) {
+            return $_vault
+        }
+        else {
+            if ($opVaultItemsCacheEnabled) {
+                Remove-CacheItem -Name $opVaultItemsCacheName -Key $Vault
+            }
         }
     }
 
-    $op = "op vault get $vaultId"
+    $op = "op vault get $Vault"
     $op += " 2>&1"
 
     $result = Invoke-Expression $op
@@ -139,11 +145,13 @@ function global:Get-Vault {
     # result is a vault object
     $_vault = $result | ConvertFrom-Json
 
-    if (!$onePasswordVaults.$($_vault.name)) {
-        $onePasswordVaults += @{ $_vault.name = $_vault.id }
-        $onePasswordVaults | Write-Cache onePasswordVaults
+    if ($opVaultsCacheEnabled) {
+        Add-CacheItem -Name $opVaultsCacheName -Key $_vault.name -Value $_vault
     }
-    
+    if ($opVaultItemsCacheEnabled) {
+        Add-CacheItem -Name $opVaultItemsCacheName -Key $_vault.name -Value @{}
+    }
+
     return $_vault
 
 }
@@ -170,13 +178,11 @@ function global:Remove-Vault {
         return
     }
 
-    $onePasswordVaults = @{}
-    if ((Get-Cache onePasswordVaults).Exists) {
-        $onePasswordVaults = Read-Cache onePasswordVaults
-        if ($onePasswordVaults.$($_vault.name)) {
-            $onePasswordVaults.Remove($_vault.name)
-            $onePasswordVaults | Write-Cache onePasswordVaults
-        }
+    if ($opVaultsCacheEnabled) {
+        Remove-CacheItem -Name $opVaultsCacheName -Key $_vault.name -ErrorAction SilentlyContinue
+    }
+    if ($opVaultItemsCacheEnabled) {
+        Remove-CacheItem -Name $opVaultItemsCacheName -Key $_vault.name -ErrorAction SilentlyContinue 
     }
     
     return
@@ -366,8 +372,16 @@ function global:New-VaultItem {
 
     $_vault = Get-Vault -Vault $Vault
     if (!$_vault) {
-        Write-host+ -NoTrace "'$($Vault)' isn't a vault in this account. Specify the vault with its ID or name." -ForegroundColor Red
+        Write-Host+ "ERROR: '$($Vault)' isn't a vault in this account. Specify the vault with its ID or name." -ForegroundColor Red
         return
+    }
+
+    $_item = Get-VaultItem -Id $Id -Vault $($_vault.id)
+    if ($_item) { 
+        if ($ErrorActionPreference -ne "SilentlyContinue") {
+            Write-Host+ "ERROR: Unable to ADD vault item $($Title) in vault $($_vault.name) because it already exists" -ForegroundColor DarkRed
+        }
+        return $_item
     }
 
     $op = "op item create --category $Category --title $Title --vault $($_vault.id)"
@@ -437,14 +451,11 @@ function global:New-VaultItem {
 
     # result is an item object
     $_item = $result | ConvertFrom-Json
+    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText
+    $_item.timestamp = Get-Date -AsUTC
 
-    $onePasswordItems = @{}
-    if ((Get-Cache onePasswordItems).Exists) {
-        $onePasswordItems = Read-Cache onePasswordItems
-        if (!$onePasswordItems.$($_item.title)) {
-            $onePasswordItems += @{ $_item.title = $_item.id }
-            $onePasswordItems | Write-Cache onePasswordItems
-        }        
+    if ($opVaultItemsCacheEnabled) {
+        Add-CacheItem -Name $opVaultItemsCacheName -Key $($_vault.name).$($_item.title) -Value $_item -Overwrite
     }
 
     return $_item
@@ -501,7 +512,12 @@ function global:Update-VaultItem {
     }
 
     $_item = Get-VaultItem -Id $Id -Vault $($_vault.id)
-    if (!$_item) { return }
+    if (!$_item) {
+        if ($ErrorActionPreference -ne "SilentlyContinue") {
+            Write-Host+ "ERROR: Unable to UPDATE vault item $($Id) in vault $($_vault.name) because it does not exist" -ForegroundColor DarkRed
+        }
+        return
+    }
 
     if ($_item.Category -ne $Category) {
         Write-Host+ "Unable to update item '$Id' from category '$($_item.Category)' to $Category" -ForegroundColor Red
@@ -551,7 +567,16 @@ function global:Update-VaultItem {
         return
     }
     
-    return $result | ConvertFrom-Json
+    # result is an item object
+    $_item = $result | ConvertFrom-Json
+    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText
+    $_item.timestamp = Get-Date -AsUTC
+
+    if ($opVaultItemsCacheEnabled) {
+        Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_item.title)" -Value $_item
+    }
+
+    return $_item
 
 }
 Set-Alias -Name Edit-VaultItem -Value Update-VaultItem -Scope Global
@@ -603,6 +628,7 @@ function global:Get-VaultItems {
             name = $_item.title
             title = $_item.title
             category = $_item.category
+            timestamp = Get-Date -AsUTC
         }
         foreach ($field in $_item.fields) {
             if (![string]::IsNullOrEmpty($field.value)) {
@@ -621,19 +647,20 @@ function global:Get-VaultItems {
                 $_customItem += @{ $_key = $_value }
             }
         }
-        $_customItems += $_customItem
+        $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText
+        $_customItems += $_customItem | ConvertTo-PSCustomObject
     }
 
-    $onePasswordItems = @{}
-    if ((Get-Cache onePasswordItems).Exists) {
-        $onePasswordItems = Read-Cache onePasswordItems
-    }
     foreach ($_customItem in $_customItems) {
-        if (!$onePasswordItems.$($_customItem.name)) {
-            $onePasswordItems += @{ $_customItem.name = $_customItem.id }
+        if ($opVaultItemsCacheEnabled) {
+            if (!(Get-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)")) {
+                Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
+            }
+            else {
+                Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
+            }
         }
     }
-    $onePasswordItems | Write-Cache onePasswordItems
 
     return $_customItems
 
@@ -657,12 +684,11 @@ function global:Get-VaultItem {
 
     $itemId = $Id
 
-    $onePasswordItems = @{}
-    if ((Get-Cache onePasswordItems).Exists) {
-        $onePasswordItems = Read-Cache onePasswordItems
-        if ($onePasswordItems.$Id) {
-            $itemId = $onePasswordItems.$Id
-        }        
+    if ($opVaultItemsCacheEnabled) {
+        $cacheItem = Get-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($itemId)" -MaxAge $opVaultItemsCacheItemsMaxAge
+        if ($cacheItem) {
+            return $cacheItem
+        }
     }
 
     $op = "op item get $itemId --vault $($_vault.id)"
@@ -685,6 +711,7 @@ function global:Get-VaultItem {
         name = $_item.title
         title = $_item.title
         category = $_item.category
+        timestamp = Get-Date -AsUTC
     }
     foreach ($field in $_item.fields) {
         if (![string]::IsNullOrEmpty($field.value)) {
@@ -703,11 +730,10 @@ function global:Get-VaultItem {
             $_customItem += @{ $_key = $_value }
         }
     }
-    $_customItem = $_customItem
+    $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText
 
-    if (!$onePasswordItems.$($_customItem.name)) {
-        $onePasswordItems += @{ $_customItem.name = $_customItem.id }
-        $onePasswordItems | Write-Cache onePasswordItems
+    if ($opVaultItemsCacheEnabled) {
+        Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
     }
 
     return $_customItem
@@ -743,13 +769,8 @@ function global:Remove-VaultItem {
         return
     }
 
-    $onePasswordItems = @{}
-    if ((Get-Cache onePasswordItems).Exists) {
-        $onePasswordItems = Read-Cache onePasswordItems
-        if ($onePasswordItems.$($_item.name)) {
-            $onePasswordItems.Remove($_item.name)
-            $onePasswordItems | Write-Cache onePasswordItems
-        }
+    if ($opVaultItemsCacheEnabled) {
+        Remove-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)"
     }
     
     return
