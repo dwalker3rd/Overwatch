@@ -52,10 +52,12 @@ if (!$Provider.Config.Cache.VaultItems.Enabled) {
 $env:OP_SERVICE_ACCOUNT_TOKEN = (Get-Credentials $Provider.Config.ServiceAccount.Name).GetNetworkCredential().Password
 $env:OP_FORMAT = "json"
 
-$Provider.Config.Cache.EncryptionKey.Value = [byte[]]((Get-Credentials $Provider.Config.Cache.EncryptionKey.Name).GetNetworkCredential().Password -split "\s")
+if (Get-Credentials $Provider.Config.Cache.EncryptionKey.Name) {
+    $Provider.Config.Cache.EncryptionKey.Value = [byte[]]((Get-Credentials $Provider.Config.Cache.EncryptionKey.Name).GetNetworkCredential().Password -split "\s")
+}
 if (!$Provider.Config.Cache.EncryptionKey.Value) {
     # create new encryption key
-    Set-Credentials -Id $opVaultItemsCacheEncryptionKeyName -UserName "OnePassword" -Password ([string](New-EncryptionKey))
+    Set-Credentials -Id $Provider.Config.Cache.EncryptionKey.Name -UserName "OnePassword" -Password ([string](New-EncryptionKey))
     # assign encryption key to provider config
     $Provider.Config.Cache.EncryptionKey.Value = [byte[]]((Get-Credentials $Provider.Config.Cache.EncryptionKey.Name).GetNetworkCredential().Password -split "\s")
     # since the encryption key has changed, clear the caches
