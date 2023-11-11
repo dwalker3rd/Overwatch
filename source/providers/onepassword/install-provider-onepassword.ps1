@@ -3,8 +3,15 @@ param (
 )
 
 $_providerId = "OnePassword"
-# $_provider = Get-Provider -Id $_providerId
-# $_provider | Out-Null
+$script:OnePassword = Get-Provider $_providerId
+$script:opVaultsCacheName = $OnePassword.Config.Cache.Vaults.Name ?? "opVaults"
+$script:opVaultsCacheEnabled = $OnePassword.Config.Cache.Vaults.Enabled ?? $true
+$script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge ?? [timespan]::MaxValue
+$script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
+$script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled ?? $true
+$script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge ?? (New-TimeSpan -Minutes 15)
+$script:opVaultItemsCacheEncryptionKeyName = $OnePassword.Config.Cache.EncryptionKey.Name
+$script:opVaultItemsCacheServiceAccountName = $OnePassword.Config.Cache.ServiceAccount.Name
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
@@ -17,9 +24,8 @@ $_providerId = "OnePassword"
     # switch to Overwatch vault service to get/set the 1Password service account token
     . "$($global:Location.Services)\vault.ps1"
 
-    $opServiceAccountTokenId = "op-service-account-token"
     $opServiceAccountToken = $null
-    $opServiceAccountCredentials = Get-Credentials $opServiceAccountTokenId
+    $opServiceAccountCredentials = Get-Credentials $opVaultItemsCacheServiceAccountName
     if ($opServiceAccountCredentials) { $opServiceAccountToken = $opServiceAccountCredentials.GetNetworkCredential().Password }
     # if (!$opServiceAccountCredentials) { $migrateToOnePassword = $true }
     $opServiceAccountTokenMasked = $opServiceAccountToken -match "^(.{8}).*(.{4})$" ? $matches[1] + "..." + $matches[2] : $null
@@ -42,14 +48,15 @@ $_providerId = "OnePassword"
     # this seems redundant given that the credentials are set below, but ...
     # it is needed for when the migration script calls Get-Provider which loads providers w/their definition files
     # and the definition file for this provider sets the 1password service token
-    Set-Credentials -Id $opServiceAccountTokenId -Account "Overwatch" -Token $opServiceAccountToken
+    Set-Credentials -Id $opVaultItemsCacheServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
+    Set-Credentials -Id $opVaultItemsCacheEncryptionKeyName -UserName "OnePassword" -Password ([string](New-EncryptionKey))
 
     $owVaults = (Get-Vaults).FileNameWithoutExtension | Where-Object {$_ -notlike "*Keys"}
 
     New-Item -ItemType Directory "$($global:Location.Archive)\vault" -ErrorAction SilentlyContinue
 
-    Clear-Cache -Name onePasswordVaults
-    Clear-Cache -Name onePasswordItems
+    Clear-Cache -Name $opVaultsCacheName
+    Clear-Cache -Name $opVaultItemsCacheName
 
     # switch back to 1Password provider
     . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
@@ -78,7 +85,7 @@ $_providerId = "OnePassword"
 
         $opVaultItems = Get-VaultItems -Vault $owVault
 
-        foreach ($key in $owVaultItems.Keys | Where-Object {$_ -ne $opServiceAccountTokenId}) {
+        foreach ($key in $owVaultItems.Keys | Where-Object {$_ -ne $opVaultItemsCacheServiceAccountName}) {
             $owVaultItem = $owVaultItems.$key
             $encryptionKey = $owEncryptionKeys.$key
             switch ($owVaultItem.Category) {
@@ -114,7 +121,8 @@ $_providerId = "OnePassword"
     # switch to Overwatch vault service to get/set the 1Password service account token
     . "$($global:Location.Services)\vault.ps1"
 
-    Set-Credentials -Id $opServiceAccountTokenId -Account "Overwatch" -Token $opServiceAccountToken
+    Set-Credentials -Id $opVaultItemsCacheServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
+    Set-Credentials -Id $opVaultItemsCacheEncryptionKeyName -UserName "OnePassword" -Password ([string](New-EncryptionKey))
 
     # switch back to 1Password provider
     . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"

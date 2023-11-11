@@ -1,10 +1,12 @@
 $script:OnePassword = Get-Provider "OnePassword"
-$script:opVaultsCacheName = $OnePassword.Config.Cache.Vaults.Name ?? "opVaults"
-$script:opVaultsCacheEnabled = $OnePassword.Config.Cache.Vaults.Enabled ?? $true
-$script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge ?? [timespan]::MaxValue
-$script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
-$script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled ?? $true
-$script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge ?? (New-TimeSpan -Minutes 15)
+$script:opVaultsCacheName = $OnePassword.Config.Cache.Vaults.Name
+$script:opVaultsCacheEnabled = $OnePassword.Config.Cache.Vaults.Enabled
+$script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge
+$script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name
+$script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled
+$script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge
+$script:opVaultItemsCacheEncryptionKeyName = $OnePassword.Config.Cache.EncryptionKey.Name
+$script:opVaultItemsCacheEncryptionKeyValue = $OnePassword.Config.Cache.EncryptionKey.Value
 
 function Write-OpError {
 
@@ -453,12 +455,19 @@ function global:New-VaultItem {
 
     # result is an item object
     $_item = $result | ConvertFrom-Json
-    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText
+
+    # encrypt password with encryption key for cache
+    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+
+    # add timestamp
     $_item.timestamp = Get-Date -AsUTC
 
     if ($opVaultItemsCacheEnabled) {
         Add-CacheItem -Name $opVaultItemsCacheName -Key $($_vault.name).$($_item.title) -Value $_item -Overwrite
     }
+
+    # convert encrypted password to a securestring for return to caller
+    $_item.password = $_item.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
 
     return $_item
 
@@ -571,12 +580,19 @@ function global:Update-VaultItem {
     
     # result is an item object
     $_item = $result | ConvertFrom-Json
-    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText
+
+    # encrypt password with encryption key for cache
+    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+    
+    # add timestamp
     $_item.timestamp = Get-Date -AsUTC
 
     if ($opVaultItemsCacheEnabled) {
         Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_item.title)" -Value $_item
     }
+
+    # convert encrypted password to a securestring for return to caller
+    $_item.password = $_item.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
 
     return $_item
 
@@ -649,8 +665,13 @@ function global:Get-VaultItems {
                 $_customItem += @{ $_key = $_value }
             }
         }
-        $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText
+
+        # encrypt password with encryption key for cache
+        $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+
+        # convert to [PSCustomObject]
         $_customItems += $_customItem | ConvertTo-PSCustomObject
+
     }
 
     foreach ($_customItem in $_customItems) {
@@ -662,6 +683,10 @@ function global:Get-VaultItems {
                 Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
             }
         }
+
+        # convert encrypted password to a securestring for return to caller
+        $_customItem.password = $_customItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue     
+
     }
 
     return $_customItems
@@ -689,6 +714,8 @@ function global:Get-VaultItem {
     if ($opVaultItemsCacheEnabled) {
         $cacheItem = Get-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($itemId)" -MaxAge $opVaultItemsCacheItemsMaxAge
         if ($cacheItem) {
+            # convert encrypted password to a securestring for return to caller
+            $cacheItem.password = $cacheItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
             return $cacheItem
         }
     }
@@ -732,11 +759,16 @@ function global:Get-VaultItem {
             $_customItem += @{ $_key = $_value }
         }
     }
-    $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText
+
+    # encrypt password with encryption key for cache
+    $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
 
     if ($opVaultItemsCacheEnabled) {
         Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
     }
+
+    # convert encrypted password to a securestring for return to caller
+    $_customItem.password = $_customItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
 
     return $_customItem
 
