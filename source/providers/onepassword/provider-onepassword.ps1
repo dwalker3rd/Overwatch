@@ -126,7 +126,9 @@ function global:Get-Vault {
         }
         else {
             if ($opVaultItemsCacheEnabled) {
-                Remove-CacheItem -Name $opVaultItemsCacheName -Key $Vault
+                if (Get-CacheItem -Name $opVaultItemsCacheName -Key $Vault -MaxAge $opVaultsCacheItemsMaxAge) {
+                    Remove-CacheItem -Name $opVaultItemsCacheName -Key $Vault
+                }
             }
         }
     }
