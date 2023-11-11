@@ -151,6 +151,282 @@ function global:Clear-Cache {
     return $null
 }
 
+function Format-CacheItemKey {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$Key
+    )
+
+    $_keys = $Key -split "\."
+    $quotedKey = ""
+    foreach ($_key in $_keys) {
+        if ($_key -match "^`".*`"`$") {
+            $quotedKey += $_key
+        }
+        else {
+            if ($_key -notmatch "^[0-9a-zA-Z-_]*`$") {
+                throw "Invalid characters in subkey '$_key' of key '$Key'. Valid chars: '^[0-9a-zA-Z-_]*`$'"
+            }
+            if ($_key -match ".*-|_.*") {
+                $quotedKey += "`"$($_key)`""
+            }
+            else {
+                $quotedKey += $_key 
+            }
+        }
+        $quotedKey += ($_key -ne $_keys[-1] ? "." : "")
+    }
+
+    return $quotedKey
+
+}
+
+function global:Get-CacheItem {
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$Key,
+        [Parameter(Mandatory=$false)][timespan]$MaxAge = [timespan]::MaxValue
+    )
+
+    $quotedKey = Format-CacheItemKey -Key $Key
+
+    $cacheItem = $null
+    if ((Get-Cache $Name).Exists) {
+        $cache = Read-Cache $Name
+        $cacheItem = (Invoke-Expression "`$cache.$quotedKey.Value") ?? (Invoke-Expression "`$cache.$quotedKey")
+        if (Invoke-Expression "`$cache.$quotedKey.CacheItemTimestamp") {
+            $cacheItemTimestamp = Get-Date (Invoke-Expression "`$cache.$quotedKey.CacheItemTimestamp") -AsUTC
+        }
+        if ($cacheItem -and $CacheItemTimestamp -and $MaxAge -ne [timespan]::MaxValue) {
+            if ([datetime]::Now - $CacheItemTimestamp -gt $MaxAge) {
+                $cacheItemParentKey = ($Key -split "\.",-2)[0]
+                $cacheItemKey = ($Key -split "\.",-2)[1]
+                $expression = "`$cache.$cacheItemParentKey.Remove(`"$cacheItemKey`")"
+                Invoke-Expression $expression
+                $cache | Write-Cache $Name
+                $cacheItem = $null
+            }
+        }
+    }
+    return $cacheItem
+
+}
+
+function Invoke-CacheItemOperation {
+
+    [CmdletBinding(DefaultParameterSetName="Add")]
+    param (
+
+        [Parameter(Mandatory=$true,ParameterSetName="Add")]
+        [Parameter(Mandatory=$true,ParameterSetName="Update")]
+        [Parameter(Mandatory=$true,ParameterSetName="Remove")]
+        [string]$Name,
+
+        [Parameter(Mandatory=$true,ParameterSetName="Add")]
+        [Parameter(Mandatory=$true,ParameterSetName="Update")]
+        [Parameter(Mandatory=$true,ParameterSetName="Remove")]
+        [string]$Key,
+
+        [Parameter(Mandatory=$true,ParameterSetName="Add")]
+        [Parameter(Mandatory=$true,ParameterSetName="Update")]
+        [AllowNull()][object]$Value,
+        
+        [Parameter(Mandatory=$true,ParameterSetName="Add")]
+        [switch]$Add,
+
+        [Parameter(Mandatory=$false,ParameterSetName="Add")]
+        [switch]$Overwrite,
+        
+        [Parameter(Mandatory=$true,ParameterSetName="Update")]
+        [switch]$Update,
+        
+        [Parameter(Mandatory=$true,ParameterSetName="Remove")]
+        [switch]$Remove
+    ) 
+
+    $quotedKey = Format-CacheItemKey -Key $Key
+
+    $cache = @{}
+    if ((Get-Cache $Name).Exists) {
+        $cache = Read-Cache $Name
+    }
+
+    if ($Add -and $null -ne (Get-CacheItem -Name $Name -Key $quotedKey) -and !$Overwrite) {
+        if ($ErrorActionPreference -ne "SilentlyContinue") {
+            Write-Host+ "ERROR: Unable to ADD cache item '$($Key)' in cache '$Name' because it already exists" -ForegroundColor DarkRed
+            Write-Host+ -NoTrace "ERROR: To overwrite the cache item, add the '-Overwrite' switch" -ForegroundColor DarkRed
+        }
+        return
+    }
+
+    if ($Update -and $null -eq (Get-CacheItem -Name $Name -Key $quotedKey)) {
+        if ($ErrorActionPreference -ne "SilentlyContinue") {
+            Write-Host+ "ERROR: Unable to UPDATE cache item $($Key) in cache $Name because it does not exist" -ForegroundColor DarkRed
+        }
+        return
+    }
+
+    if ($Remove -and $null -eq (Get-CacheItem -Name $Name -Key $quotedKey)) {
+        if ($ErrorActionPreference -ne "SilentlyContinue") {
+            Write-Host+ "ERROR: Unable to REMOVE cache item $($Key) in cache $Name because it does not exist" -ForegroundColor DarkRed
+        }
+        return
+    }
+
+    # REMOVE cache item from cache
+    if ($Remove) {
+        if (Invoke-Expression "`$cache.$quotedKey") {
+            $cacheItemParentKey = ($Key -split "\.",-2)[0]
+            $cacheItemKey = ($Key -split "\.",-2)[1]
+            $expression = "`$cache.$cacheItemParentKey.Remove(`"$cacheItemKey`")"
+        }
+
+    }
+
+    # ADD/UPDATE cache item to cache
+    else {
+
+        # $Key can be dot-notation; split into individual keys
+        $_keys = $quotedKey -split "\."
+
+        $expression = ""
+        $closingBracketCount = 0
+        for ($i = 0; $i -lt $_keys.Count; $i++) {
+            # build the key for the current iteration
+            $_key = ""
+            for ($j = 0; $j -le $i; $j++) {
+                if (![string]::IsNullOrEmpty($_key)) {
+                    $_key += "."
+                }
+                $_key += $_keys[$j]
+            }
+            # if the key for this iteration doesn't exist,
+            # build the value portion of the expression
+            if (!(Invoke-Expression "`$cache.$_key")) { 
+                # if this is the first part of the assignment, then
+                # add the assignment operator if not already present
+                if ($expression -notlike "* += *") {
+                    $expression += " += "
+                }
+                # add the value for this iteration
+                $expression += "@{ $($_keys[$i]) = "
+                # count how many closing brackets will be needed later
+                $closingBracketCount++
+            }
+            # if the key for this iteration DOES exist,
+            # then add the key to the key portion of the expression
+            else {
+                $expression += ".$($_keys[$i])"
+            }
+        }
+        # prepend $cache to the expression
+        # result: "$cache = <value expression>" or "$cache.<key expression> = <value expression>"
+        $expression = "`$cache" + $expression
+
+        # otherwise, this is an ADD or UPDATE operation
+        # complete the expression
+        if ($Add -or $Update) {
+            if ($expression -notlike "* = *") {
+                $expression += " = "
+            }
+            $expression += "`$Value"
+            for ($i = 0; $i -lt $closingBracketCount; $i++) {
+                $expression += " }"
+            }
+        }
+    }
+
+    Invoke-Expression $expression
+    $cache | Write-Cache $Name
+
+}
+
+function Add-CacheItemTimestamp {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][AllowNull()][object]$Value
+    ) 
+
+    # System.Object
+    if ($Value.GetType().BaseType.Name -eq "Object") {
+        # if cacheItemTimestamp doesn't exist, add it
+        if (!$Value.CacheItemTimestamp) {
+            # object is empty/null
+            # add cacheItemTimestamp to object
+            if ($Value.Count -eq 0) {
+                $Value = @{ CacheItemTimestamp = (Get-Date -AsUTC) }
+            }
+            # object is NOT empty/null; redefine object
+            # put cloned object into value property
+            # add cacheItemTimestamp to object
+            else {
+                $Value = @{ value = $Value | Copy-Object; CacheItemTimestamp = (Get-Date -AsUTC) }
+            }
+        }
+        # if cacheItemTimestamp exists, update it
+        else {
+            $Value.CacheItemTimestamp = Get-Date -AsUTC
+        }
+    }
+    # System.ValueType and System.Array
+    elseif ($Value.GetType().BaseType.Name -in @("ValueType","Array")) {
+        $Value = @{ value = $Value; CacheItemTimestamp = (Get-Date -AsUTC) }
+    }
+    else {
+        throw "Unhandled type '$($Value.GetType().BaseType)'"
+    }
+
+    return $Value
+
+}
+
+function global:Add-CacheItem {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$Key,
+        [Parameter(Mandatory=$true)][AllowNull()][object]$Value,
+        [switch]$Overwrite
+    ) 
+
+    $Value = Add-CacheItemTimestamp -Value $Value
+    Invoke-CacheItemOperation -Name $Name -Key $Key -Value $Value -Add -Overwrite:$Overwrite.IsPresent
+
+}
+
+function global:Update-CacheItem {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$Key,
+        [Parameter(Mandatory=$true)][AllowNull()][object]$Value
+    ) 
+
+    $Value = Add-CacheItemTimestamp -Value $Value
+    Invoke-CacheItemOperation -Name $Name -Key $Key -Value $Value -Update
+
+}
+
+function global:Remove-CacheItem {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$Key
+    ) 
+
+    Invoke-CacheItemOperation -Name $Name -Key $Key -Remove
+
+}
+
 <# 
 .Synopsis
 Locks an Overwatch cache.
