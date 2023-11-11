@@ -6,7 +6,7 @@ function global:Connect-OdbcData {
     )
 
     if (!$ConnectionString.StartsWith("Driver={")) {
-        $ConnectionString = (Get-ConnectionString $ConnectionString).ConnectionString
+        $ConnectionString = Get-ConnectionString $ConnectionString | ConvertTo-OdbcConnectionString
     }
 
     $conn = New-Object System.Data.Odbc.OdbcConnection
@@ -98,26 +98,35 @@ function ConvertFrom-OdbcConnectionString {
     
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$ConnectionString
+        [Parameter(Mandatory=$true,Position=0,ValueFromPipeline)][string]$ConnectionString
     )
 
-    $validConnectionStringKeys = @(
-        "Driver","Server","HostName","Port","Database","Uid","Pwd","UserName","Password","Sid","Alias","SslMode"
-    )
-
-    $ht = [ordered]@{}
-    if ($ConnectionString -match "^(.*?);*$") { $ConnectionString = $Matches[1] }
-    $attributes = ($ConnectionString.Split(";")).Replace(";","")
-    foreach ($attribute in $attributes) {
-        $key = $attribute.Split("=")[0]
-        if ($key -in $validConnectionStringKeys) {
-            $value = $attribute.Split("=")[1]
-            if ($value -match "^{(.*?)}$") { $value = $Matches[1] }
-            $ht.$key = $value
+    begin {
+        $validConnectionStringKeys = @(
+            "Driver","Server","HostName","Port","Database","Uid","Pwd","UserName","Password","Sid","Alias","SslMode"
+        )
+        $ht = [ordered]@{}
+    }
+    process {
+        if ($ConnectionString -match "^(.*?);*$") { $ConnectionString = $Matches[1] }
+        $attributes = ($ConnectionString.Split(";")).Replace(";","")
+        foreach ($attribute in $attributes) {
+            $key = $attribute.Split("=")[0]
+            if ($key -in $validConnectionStringKeys) {
+                $value = $attribute.Split("=")[1]
+                if ($value -match "^{(.*?)}$") { $value = $Matches[1] }
+                if ($key -in @("Password","Pwd")) {
+                    if ($value.GetType().Name -ne "SecureString") {
+                        $value = $value | ConvertTo-SecureString -AsPlainText
+                    }
+                }
+                $ht.$key = $value
+            }
         }
     }
-
-    return $ht
+    end {
+        return $ht
+    }
 
 }
 
@@ -125,24 +134,33 @@ function ConvertTo-OdbcConnectionString {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][object]$InputObject
+        [Parameter(Mandatory=$true,Position=0,ValueFromPipeline)][object]$InputObject
     )
 
-    # $validConnectionStringKeys specifies valid keys and the order in which they are added to $connectionString
-    $validConnectionStringKeys = @(
-        "Driver","Server","HostName","Port","Database","Uid","Pwd","UserName","Password","Sid","Alias","SslMode"
-    )
-
-    $connectionString = ""
-    foreach ($key in $validConnectionStringKeys) {
-        if ($key -in $InputObject.Keys) {
-            $connectionString += switch ($key) {
-                "Driver" { "$key={$($InputObject.$key)};" }
-                default { "$key=$($InputObject.$key);" }
+    begin {
+        # $validConnectionStringKeys specifies valid keys and the order in which they are added to $connectionString
+        $validConnectionStringKeys = @(
+            "Driver","Server","HostName","Port","Database","Uid","Pwd","UserName","Password","Sid","Alias","SslMode"
+        )
+        $connectionString = ""
+    }
+    process { 
+        foreach ($key in $validConnectionStringKeys) {
+            if ($key -in $InputObject.Keys) {
+                $connectionString += switch ($key) {
+                    "Driver" { "$key={$($InputObject.$key)};" }
+                    {$_ -in @("Password","Pwd")} {
+                        if ($InputObject.$key.GetType().Name -eq "SecureString") {
+                            "$key=$($InputObject.$key | ConvertFrom-SecureString -AsPlainText);"
+                        }
+                    }
+                    default { "$key=$($InputObject.$key);" }
+                }
             }
         }
     }
-
-    return $connectionString
+    end { 
+        return $connectionString 
+    }
 
 }
