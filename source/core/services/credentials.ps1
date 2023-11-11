@@ -67,7 +67,11 @@ function global:Get-Credentials {
     if (!$item) {return}
 
     $UserName = $item.UserName
-    $Password = $item.Password | ConvertTo-SecureString -AsPlainText
+    $Password = $item.Password 
+
+    if ($Password.GetType().Name -ne "SecureString") {
+        $Password = $Password | ConvertTo-SecureString -AsPlainText
+    }
 
     if ($LocalMachine) {
         if ($global:PrincipalContextType -eq [System.DirectoryServices.AccountManagement.ContextType]::Machine) { 
