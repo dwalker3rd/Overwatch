@@ -8,26 +8,11 @@ function global:Get-User {
 
     )
 
-    $users = @()
+    $psSession = New-PSSession+ -ComputerName $ComputerName
 
-    $psSession = Use-PSSession+ -ComputerName $ComputerName
-
-    Invoke-Command -Session $psSession {
-        Get-LocalUser -Name $using:Name -ErrorAction SilentlyContinue | ForEach-Object {
-            [PSCustomObject]@{
-                ComputerName = $env:COMPUTERNAME
-                Name = $_.Name
-                Enabled = $_.Enabled
-                Description = $_.Description 
-                Groups = foreach ($group in (get-localgroup)) {
-                            if (get-localgroupmember -Member $using:Name -Group $group.Name -erroraction silentlycontinue) {
-                                $group.Name
-                            }
-                        }
-            }
-        }
+    $users = Invoke-Command -Session $psSession {
+        Get-LocalUser -Name $using:Name
     }
-
 
     return $users | Select-Object -Property $($View ? $UserView.$($View) : $UserView.Default)
 }
@@ -56,7 +41,7 @@ function global:New-User {
         $params += @{UserMayNotChangePassword = $UserMayNotChangePassword}
     }
 
-    $psSession = Use-PSSession+ -ComputerName $ComputerName
+    $psSession = New-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         New-LocalUser -Name $using:Name @using:params
@@ -88,7 +73,7 @@ function global:Set-User {
         # $params += @{UserMayNotChangePassword = $UserMayNotChangePassword}
     }
 
-    $psSession = Use-PSSession+ -ComputerName $ComputerName
+    $psSession = New-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Set-LocalUser -Name $using:Name @using:params
@@ -105,7 +90,7 @@ function global:Add-UserToGroup {
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
     )
 
-    $psSession = Use-PSSession+ -ComputerName $ComputerName
+    $psSession = New-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         foreach ($g in $using:Group) {
@@ -124,7 +109,7 @@ function global:Remove-UserFromGroup {
         [Parameter(Mandatory=$false)][string[]]$Group
     )
 
-    $psSession = Use-PSSession+ -ComputerName $ComputerName
+    $psSession = New-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         $using:Group | Foreach-Object { Remove-LocalGroupMember -Group $_ -Member $using:Name }
@@ -140,7 +125,7 @@ function global:Remove-User {
         [Parameter(Mandatory=$false)][string[]]$ComputerName=$env:COMPUTERNAME.ToLower()
     )
 
-    $psSession = Use-PSSession+ -ComputerName $ComputerName
+    $psSession = New-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
         Remove-LocalUser -Name $using:Name
