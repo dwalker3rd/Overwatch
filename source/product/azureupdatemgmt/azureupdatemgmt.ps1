@@ -32,6 +32,8 @@ $global:WriteHostPlusPreference = "Continue"
 
 $global:DisableConsoleSequences = $true
 
+Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset
+
 $global:UseCredssp = $false
 if ($Credssp) {
     $global:UseCredssp = $true
@@ -39,13 +41,6 @@ if ($Credssp) {
 
 $Command = (Get-Culture).TextInfo.ToTitleCase($Command)
 $Reason = ![string]::IsNullOrEmpty($Reason) -and $Reason -ne "None"  ? $Reason : $null
-
-$azureUpdateMgmtFlags = 
-    switch ($Command) {
-        "Stop-Platform" { [AzureUpdateMgmtFlags]::DisableMessaging }
-        "Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessagingWithDelay }
-        default { [AzureUpdateMgmtFlags]::None }
-    }
 
 $result = $null
 if ($Command) {
@@ -63,13 +58,6 @@ if ($Command) {
         $action = "Remoting to $OverwatchController using CredSSP"; $status = "Start"; $message = "$($action): $status" 
         Write-Log -Action $action -Target $Command -Status $status -Message $message
         Write-Host+ -NoTrace $message 
-
-        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::DisableMessaging)) {
-            Disable-Messaging -Duration ([timespan]::MaxValue)
-        }
-        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::DisableMessagingWithTimeout)) {
-            Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout
-        }
 
         $creds = Get-Credentials "localadmin-$($global:Platform.Instance)" -LocalMachine
 
@@ -113,13 +101,6 @@ if ($Command) {
         Write-Host+
         
         $result = Invoke-Expression -Command $commandExpression
-
-        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::ReenableMessaging)) {
-            Enable-Messaging         
-        }
-        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::ReenableMessagingWithDelay)) {
-            Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset   
-        }
 
         $action = "Execute"; $status = "Completed"; $message = "$action $($Command): $status" 
         Write-Log -Action $action -Target $Command -Status $status -Message $message
