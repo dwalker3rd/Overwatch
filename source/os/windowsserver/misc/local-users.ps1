@@ -14,7 +14,10 @@ function global:Get-User {
         Get-LocalUser -Name $using:Name
     }
 
+    Remove-PSSession+
+
     return $users | Select-Object -Property $($View ? $UserView.$($View) : $UserView.Default)
+
 }
 
 function global:New-User {
@@ -44,8 +47,11 @@ function global:New-User {
     $psSession = New-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
+        Write-Verbose "Creating new user '$using:Name' on node '$($psSession.$ComputerName)'"
         New-LocalUser -Name $using:Name @using:params
     }
+
+    Remove-PSSession+
 
 }
 
@@ -77,7 +83,10 @@ function global:Set-User {
 
     Invoke-Command -Session $psSession {
         Set-LocalUser -Name $using:Name @using:params
+        Write-Verbose "Updated properties for user '$using:Name' on node '$($psSession.$ComputerName)'"
     }
+
+    Remove-PSSession+
 
 }
 
@@ -95,8 +104,11 @@ function global:Add-UserToGroup {
     Invoke-Command -Session $psSession {
         foreach ($g in $using:Group) {
             Add-LocalGroupMember -Group $g -Member $using:Name 
+            Write-Verbose "Added user '$using:Name' to local group '$using:Group' on node '$($psSession.$ComputerName)'"
         }
     }
+
+    Remove-PSSession+
 
 }
 
@@ -113,7 +125,10 @@ function global:Remove-UserFromGroup {
 
     Invoke-Command -Session $psSession {
         $using:Group | Foreach-Object { Remove-LocalGroupMember -Group $_ -Member $using:Name }
+        Write-Verbose "Removed user '$using:Name' to local group '$using:Group' on node '$($psSession.$ComputerName)'"
     }
+
+    Remove-PSSession+
 
 }
 
@@ -129,7 +144,8 @@ function global:Remove-User {
 
     Invoke-Command -Session $psSession {
         Remove-LocalUser -Name $using:Name
+        Write-Verbose "Removed user '$using:Name' on node '$($psSession.$ComputerName)'"
     }
 
-    return
+    Remove-PSSession+
 }
