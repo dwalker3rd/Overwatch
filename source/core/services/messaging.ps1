@@ -746,7 +746,7 @@ function global:Send-MessagingStatus {
         Source = "Send-MessagingStatus"
     }
 
-    return Send-Message -Message $msg -Force
+    return Send-Message -Message $msg
 
 }
 
@@ -793,7 +793,7 @@ function global:Send-AzureUpdateMgmtMessage {
         Source = "Send-AzureUpdateMgmtMessage"
     }
 
-    return Send-Message -Message $msg -Force
+    return Send-Message -Message $msg
 
 }
 

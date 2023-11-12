@@ -16,30 +16,9 @@ param(
 [Flags()] enum AzureUpdateMgmtFlags {
     None = 0
     DisableMessaging = 1
-    ReenableMessaging = 2
-}
-
-function Test-AzureUpdateMgmt {
-    # enter any command here for testing Overwatch's AzureUpdateMgmt with Azure Automation
-}
-function Test-Stop-Platform { 
-    # test disabled messaging with stop/start runbook
-    $global:PlatformMessageType.Values | Where-Object {$_ -notin ("UserNotification","Heartbeat")} | ForEach-Object {
-        Send-TaskMessage -Id Monitor -Status Testing -MessageType $_ -Message "Testing $($_.ToLower()) message via AzureUpdateMgmt\$($MyInvocation.MyCommand)" | Out-Null
-    }
-}
-function Test-Start-Platform { 
-    # test disabled messaging with stop/start runbook
-    $global:PlatformMessageType.Values | Where-Object {$_ -notin ("UserNotification","Heartbeat")} | ForEach-Object {
-        Send-TaskMessage -Id Monitor -Status Testing -MessageType $_ -Message "Testing $($_.ToLower()) message via AzureUpdateMgmt\$($MyInvocation.MyCommand)" | Out-Null
-    }
-}
-function Test-MessagingOnIntervention {
-    #test messaging when intervention required
-    $_platformStatus = Get-PlatformStatus -CacheOnly
-    $_platformStatus.Intervention = $true 
-    $_platformStatus | Write-Cache platformstatus
-    Send-TaskMessage -Id Monitor -Status Testing -MessageType $global:PlatformMessageType.Information -Message "Testing information message via AzureUpdateMgmt\$($MyInvocation.MyCommand)" | Out-Null
+    DisableMessagingWithTimeout = 2
+    ReenableMessaging = 4
+    ReenableMessagingWithDelay = 8
 }
 
 $global:DebugPreference = "SilentlyContinue"
@@ -64,9 +43,7 @@ $Reason = ![string]::IsNullOrEmpty($Reason) -and $Reason -ne "None"  ? $Reason :
 $azureUpdateMgmtFlags = 
     switch ($Command) {
         "Stop-Platform" { [AzureUpdateMgmtFlags]::DisableMessaging }
-        "Test-Stop-Platform" { [AzureUpdateMgmtFlags]::DisableMessaging }
-        "Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessaging }
-        "Test-Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessaging }
+        "Start-Platform" { [AzureUpdateMgmtFlags]::ReenableMessagingWithDelay }
         default { [AzureUpdateMgmtFlags]::None }
     }
 
@@ -88,7 +65,10 @@ if ($Command) {
         Write-Host+ -NoTrace $message 
 
         if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::DisableMessaging)) {
-            Disable-Messaging -Duration (New-Timespan -Minutes 90) 
+            Disable-Messaging -Duration ([timespan]::MaxValue)
+        }
+        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::DisableMessagingWithTimeout)) {
+            Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout
         }
 
         $creds = Get-Credentials "localadmin-$($global:Platform.Instance)" -LocalMachine
@@ -136,6 +116,9 @@ if ($Command) {
 
         if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::ReenableMessaging)) {
             Enable-Messaging         
+        }
+        if ($azureUpdateMgmtFlags.HasFlag([AzureUpdateMgmtFlags]::ReenableMessagingWithDelay)) {
+            Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset   
         }
 
         $action = "Execute"; $status = "Completed"; $message = "$action $($Command): $status" 
