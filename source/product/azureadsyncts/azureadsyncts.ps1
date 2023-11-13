@@ -527,7 +527,7 @@ try {
     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     # context now uses UID format:  temporarily replace it with just the product id so the tableau server vizs keep working
-    $azureADSyncLog = Read-Log -Name (Get-Catalog -Uid "Product.$($Product.Id)") -Context $Product.Id,"Product.$($Product.Id)" 
+    $azureADSyncLog = Read-Log -Name (Get-Catalog -Uid "Product.$($Product.Id)").Log -Context $Product.Id,"Product.$($Product.Id)" 
     $azureADSyncLog | ForEach-Object {$_.Context = $Product.Id}
     if ($azureADSyncLog.Count -gt 0) {
         $azureADSyncLog | Export-Log "$($global:Azure.Location.Data)\AzureADSyncLog.csv"
