@@ -128,9 +128,8 @@ foreach ($tenantKey in $tenantKeys) {
     }
     catch {
 
-        $status = "Error"
-        Write-Log -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
-        Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
+        Write-Log -Exception $_.Exception
+        Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkRed
 
     }
     finally {

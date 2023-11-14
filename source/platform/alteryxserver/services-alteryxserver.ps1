@@ -8,7 +8,7 @@ function global:Get-PlatformInfo {
     )
 
     if ($(Get-Cache platforminfo).Exists -and !$ResetCache) {
-        Write-Debug "Read-Cache platforminfo"
+        Write-Host+ -IfDebug "Read-Cache platforminfo" -ForegroundColor DarkYellow
         $platformInfo = Read-Cache platforminfo # -MaxAge $(New-TimeSpan -Minutes 1)
         if ($platformInfo) {
             $global:Platform.Version = $platformInfo.Version
@@ -18,20 +18,20 @@ function global:Get-PlatformInfo {
     }
     
     try {
-        Write-Debug "Get platform info via REST API"
+        Write-Host+ -IfDebug "Get platform info via REST API" -ForegroundColor DarkYellow
         $global:Platform.Build = [regex]::Match($(Invoke-AlteryxService getversion),$global:RegexPattern.Software.Version).Groups[1].Value
         $global:Platform.Version = [regex]::Match($($global:Platform.Build),$global:RegexPattern.Software.Build).Groups[1].Value  
     }
     catch {
 
-        Write-Error -Message $_.Exception.Message
-        Write-Log -Message $_.Exception.Message -EntryType "Error" -Action Invoke-RestMethod -File $serverInfoUri -Status Failure
+        Write-Host+ $_.Exception.Message -ForegroundColor DarkRed
+        Write-Log -Action "Invoke-AlteryxService" -Target "getversion" -Exception $_.Exception
     
         $global:Platform.Version = $null
         $global:Platform.Build = $null
     }
     
-    Write-Debug "Write-Cache platforminfo"
+    Write-Host+ -IfDebug "Write-Cache platforminfo" -ForegroundColor DarkYellow
     Write-Cache platforminfo -InputObject @{Version=$global:Platform.Version;Build=$global:Platform.Build}
 
     return
@@ -57,7 +57,7 @@ function global:Get-PlatformProcess {
 
     if (!$ResetCache) {
         if ((Get-Cache platformprocesses).Exists) {
-            Write-Debug "Read-Cache platformprocesses"
+            Write-Host+ -IfDebug "Read-Cache platformprocesses" -ForegroundColor DarkYellow
             $platformProcesses = Read-Cache platformprocesses -MaxAge (New-TimeSpan -Seconds 10)
             if ($platformProcesses) {
                 return $platformProcesses | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
@@ -67,13 +67,13 @@ function global:Get-PlatformProcess {
 
     $platformTopology = Get-PlatformTopology -Online
 
-    Write-Verbose "Get processes from node[s]: RUNNING ..." 
+    Write-Host+ -IfVerbose "Get processes from node[s]: RUNNING ..."  -ForegroundColor DarkYellow
     $cimSession = New-CimSession -ComputerName $ComputerName
     $processes = Get-CimInstance -ClassName Win32_Process -CimSession $cimSession -Property * |
         Where-Object {$_.Name.Replace(".exe","") -in $PlatformProcessConfig.Name} 
     Remove-CimSession $cimSession
     
-    Write-Verbose "Get processes from node[s]: COMPLETED"
+    Write-Host+ -IfVerbose "Get processes from node[s]: COMPLETED" -ForegroundColor DarkYellow
     
     $platformProcesses = $null
     $platformProcesses += @(
@@ -351,7 +351,7 @@ function global:Get-AlteryxServerStatus {
         $controllerServiceStatus += @{IsOK = $controllerService ? $ServiceUpState -in $controllerServiceStatus.Status : $true}
         $controllerServiceNodes = $null
         foreach ($service in $controllerService) {
-            Write-Verbose  "Controller on $($service.Node) is $($service.Status)"
+            Write-Host+ -IfVerbose  "Controller on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
             $controllerServiceNodes += @{$($service.Node) = $($service.Status)}
             $serviceNodes += @{$($service.Node) = $($service.Status)}
         }
@@ -368,7 +368,7 @@ function global:Get-AlteryxServerStatus {
             $databaseServiceStatus += @{IsOK = $databaseService ? $ServiceUpState -in $databaseServiceStatus.Status : $true}
             $databaseServiceNodes = $null
             foreach ($service in $databaseService) {
-                Write-Verbose  "Database on $($service.Node) is $($service.Status)"
+                Write-Host+ -IfVerbose  "Database on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
                 $databaseServiceNodes += @{$($service.Node) = $($service.Status)}
                 $serviceNodes += @{$($service.Node) = $($service.Status)}
             }
@@ -385,7 +385,7 @@ function global:Get-AlteryxServerStatus {
         $galleryServiceStatus += @{IsOK = $galleryService ? $ServiceUpState -in $galleryServiceStatus.Status : $true}
         $galleryServiceNodes = $null
         foreach ($service in $galleryService) {
-            Write-Verbose  "Gallery on $($service.Node) is $($service.Status)"
+            Write-Host+ -IfVerbose  "Gallery on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
             $galleryServiceNodes += @{$($service.Node) = $($service.Status)}
             $serviceNodes += @{$($service.Node) = $($service.Status)}
         }
@@ -401,7 +401,7 @@ function global:Get-AlteryxServerStatus {
         $workerServiceStatus += @{IsOK = $workerService ? $ServiceUpState -in $workerServiceStatus.Status : $true}
         $workerServiceNodes = $null
         foreach ($service in $workerService) {
-            Write-Verbose  "Worker on $($service.Node) is $($service.Status)"
+            Write-Host+ -IfVerbose  "Worker on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
             $workerServiceNodes += @{$($service.Node) = $($service.Status)}
             $serviceNodes += @{$($service.Node) = $($service.Status)}
         }
@@ -413,8 +413,8 @@ function global:Get-AlteryxServerStatus {
 
     $serviceStatus = ($serviceStatus | Sort-Object -Unique).Count -eq 1 ? ($serviceStatus | Sort-Object -Unique) : "Degraded"
 
-    Write-Verbose  "IsOK = $($serviceIsOK)"
-    Write-Verbose  "Status = $($serviceStatus)"
+    Write-Host+ -IfVerbose  "IsOK = $($serviceIsOK)" -ForegroundColor DarkYellow
+    Write-Host+ -IfVerbose  "Status = $($serviceStatus)" -ForegroundColor DarkYellow
 
     $alteryxServerStatus = @{
         IsOK = $serviceIsOK
@@ -540,10 +540,10 @@ function global:Invoke-AlteryxService {
 
     $status = "Success"
     $entryType = "Information"
-    $exceptionMessage = $null
+    $_exception = $null
 
     foreach ($node in $ComputerName) {
-        Write-Verbose "$($node.ToUpper()): alteryxservice $($p0) $($p1) $($p2)"
+        Write-Host+ -IfVerbose "$($node.ToUpper()): alteryxservice $($p0) $($p1) $($p2)" -ForegroundColor DarkYellow
     }
 
     try {
@@ -563,20 +563,20 @@ function global:Invoke-AlteryxService {
     }
     catch {
         $entryType = "Error"
-        $exceptionMessage = $_.Exception.Message
-        $status = "Failure"
+        $_exception = $_.Exception
+        $status = "Error"
         $Log = $true
     }
     # finally {
     #     Remove-PSSession $psSession
     # }
 
-    if ($hasResult) {Write-Verbose "Result = $($result)"}
+    if ($hasResult) {Write-Host+ -IfVerbose "Result = $($result)"} -ForegroundColor DarkYellow
 
     $HashArguments = @{
         Action = $p2Isfile ? $("alteryxservice $($p0)".Trim()) : $("alteryxservice $($p0) $($p1)".Trim())
         EntryType = $entryType
-        Message = $exceptionMessage
+        Exception = $_exception
         Status = $status
         Target = $p2Isfile ? $p2 : $null
     }
@@ -1076,7 +1076,7 @@ function global:Backup-Platform {
         }
         catch {
             $fail = $true
-            Write-Error "$step Failed"
+            Write-Host+ "$step Failed" -ForegroundColor DarkRed
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
         }
     }
@@ -1087,38 +1087,38 @@ function global:Backup-Platform {
 
         $step = "MongoDB Backup"
 
-        Write-Verbose "$step PENDING"
+        Write-Host+ -IfVerbose "$step PENDING" -ForegroundColor DarkYellow
         Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
 
         try {
             Invoke-AlteryxService "emongodump=$backupFolder"
-            Write-Verbose "$step COMPLETED"
+            Write-Host+ -IfVerbose "$step COMPLETED" -ForegroundColor DarkYellow
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
         }
         catch {
             $fail = $true
-            Write-Error "$($_.Exception.Message)"
-            Write-Error "$step FAILED"
-            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
+            Write-Host+ $_.Exception.Message -ForegroundColor DarkRed
+            Write-Host+ "$step FAILED" -ForegroundColor DarkRed
+            Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Exception $_.Exception
         } 
 
         if (!$fail) {
 
             $step = "RuntimeSettings.xml Backup"
 
-            Write-Verbose "$step PENDING"
+            Write-Host+ -IfVerbose "$step PENDING" -ForegroundColor DarkYellow
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Pending" -Force
 
             try {
                 Copy-File $global:Location.RuntimeSettings -Destination $backupFolder -Verbose
-                Write-Verbose "$step COMPLETED"
+                Write-Host+ -IfVerbose "$step COMPLETED" -ForegroundColor DarkYellow
                 Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Status "Success" -Force
             }
             catch {
                 $fail = $true
-                Write-Error "$($_.Exception.Message)"
-                Write-Error "$step FAILED"
-                Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Message $_.Exception.Message -Force
+                Write-Host+ $_.Exception.Message -ForegroundColor DarkRed
+                Write-Host+ "$step FAILED" -ForegroundColor DarkRed
+                Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -Exception $_.Exception
             } 
 
         }
@@ -1132,7 +1132,7 @@ function global:Backup-Platform {
         }
         catch {
             $fail = $true
-            Write-Error "$step failed"
+            Write-Host+ "$step failed" -ForegroundColor DarkRed
             Write-Log -Context "Product.Backup" -Action $step.Split(" ")[1] -Target $step.Split(" ")[0] -EntryType "Error" -Status "Failure" -Force
         }
     }
@@ -1142,7 +1142,7 @@ function global:Backup-Platform {
 
     if ($fail) {
         $message = "Backup failed at $step"
-        Write-Error $message
+        Write-Host+ $message -ForegroundColor DarkRed
         Write-Log -Context "Product.Backup" -Action "Backup" -Target "Platform" -EntryType "Error" -Status "Failure" -Message $message -Force
         Send-TaskMessage -Id "Backup" -Status "Failure" -MessageType $PlatformMessageType.Alert | Out-Null
 
@@ -1584,7 +1584,7 @@ function global:Set-PlatformTopology {
         [Parameter(Mandatory=$true,Position=1)][string]$ComputerName
     )
 
-    Write-Debug "$($Command) $($ComputerName)"
+    Write-Host+ -IfDebug "$($Command) $($ComputerName)" -ForegroundColor DarkYellow
 
     # Add > add node to topology
     # Remove > remove node from topology

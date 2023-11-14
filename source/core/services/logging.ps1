@@ -764,7 +764,7 @@ function global:Merge-Log {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -IfDebug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)" -ForegroundColor DarkYellow
 
     foreach ($node in $ComputerName) {
 
@@ -836,8 +836,27 @@ function global:Write-Log {
         [Parameter(Mandatory=$false)][string]$Target,
         [Parameter(Mandatory=$false)][string]$LogLevel = "Warning",
         [Parameter(Mandatory=$false)][datetime]$TimeStamp = [datetime]::Now,
+        [Parameter(Mandatory=$false)][System.Management.Automation.RuntimeException]$Exception,
         [switch]$Force
     )
+
+    # if a RuntimeException is passed to Write-Log, 
+    # override all params with data from the RuntimeException
+    if ($Exception) {
+        if ([string]::IsNullOrEmpty($Action)) { $Action = "Log" }
+        if ([string]::IsNullOrEmpty($Target)) { $Target = "Exception" }
+        if ([string]::IsNullOrEmpty($EntryType)) { $EntryType = "Error" }
+        $Message = $Exception.Message
+        $Status = $Exception.ErrorId
+        $_data = [ordered]@{
+            ScriptName = $Exception.CommandInvocation.ScriptName
+            LineNumber = $Exception.CommandInvocation.ScriptLineNumber
+            OffsetInLine = $Exception.CommandInvocation.OffsetInLine
+            InvocationName = $Exception.CommandInvocation.InvocationName
+        } 
+        $Force = $true
+        $Data = $_data | ConvertTo-Json -Compress
+    }
 
     if (!$Force -and $LogLevels.$EntryType -gt $LogLevels.$LogLevel) { return }
 

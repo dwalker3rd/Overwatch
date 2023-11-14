@@ -11,7 +11,7 @@ function global:Register-CimInstanceEvent {
         [Parameter(Mandatory=$false)][string]$LogFilePath  = "$($global:Location.Logs)\$($global:Product.Id).log"
     )
 
-    Write-Debug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -IfDebug  "[$([datetime]::Now)] $($MyInvocation.MyCommand)" -ForegroundColor DarkYellow
 
     switch ($global:Product.Id) {
         "Watcher" { continue }

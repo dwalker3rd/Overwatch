@@ -1887,7 +1887,7 @@
                 { $node = $node.DocumentElement }
             $oHash = [ordered] @{ } # start with an ordered hashtable.
             #The order of elements is always significant regardless of what they are
-            write-verbose "calling with $($node.LocalName)"
+            Write-Host+ -IfVerbose "calling with $($node.LocalName)" -ForegroundColor DarkYellow
             if ($null -ne $node.Attributes) #if there are elements
             # record all the attributes first in the ordered hash
             {
@@ -1901,23 +1901,23 @@
             #array for each
             Group-Object -Property LocalName | Where-Object { $_.count -gt 1 } | Select-Object Name |
             ForEach-Object{
-                write-verbose "pseudo-Array $($_.Name)"
+                Write-Host+ -IfVerbose "pseudo-Array $($_.Name)" -ForegroundColor DarkYellow
                 $oHash.($_.Name) = @() <# create an empty array for each one#>
             };
             foreach ($child in $node.ChildNodes)
             {#now we look at each node in turn.
-                write-verbose "processing the '$($child.LocalName)'"
+                Write-Host+ -IfVerbose "processing the '$($child.LocalName)'" -ForegroundColor DarkYellow
                 $childName = $child.LocalName
                 if ($child -is [system.xml.xmltext])
                 # if it is simple XML text 
                 {
-                    write-verbose "simple xml $childname";
+                    Write-Host+ -IfVerbose "simple xml $childname"; -ForegroundColor DarkYellow
                     $oHash.$childname += $child.InnerText
                 }
                 # if it has a #text child we may need to cope with attributes
                 elseif ($child.FirstChild.Name -eq '#text' -and $child.ChildNodes.Count -eq 1)
                 {
-                    write-verbose "text";
+                    Write-Host+ -IfVerbose "text"; -ForegroundColor DarkYellow
                     if ($null -ne $child.Attributes) #hah, an attribute
                     {
                         <#we need to record the text with the #text label and preserve all
@@ -1939,7 +1939,7 @@
                 # if it is a data section, a block of text that isnt parsed by the parser,
                 # but is otherwise recognized as markup
                 {
-                    write-verbose "cdata section";
+                    Write-Host+ -IfVerbose "cdata section"; -ForegroundColor DarkYellow
                     $oHash.$childname = $child.'#cdata-section'
                 }
                 elseif ($child.ChildNodes.Count -gt 1 -and 

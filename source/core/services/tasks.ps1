@@ -58,7 +58,7 @@ function global:Register-PlatformTask {
 
     $task = Get-PlatformTask -TaskName $TaskName
     if ($task) {
-        Write-Error "The task ""$($TaskName)"" already exists."
+        Write-Host+ "The task ""$($TaskName)"" already exists." -ForegroundColor DarkRed
         return
     }
 

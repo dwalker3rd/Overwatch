@@ -47,7 +47,7 @@ function global:New-User {
     $psSession = New-PSSession+ -ComputerName $ComputerName
 
     Invoke-Command -Session $psSession {
-        Write-Verbose "Creating new user '$using:Name' on node '$($psSession.$ComputerName)'"
+        Write-Host+ -IfVerbose "Creating new user '$using:Name' on node '$($psSession.$ComputerName)'" -ForegroundColor DarkYellow
         New-LocalUser -Name $using:Name @using:params
     }
 
@@ -83,7 +83,7 @@ function global:Set-User {
 
     Invoke-Command -Session $psSession {
         Set-LocalUser -Name $using:Name @using:params
-        Write-Verbose "Updated properties for user '$using:Name' on node '$($psSession.$ComputerName)'"
+        Write-Host+ -IfVerbose "Updated properties for user '$using:Name' on node '$($psSession.$ComputerName)'" -ForegroundColor DarkYellow
     }
 
     Remove-PSSession+
@@ -104,7 +104,7 @@ function global:Add-UserToGroup {
     Invoke-Command -Session $psSession {
         foreach ($g in $using:Group) {
             Add-LocalGroupMember -Group $g -Member $using:Name 
-            Write-Verbose "Added user '$using:Name' to local group '$using:Group' on node '$($psSession.$ComputerName)'"
+            Write-Host+ -IfVerbose "Added user '$using:Name' to local group '$using:Group' on node '$($psSession.$ComputerName)'" -ForegroundColor DarkYellow
         }
     }
 
@@ -125,7 +125,7 @@ function global:Remove-UserFromGroup {
 
     Invoke-Command -Session $psSession {
         $using:Group | Foreach-Object { Remove-LocalGroupMember -Group $_ -Member $using:Name }
-        Write-Verbose "Removed user '$using:Name' to local group '$using:Group' on node '$($psSession.$ComputerName)'"
+        Write-Host+ -IfVerbose "Removed user '$using:Name' to local group '$using:Group' on node '$($psSession.$ComputerName)'" -ForegroundColor DarkYellow
     }
 
     Remove-PSSession+
@@ -144,7 +144,7 @@ function global:Remove-User {
 
     Invoke-Command -Session $psSession {
         Remove-LocalUser -Name $using:Name
-        Write-Verbose "Removed user '$using:Name' on node '$($psSession.$ComputerName)'"
+        Write-Host+ -IfVerbose "Removed user '$using:Name' on node '$($psSession.$ComputerName)'" -ForegroundColor DarkYellow
     }
 
     Remove-PSSession+

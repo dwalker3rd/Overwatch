@@ -546,9 +546,8 @@ try {
 }
 catch {
 
-    $status = "Error"
-    Write-Log -Action $action -Target $target -Status $status -Message $_.Exception.Message -EntryType "Error" -Force
-    Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
+    Write-Log -Exception $_.Exception
+    Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkRed
 
 }
 finally {

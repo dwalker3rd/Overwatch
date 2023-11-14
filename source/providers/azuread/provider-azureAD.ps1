@@ -934,9 +934,8 @@ function global:Export-AzureADObjects {
     }
     catch {
 
-        $status = "Error"
-        Write-Log -Action $action -Target $target -Status $status -EntryType "Error" -Message $_.Exception.Message -Force
-        Write-Host+ -NoTrace $Error -ForegroundColor DarkRed
+        Write-Log -Action $action -Target $target -Exception $_.Exception
+        Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkRed
 
     }
     finally {}
@@ -1055,8 +1054,7 @@ function global:Read-AzureADCache {
             #     Start-Sleep -Milliseconds $retryDelay.TotalMilliseconds
             # }
             catch {
-                $errorMessage = $_.Exception.Message
-                Write-Log -Action "ReadCache" -Target $cache -Status "Error" -Message $errorMessage -EntryType "Error"
+                Write-Log -Action "ReadCache" -Target $cache -Exception $_.Exception
                 throw $Error[0]
             }
         } while (!$azureADObject)

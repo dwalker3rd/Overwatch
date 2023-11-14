@@ -593,7 +593,7 @@ if ($inst = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Insta
 }
 else
 {
-    Write-Error "Cannot get the InstallProperties registry keys."
+    Write-Host+ "Cannot get the InstallProperties registry keys." -ForegroundColor DarkRed
 }
 
 if ($result)
@@ -602,7 +602,7 @@ if ($result)
 }
 else
 {
-    Write-Error "Cannot get the InstallProperties registry key for $ProgramName"
+    Write-Host+ "Cannot get the InstallProperties registry key for $ProgramName" -ForegroundColor DarkRed
 }
 }
 

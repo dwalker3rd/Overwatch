@@ -1234,8 +1234,7 @@ function global:Show-PlatformStatus {
         catch {
         
             Write-Host+ -NoTimestamp -NoTrace  " FAIL" -ForegroundColor DarkRed 
-            Write-Log -Action "Test" -Target "pg_hba.conf" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
-            # throw "$($_.Exception.Message)"
+            Write-Log -Action "Test" -Target "pg_hba.conf" -Exception
         
         }
 

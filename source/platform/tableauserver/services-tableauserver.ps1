@@ -37,7 +37,7 @@ function global:Get-PlatformStatusRollup {
         }
     }
 
-    Write-Verbose "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)"
+    Write-Host+ -IfVerbose "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)" -ForegroundColor DarkYellow
     return $PlatformStatusOK.Contains($tableauServerStatus.rollupStatus), $tableauServerStatus.rollupStatus, $issues, $tableauServerStatus
 }
 
@@ -220,7 +220,7 @@ if ([string]::IsNullOrEmpty($ComputerName)) {
 }
 
 if ($(Get-Cache platformservices).Exists -and !$ResetCache) {
-    Write-Debug "Read-Cache platformservices"
+    Write-Host+ -IfDebug "Read-Cache platformservices" -ForegroundColor DarkYellow
     $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
     if ($platformServicesCache) {
         $platformServices = $platformServicesCache
@@ -248,7 +248,7 @@ if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
     }
 }
 
-Write-Debug "Processing PlatformServices"
+Write-Host+ -IfDebug "Processing PlatformServices" -ForegroundColor DarkYellow
 if ($tableauServerStatus) {
     $platformServices = @()
         foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
@@ -274,7 +274,7 @@ if ($tableauServerStatus) {
         }
 }      
 
-Write-Debug "Write-Cache platformservices"
+Write-Host+ -IfDebug "Write-Cache platformservices" -ForegroundColor DarkYellow
 $platformServices | Write-Cache platformservices
 
 return $platformServices | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
@@ -398,7 +398,7 @@ param (
     [switch]$ResetCache
 )
 
-Write-Debug "$($MyInvocation.MyCommand) is a STUB"
+Write-Host+ -IfDebug "$($MyInvocation.MyCommand) is a STUB" -ForegroundColor DarkYellow
 return
 
 }
@@ -465,7 +465,7 @@ function global:Cleanup-Platform {
                 Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
             }
             catch {
-                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
+                Write-Log -Context "Product.Cleanup" -Action "Purge" -Target "Backup Files" -EntryType -Exception $_.Exception
                 Write-Host+ -NoTrace -NoTimestamp "$($_.Exception.Message)" -ForegroundColor Red
                 $message = "<  Backup files <.>48> FAILURE"
                 Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Red
@@ -536,9 +536,7 @@ function global:Cleanup-Platform {
             $message = "<  TSM Maintenance Cleanup <.>48> FAILURE"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Red
             
-            Write-Log -Context "Product.Cleanup" -Action "CleanupJob" -EntryType "Error" -Status "Error" -Message $_.Exception.Message
-            # $result = Send-TaskMessage -Id "Cleanup" -Status "Failure" -Message $_.Exception.Message | Out-Null
-            # $result | Out-Null
+            Write-Log -Context "Product.Cleanup" -Action "CleanupJob" -Exception $_.Exception
 
             $tsmCleanupJobSuccess = $false
 
@@ -602,7 +600,7 @@ function global:Backup-Platform {
         }
         catch {
 
-            Write-Log -EntryType "Warning" -Context "Backup" -Action "Export" -Target "Configuration" -Status "Error" -Message $_.Exception.Message
+            Write-Log -Context "Backup" -Action "Export" -Target "Configuration" -EntryType "Warning" -Exception $_.Exception
 
             $message = "$($emptyString.PadLeft(8,"`b")) FAILURE$($emptyString.PadLeft(8," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red 
@@ -630,7 +628,7 @@ function global:Backup-Platform {
         }
         catch {
 
-            Write-Log -EntryType "Error" -Action "Backup" -Status "Error" -Message $_.Exception.Message
+            Write-Log -EntryType "Error" -Action "Backup" -Exception $_.Exception
            
             $message = "$($emptyString.PadLeft(8,"`b")) FAILURE$($emptyString.PadLeft(8," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor Red 
@@ -959,7 +957,7 @@ if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
 elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
 
     Write-Log -EntryType "Error" -Context $platformJobProduct.Id -Action $platformJobProduct.Id -Target "platformJob $($platformJob.id)" -Status $platformJob.status -Message $platformJob.statusMessage
-    Write-Error "platformJob $($platformJob.id): $($platformJob.statusMessage)"
+    Write-Host+ "platformJob $($platformJob.id): $($platformJob.statusMessage)" -ForegroundColor DarkRed
     Send-TaskMessage -Id $platformJobProduct.Id -Status "Error" -Message $platformJob.statusMessage -MessageType $PlatformMessageType.Alert | Out-Null
 
     return
@@ -1374,8 +1372,7 @@ function global:Test-TsmController {
     if ($fail) {
 
         Write-Host+ -NoTimestamp -NoTrace " FAIL" -ForegroundColor DarkRed
-        Write-Log -Action "Test" -Target "TSMController" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
-        # throw "$($_.Exception.Message)"
+        Write-Log -Action "Test" -Target "TSMController" -Exception $_.Exception
 
     }
     else {
@@ -1470,8 +1467,7 @@ function global:Test-RepositoryAccess {
     catch {
     
         Write-Host+ -NoTimestamp -NoTrace  " FAIL" -ForegroundColor DarkRed 
-        Write-Log -Action "Test" -Target "pg_hba.conf.ftl" -Status "FAIL" -EntryType "Error" -Message $_.Exception.Message
-        # throw "$($_.Exception.Message)"
+        Write-Log -Action "Test" -Target "pg_hba.conf.ftl" -Exception $_.Exception
     
     }
 

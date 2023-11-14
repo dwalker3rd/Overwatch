@@ -607,7 +607,7 @@ function global:Send-SslCertificateExpiryMessage {
         [switch]$NoThrottle
     )
 
-    Write-Debug "[$([datetime]::Now)] $($MyInvocation.MyCommand)"
+    Write-Host+ -IfDebug "[$([datetime]::Now)] $($MyInvocation.MyCommand)" -ForegroundColor DarkYellow
 
     $1day = New-TimeSpan -days 1
     $7days = New-TimeSpan -days 7

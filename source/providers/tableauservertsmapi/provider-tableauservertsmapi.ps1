@@ -360,21 +360,21 @@ function global:Get-TableauServerStatus {
 
     if ((Get-Cache clusterstatus).Exists -and !$ResetCache) {
         
-        Write-Debug "$($action) $($target): Pending"
+        Write-Host+ -IfDebug "$($action) $($target): Pending" -ForegroundColor DarkYellow
 
         # need to cache for back-to-back calls, but ... MaxAge should be as short as possible
         $tableauServerStatus = Read-Cache clusterstatus -MaxAge $(New-TimeSpan -Seconds 5)
 
         if ($tableauServerStatus) {
             
-            Write-Debug "$($action) $($target): Success"
+            Write-Host+ -IfDebug "$($action) $($target): Success" -ForegroundColor DarkYellow
 
             return $tableauServerStatus
 
         }
         else {
 
-            Write-Debug "$($action) $($target): Cache empty or expired"
+            Write-Host+ -IfDebug "$($action) $($target): Cache empty or expired" -ForegroundColor DarkYellow
 
         }
     }
@@ -397,8 +397,8 @@ function global:Get-TableauServerStatus {
         catch {
 
             if ($attempt -eq $maxAttempts) {
-                Write-Log -Action $action -Target $target -EntryType "Error" -Message $_.Exception.Message -Status "Failure"
                 Write-Log -Action $action -Target $target -EntryType "Error" -Message $attemptMessage.replace("<0>", $attempt) -Status "Failure"
+                Write-Log -Action $action -Target $target -Exception $_.Exception
             }
             else {
                 Start-Sleep -Seconds $sleepSeconds
