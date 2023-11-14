@@ -710,7 +710,7 @@ function global:Get-AzureADObjects {
         Set-CursorInvisible
             
         $message = "$($Delta ? "Processing" : "Getting") $typeLowerCaseSingular updates"
-        Write-Host+ -NoTrace -NoNewLine -NoSeparator $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray -Prefix "`r"
+        Write-Host+ -NoTrace -NoNewLine -NoSeparator $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray # -Prefix "`r"
     
         $uri = $Delta ?  $deltaLink : "https://graph.microsoft.com/$($graphApiVersion)/$typeLowerCase$($Filter ? $null : "/delta")?$($queryParams.$Type.select)$($Filter ? "`&$Filter" : $null)"
 

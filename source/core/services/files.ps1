@@ -132,7 +132,7 @@ function global:Copy-Files {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][string]$Path,
-        [Parameter(Mandatory=$false,Position=1)][string]$Destination,
+        [Parameter(Mandatory=$false,Position=1)][string]$Destination = $Path,
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [Parameter(Mandatory=$false)][string[]]$ExcludeComputerName,
         [Parameter(Mandatory=$false)][string]$Filter,
@@ -141,31 +141,46 @@ function global:Copy-Files {
         [switch]$Recurse
     )
 
-    if (!$ComputerName -and $ExcludeComputerName) {
-        throw "`$ExcludeComputerName cannot be used when `$ComputerName is null."
-    }
-    if ($ComputerName -and $ComputerName.Count -eq 1 -and $ComputerName -eq $env:COMPUTERNAME -and $ExcludeComputerName) {
-        return
-    }
-    if (!$ComputerName -and $Path -eq $Destination) {
-        throw "`$Path and `$Destination cannot point to the same location when `$ComputerName is null."
-    }
-    if ($Path -eq $Destination) {
-        $Destination = $null
-    }
-    if ($ComputerName -and $ComputerName.Count -eq 1 -and [string]::IsNullOrEmpty($ExcludeComputerName)) {
-        $ExcludeComputerName = $env:COMPUTERNAME
-    }
-    if (!$ComputerName -and !$ExcludeComputerName) {
-        $ComputerName = $env:COMPUTERNAME
-    }
+    #region VALIDATION
+
+        $regexResult = [regex]::Matches($Destination, $global:RegexPattern.Windows.Unc)
+        if (![string]::IsNullOrEmpty($regexResult[0].Groups['computername'].Value)) {
+            $ComputerName = $ComputerName | Sort-Object -Unique
+        }
+        $Destination = $regexResult[0].Groups['path'].Value -replace "\$",":"
+
+        if (!$ComputerName -and $ExcludeComputerName) {
+            throw "`$ExcludeComputerName cannot be used when `$ComputerName is null"
+        }
+        if ($ComputerName -and $ComputerName.Count -eq 1 -and $ComputerName -eq $env:COMPUTERNAME -and $ExcludeComputerName) {
+            return
+        }
+        if (!$ComputerName -and $Path -eq $Destination) {
+            throw "`$Path and `$Destination cannot point to the same location when `$ComputerName is null"
+        }
+        if ($ExcludeComputerName -notcontains $env:COMPUTERNAME -and $ComputerName -contains $env:COMPUTERNAME) {
+            $ExcludeComputerName = $env:COMPUTERNAME
+            # $ComputerName.Remove($env:COMPUTERNAME)
+        }
+        if ($Path -eq $Destination) {
+            $Destination = $null
+        }
+        if ($ComputerName -and $ComputerName.Count -eq 1 -and [string]::IsNullOrEmpty($ExcludeComputerName)) {
+            $ExcludeComputerName = $env:COMPUTERNAME
+        }
+        if (!$ComputerName -and !$ExcludeComputerName) {
+            $ComputerName = $env:COMPUTERNAME
+        }
+
+
+    #endregion VALIDATION
 
     $params = @{}
     if ($Filter) {$params += @{Filter = $Filter}}
     if ($Recurse) {$params += @{Recurse = $true}}
 
-    $pathAsFileObject = [FileObject]::new($Path)
-    $sourceDirectory = $pathAsFileObject.IsDirectory() ? $pathAsFileObject : [DirectoryObject]::new($pathAsFileObject.Directory.FullName)
+    # $pathAsFileObject = [FileObject]::new($Path)
+    # $sourceDirectory = $pathAsFileObject.IsDirectory() ? $pathAsFileObject : [DirectoryObject]::new($pathAsFileObject.Directory.FullName)
     $sourcefiles = Get-Files $Path @params
     $copyDirectoryandContents = $sourcefiles.count -eq 1 -and $sourcefiles[0].IsDirectory()
 
@@ -179,13 +194,29 @@ function global:Copy-Files {
             }
             else {
                 foreach ($sourcefile in $sourcefiles) {
-                    $destinationFile = [FileObject]::new($sourceFile.Path.Replace($sourceDirectory.FullName, $Destination), $node)
+
+                    # possible states
+                    # $Destination is null or empty
+                    # $Destination is computername ($Destination modified in validation section above)
+                    # $Destination is computername[/share/[directory/[filename]]] ($Destination split in validation section above)
+                    # $Destination is share/directory path (no filename) and matches $sourceDirectory
+                    # $Destination is share/directory path (no filename) and does NOT match $sourceDirectory
+                    # $Destination is share/directory/filename and matches $sourceFile.FullName ($Destination made $null in validation section above)
+                    # $Destination is share/directory/filename and does NOT match $sourceFile.FullName
+
+                    if ([string]::IsNullOrEmpty($Destination)) {
+                        $destinationFile = [FileObject]::new($sourceFile.Path, $node)
+                    }
+                    else {
+                        $destinationFile = [FileObject]::new($Destination, $node)
+                    }
                     $destinationDirectory = $destinationFile.Directory
                     if (!$destinationDirectory.Exists) {
                         New-Item -ItemType Directory -Path $destinationDirectory.FullName -Force | Out-Null
                     }
                     Copy-Item -Path $sourcefile.Path -Destination $destinationFile.Path -Force:$Overwrite.IsPresent
                     Write-Host+ -NoTrace -NoSeparator -Iff (!$Quiet) "Copy-Item -Path ",$sourcefile.Path," -Destination ", $destinationFile.Path -ForegroundColor DarkGray,Gray,DarkGray,Gray
+                    
                 }
             }
 

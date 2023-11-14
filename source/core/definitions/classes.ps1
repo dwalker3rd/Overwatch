@@ -393,7 +393,7 @@ class FileObjectBase {
         $__share = $__drive -replace ":","$"
         $__directory = [Path]::GetDirectoryName($Path) -replace $__drive,"" -replace "^\\",""
         $__fileName = [Path]::GetFileName($Path)
-        $__uncPath = "\\$__servername\$__share\$__directory\$__fileName"
+        $__uncPath = "\\$__servername$([string]::IsNullOrEmpty($__share) ? $null : '\')$__share$([string]::IsNullOrEmpty($__directory) ? $null : '\')$__directory$([string]::IsNullOrEmpty($__filename) ? $null : '\')$__fileName"
     
         return ([Uri]($__uncPath)).IsUnc ? $__uncPath : $null
 
