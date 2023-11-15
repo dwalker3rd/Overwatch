@@ -14,8 +14,14 @@ function Write-OpError {
         [Parameter(Mandatory=$true,Position=0)][object]$ErrorRecord
     )
 
+    if ($ErrorActionPreference -eq "SilentlyContinue") { return }
+
     $errorMessageType = "Error"
     $errorMessageText = $ErrorRecord.Exception.Message
+
+    $errorMessageText = $errorMessageText -replace [Regex]::Escape(" Specify the item with its UUID, name, or domain.")
+    if ($_vault) { $errorMessageText = $errorMessageText -replace [Regex]::Escape($_vault.id),$_vault.name }
+    if ($_item) { $errorMessageText = $errorMessageText -replace [Regex]::Escape($_item.id),$_item.name }
 
     if ($errorMessageText -match $OnePassword.Config.RegexPattern.ErrorMessage) {
         $errorMessageType = (Get-Culture).TextInfo.ToTitleCase($matches[1])
@@ -327,6 +333,42 @@ function global:Get-OpCurrentUser {
 #endregion USER
 #region ITEM
 
+function New-CustomVaultItem {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false,Position=0)][object]$Item
+    ) 
+
+    $_customVaultItem = @{
+        id = $Item.Id
+        name = $Item.title
+        title = $Item.title
+        category = $Item.category
+        timestamp = Get-Date -AsUTC
+    }
+    foreach ($field in $Item.fields) {
+        if (![string]::IsNullOrEmpty($field.value)) {
+            $_key = $field.label
+            switch ($Item.category) {
+                "Database" {
+                    switch ($_key) {
+                        "Type" { $_key = "databasetype" }
+                        "Driver_Type" { $_key = "drivertype" }
+                        # "UserName" { $_key = "uid" }
+                        # "Password" { $_key = "pwd" }
+                    }
+                }
+            }
+            $_value = $field.value
+            $_customVaultItem += @{ $_key = $_value }
+        }
+    }
+
+    return $_customVaultItem
+
+}
+
 function global:New-VaultItem {
 
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
@@ -337,7 +379,7 @@ function global:New-VaultItem {
         [Parameter(Mandatory=$false)][ValidateSet("Login","SSH Key","Database")][string]$Category = "Login",
         # [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$false)][Alias("Name")][string]$Title,
+        [Parameter(Mandatory=$false)][Alias("Name","Id")][string]$Title,
         [Parameter(Mandatory=$false)][string]$Tags,
         [Parameter(Mandatory=$false)][string]$Url,
         [Parameter(Mandatory=$false)][string]$Notes,
@@ -378,14 +420,6 @@ function global:New-VaultItem {
     if (!$_vault) {
         Write-Host+ "ERROR: '$($Vault)' isn't a vault in this account. Specify the vault with its ID or name." -ForegroundColor Red
         return
-    }
-
-    $_item = Get-VaultItem -Id $Id -Vault $($_vault.id)
-    if ($_item) { 
-        if ($ErrorActionPreference -ne "SilentlyContinue") {
-            Write-Host+ "ERROR: Unable to ADD vault item $($Title) in vault $($_vault.name) because it already exists" -ForegroundColor DarkRed
-        }
-        return $_item
     }
 
     $op = "op item create --category $Category --title $Title --vault $($_vault.id)"
@@ -451,25 +485,21 @@ function global:New-VaultItem {
     if ($result.GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
-    }
+    } 
 
-    # result is an item object
-    $_item = $result | ConvertFrom-Json
-
-    # encrypt password with encryption key for cache
-    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
-
-    # add timestamp
-    $_item.timestamp = Get-Date -AsUTC
+    # create custom vault item object
+    $_customVaultItem = New-CustomVaultItem ($result | ConvertFrom-Json)
 
     if ($opVaultItemsCacheEnabled) {
-        Add-CacheItem -Name $opVaultItemsCacheName -Key $($_vault.name).$($_item.title) -Value $_item -Overwrite
+        # encrypt password with encryption key for cache
+        $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+        # add custom vault item to cache
+        Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customVaultItem.title)" -Value $_customVaultItem -Overwrite
+        # convert encrypted password to a securestring for return to caller
+        $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
     }
 
-    # convert encrypted password to a securestring for return to caller
-    $_item.password = $_item.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
-
-    return $_item
+    return $_customVaultItem
 
 }
 
@@ -522,7 +552,7 @@ function global:Update-VaultItem {
         return
     }
 
-    $_item = Get-VaultItem -Id $Id -Vault $($_vault.id)
+    $_item = Get-VaultItem -Id $Id -Vault $($_vault.name)
     if (!$_item) {
         if ($ErrorActionPreference -ne "SilentlyContinue") {
             Write-Host+ "ERROR: Unable to UPDATE vault item $($Id) in vault $($_vault.name) because it does not exist" -ForegroundColor DarkRed
@@ -578,23 +608,19 @@ function global:Update-VaultItem {
         return
     }
     
-    # result is an item object
-    $_item = $result | ConvertFrom-Json
-
-    # encrypt password with encryption key for cache
-    $_item.password = $_item.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
-    
-    # add timestamp
-    $_item.timestamp = Get-Date -AsUTC
+    # create custom vault item object
+    $_customVaultItem = New-CustomVaultItem ($result | ConvertFrom-Json)
 
     if ($opVaultItemsCacheEnabled) {
-        Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_item.title)" -Value $_item
+        # encrypt password with encryption key for cache
+        $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+        # add custom vault item to cache
+        Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customVaultItem.title)" -Value $_customVaultItem
+        # convert encrypted password to a securestring for return to caller
+        $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
     }
 
-    # convert encrypted password to a securestring for return to caller
-    $_item.password = $_item.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
-
-    return $_item
+    return $_customVaultItem
 
 }
 Set-Alias -Name Edit-VaultItem -Value Update-VaultItem -Scope Global
@@ -639,57 +665,24 @@ function global:Get-VaultItems {
 
     $_items = $result | ConvertFrom-Json
 
-    $_customItems = @()
+    $_customVaultItems = @()
     foreach ($_item in $_items) {
-        $_customItem = [ordered]@{
-            id = $_item.Id
-            name = $_item.title
-            title = $_item.title
-            category = $_item.category
-            timestamp = Get-Date -AsUTC
-        }
-        foreach ($field in $_item.fields) {
-            if (![string]::IsNullOrEmpty($field.value)) {
-                $_key = $field.label
-                switch ($_item.category) {
-                    "Database" {
-                        switch ($_key) {
-                            "Type" { $_key = "databasetype" }
-                            "Driver_Type" { $_key = "drivertype" }
-                            # "UserName" { $_key = "uid" }
-                            # "Password" { $_key = "pwd" }
-                        }
-                    }
-                }
-                $_value = $field.value
-                $_customItem += @{ $_key = $_value }
-            }
-        }
-
-        # encrypt password with encryption key for cache
-        $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
-
-        # convert to [PSCustomObject]
-        $_customItems += $_customItem | ConvertTo-PSCustomObject
-
-    }
-
-    foreach ($_customItem in $_customItems) {
+        $_customVaultItem = New-CustomVaultItem $_item
         if ($opVaultItemsCacheEnabled) {
-            if (!(Get-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)")) {
-                Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
+            # encrypt password with encryption key for cache
+            $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+            if (!(Get-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customVaultItem.name)")) {
+                Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customVaultItem.name)" -Value $_customVaultItem
             }
             else {
-                Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
+                Update-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customVaultItem.name)" -Value $_customVaultItem
             }
+            # convert encrypted password to a securestring for return to caller
+            $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue  
         }
-
-        # convert encrypted password to a securestring for return to caller
-        $_customItem.password = $_customItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue     
-
     }
 
-    return $_customItems
+    return $_customVaultItems
 
 }
 Set-Alias -Name List-VaultItems -Value Get-VaultItems -Scope Global
@@ -732,45 +725,19 @@ function global:Get-VaultItem {
         return
     }
     
-    # result is an item object
-    $_item = $result | ConvertFrom-Json
-
-    $_customItem = @{
-        id = $_item.Id
-        name = $_item.title
-        title = $_item.title
-        category = $_item.category
-        timestamp = Get-Date -AsUTC
-    }
-    foreach ($field in $_item.fields) {
-        if (![string]::IsNullOrEmpty($field.value)) {
-            $_key = $field.label
-            switch ($_item.category) {
-                "Database" {
-                    switch ($_key) {
-                        "Type" { $_key = "databasetype" }
-                        "Driver_Type" { $_key = "drivertype" }
-                        # "UserName" { $_key = "uid" }
-                        # "Password" { $_key = "pwd" }
-                    }
-                }
-            }
-            $_value = $field.value
-            $_customItem += @{ $_key = $_value }
-        }
-    }
-
-    # encrypt password with encryption key for cache
-    $_customItem.password = $_customItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+    # create custom vault item object
+    $_customVaultItem = New-CustomVaultItem ($result | ConvertFrom-Json)
 
     if ($opVaultItemsCacheEnabled) {
-        Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)" -Value $_customItem
+        # encrypt password with encryption key for cache
+        $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
+        # add custom vault item to cache
+        Add-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customVaultItem.title)" -Value $_customVaultItem -Overwrite
+        # convert encrypted password to a securestring for return to caller
+        $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
     }
 
-    # convert encrypted password to a securestring for return to caller
-    $_customItem.password = $_customItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
-
-    return $_customItem
+    return $_customVaultItem
 
 }
 
@@ -788,23 +755,24 @@ function global:Remove-VaultItem {
         return
     }
 
-    $_item = Get-VaultItem -Vault $($_vault.id) -Id $Id
-    if (!$_item) {
-        Write-Host+ "'$Id' isn't an item in the '$($_vault.name)' vault. Specify the item with its UUID, name, or domain." -ForegroundColor Red
-        return
-    }
+    $_item = Get-VaultItem -Vault $($_vault.name) -Id $Id -ErrorAction SilentlyContinue
+    if ($_item) {
 
-    $op = "op item delete $Id --vault $($_vault.id)"
-    $op += " 2>&1"
+        $op = "op item delete $Id --vault $($_vault.id)"
+        $op += " 2>&1"
 
-    $result = Invoke-Expression $op 
-    if ($result -and $result.GetType().Name -eq "ErrorRecord") {
-        Write-OpError $result
-        return
+        $result = Invoke-Expression $op 
+        if ($result -and $result.GetType().Name -eq "ErrorRecord") {
+            Write-OpError $result
+            return
+        }
+
     }
 
     if ($opVaultItemsCacheEnabled) {
-        Remove-CacheItem -Name $opVaultItemsCacheName -Key "$($_vault.name).$($_customItem.name)"
+        if (Get-CacheItem -Name $opVaultItemsCacheName -Key "$($Vault).$($Id)") {
+            Remove-CacheItem -Name $opVaultItemsCacheName -Key "$($Vault).$($Id)"
+        }
     }
     
     return
