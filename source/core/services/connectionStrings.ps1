@@ -171,7 +171,10 @@ function global:Update-ConnectionString {
     if (!$installedDrivers) {
         throw "$DriverType driver '$Driver' is not installed on $($ComputerName.ToUpper())"
     }
-    
+
+    $vaultItem.Remove("Name")
+    $vaultItem.Remove("timestamp")
+
     $ComputerNameParam = ((Get-Command Update-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
     Update-VaultItem -Id $Id @vaultItem -Vault $Vault @ComputerNameParam
 
@@ -209,8 +212,6 @@ function global:Remove-ConnectionString {
     if($PSCmdlet.ShouldProcess($Id)) {
         $ComputerNameParam = ((Get-Command Remove-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
         Remove-VaultItem -Id $Id -Vault $Vault @ComputerNameParam
-        $ComputerNameParam = ((Get-Command Remove-VaultKey).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
-        Remove-VaultKey -Id $Id -Vault $Vault @ComputerNameParam
     }
 
 }
