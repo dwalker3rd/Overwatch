@@ -39,7 +39,7 @@ function global:Set-Credentials {
 
     $Credentials = $Credentials ?? (Request-Credentials -UserName $UserName -Password $Password)
 
-    if (!(Get-Credentials -Id $Id -Vault $Vault -ComputerName $ComputerName)) {
+    if (!(Get-Credentials -Id $Id -Vault $Vault -ComputerName $ComputerName -ErrorAction SilentlyContinue)) {
         $ComputerNameParam = ((Get-Command New-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
         New-VaultItem -Category Login -Id $Id -UserName $Credentials.UserName -Password $Credentials.GetNetworkCredential().Password -Vault $Vault @ComputerNameParam
     }
@@ -105,8 +105,6 @@ function global:Remove-Credentials {
     if($PSCmdlet.ShouldProcess($Id)) {
         $ComputerNameParam = ((Get-Command Remove-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
         Remove-VaultItem -Vault $Vault -Id $Id @ComputerNameParam
-        $ComputerNameParam = ((Get-Command Remove-VaultKey).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
-        Remove-VaultKey -Id $Id -Vault $Vault @ComputerNameParam
     }
 
 }
@@ -139,7 +137,7 @@ function global:Test-Credentials {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
     
-    $Credentials = Get-Credentials -Id $Id -Vault $Vault -ComputerName $ComputerName
+    $Credentials = Get-Credentials -Id $Id -Vault $Vault -ComputerName $ComputerName -ErrorAction SilentlyContinue
     if (!$Credentials) {return $false}
 
     if ($NoValidate) {return $Credentials ? $true : $false}
