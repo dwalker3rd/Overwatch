@@ -289,17 +289,20 @@ function Invoke-CacheItemOperation {
     }
 
     # REMOVE cache item from cache
-    if ($Remove) {
+    if ($Remove -or $Update) {
+        # reformat the key to be key1.Value.key2.Value ... keyN.Value
+        $quotedKey = (($quotedKey -split "\." | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
         if (Invoke-Expression "`$cache.$quotedKey") {
             $cacheItemParentKey = ($Key -split "\.",-2)[0]
+            $cacheItemParentKey = (($cacheItemParentKey -split "\." | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
             $cacheItemKey = ($Key -split "\.",-2)[1]
             $expression = "`$cache.$cacheItemParentKey.Remove(`"$cacheItemKey`")"
+            Invoke-Expression $expression
         }
-
     }
 
     # ADD/UPDATE cache item to cache
-    else {
+    if ($Add -or $Update) {
 
         # $Key can be dot-notation; split into individual keys
         $_keys = $quotedKey -split "\."
@@ -369,9 +372,11 @@ function Invoke-CacheItemOperation {
                 $expression += " }"
             }
         }
+
+        Invoke-Expression $expression
+
     }
 
-    Invoke-Expression $expression
     $cache | Write-Cache $Name
 
 }
