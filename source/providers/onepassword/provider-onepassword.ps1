@@ -16,31 +16,35 @@ function Write-OpError {
 
     if ($ErrorActionPreference -eq "SilentlyContinue") { return }
 
-    $errorMessageType = "Error"
-    $errorMessageText = $ErrorRecord.Exception.Message
+    $ErrorRecord | ForEach-Object {
 
-    $errorMessageText = $errorMessageText -replace [Regex]::Escape(" Specify the item with its UUID, name, or domain.")
-    if ($_vault) { $errorMessageText = $errorMessageText -replace [Regex]::Escape($_vault.id),$_vault.name }
-    if ($_item) { $errorMessageText = $errorMessageText -replace [Regex]::Escape($_item.id),$_item.name }
+        $errorMessageType = "Error"
+        $errorMessageText = $_.Exception.Message
 
-    if ($errorMessageText -match $OnePassword.Config.RegexPattern.ErrorMessage) {
-        $errorMessageType = (Get-Culture).TextInfo.ToTitleCase($matches[1])
-        $errorMessageText = $matches[3].Replace('"',"'")
+        # $errorMessageText = $errorMessageText -replace [Regex]::Escape(" Specify the item with its UUID, name, or domain.")
+        if ($_vault) { $errorMessageText = $errorMessageText -replace [Regex]::Escape($_vault.id),$_vault.name }
+        if ($_item) { $errorMessageText = $errorMessageText -replace [Regex]::Escape($_item.id),$_item.name }
+
+        if ($errorMessageText -match $OnePassword.Config.RegexPattern.ErrorMessage) {
+            $errorMessageType = (Get-Culture).TextInfo.ToTitleCase($matches[1])
+            $errorMessageText = $matches[3].Replace('"',"'")
+        }
+
+        $_callStack = Get-PSCallStack
+        $_caller = $_callStack[1]
+        $_args = ([regex]::Matches($_caller.Arguments,"^\{?(.*?)\}?$").Groups[1].Value).Replace(",","`n") | ConvertFrom-StringData 
+
+        $target = ""
+        if ($_args.Vault) { $target += $_args.Vault}
+        if ($_args.Id -or $_args.User) { 
+            $target += "\"
+            $target += $_args.Id ?? $_args.User
+        }
+
+        Write-Log -Name $OnePassword.Log -EntryType Error -Action $_caller.Command -Target $target -Status $errorMessageType -Message $errorMessageText -Force
+        Write-Host+ -NoTrace $errorMessageText -ForegroundColor Red
+
     }
-
-    $_callStack = Get-PSCallStack
-    $_caller = $_callStack[1]
-    $_args = ([regex]::Matches($_caller.Arguments,"^\{?(.*?)\}?$").Groups[1].Value).Replace(",","`n") | ConvertFrom-StringData 
-
-    $target = ""
-    if ($_args.Vault) { $target += $_args.Vault}
-    if ($_args.Id -or $_args.User) { 
-        $target += "\"
-        $target += $_args.Id ?? $_args.User
-    }
-
-    Write-Log -Name $OnePassword.Log -EntryType Error -Action $_caller.Command -Target $target -Status $errorMessageType -Message $errorMessageText -Force
-    Write-Host+ -NoTrace $errorMessageText -ForegroundColor Red
 
     return
 
@@ -64,7 +68,7 @@ function global:New-Vault {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -91,7 +95,7 @@ function global:Get-Vaults {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -147,7 +151,7 @@ function global:Get-Vault {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -183,7 +187,7 @@ function global:Remove-Vault {
     $op += " 2>&1"
 
     $result = Invoke-Expression $op
-    if ($result -and $result.GetType().Name -eq "ErrorRecord") {
+    if ($result -and $result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -220,7 +224,7 @@ function global:Grant-VaultAccess {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -251,7 +255,7 @@ function global:Revoke-VaultAccess {
    $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -279,7 +283,7 @@ function global:Get-VaultUsers {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -304,7 +308,7 @@ function global:Get-OpUser {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -322,7 +326,7 @@ function global:Get-OpCurrentUser {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -482,7 +486,7 @@ function global:New-VaultItem {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     } 
@@ -513,7 +517,8 @@ function global:Update-VaultItem {
         [Parameter(Mandatory=$false)][ValidateSet("Login","SSH Key","Database")][string]$Category = "Login",
         [Parameter(Mandatory=$true,Position=0)][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$false)][Alias("Name")][string]$Title,
+        [Parameter(Mandatory=$false)][string]$Title,
+        [Parameter(Mandatory=$false)][string]$Name,
         [Parameter(Mandatory=$false)][string]$Tags,
         [Parameter(Mandatory=$false)][string]$Url,
         [Parameter(Mandatory=$false)][string]$Notes,
@@ -603,7 +608,7 @@ function global:Update-VaultItem {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -649,7 +654,7 @@ function global:Get-VaultItems {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -720,7 +725,7 @@ function global:Get-VaultItem {
     $result = Invoke-Expression $op
     if (!$result) { return }
     
-    if ($result.GetType().Name -eq "ErrorRecord") {
+    if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
         return
     }
@@ -762,7 +767,7 @@ function global:Remove-VaultItem {
         $op += " 2>&1"
 
         $result = Invoke-Expression $op 
-        if ($result -and $result.GetType().Name -eq "ErrorRecord") {
+        if ($result -and $result[0].GetType().Name -eq "ErrorRecord") {
             Write-OpError $result
             return
         }
