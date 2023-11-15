@@ -301,6 +301,9 @@ function Invoke-CacheItemOperation {
         }
     }
 
+    # reset quoted key to key1.key2 ... keyN (quoted, of course)
+    $quotedKey = Format-CacheItemKey -Key $Key
+
     # ADD/UPDATE cache item to cache
     if ($Add -or $Update) {
 
