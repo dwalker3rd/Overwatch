@@ -158,6 +158,7 @@ function Format-CacheItemKey {
         [Parameter(Mandatory=$true)][string]$Key
     )
 
+    # examine each key to see if it needs to be quoted
     $_keys = $Key -split "\."
     $quotedKey = ""
     foreach ($_key in $_keys) {
@@ -175,8 +176,9 @@ function Format-CacheItemKey {
                 $quotedKey += $_key 
             }
         }
-        $quotedKey += ($_key -ne $_keys[-1] ? "." : "")
+        $quotedKey += "."
     }
+    $quotedKey = $quotedKey -replace "\.$"
 
     return $quotedKey
 
@@ -193,12 +195,19 @@ function global:Get-CacheItem {
         [Parameter(Mandatory=$false)][timespan]$MaxAge = [timespan]::MaxValue
     )
 
+    # quote subkeys as necessary
     $quotedKey = Format-CacheItemKey -Key $Key
+
+    # the cache is structured as follows:
+    # key0 = @{ Value = @ { key1 = @{ Value = ... @{ keyN = valueObject }}}}
+    # so to ensure that $Key will work ...
+    # reformat the key to be key1.Value.key2.Value ... keyN.Value
+    $quotedKey = (($quotedKey -split "\." | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
 
     $cacheItem = $null
     if ((Get-Cache $Name).Exists) {
         $cache = Read-Cache $Name
-        $cacheItem = (Invoke-Expression "`$cache.$quotedKey.Value") ?? (Invoke-Expression "`$cache.$quotedKey")
+        $cacheItem = Invoke-Expression "`$cache.$quotedKey"
         if (Invoke-Expression "`$cache.$quotedKey.CacheItemTimestamp") {
             $cacheItemTimestamp = Get-Date (Invoke-Expression "`$cache.$quotedKey.CacheItemTimestamp") -AsUTC
         }
@@ -249,6 +258,7 @@ function Invoke-CacheItemOperation {
         [switch]$Remove
     ) 
 
+    # quote subkeys as necessary
     $quotedKey = Format-CacheItemKey -Key $Key
 
     $cache = @{}
@@ -300,28 +310,44 @@ function Invoke-CacheItemOperation {
             # build the key for the current iteration
             $_key = ""
             for ($j = 0; $j -le $i; $j++) {
+                if ($i -gt 0 -and $j -gt 0) {
+                    $_key += ".Value"
+                }
                 if (![string]::IsNullOrEmpty($_key)) {
                     $_key += "."
                 }
                 $_key += $_keys[$j]
             }
+            # bound to be a more efficient way than the above plus this
+            # but this is a quick hack to get it working
+            $objectKey = $null
+            $valueKey = $null
+            if ($i -eq 0) {
+                $objectKey = "keys"
+                $valueKey = $_key
+            }
+            else {
+                $valueKey = ($_key -split "\.")[-1]
+                $objectKey = $_key -replace [Regex]::Escape(".$valueKey")
+            }
             # if the key for this iteration doesn't exist,
             # build the value portion of the expression
-            if (!(Invoke-Expression "`$cache.$_key")) { 
+            if ((Invoke-Expression "`$cache.$($objectKey)") -notcontains $valueKey) { 
                 # if this is the first part of the assignment, then
                 # add the assignment operator if not already present
                 if ($expression -notlike "* += *") {
                     $expression += " += "
                 }
                 # add the value for this iteration
-                $expression += "@{ $($_keys[$i]) = "
+                $expression += "@{ $($_keys[$i]) = @{ Value = "
                 # count how many closing brackets will be needed later
+                $closingBracketCount++
                 $closingBracketCount++
             }
             # if the key for this iteration DOES exist,
             # then add the key to the key portion of the expression
             else {
-                $expression += ".$($_keys[$i])"
+                $expression += ".$($_keys[$i]).Value"
             }
         }
         # prepend $cache to the expression
@@ -331,6 +357,10 @@ function Invoke-CacheItemOperation {
         # otherwise, this is an ADD or UPDATE operation
         # complete the expression
         if ($Add -or $Update) {
+            if ($expression.EndsWith("{ Value = ")) {
+                $expression = $expression -replace "\@\{ Value = `$"
+                $closingBracketCount--
+            }
             if ($expression -notlike "* = *") {
                 $expression += " = "
             }
