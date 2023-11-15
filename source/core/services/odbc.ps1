@@ -147,13 +147,13 @@ function ConvertTo-OdbcConnectionString {
     process { 
         foreach ($key in $validConnectionStringKeys) {
             if ($key -in $InputObject.Keys) {
+                if ($key -in @("Password","Pwd")) {
+                    if ($InputObject.$key.GetType().Name -eq "SecureString") {
+                        $InputObject.$key = $InputObject.$key | ConvertFrom-SecureString -AsPlainText
+                    }
+                }
                 $connectionString += switch ($key) {
                     "Driver" { "$key={$($InputObject.$key)};" }
-                    {$_ -in @("Password","Pwd")} {
-                        if ($InputObject.$key.GetType().Name -eq "SecureString") {
-                            "$key=$($InputObject.$key | ConvertFrom-SecureString -AsPlainText);"
-                        }
-                    }
                     default { "$key=$($InputObject.$key);" }
                 }
             }
