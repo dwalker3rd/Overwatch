@@ -57,6 +57,12 @@ function global:New-ConnectionString {
 
     )
 
+    $vaultItem = Get-ConnectionString -Id $Id -Vault $Vault -ComputerName $ComputerName
+    if ($vaultItem) {
+        Write-Host+ "Item '$Id' already exists" -ForegroundColor Red
+        return
+    }
+
     $vaultItem = @{ 
         DatabaseType = $DatabaseType
         DriverType = $DriverType
