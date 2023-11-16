@@ -14,12 +14,25 @@ function Write-OpError {
         [Parameter(Mandatory=$true,Position=0)][object]$ErrorRecord
     )
 
+    $_callStack = Get-PSCallStack
+    $_caller = $_callStack[1]
+    $_args = ([regex]::Matches($_caller.Arguments,"^\{?(.*?)\}?$").Groups[1].Value).Replace(",","`n") | ConvertFrom-StringData 
+    
+    $target = ""
+    if ($_args.Vault) { $target += $_args.Vault}
+    if ($_args.Id -or $_args.User) { 
+        $target += "\"
+        $target += $_args.Id ?? $_args.User
+    }
+
     if ($ErrorActionPreference -eq "SilentlyContinue") { return }
 
-    $ErrorRecord | ForEach-Object {
+    Write-Host+
+
+    for ($i = 0; $i -lt $ErrorRecord.Count; $i++) {
 
         $errorMessageType = "Error"
-        $errorMessageText = $_.Exception.Message
+        $errorMessageText = $ErrorRecord[$i].Exception.Message
 
         # $errorMessageText = $errorMessageText -replace [Regex]::Escape(" Specify the item with its UUID, name, or domain.")
         if ($_vault) { $errorMessageText = $errorMessageText -replace [Regex]::Escape($_vault.id),$_vault.name }
@@ -30,23 +43,59 @@ function Write-OpError {
             $errorMessageText = $matches[3].Replace('"',"'")
         }
 
-        $_callStack = Get-PSCallStack
-        $_caller = $_callStack[1]
-        $_args = ([regex]::Matches($_caller.Arguments,"^\{?(.*?)\}?$").Groups[1].Value).Replace(",","`n") | ConvertFrom-StringData 
-
-        $target = ""
-        if ($_args.Vault) { $target += $_args.Vault}
-        if ($_args.Id -or $_args.User) { 
-            $target += "\"
-            $target += $_args.Id ?? $_args.User
-        }
-
         Write-Log -Name $OnePassword.Log -EntryType Error -Action $_caller.Command -Target $target -Status $errorMessageType -Message $errorMessageText -Force
-        Write-Host+ -NoTrace $errorMessageText -ForegroundColor Red
+        Write-Host+ -NoTrace:$($i -ne 0) -TraceFormat NoArguments $errorMessageText -ForegroundColor Red
 
     }
 
+    Write-Host+
+
     return
+
+}
+
+function Resolve-OpError {
+
+    param (
+        [Parameter(Mandatory=$true,Position=0)][object]$ErrorRecord
+    )
+
+    $opErrorRegex = @{
+        DuplicateItem = @{
+            Match = "More than one item matches `"(.*?)`"\.\s*Try again and specify the item by its ID:"
+            Parse = "^\s*\* for the item `"(?<itemName>.*?)`" in vault (?<vaultName>.*?):\s*(?<itemId>.*)$"
+        }
+    }
+
+    # $_callStack = Get-PSCallStack
+    # $_caller = $_callStack[1]
+
+    switch ($ErrorRecord[0]) {
+        {[regex]::IsMatch($_,$opErrorRegex.DuplicateItem.Match)} {
+            for ($i = $ErrorRecord.Count-1; $i -ge 1; $i--) {
+                $regexResult = [regex]::Matches($ErrorRecord[$i], $opErrorRegex.DuplicateItem.Parse)
+                $vaultName = $regexResult[0].Groups['vaultName'].Value 
+                $itemName = $regexResult[0].Groups['itemName'].Value 
+                $itemId = $regexResult[0].Groups['itemId'].Value 
+                if ($i -eq 1) {
+                    if ($regexResult.Success) {
+                        return [PSCustomObject]@{
+                            ErrorCode = "DuplicateItem"
+                            ErrorMessage = $ErrorRecord -join "'r'n"
+                            VaultName = $vaultName
+                            ItemName = $itemName
+                            ItemId = $itemId
+                            # ResolutionMessage = "Retrying '$($_caller.Command)' with item ID '$itemId'" 
+                        }
+                    }
+                }
+                # else {
+                #     Write-Host+ -NoTrace "Removing duplicate item ID '$itemId' from vault '$vaultName'" -ForegroundColor DarkYellow
+                #     Remove-VaultItem -Id $itemId -Vault $vaultName
+                # }
+            }
+        }
+    }
 
 }
 
@@ -698,7 +747,8 @@ function global:Get-VaultItem {
     param (
         [Parameter(Mandatory=$true,Position=0)][Alias("Name")][string]$Id,
         [Parameter(Mandatory=$true)][string]$Vault,
-        [Parameter(Mandatory=$false)][string]$Fields
+        [Parameter(Mandatory=$false)][string]$Fields,
+        [switch]$DoNotCache
     )
 
     $_vault = Get-Vault -Vault $Vault
@@ -727,13 +777,22 @@ function global:Get-VaultItem {
     
     if ($result[0].GetType().Name -eq "ErrorRecord") {
         Write-OpError $result
-        return
+        $opErrorResolution = Resolve-OpError $result
+        if ($opErrorResolution.ErrorCode -eq "DuplicateItem") {
+            Write-Host+ -NoTrace "Retrying '$($MyInvocation.MyCommand)' with item ID '$($opErrorResolution.itemId)'"  -ForegroundColor DarkYellow
+            Write-Host+
+            $_customVaultItem = Get-VaultItem -Vault $Vault -Id $opErrorResolution.ItemId
+            if ($_customVaultItem) {
+                return $_customVaultItem
+            }
+        }
+        return 
     }
     
     # create custom vault item object
     $_customVaultItem = New-CustomVaultItem ($result | ConvertFrom-Json)
 
-    if ($opVaultItemsCacheEnabled) {
+    if ($opVaultItemsCacheEnabled -and !$DoNotCache) {
         # encrypt password with encryption key for cache
         $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -AsPlainText | ConvertFrom-SecureString -Key $opVaultItemsCacheEncryptionKeyValue
         # add custom vault item to cache
