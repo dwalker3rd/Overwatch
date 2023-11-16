@@ -27,12 +27,13 @@ function ConvertTo-PSCommand {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)][string]$Command,
-        [Parameter(Mandatory=$true)][string]$Arguments
+        [Parameter(Mandatory=$false)][AllowNull()][string]$Arguments
     )
 
     if ($Command.EndsWith(".ps1")) { $Command = "./" + $Command }
 
-    $psCommandString = "$Command "
+    $psCommandString = "$Command"
+    if ($Arguments) { $psCommandString += " " }
     foreach ($argument in $Arguments.replace("{","").replace("}","").replace(", ",",").split(",")) {
         if ([string]::IsNullOrEmpty($argument)) { continue }
         $keyValuePair = $argument.split("=")
@@ -62,6 +63,7 @@ function global:Write-Host+ {
         [Parameter(Mandatory=$false)][int]$ReverseLineFeed,
         [switch]$NoTimestamp,
         [switch]$NoTrace,
+        [Parameter(Mandatory=$false)][ValidateSet("NoArguments","NoCommand","NoScriptName","NoLineNumber")][string[]]$TraceFormat,
         [switch]$NoNewLine,
         [switch]$NoSeparator,
         [switch]$Clear,
@@ -154,6 +156,12 @@ function global:Write-Host+ {
     }
 
     if (!$NoTrace) {
+
+        $traceCommand = $TraceFormat -notcontains "NoCommand"
+        $traceArguments = $TraceFormat -notcontains "NoArguments" -and $TraceFormat -notcontains "NoArgs"
+        $traceScriptName = $TraceFormat -notcontains "NoScriptName"
+        $traceScriptLineNumber = $TraceFormat -notcontains "NoScriptLineNumber"
+
         $callStack = Get-PSCallStack
         $callStackMaxDepth = 5 # TODO: convert to a definition
         $callStackStart = [math]::Min($callStack.Count-2,$callStackMaxDepth)
@@ -163,8 +171,12 @@ function global:Write-Host+ {
         }
         $callStackPrefix = "$($emptyString.PadLeft($Indent+$leadingSpaces," "))$($callStack.Count - 2 -gt $callStackMaxDepth ? "... > " : $null)"
         for ($i = $callstackStart; $i -ge 1; $i--) { # decrement to display trace in the order that the calls occurred
-            $psCommandString= ConvertTo-PSCommand -Command $callstack[$i].Command -Arguments $callStack[$i].Arguments
-            Write-Host "[$([datetime]::Now.ToString('u'))] $callStackPrefix$($callstack[$i].ScriptName): line $($callStack[$i].ScriptLineNumber), $psCommandString " -ForegroundColor DarkGray
+            if ($traceCommand) {
+                $psCommandString = ConvertTo-PSCommand -Command $callstack[$i].Command -Arguments ($traceArguments ? $callStack[$i].Arguments : $null)
+            }
+            $callStackScriptName = $traceScriptName ? $callstack[$i].ScriptName : $null
+            $callStackScriptLineNumber = $traceScriptLineNumber ? $callStack[$i].ScriptLineNumber : $null
+            Write-Host "[$([datetime]::Now.ToString('u'))] $callStackPrefix$($callStackScriptName): $(![string]::IsNullOrEmpty($callStackScriptLineNumber) ? "line: " : $null)$($callStackScriptLineNumber), $psCommandString " -ForegroundColor DarkGray
         }
         $NoTrace = $true
     }
