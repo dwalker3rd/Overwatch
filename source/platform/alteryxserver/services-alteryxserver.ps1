@@ -571,7 +571,7 @@ function global:Invoke-AlteryxService {
     #     Remove-PSSession $psSession
     # }
 
-    if ($hasResult) {Write-Host+ -IfVerbose "Result = $($result)"} -ForegroundColor DarkYellow
+    if ($hasResult) {Write-Host+ -IfVerbose "Result = $($result)" -ForegroundColor DarkYellow}
 
     $HashArguments = @{
         Action = $p2Isfile ? $("alteryxservice $($p0)".Trim()) : $("alteryxservice $($p0) $($p1)".Trim())
