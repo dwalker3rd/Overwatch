@@ -220,3 +220,22 @@ function global:ConvertTo-PSCustomObject {
     }
 
 }
+
+function global:Get-PSBoundParameters {
+
+    # Gets the bound parameters of the PREVIOUS command on the callstack
+    # This is a convenience cmdlet for the caller
+
+    [CmdletBinding()]
+    param ()
+
+    $callStack = Get-PSCallStack
+    $invocationInfo = $callStack[1].InvocationInfo
+
+    $boundParameters = @{}
+    foreach ($key in $invocationInfo.BoundParameters.Keys) {
+        $boundParameters += @{ $key = $invocationInfo.BoundParameters.$key }
+    }
+    return $boundParameters | ConvertTo-PSCustomObject
+
+}
