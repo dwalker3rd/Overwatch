@@ -831,7 +831,7 @@ function global:Request-PlatformComponent {
         
         if ($Command -eq "Stop" -and $Component -eq $_platformTopology.Components.Worker.Name) {
             # stop any new jobs that may have started between initial attempt and completion of STOP command
-            Stop-PlatformJob $ComputerName
+            # Stop $ComputerName
         }
 
         $timer = [Diagnostics.Stopwatch]::StartNew()
@@ -1584,106 +1584,123 @@ function global:Set-PlatformTopology {
         [Parameter(Mandatory=$true,Position=1)][string]$ComputerName
     )
 
-    Write-Host+ -IfDebug "$($Command) $($ComputerName)" -ForegroundColor DarkYellow
+    $boundParameters = Get-PSBoundParameters
 
-    # Add > add node to topology
-    # Remove > remove node from topology
     # Online > bring node back online:  clear offline flag 
     # Offline > take node offline: set offline flag (node remains in topology)
 
     # ATTENTION: CONTROLLERS / READONLY
-    # Controllers cannot be added/removed or offlined/onlined
-    # Nodes marked as READONLY cannot be added/removed or offlined/onlined
-
-    # ATTENTION: REMOVE / OFFLINE
-    # During platform stop/start, Overwatch loads a temporary reinitialized copy of the topology (does not affect
-    # the in-memory or cached topology).  This prevents controller-orphaned galleries/workers from potentially 
-    # corrupting the Alteryx Server db.
+    # Controllers cannot be offlined/onlined
+    # Nodes marked as READONLY cannot be offlined/onlined
 
     $platformTopology = Get-PlatformTopology
-
     $ComputerName = $platformTopology.Nodes.$ComputerName ? $ComputerName : ($platformTopology.Alias.$ComputerName ?? $ComputerName)
     if ($Command.ToLower() -eq "add" -and $global:PlatformTopologyBase.Nodes -notcontains $ComputerName) {
-        throw "Invalid node '$($ComputerName)': Not defined in `$global:PlatformTopologyBase."
+        throw "Invalid node '$($ComputerName) ($($boundParameters.ComputerName))': Not defined in `$global:PlatformTopologyBase."
     }
 
     if ($platformTopology.Nodes.$ComputerName.ReadOnly -or $platformTopology.Nodes.$ComputerName.Components.Controller) {
-        throw "Invalid node '$($ComputerName)': Controller nodes may not be modified."
+        throw "Invalid node '$($ComputerName) ($($boundParameters.ComputerName))': Controller nodes may not be modified."
     }
 
     switch ($Command.ToLower()) {
-        "remove" {
-
-            if (!$platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is *NOT* in the platform topology."}
-            if (!$platformTopology.Nodes.$ComputerName.Offline) {throw "$($ComputerName) must be offline before it can be removed."}
-
-            $platformTopology.Nodes.Remove($ComputerName) | Out-Null
-
-            $Components = pt nodes.$ComputerName.components -k
-            foreach ($Component in $Components) {
-                $platformTopology.Components.$Component.Nodes.Remove($ComputerName)
-            }
-
-            $platformTopology | Write-Cache platformtopology
-
-        }
-        "add" {
-
-            if ($platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is already in the platform topology."}
-
-            $platformTopology.Nodes.$ComputerName = @{}
-            $platformTopology = Initialize-PlatformTopology -Nodes $platformTopology.Nodes.Keys
-            $platformTopology.Nodes.$ComputerName.Offline = $true
-
-            $platformTopology | Write-Cache platformtopology
-
-        }
         "online" {
             
-            if (!$platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is *NOT* in the platform topology."}
-            if (!$platformTopology.Nodes.$ComputerName.Offline) {throw "$($ComputerName) is already online."}
+            if (!$platformTopology.Nodes.$ComputerName) {throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' is *NOT* in the platform topology"}
+            if (!$platformTopology.Nodes.$ComputerName.Offline) {throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' is already online"}
 
             $Components = pt nodes.$ComputerName.components -k
 
-            # AlteryxService StartupType is Disabled if previously set offline
-            # AlteryxService must be un-Disabled (enabled or set to manual) to be started.
-            Set-PlatformService -Name "AlteryxService" -StartupType Manual -Computername $ComputerName
+            try {
 
-            # remove Offline before calling start (start ignores offline nodes)
-            $platformTopology.Nodes.$ComputerName.Remove("Offline")
-            foreach ($Component in $Components) {
-                if (!$platformTopology.Components.$Component.Nodes.Contains($ComputerName)) {
-                    $platformTopology.Components.$Component.Nodes += @{$ComputerName = @{}}
+                # ensure that node is reachable via network and psremoting
+                # if these fail, do not continue
+                if ((Test-NetConnection+ -ComputerName $ComputerName).Result -contains "Fail") {
+                    throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' failed network tests"
                 }
+                if ((Test-PSRemoting -ComputerName $ComputerName).Result -contains "Fail") {
+                    throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' failed PowerShell remoting tests"
+                }
+
+                # invoke preflight updates for this node 
+                # if these fail, do not continue
+                try {
+                    Invoke-Preflight -Action Update -Target PlatformInstance -ComputerName $ComputerName
+                }
+                catch {
+                    throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' failed preflight updates"
+                }
+                
+                Write-Host+
+
+                # AlteryxService StartupType is Disabled if previously set offline
+                # AlteryxService must be un-Disabled (enabled or set to manual) to be started.
+                Set-PlatformService -Name "AlteryxService" -StartupType Manual -Computername $ComputerName
+                Write-Host+ -NoTrace "Node","$($ComputerName) ($($boundParameters.ComputerName))","startup is","Manual" -ForegroundColor Gray,Blue,Gray,Red
+    
+                # remove Offline before calling start (start ignores offline nodes)
+                $platformTopology.Nodes.$ComputerName.Remove("Offline")
+                foreach ($Component in $Components) {
+                    if (!$platformTopology.Components.$Component.Nodes.Contains($ComputerName)) {
+                        $platformTopology.Components.$Component.Nodes += @{$ComputerName = @{}}
+                    }
+                }
+                $platformTopology | Write-Cache platformtopology
+                
+                foreach ($Component in $Components) {
+                    Invoke-Expression "Start-$Component $ComputerName"
+                }
+
             }
-            $platformTopology | Write-Cache platformtopology
-            
-            foreach ($Component in $Components) {
-                Invoke-Expression "Start-$Component $ComputerName"
+            catch {
+
+                Write-Host+ $_ -ForegroundColor DarkRed
+                Write-Host+ -NoTrace "Unable to online node '$($ComputerName) ($($boundParameters.ComputerName))'" -ForegroundColor DarkRed
+
             }
-            
+
         }
         "offline" {
 
-            if (!$platformTopology.Nodes.$ComputerName) {throw "$($ComputerName) is *NOT* in the platform topology."}
-            if ($platformTopology.Nodes.$ComputerName.Offline) {throw "$($ComputerName) is already offline."}
+            if (!$platformTopology.Nodes.$ComputerName) {throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' is *NOT* in the platform topology."}
+            if ($platformTopology.Nodes.$ComputerName.Offline) {throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' is already offline."}
 
             $Components = pt nodes.$ComputerName.components -k
 
-            foreach ($Component in $Components) {
-                Invoke-Expression "Stop-$Component $ComputerName"
-            }
+            try {
 
-            # AlteryxService StartupType is set to Manual by Stop-$Component (Request-PlatformComponent)
-            # Set AlteryxService StartupType to Disabled to prevent it from starting unintentionally
-            Set-PlatformService -Name "AlteryxService" -StartupType Disabled -Computername $ComputerName
-            Write-Host+ -ReverseLineFeed 1 -NoTrace "$Component on $ComputerName startup is","Disabled" -ForegroundColor Gray,Red
+                # ensure that node is reachable via network and psremoting
+                # if these fail, do not continue
 
-            $platformTopology.Nodes.$ComputerName.Offline = $true
-            foreach ($Component in $Components) {
-                $platformTopology.Components.$Component.Remove($ComputerName)
+                if ((Test-NetConnection+ -ComputerName $ComputerName).Result -contains "Fail") {
+                    throw "Node '$($ComputerName) ($($boundParameters.ComputerName))' failed network tests"
+                }
+                if ((Test-PSRemoting -ComputerName $ComputerName).Result -contains "Fail") {
+                    throw "Node","$($ComputerName) ($($boundParameters.ComputerName))","failed PowerShell remoting tests"
+                }
+
+                foreach ($Component in $Components) {
+                    Invoke-Expression "Stop-$Component $ComputerName"
+                }
+
+                # AlteryxService StartupType is set to Manual by Stop-$Component (Request-PlatformComponent)
+                # Set AlteryxService StartupType to Disabled to prevent it from starting unintentionally
+                Set-PlatformService -Name "AlteryxService" -StartupType Disabled -Computername $ComputerName
+                Write-Host+ -NoTrace "Node","$($ComputerName) ($($boundParameters.ComputerName))","startup is","Disabled" -ForegroundColor Gray,Blue,Gray,Red
+
+                $platformTopology.Nodes.$ComputerName.Offline = $true
+                foreach ($Component in $Components) {
+                    $platformTopology.Components.$Component.Remove($ComputerName)
+                }
+                $platformTopology | Write-Cache platformtopology
+
             }
-            $platformTopology | Write-Cache platformtopology
+            catch {
+
+                Write-Host+ $_ -ForegroundColor DarkRed
+                Write-Host+ -NoTrace "Unable to offline node '$($ComputerName) ($($boundParameters.ComputerName))'" -ForegroundColor DarkRed
+
+            }
 
         }
     }

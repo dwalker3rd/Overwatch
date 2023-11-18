@@ -1,5 +1,7 @@
 function global:Invoke-Postflight {
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
     [CmdletBinding()]
     param (
 
@@ -11,11 +13,9 @@ function global:Invoke-Postflight {
         [ValidateSet("OS","Platform","PlatformInstance")]
         [string]$Target,
 
-        [Parameter(Mandatory=$false,Position=1)]
-        [string]$Id = (Invoke-Expression "`$global:$($Target).Id"),
-
         [Parameter(Mandatory=$false)]
-        [string]$Name = (Invoke-Expression "`$global:$($Target).Name")
+        [AllowNull()]
+        [string]$ComputerName
     )
 
     $noun = "Postflight"
@@ -23,7 +23,7 @@ function global:Invoke-Postflight {
     switch ($Target) {
         "PlatformInstance" {
             $Id = $global:Platform.Instance
-            $Name = $global:Platform.Instance
+            $Name = $global:Platform.Instance + (![string]::IsNullOrEmpty($ComputerName) ? " ($ComputerName)" : "")
         }
         default {
             $Id = Invoke-Expression "`$global:$($Target).Id"
@@ -41,7 +41,9 @@ function global:Invoke-Postflight {
         
         $fail = $false
         try{
-            . "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"  
+            $command = "$($global:Location.PostFlight)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
+            $ComputerNameParam = ((Get-Command $command).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
+            . $command @ComputerNameParam
         }
         catch {
             $fail = $true

@@ -2,6 +2,8 @@ $global:PreflightChecksCompleted = $true
 
 function global:Invoke-Preflight {
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
     [CmdletBinding()]
     param (
 
@@ -11,7 +13,11 @@ function global:Invoke-Preflight {
 
         [Parameter(Mandatory=$true,Position=1)]
         [ValidateSet("OS","Platform","PlatformInstance")]
-        [string]$Target
+        [string]$Target,
+
+        [Parameter(Mandatory=$false)]
+        [AllowNull()]
+        [string]$ComputerName
     )
 
     $noun = "Preflight"
@@ -19,7 +25,7 @@ function global:Invoke-Preflight {
     switch ($Target) {
         "PlatformInstance" {
             $Id = $global:Platform.Instance
-            $Name = $global:Platform.Instance
+            $Name = $global:Platform.Instance + (![string]::IsNullOrEmpty($ComputerName) ? " ($ComputerName)" : "")
         }
         default {
             $Id = Invoke-Expression "`$global:$($Target).Id"
@@ -34,10 +40,13 @@ function global:Invoke-Preflight {
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
 
         Write-Log -Action $noun $Action -Target $Id
+
         
         $fail = $false
         try{
-            . "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"    
+            $command = "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
+            $ComputerNameParam = ((Get-Command $command).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
+            . $command @ComputerNameParam
         }
         catch {
             $fail = $true
