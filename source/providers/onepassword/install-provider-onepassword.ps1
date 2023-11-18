@@ -45,87 +45,85 @@ $script:opVaultItemsCacheServiceAccountName = $OnePassword.Config.Cache.ServiceA
         }
     } until ($opServiceAccountToken)
 
-    # this seems redundant given that the credentials are set below, but ...
-    # it is needed for when the migration script calls Get-Provider which loads providers w/their definition files
-    # and the definition file for this provider sets the 1password service token
+    # set the 1Password account token and encryption key via the Overwatch vault service
     Set-Credentials -Id $opVaultItemsCacheServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
     Set-Credentials -Id $opVaultItemsCacheEncryptionKeyName -UserName "OnePassword" -Password ([string](New-EncryptionKey))
 
+    # get Overwatch vault names
     $owVaults = (Get-Vaults).FileNameWithoutExtension | Where-Object {$_ -notlike "*Keys"}
 
-    New-Item -ItemType Directory "$($global:Location.Archive)\vault" -ErrorAction SilentlyContinue
-
-    Clear-Cache -Name $opVaultsCacheName
-    Clear-Cache -Name $opVaultItemsCacheName
-
     # switch back to 1Password provider
     . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
 
-    $env:OP_SERVICE_ACCOUNT_TOKEN = $opServiceAccountToken
-    $env:OP_FORMAT = "json"
-
-    foreach ($owVault in $owVaults) {
-
-        Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "Migrating Overwatch vault ",$owVault," to 1Password" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
-
-        if ($owVault -notin (Get-Vaults).name) { 
-            Write-Host+ -NoTrace -NoTimestamp "  Creating 1Password vault ",$owVault -NoSeparator -ForegroundColor DarkGray,DarkBlue
-            New-Vault -Vault $owVault 
-        }
-
-        $owVaultItems = Import-Clixml "$($global:Location.Data)\$($owVault).vault"
-        $owEncryptionKeys = Import-Clixml "$($global:Location.Data)\$($owVault)Keys.vault"
-
-        # if (!(Test-Path -Path "$($global:Location.Archive)\vault\$($owVault).vault")) {
-            $timeStamp = $(Get-Date -Format 'yyyyMMddHHmmss')
-            Move-Item "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault.$timeStamp" -ErrorAction SilentlyContinue
-            Move-Item "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault).vault$timeStamp" -ErrorAction SilentlyContinue
-        # }
-
-        $opVaultItems = Get-VaultItems -Vault $owVault
-
-        foreach ($key in $owVaultItems.Keys | Where-Object {$_ -ne $opVaultItemsCacheServiceAccountName}) {
-            $owVaultItem = $owVaultItems.$key
-            $encryptionKey = $owEncryptionKeys.$key
-            switch ($owVaultItem.Category) {
-                "Login" {
-                    if ($key -notin $opVaultItems.id -and $key -notin $opVaultItems.name) {
-                        Write-Host+ -NoTrace -NoTimestamp "  Creating ","LOGIN"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                        $owVaultItem.Password = $owVaultItem.Password | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
-                        $owNewVaultItem = New-VaultItem -Vault credentials -Title $key @owVaultItem -Category Login
-                    }
-                    else {
-                        Write-Host+ -NoTrace -NoTimestamp "  Found ","LOGIN"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                    }
-                }
-                "SSH Key" {}
-                "Database" {
-                    if ($key -notin $opVaultItems.id -and $key -notin $opVaultItems.name) {
-                        Write-Host+ -NoTrace -NoTimestamp "  Creating ","DATABASE"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                        $owVaultItem.remove("Category")
-                        $owVaultItem.remove("ConnectionString")
-                        $owVaultItem.Pwd = $owVaultItem.Pwd | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
-                        $owNewVaultItem = New-VaultItem -Vault connectionStrings -Title $key @owVaultItem -Category Database -DriverType ODBC 
-                    }
-                    else {
-                        Write-Host+ -NoTrace -NoTimestamp "  Found ","DATABASE"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
-                    } 
-                }
-            }
-            $owNewVaultItem | Out-Null
-        }
-
-    }
-
-    # switch to Overwatch vault service to get/set the 1Password service account token
-    . "$($global:Location.Services)\vault.ps1"
-
+    # also set the 1Password account token and encryption key in 1Password
     Set-Credentials -Id $opVaultItemsCacheServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
     Set-Credentials -Id $opVaultItemsCacheEncryptionKeyName -UserName "OnePassword" -Password ([string](New-EncryptionKey))
 
-    # switch back to 1Password provider
-    . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
+    #region MIGRATION
+
+        New-Item -ItemType Directory "$($global:Location.Archive)\vault" -ErrorAction SilentlyContinue
+
+        Clear-Cache -Name $opVaultsCacheName
+        Clear-Cache -Name $opVaultItemsCacheName
+
+        $env:OP_SERVICE_ACCOUNT_TOKEN = $opServiceAccountToken
+        $env:OP_FORMAT = "json"
+
+        foreach ($owVault in $owVaults) {
+
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "Migrating Overwatch vault ",$owVault," to 1Password" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
+
+            if ($owVault -notin (Get-Vaults).name) { 
+                Write-Host+ -NoTrace -NoTimestamp "  Creating 1Password vault ",$owVault -NoSeparator -ForegroundColor DarkGray,DarkBlue
+                New-Vault -Vault $owVault 
+            }
+
+            $owVaultItems = Import-Clixml "$($global:Location.Data)\$($owVault).vault"
+            $owEncryptionKeys = Import-Clixml "$($global:Location.Data)\$($owVault)Keys.vault"
+
+            # if (!(Test-Path -Path "$($global:Location.Archive)\vault\$($owVault).vault")) {
+                $timeStamp = $(Get-Date -Format 'yyyyMMddHHmmss')
+                Move-Item "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault.$timeStamp" -ErrorAction SilentlyContinue
+                Move-Item "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault).vault$timeStamp" -ErrorAction SilentlyContinue
+            # }
+
+            $opVaultItems = Get-VaultItems -Vault $owVault
+
+            foreach ($key in $owVaultItems.Keys | Where-Object {$_ -ne $opVaultItemsCacheServiceAccountName}) {
+                $owVaultItem = $owVaultItems.$key
+                $encryptionKey = $owEncryptionKeys.$key
+                switch ($owVaultItem.Category) {
+                    "Login" {
+                        if ($key -notin $opVaultItems.id -and $key -notin $opVaultItems.name) {
+                            Write-Host+ -NoTrace -NoTimestamp "  Creating ","LOGIN"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                            $owVaultItem.Password = $owVaultItem.Password | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
+                            $owNewVaultItem = New-VaultItem -Vault credentials -Title $key @owVaultItem -Category Login
+                        }
+                        else {
+                            Write-Host+ -NoTrace -NoTimestamp "  Found ","LOGIN"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        }
+                    }
+                    "SSH Key" {}
+                    "Database" {
+                        if ($key -notin $opVaultItems.id -and $key -notin $opVaultItems.name) {
+                            Write-Host+ -NoTrace -NoTimestamp "  Creating ","DATABASE"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                            $owVaultItem.remove("Category")
+                            $owVaultItem.remove("ConnectionString")
+                            $owVaultItem.Pwd = $owVaultItem.Pwd | ConvertTo-SecureString -Key $encryptionKey | ConvertFrom-SecureString -AsPlainText
+                            $owNewVaultItem = New-VaultItem -Vault connectionStrings -Title $key @owVaultItem -Category Database -DriverType ODBC 
+                        }
+                        else {
+                            Write-Host+ -NoTrace -NoTimestamp "  Found ","DATABASE"," item ",$key -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        } 
+                    }
+                }
+                $owNewVaultItem | Out-Null
+            }
+
+        }
+
+    #endregion MIGRATION
 
     Write-Host+
     Write-Host+ -SetIndentGlobal -8
