@@ -14,7 +14,7 @@ function global:Get-PlatformStatusRollup {
     if ($ResetCache) {$params += @{ResetCache = $true}}
     $tableauServerStatus = Get-TableauServerStatus @params
 
-    if (!$tableauServerStatus) { return $false, "Unavailable" }
+    if (!$tableauServerStatus) { return $false, "StatusUnAvailable", $null, $null }
 
     $issues = @()
     foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
