@@ -1678,7 +1678,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             catch {
                 $global:WriteHostPlusPreference = "Continue"
 
-                $message = "$($emptyString.PadLeft(9,"`b"))FAIL "
+                $message = "$($emptyString.PadLeft(9,"`b"))FAIL     "
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
             }
             finally {
