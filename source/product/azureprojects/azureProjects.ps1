@@ -178,8 +178,8 @@ function global:Initialize-AzProject {
                 Admin = $azureProjectsConfig.Templates.Resources.VM.Admin.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
                 Scope = $null
                 Object = $null
+                NetworkInterface = @()
             }
-            NetworkInterface = @()
             MLWorkspace = @{
                 Name = $azureProjectsConfig.Templates.Resources.MLWorkspace.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
                 Scope = $null
@@ -832,11 +832,14 @@ function global:Grant-AzProjectRole {
 
                         Write-Host+ -NoTrace -NoSeparator "    $($nic.Id.split("/resourceGroups/")[1])" -ForegroundColor DarkGray
 
-                        if ($global:AzureProject.ResourceType.NetworkInterface.Scope -notcontains $nicScope) {
-                            $global:AzureProject.ResourceType.NetworkInterface += @{
-                                Name = $nicName
-                                Scope = $nicScope 
-                                Object = $nicObject
+                        if ([string]::IsNullOrEmpty($global:AzureProject.ResourceType.NetworkInterface.VmName) -or $global:AzureProject.ResourceType.NetworkInterface.VmName -eq $vm.Name) {
+                            if ($global:AzureProject.ResourceType.NetworkInterface.Scope -notcontains $nicScope) {
+                                $global:AzureProject.ResourceType.NetworkInterface += @{
+                                    VmName = $vm.Name
+                                    Name = $nicName
+                                    Scope = $nicScope 
+                                    Object = $nicObject
+                                }
                             }
                         }
 
