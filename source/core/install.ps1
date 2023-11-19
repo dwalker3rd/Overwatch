@@ -1666,20 +1666,24 @@ $global:Location.Definitions = $tempLocationDefinitions
                 $global:PreflightPreference = "SilentlyContinue"
                 $global:PostflightPreference = "SilentlyContinue"
                 $global:WriteHostPlusPreference = "SilentlyContinue"
+
                 $global:Product = @{Id="Command"}
                 . $PSScriptRoot\definitions.ps1
+
+                $global:WriteHostPlusPreference = "Continue"
+
+                $message = "$($emptyString.PadLeft(9,"`b"))VERIFIED "
+                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+            }
+            catch {
+                $global:WriteHostPlusPreference = "Continue"
 
                 $message = "$($emptyString.PadLeft(9,"`b"))FAIL "
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
             }
-            catch {
-                $message = "$($emptyString.PadLeft(9,"`b"))VERIFIED "
-                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-            }
             finally {
                 $global:PreflightPreference = "Continue"
                 $global:PostflightPreference = "Continue"
-                $global:WriteHostPlusPreference = "Continue"
             }
 
             Write-Host+
