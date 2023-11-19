@@ -1657,28 +1657,29 @@ $global:Location.Definitions = $tempLocationDefinitions
             Update-InstallSettings
 
         #endregion SAVE SETTINGS
-        #region INITIALIZE OVERWATCH
+        #region RE-INITIALIZE OVERWATCH
 
-            if ($productIds -or $providerIds) {
+            $message = "<Overwatch <.>48> VERIFYING"
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        
+            try{
+                $global:PreflightPreference = "SilentlyContinue"
+                $global:PostflightPreference = "SilentlyContinue"
+                $global:WriteHostPlusPreference = "SilentlyContinue"
+                $global:Product = @{Id="Command"}
+                . $PSScriptRoot\definitions.ps1
 
-                $message = "<Overwatch <.>48> VERIFYING"
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
-            
-                try{
-                    $global:WriteHostPlusPreference = "SilentlyContinue"
-                    $global:Product = @{Id="Command"}
-                    . $PSScriptRoot\definitions.ps1
-                }
-                catch {}
-                finally {
-                    $global:WriteHostPlusPreference = "Continue"
-                }
-            
+                $message = "$($emptyString.PadLeft(9,"`b"))FAIL "
+                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkRed
+            }
+            catch {
                 $message = "$($emptyString.PadLeft(9,"`b"))VERIFIED "
                 Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-
-                # . $PSScriptRoot\services\services-overwatch-install.ps1
-
+            }
+            finally {
+                $global:PreflightPreference = "Continue"
+                $global:PostflightPreference = "Continue"
+                $global:WriteHostPlusPreference = "Continue"
             }
         
         #endregion INITIALIZE OVERWATCH 
