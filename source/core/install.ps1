@@ -610,7 +610,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region PROVIDERS
 
     if ($installedProviders) {
-        Write-Host+ # -MaxBlankLines 1
+        Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "Installed Providers" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
         ($installedProviders.Id | Sort-Object) -join ", "
@@ -1681,6 +1681,8 @@ $global:Location.Definitions = $tempLocationDefinitions
                 $global:PostflightPreference = "Continue"
                 $global:WriteHostPlusPreference = "Continue"
             }
+
+            Write-Host+
         
         #endregion INITIALIZE OVERWATCH 
         #region POST-INSTALLATION CONFIG
