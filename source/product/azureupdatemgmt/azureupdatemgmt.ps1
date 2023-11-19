@@ -32,8 +32,6 @@ $global:WriteHostPlusPreference = "Continue"
 
 $global:DisableConsoleSequences = $true
 
-Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset
-
 $global:UseCredssp = $false
 if ($Credssp) {
     $global:UseCredssp = $true
@@ -52,6 +50,8 @@ if ($Command) {
         # product id must be set before include files
         $global:Product = @{Id="AzureUpdateMgmt"}
         . $PSScriptRoot\definitions.ps1
+
+        Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset
 
         Send-AzureUpdateMgmtMessage -Command $Command -Reason $Reason -Status Starting      
 
@@ -84,6 +84,8 @@ if ($Command) {
         . $PSScriptRoot\definitions.ps1
 
         $global:WriteHostPlusPreference = "Continue"
+
+        Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset
 
         $action = "Execute"; $status = "Start"; $message = "$action $($Command): $status" 
         Write-Log -Action $action -Target $Command -Status $status -Message $message
