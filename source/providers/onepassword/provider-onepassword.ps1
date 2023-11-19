@@ -169,8 +169,6 @@ function global:Get-Vaults {
 
 }
 
-Set-Alias -Name List-Vaults -Value Get-Vaults -Scope Global
-
 function global:Get-Vault {
 
     # $Vault can be the vault name or id
@@ -340,7 +338,6 @@ function global:Get-VaultUsers {
     return $result | ConvertFrom-Json
 
 }
-Set-Alias -Name List-Users -Value Get-Users -Scope Global
 
 #endregion VAULT
 #region USER
@@ -677,7 +674,6 @@ function global:Update-VaultItem {
     return $_customVaultItem
 
 }
-Set-Alias -Name Edit-VaultItem -Value Update-VaultItem -Scope Global
 
 function global:Get-VaultItems {
 
@@ -739,7 +735,6 @@ function global:Get-VaultItems {
     return $_customVaultItems
 
 }
-Set-Alias -Name List-VaultItems -Value Get-VaultItems -Scope Global
 
 function global:Get-VaultItem {
 

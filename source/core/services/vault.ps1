@@ -29,7 +29,6 @@ function global:Get-Vaults {
     return $_vaults
 
 }
-Set-Alias -Name List-Vaults -Value Get-Vaults -Scope Global
 
 function global:Get-Vault {
 
@@ -147,7 +146,7 @@ function Lock-Vault {
         # }
         try {
             if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
-                $message = "Unable to acquire lock after $($lockRetryAttempts) attempts"
+                $message = "Unable to acquire lock on vault '$($_vault.name)' after $($lockRetryAttempts) attempts"
                 # $lockMeta = @{retryDelay = $script:lockRetryDelay; retryMaxAttempts = $script:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
                 Write-Log -Action "LockVault" -Target $_vault.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error" # -Data $lockMeta 
                 return $null
@@ -162,7 +161,7 @@ function Lock-Vault {
 
     if ($lockRetryAttempts -gt 2) {
         # this is only here b/c after this many times, something is probably wrong and we need to figure out what and why
-        $message = "Lock acquired after $($lockRetryAttempts) attempts"
+        $message = "Lock acquired on vault '$($_vault.name)' after $($lockRetryAttempts) attempts"
         # $lockMeta = @{retryDelay = $script:lockRetryDelay; retryMaxAttempts = $script:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
         Write-Log -Action "LockVault" -Target $_vault.FileNameWithoutExtension -Status "Success" -Message $message -Force # -Data $lockMeta
     }
@@ -342,7 +341,6 @@ function global:New-VaultItem {
     $vaultItems | Write-Vault $Vault -ComputerName $ComputerName
 
 }
-Set-Alias -Name Add-VaultItem -Value New-VaultItem -Scope Global
 
 function global:Update-VaultItem {
 
@@ -446,7 +444,6 @@ function global:Update-VaultItem {
     $vaultItems | Write-Vault $Vault -ComputerName $ComputerName
 
 }
-Set-Alias -Name Edit-VaultItem -Value Update-VaultItem -Scope Global
 
 function global:Get-VaultItems {
 
