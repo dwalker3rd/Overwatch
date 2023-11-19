@@ -1370,7 +1370,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     $requiredDirectories = @("data","config")
 
     $missingDirectories = @()
-    foreach ($node in (Get-PlatformTopology -nodes -Keys -Online)) {
+    foreach ($node in (Get-PlatformTopology nodes -Keys -Online)) {
         $remotePSScriptRoot = "\\$node\$($PSScriptRoot.Replace(":","$"))"
         foreach ($requiredDirectory in $requiredDirectories) {
             if (!(Test-Path "$remotePSScriptRoot\$requiredDirectory")) { $missingDirectories += "$remotePSScriptRoot\$requiredDirectory" }
