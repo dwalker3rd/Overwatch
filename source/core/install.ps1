@@ -284,7 +284,13 @@ $global:Location.Definitions = $tempLocationDefinitions
 
     $unInstallablePlatforms = (Get-Catalog -Type Platform | Where-Object {$_.Installation.Flag -contains "UnInstallable"}).Id
     if ([string]::IsNullOrEmpty($installedPlatforms)) {
-        $installedPlatforms += $unInstallablePlatforms
+        if ([string]::IsNullOrEmpty($platformId)) {
+            # make sure "None" is listed first
+            $installedPlatforms = @("None",($unInstallablePlatforms -split ", " | Where-Object {$_ -ne "None"}) -join ", ")
+        }
+        else {
+            $installedPlatforms = @($platformId)
+        }
     }
     $platformId = $installedPlatforms[0]
     do {
