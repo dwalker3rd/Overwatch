@@ -2122,6 +2122,7 @@ function global:Show-PostInstallation {
         Write-Host+ -NoTrace -NoTimestamp "*AllowList: $($global:Location.Data)\fileAllowList.csv" -ForegroundColor DarkGray
     }
 
+    Write-Host+
     Write-Host+ -ResetAll
 
 }

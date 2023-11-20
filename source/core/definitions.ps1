@@ -132,6 +132,7 @@
     }
     Write-Host+ -NoTrace "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
     Write-Host+ -NoTrace "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
+    Write-Host+ -NoTrace "  Cloud","$($global:Environ.Cloud)" -ForegroundColor Gray,DarkBlue -Separator ":      "
 
 #endregion INTRO
 #region PREFLIGHT

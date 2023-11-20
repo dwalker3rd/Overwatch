@@ -579,22 +579,77 @@ function global:Enable-AzVMExtensionAutomaticUpdate {
 
 }
 
-function global:Start-Computer {
+function Invoke-ComputerCommand {
 
-    [CmdletBinding()]
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
+    [CmdletBinding(
+        SupportsShouldProcess,
+        ConfirmImpact = "High"
+    )]
     param(
-        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+        [Parameter(Mandatory=$true,Position=0)][ValidateSet("Start","Stop")][string]$Command,
+        [Parameter(Mandatory=$true,Position=1)][string]$ComputerName,
+        [switch]$NoWait
     )
+
+    if ($Command -eq "Stop") {
+        if (!$PSCmdlet.ShouldProcess($ComputerName)) { return }
+        Write-Host+
+    }
 
     $azContext = Get-AzContext
     if (!$azContext.Subscription) {
         Connect-AzAccount+ -Tenant $azContext.Tenant
     }
 
-    $vm = Get-AzVM -Name $ComputerName
-    $resourceGroupName = $vm.ResourceGroupName
+    $azVm = Get-AzVM -Name $ComputerName -Status
+    $resourceGroupName = $azVm.ResourceGroupName
+    $powerState = $azVm.PowerState
 
-    Start-AzVM -ResourceGroupName $resourceGroupName -Name $ComputerName
+    Write-Host+
+    Write-Host+ -NoTrace "$Command-Computer"
+    $message = "<  $ComputerName <.>36> $($azVm.powerState)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
+    $result = @{ 
+        IsSuccessStatusCode = $true
+        StatusCode = $NoWait ? "Accepted" : "Succeeded" 
+    }
+    if (Invoke-Expression "`$powerState -$($Command -eq "Start" ? "ne" : "eq") `"VM running`"") {
+
+        $message = "<    $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>36> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
+        $commandExpression = "$Command-AzVM -ResourceGroupName `"$resourceGroupName`" -Name `"$ComputerName`""
+        if ($NoWait) { $commandExpression += " -NoWait"}
+        if ($Command -eq "Stop") { $commandExpression += " -Force"}
+        $result = Invoke-Expression $commandExpression
+
+        Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) $($Command -eq "Start" ? "STARTED" : "STOPPED")" -ForegroundColor $statusColor
+
+    }
+    $statusColor = $result.IsSuccessStatusCode ? "DarkGreen" : "DarkRed"
+
+    $azVm = Get-AzVM -Name $ComputerName -Status
+    $powerState = $azVm.PowerState
+
+    $message = "<  $ComputerName <.>36> $($azVm.powerState)"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    Write-Host+
+
+    return $result
+}
+
+function global:Start-Computer {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName,
+        [switch]$NoWait
+    )
+
+    return Invoke-ComputerCommand -Command Start -ComputerName $ComputerName -NoWait:$NoWait.IsPresent
 
 }
 Set-Alias -Name Start-VM -Value Stop-Computer -Scope Global
@@ -604,18 +659,11 @@ function global:Stop-Computer {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName,
+        [switch]$NoWait
     )
 
-    $azContext = Get-AzContext
-    if (![string]::IsNullOrEmpty($azContext.Subscription)) {
-        Connect-AzAccount+ -Tenant $azureProfile.TenantId
-    }
-
-    $vm = Get-AzVM -Name $ComputerName
-    $resourceGroupName = $vm.ResourceGroupName
-
-    Stop-AzVM -ResourceGroupName $resourceGroupName -Name $ComputerName
+    return Invoke-ComputerCommand -Command Stop -ComputerName $ComputerName -NoWait:$NoWait.IsPresent
 
 }
 Set-Alias -Name Stop-VM -Value Stop-Computer -Scope Global

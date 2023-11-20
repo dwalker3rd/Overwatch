@@ -7,6 +7,8 @@ function global:Get-PlatformTopology {
         [Parameter(Mandatory=$false,Position=0)][string]$Key,
         [switch]$Online,
         [switch]$Offline,
+        [switch]$Until,
+        [switch]$Shutdown,
         [switch]$ResetCache,
         [switch][Alias("k")]$Keys,
         [switch]$NoAlias,
@@ -44,13 +46,15 @@ function global:Get-PlatformTopology {
     }
 
     # filter to offline/online nodes
-    if ($Online -or $Offline) {
+    if ($Online -or $Offline -or $Until -or $Shutdown) {
         $pt = $platformTopology | Copy-Object
         $nodes = $pt.nodes.keys #.psobject.properties.name
         $components = $pt.components.keys #.psobject.properties.name
         foreach ($node in $nodes) {
             if (($Online -and ($platformTopology.Nodes.$node.Offline)) -or 
-                ($Offline -and (!$platformTopology.Nodes.$node.Offline))) {
+                ($Offline -and (!$platformTopology.Nodes.$node.Offline)) -or
+                ($Until -and (!$platformTopology.Nodes.$node.Until)) -or 
+                ($Shutdown -and (!$platformTopology.Nodes.$node.Shutdown))) {
                     foreach ($component in $components) {
                         if ($node -in $platformTopology.Components.$component.Nodes.Keys) {
                             $platformTopology.Components.$component.Nodes.Remove($node)
@@ -85,7 +89,7 @@ function global:Get-PlatformTopology {
         $lastKey = $lastGroup.Value.replace("['","").replace("']","")
         $parent = Invoke-Expression $ptExpression.replace($lastGroup.Value,"")
         if (!$parent.Contains($lastKey)) {
-            throw "Invalid key sequence: $($Key)"
+            Write-Host+ "Invalid key sequence: $($Key)"
         }
     }
 

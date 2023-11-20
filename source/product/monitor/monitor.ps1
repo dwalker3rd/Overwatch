@@ -136,6 +136,29 @@ Open-Monitor
     Test-ServerStatus -ComputerName $nodesToTrace # -Quiet
 
 #endregion SERVER TRACE
+#region OFFLINE UNTIL NODES
+
+    $ptUntilNodes = pt nodes -until
+    if ($ptUntilNodes.Count -gt 0) {
+
+        Write-Host+ -NoTrace
+        $message = "<  Offline Until Nodes <.>48> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+ -SetIndentGlobal 4
+
+        foreach ($node in $ptUntilNodes.Keys) {
+            if ([datetime]::Now -gt (pt nodes.$node.Until.Expiry)) {
+                ptOffline $node -Shutdown:$($ptUntilNodes.$node.Until.PostAction -eq "Shutdown")
+            }
+        }
+
+        Write-Host+ -SetIndentGlobal -4
+        $message = "<  Offline Until Nodes <.>48> COMPLETED"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+    }
+
+#endregion OFFLINE UNTIL NODES
 #region PLATFORM NONE
 
     if ($global:Platform.Id -eq "None") { 

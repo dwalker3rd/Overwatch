@@ -17,7 +17,11 @@ function global:Invoke-Preflight {
 
         [Parameter(Mandatory=$false)]
         [AllowNull()]
-        [string]$ComputerName
+        [string]$ComputerName,
+
+        [switch]$Quiet,
+        [switch]$Throw
+
     )
 
     $noun = "Preflight"
@@ -25,7 +29,7 @@ function global:Invoke-Preflight {
     switch ($Target) {
         "PlatformInstance" {
             $Id = $global:Platform.Instance
-            $Name = $global:Platform.Instance + (![string]::IsNullOrEmpty($ComputerName) ? " ($ComputerName)" : "")
+            $Name = ![string]::IsNullOrEmpty($ComputerName) ? $ComputerName : $global:Platform.Instance
         }
         default {
             $Id = Invoke-Expression "`$global:$($Target).Id"
@@ -35,28 +39,31 @@ function global:Invoke-Preflight {
     
     if (Test-Path -Path "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1") {
         
-        Write-Host+ 
+        Write-Host+ -Iff $(!$Quiet.IsPresent) 
         $message = "<$Name $noun $Action <.>48> PENDING"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
 
         Write-Log -Action $noun $Action -Target $Id
 
-        
         $fail = $false
+        $exceptionMessage = $null
         try{
             $command = "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
             $ComputerNameParam = ((Get-Command $command).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
             . $command @ComputerNameParam
         }
         catch {
+            $exceptionMessage = $Error[0].Exception.Message
             $fail = $true
         }
 
         $message = "<$Name $noun $Action <.>48> $($fail ? "FAIL" : "PASS")"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
-        # Write-Host+
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
+        # Write-Host+ -Iff $(!$Quiet.IsPresent)
 
         Write-Log -verb "$noun $Action" -Target $Id -Status ($fail ? "FAIL" : "PASS") -EntryType ($fail ? "Error" : "Information")
+
+        if ($Throw -and ![string]::IsNullOrEmpty($exceptionMessage)) { throw $exceptionMessage }
 
         return
 

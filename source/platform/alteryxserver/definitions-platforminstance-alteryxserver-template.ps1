@@ -46,22 +46,19 @@ If using the Microsoft Teams provider, it must be configured here.
 
     #region PLATFORM-OBJECT
 
-    $global:Platform.Instance = "<platformInstanceId>"
-    $global:Platform.Uri = [System.Uri]::new("<platformInstanceUrl>")
-    $global:Platform.Domain = "<platformInstanceDomain>"
-    $global:Platform.InstallPath = "<platformInstallLocation>"
+    $global:Platform.Instance = "alteryx-path-org"
+    $global:Platform.Uri = [System.Uri]::new("https://alteryx.path.org/gallery")
+    $global:Platform.Domain = "path.org"
+    $global:Platform.InstallPath = "F:\Program Files\Alteryx"
 
     #endregion PLATFORM-OBJECT
     #region PLATFORMTOPOLOGY
 
-        # The following line indicates a post-installation configuration to the installer
-        # Manual Configuration > Platform > Topology > Alias
-
         $global:RegexPattern += @{
             PlatformTopology = @{
                 Alias = @{
-                    Match = ".*"
-                    Groups = @(0)
+                    Match = "^.*?-(.*?)-0?(\d{1,2})$"
+                    Groups = @(1,2)
                 }
             }
         }
@@ -73,9 +70,25 @@ If using the Microsoft Teams provider, it must be configured here.
         # use the REMOVE or OFFLINE functions.
 
         $global:PlatformTopologyBase = @{
-            Nodes = "<platformInstanceNodes>"
+            Nodes = @('ayx-control-01', 'ayx-gallery-01', 'ayx-gallery-02', 'ayx-worker-01', 'ayx-worker-02', 'ayx-worker-03', 'ayx-worker-04')
             Components = @("Controller", "Database", "Gallery", "Worker")
         }
+        $global:PlatformTopologyDefaultComponentMap = @{
+            Nodes = @{
+                'ayx-control-01' = "Controller"
+                'ayx-gallery-01' = "Gallery"
+                'ayx-gallery-02' = "Gallery"
+                'ayx-worker-01' = "Worker"
+                'ayx-worker-02' = "Worker"
+                'ayx-worker-03' = "Worker"
+                'ayx-worker-04' = "Worker"
+            }
+        }
+
+        # $global:PlatformTopologyBase = @{
+        #     Nodes = @('ayx-control-01', 'ayx-gallery-01', 'ayx-gallery-02', 'ayx-worker-01', 'ayx-worker-02', 'ayx-worker-03', 'ayx-worker-04')
+        #     Components = @("Controller", "Database", "Gallery", "Worker")
+        # }
 
     #endregion PLATFORMTOPOLOGY
     #region PLATFORM-TIMEOUTS
@@ -91,9 +104,6 @@ If using the Microsoft Teams provider, it must be configured here.
 
     #endregion PRINCIPAL-CONTEXT
     #region CLEANUP
-
-        # The following line indicates a post-installation configuration to the installer
-        # Manual Configuration > Product > Cleanup > Customization
 
         $global:Cleanup = $null
         $global:Cleanup += @{
@@ -146,42 +156,40 @@ If using the Microsoft Teams provider, it must be configured here.
     #endregion DISKS
     #region MICROSOFT-TEAMS
 
-        # The following line indicates a post-installation configuration to the installer
-        # Manual Configuration > Provider > MicrosoftTeams > Webhooks
-
         # If using the MicrosoftTeams provider, enter the webhook URI[s] for each message type (see $PlatformMessageType)
         # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
 
         $global:MicrosoftTeamsConfig = @{
             Connector = @{
-                AllClear = @("<Microsoft Teams AllClear Webhook>")
-                Alert = @("<Microsoft Teams Alert Webhook>","<Microsoft Teams Alert Webhook>")
-                Heartbeat = @("<Microsoft Teams Heartbeat Webhook>")
-                Information = @("<Microsoft Teams Information Webhook>")
-                Intervention = @("<Microsoft Teams Intervention Webhook>")
-                Warning = @("<Microsoft Teams Warning Webhook>")
+                AllClear = @("***REMOVED***",
+                             "***REMOVED***")
+                Alert = @("***REMOVED***",
+                          "***REMOVED***")
+                Heartbeat = @("***REMOVED***")
+                Information = @("***REMOVED***")
+                Intervention = @("***REMOVED***",
+                                 "***REMOVED***") 
+                Warning = @("***REMOVED***",
+                            "***REMOVED***")
             }
         }
-        $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
+        $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
 
     #endregion MICROSOFT-TEAMS
     #region PYTHON
 
         $global:Location += @{
             Python = @{
-                Pip = "<pythonPipLocation>"
-                SitePackages = "<pythonSitePackagesLocation>"
+                Pip = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Scripts"
+                SitePackages = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Lib\site-packages"
             }
         }
 
-        $global:RequiredPythonPackages = "<requiredPythonPackages>"
+        $global:RequiredPythonPackages = @('tableauhyperapi', 'tableauserverclient==0.25', 'shapely', 'html2text', 'google-cloud-storage', 'azure-storage-blob')
 
     #endregion PYTHON
 
     #region TLS BEST PRACTICES
-    
-        # The following line indicates a post-installation configuration to the installer
-        # Manual Configuration > PlatformInstance > BestPractice > TLS
         
         $global:TlsBestPractices = @{
             Protocols = @{
@@ -195,16 +203,14 @@ If using the Microsoft Teams provider, it must be configured here.
             # signatureAlgorithms = @("sha256RSA")
         }
 
-    #endregion TLS BEST PRACTICES     
-    
-    #region OVERWATCH TOPOLOGY
+    #endregion TLS BEST PRACTICES       
 
-        # The following line indicates a post-installation configuration to the installer
-        # Manual Configuration > Platform > Topology > Update Overwatch Remote Controllers    
+    #region OVERWATCH TOPOLOGY 
 
-        $global:OverwatchRemoteControllers += @()
+        $global:OverwatchRemoteControllers += @("tbl-prod-01","tbl-test-01","tbl-mgmt-01","app-01")
         $global:OverwatchControllers += $global:OverwatchRemoteControllers
 
-    #endregion OVERWATCH TOPOLOGY    
+    #endregion OVERWATCH TOPOLOGY     
 
 #endregion INSTANCE-DEFINITIONS
+
