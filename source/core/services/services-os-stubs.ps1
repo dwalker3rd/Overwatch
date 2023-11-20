@@ -62,6 +62,8 @@ function global:Confirm-ServiceLogonCredentials {
 
 function global:Set-ServiceLogonCredentials {
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)][string]$Name,
@@ -144,6 +146,24 @@ function Get-PlatformInstallProperties
         [Parameter(Mandatory=$true, Position=0)][SupportsWildcards()][string]$ProgramName
     )
 
+    throw ("$($MyInvocation.MyCommand) is a STUB")
+    return
+}
+
+function global:Start-Computer {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+    )
+    throw ("$($MyInvocation.MyCommand) is a STUB")
+    return
+}
+
+function global:Stop-Computer {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+    )
     throw ("$($MyInvocation.MyCommand) is a STUB")
     return
 }

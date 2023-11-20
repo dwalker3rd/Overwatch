@@ -14,8 +14,7 @@ function global:Connect-AzAccount+ {
         [Parameter(Mandatory=$true)][string]$Tenant
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
     $subscriptionId = $global:Azure.$tenantKey.Subscription.Id
     $tenantId = $global:Azure.$tenantKey.Tenant.Id
@@ -268,8 +267,7 @@ function global:New-AzResourceGroup+ {
         [Parameter(Mandatory=$true)][string]$Location
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
     return New-AzResourceGroup -Name $ResourceGroupName -Location $Location
 
@@ -288,8 +286,7 @@ function global:New-AzStorageAccount+ {
         [Parameter(Mandatory=$true)][int]$RetentionDays
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
     $storageAccount = New-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $StorageAccountName -SkuName $SKU -Location $location
 
@@ -310,8 +307,7 @@ function global:New-AzStorageContainer+ {
         [Parameter(Mandatory=$true)][ValidateSet("Container","Blob","Off")][string]$Permission
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
     return New-AzStorageContainer -Name $ContainerName.ToLower() -Context $Context -Permission $Permission
 
@@ -345,8 +341,7 @@ function global:Get-AzRoleAssignments {
         [switch]$IncludeInheritance
     )
 
-    $tenantkey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantkey = Get-AzureTenantKeys -Tenant $Tenant
 
     $subscriptionId = $global:Azure.$tenantKey.Subscription.Id
     $subscriptionScope = "/subscriptions/$($subscriptionId)"
@@ -497,10 +492,27 @@ function global:Get-AzureTenantKeys {
 
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory=$false,Position=0)][string]$Tenant,
         [switch]$All,
         [switch]$AzureAD,
         [switch]$AzureADB2C
     )
+
+    $tenantKey = $null
+    if (![string]::IsNullOrEmpty($Tenant)) {
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { 
+            foreach ($azureTenantKey in (Get-AzureTenantKeys)) {
+                if ($Tenant -eq $global:Azure.$azureTenantKey.Tenant.Id) { 
+                    $tenantKey = $azureTenantKey
+                }
+            }
+        }
+        if ([string]::IsNullOrEmpty($tenantKey)) {
+            throw "$tenantKey is not a name/id for a valid/configured Azure tenant."
+        }
+        return $tenantKey
+    }
 
     if ($All -and $AzureAD) {
         throw "The `"All`" switch cannot be used with the `"AzureAD`" switch"
@@ -565,5 +577,46 @@ function global:Enable-AzVMExtensionAutomaticUpdate {
     
     }
 
+}
+
+function global:Start-Computer {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+    )
+
+    $azContext = Get-AzContext
+    if (!$azContext.Subscription) {
+        Connect-AzAccount+ -Tenant $azContext.Tenant
+    }
+
+    $vm = Get-AzVM -Name $ComputerName
+    $resourceGroupName = $vm.ResourceGroupName
+
+    Start-AzVM -ResourceGroupName $resourceGroupName -Name $ComputerName
 
 }
+Set-Alias -Name Start-VM -Value Stop-Computer -Scope Global
+Set-Alias -Name startVM -Value Stop-Computer -Scope Global
+
+function global:Stop-Computer {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+    )
+
+    $azContext = Get-AzContext
+    if (![string]::IsNullOrEmpty($azContext.Subscription)) {
+        Connect-AzAccount+ -Tenant $azureProfile.TenantId
+    }
+
+    $vm = Get-AzVM -Name $ComputerName
+    $resourceGroupName = $vm.ResourceGroupName
+
+    Stop-AzVM -ResourceGroupName $resourceGroupName -Name $ComputerName
+
+}
+Set-Alias -Name Stop-VM -Value Stop-Computer -Scope Global
+Set-Alias -Name stopVM -Value Stop-Computer -Scope Global

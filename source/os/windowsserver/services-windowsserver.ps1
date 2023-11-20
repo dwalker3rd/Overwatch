@@ -811,3 +811,31 @@ function global:Set-PlatformService {
     return
 
 }
+
+function global:Start-Computer {
+
+    # There is no 
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+    )
+    throw ("The $($global:OS.Id) $($MyInvocation.MyCommand) cmdlet is not [yet] supported by Overwatch.")
+    return
+
+}
+Set-Alias -Name Start-VM -Value Stop-Computer -Scope Global
+Set-Alias -Name startVM -Value Stop-Computer -Scope Global
+
+function global:Stop-Computer {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$ComputerName
+    )
+    throw ("The $($global:OS.Id) $($MyInvocation.MyCommand) cmdlet is not [yet] supported by Overwatch.")
+    return
+
+}
+Set-Alias -Name Stop-VM -Value Stop-Computer -Scope Global
+Set-Alias -Name stopVM -Value Stop-Computer -Scope Global
