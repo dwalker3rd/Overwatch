@@ -74,15 +74,13 @@ If using the Microsoft Teams provider, it must be configured here.
             Components = @("Controller", "Database", "Gallery", "Worker")
         }
         $global:PlatformTopologyDefaultComponentMap = @{
-            Nodes = @{
-                'ayx-control-01' = "Controller"
-                'ayx-gallery-01' = "Gallery"
-                'ayx-gallery-02' = "Gallery"
-                'ayx-worker-01' = "Worker"
-                'ayx-worker-02' = "Worker"
-                'ayx-worker-03' = "Worker"
-                'ayx-worker-04' = "Worker"
-            }
+            'ayx-control-01' = "Controller"
+            'ayx-gallery-01' = "Gallery"
+            'ayx-gallery-02' = "Gallery"
+            'ayx-worker-01' = "Worker"
+            'ayx-worker-02' = "Worker"
+            'ayx-worker-03' = "Worker"
+            'ayx-worker-04' = "Worker"
         }
 
         # $global:PlatformTopologyBase = @{
