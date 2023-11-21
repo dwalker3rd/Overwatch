@@ -1646,7 +1646,7 @@ function global:Set-PlatformTopology {
                     # return
                 }
 
-                if ((pt nodes.$ComputerName).Shutdown) {
+                if ($platformTopology.Nodes.$ComputerName.Shutdown) {
 
                     $result = Start-Computer -ComputerName $ComputerName
                     if ($result.IsSuccessStatusCode) {
@@ -1769,7 +1769,7 @@ function global:Set-PlatformTopology {
 
                 if (!$platformTopology.Nodes.$ComputerName.Shutdown -and $Shutdown) {
                     $result = Stop-Computer -ComputerName $ComputerName -NoWait
-                    $platformTopology.Nodes.$ComputerName.Shutdown = $result.Succeeded
+                    $platformTopology.Nodes.$ComputerName.Shutdown = $result.IsSuccessStatusCode
                 }
                 $platformTopology | Write-Cache platformtopology
 

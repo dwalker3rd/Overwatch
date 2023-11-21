@@ -1036,12 +1036,13 @@
         param (
             [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
             [Parameter(Mandatory=$false)][ValidateSet("HTTP", "RDP", "SMB", "WINRM")][string]$CommonTCPPort = "WINRM",
+            [switch]$NoHeader,
             [switch]$Quiet
         )
 
         $message = "  Network Connections"
         $leader = Format-Leader -Length 46 -Adjust $message.Length
-        Write-Host+ -Iff $(!$Quiet) -NoTrace $message,$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+ -Iff $(!$Quiet -and !$NoHeader) -NoTrace $message,$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
         $fail = $false
         $testResults = [PSCustomObject]@()
@@ -1105,7 +1106,7 @@
 
         $message = "  Network Connections"
         $leader = Format-Leader -Length 46 -Adjust $message.Length
-        Write-Host+ -Iff $(!$Quiet) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")
+        Write-Host+ -Iff $(!$Quiet -and !$NoHeader) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")
 
         return $testResults
         
@@ -1116,11 +1117,12 @@
         [CmdletBinding()]
         param (
             [Parameter(Mandatory=$false)][string[]]$ComputerName = (pt nodes -online -k),
+            [switch]$NoHeader,
             [switch]$Quiet
         )
 
         $leader = Format-Leader -Length 46 -Adjust ((("  Powershell Remoting").Length))
-        Write-Host+ -Iff $(!$Quiet) -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+ -Iff $(!$Quiet -and !$NoHeader) -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
         $fail = $false
         $testResults = [PSCustomObject]@()
@@ -1158,7 +1160,7 @@
 
         $message = "  Powershell Remoting"
         $leader = Format-Leader -Length 46 -Adjust $message.Length
-        Write-Host+ -Iff $(!$Quiet) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")        
+        Write-Host+ -Iff $(!$Quiet -and !$NoHeader) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")        
 
         return $testResults
 
