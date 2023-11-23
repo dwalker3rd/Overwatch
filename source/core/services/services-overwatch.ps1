@@ -1638,7 +1638,7 @@
                             $prerequisiteTest.Id = "Modules"
                             foreach ($module in $prerequisite.Id.Modules) {
                                 
-                                $modulereason = @()
+                                $moduleReason = @()
                                 
                                 $moduleRequiredVersion = ![string]::IsNullOrEmpty($module.RequiredVersion) ? $module.RequiredVersion : $null
                                 $moduleMinimumVersion = [string]::IsNullOrEmpty($moduleRequiredVersion) -and ![string]::IsNullOrEmpty($module.MinimumVersion) ? $module.MinimumVersion : $null
@@ -1684,20 +1684,20 @@
                                         if (![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $installedModuleVersion) {
                                             $installedVersion = $requiredVersion
                                         }
-                                        $modulereason += "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
+                                        $moduleReason = "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
                                         if (!$isRequiredVersionInstalled) {
-                                            $modulereason += "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is required."
+                                            $moduleReason = "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is not installed."
                                         }
                                     }
                                     else {
                                         $isModuleInstalled = $false
                                         $isRequiredVersionInstalled = $false
-                                        $modulereason += "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
+                                        $moduleReason = "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
                                     }
 
                                 }
                                 else {
-                                    $modulereason += "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$module.Repository ? " in repository '$($module.Repository)'" : $null)."
+                                    $moduleReason = "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$module.Repository ? " in repository '$($module.Repository)'" : $null)."
                                 }
 
                                 $_module = [ordered]@{}
@@ -1710,7 +1710,7 @@
                                     InstalledVersion = $installedVersion                             
                                     IsInstalled = $isModuleInstalled
                                     IsRequiredVersionInstalled = $isRequiredVersionInstalled
-                                    Reason = $modulereason
+                                    Reason = $moduleReason
                                     Source = "Repository"
                                     Repository = $psModuleRepositoryName
                                     VersionToInstall = $null
@@ -1718,7 +1718,7 @@
                                 if (![string]::IsNullOrEmpty($minimumVersion)) { $_module.VersionToInstall = "MinimumVersion"; $_module.MinimumVersion = $minimumVersion }
                                 elseif (![string]::IsNullOrEmpty($maximumVersion)) { $_module.VersionToInstall = "MaximumVersion"; $_module.MaximumVersion = $maximumVersion }
                                 elseif (![string]::IsNullOrEmpty($requiredVersion)) { $_module.VersionToInstall = "RequiredVersion"; $_module.RequiredVersion = $requiredVersion }
-                                else { $_module.Remove("VersionToInstall")}
+                                # if ($isRequiredVersionInstalled) { $_module.Remove("VersionToInstall") }
                                 if ([string]::IsNullOrEmpty($minimumVersion)) { $_module.Remove("MinimumVersion") }
                                 if ([string]::IsNullOrEmpty($maximumVersion)) { $_module.Remove("MaximumVersion") }
                                 if ([string]::IsNullOrEmpty($requiredVersion)) { $_module.Remove("requiredVersion") } 
@@ -1740,7 +1740,7 @@
                             $prerequisiteTest.Id = "Packages"
                             foreach ($package in $prerequisite.Id.Packages) {
 
-                                $packagereason = @()
+                                $packageReason = @()
                                 
                                 $packageRequiredVersion = ![string]::IsNullOrEmpty($package.RequiredVersion) ? $package.RequiredVersion : $null
                                 $packageMinimumVersion = [string]::IsNullOrEmpty($package.RequiredVersion) -and ![string]::IsNullOrEmpty($package.MinimumVersion) ? $package.MinimumVersion : $null
@@ -1786,20 +1786,20 @@
                                         if (![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $installedPackageVersion) {
                                             $installedVersion = $requiredVersion
                                         }
-                                        $packagereason += "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
+                                        $packageReason = "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
                                         if (!$isRequiredVersionInstalled) {
-                                            $packagereason += "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is required."
+                                            $packageReason = "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is not installed."
                                         }
                                     }
                                     else {
                                         $isPackageInstalled = $false
                                         $isRequiredVersionInstalled = $false
-                                        $packagereason += "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
+                                        $packageReason = "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
                                     }
 
                                 }
                                 else {
-                                    $packagereason += "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$package.Repository ? " in repository '$($package.Repository)'" : $null)."
+                                    $packageReason = "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$package.Repository ? " in repository '$($package.Repository)'" : $null)."
                                 }
                                 $_package = [ordered]@{}
                                 $_package += [ordered]@{ 
@@ -1811,7 +1811,7 @@
                                     InstalledVersion = $installedVersion                             
                                     IsInstalled = $isPackageInstalled
                                     IsRequiredVersionInstalled = $isRequiredVersionInstalled
-                                    Reason = $packagereason
+                                    Reason = $packageReason
                                     Source = "ProviderName"
                                     ProviderName = $psPackageProviderName
                                     VersionToInstall = $null
@@ -1820,7 +1820,7 @@
                                 if (![string]::IsNullOrEmpty($minimumVersion)) { $_package.VersionToInstall = "MinimumVersion"; $_package.MinimumVersion = $minimumVersion }
                                 elseif (![string]::IsNullOrEmpty($maximumVersion)) { $_package.VersionToInstall = "MaximumVersion"; $_package.MaximumVersion = $maximumVersion }
                                 elseif (![string]::IsNullOrEmpty($requiredVersion)) { $_package.VersionToInstall = "RequiredVersion"; $_package.RequiredVersion = $requiredVersion } 
-                                else { $_package.Remove("VersionToInstall")}
+                                # if ($isRequiredVersionInstalled) { $_package.Remove("VersionToInstall")}
                                 if ([string]::IsNullOrEmpty($minimumVersion)) { $_package.Remove("MinimumVersion") }
                                 if ([string]::IsNullOrEmpty($maximumVersion)) { $_package.Remove("MaximumVersion") }
                                 if ([string]::IsNullOrEmpty($requiredVersion)) { $_package.Remove("requiredVersion") }   
