@@ -1,7 +1,7 @@
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
 param(
-    [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(Get-PlatformTopology nodes -Keys),
+    [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName=(pt nodes -online -keys),
     [Parameter(Mandatory=$false)][string[]]$TrustedHosts=$ComputerName
 )
 
@@ -95,7 +95,7 @@ $global:WarningPreference = "SilentlyContinue"
 
         # enable WSMan Credssp for Server (for remote nodes)
         $nodes = @()
-        $nodes += pt nodes -k | Where-Object {$_ -ne $thisNode}
+        $nodes += pt nodes -online -keys | Where-Object {$_ -ne $thisNode}
         if ($nodes) {
             $psSession = New-PsSession+ -ComputerName $nodes
             if ($null -ne $psSession) {
