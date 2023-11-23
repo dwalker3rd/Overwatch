@@ -460,6 +460,19 @@ $global:Catalog.Provider += @{ SMTP =
         Description = "Overwatch Provider for SMTP"
         Publisher = "Walker Analytics Consulting"
         Log = "SMTP"
+        Initialization = @{
+            Prerequisites = @(
+                @{
+                    Type = "Powershell"
+                    Powershell = @{
+                        Packages = @(
+                            @{ Name = "MimeKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet"; SkipDependencies = $true },
+                            @{ Name = "MailKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet" }
+                        )
+                    }
+                }
+            )
+        }
         Installation = @{
             Prerequisites = @(
                 @{
