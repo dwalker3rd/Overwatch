@@ -1209,22 +1209,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         Write-Host+ -MaxBlankLines 1
         $message = "<Powershell modules/packages <.>48> INSTALLING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
-
-        $requiredModules = @()
-        $requiredPackages = @()
-
-        $psDependencies = @()
-        foreach ($impactedId in $impactedIds) {
-            $psDependencies += Get-CatalogDependencies -Uid $impactedId -IncludeDependency PowerShell | Where-Object {$_.Uid -notin $psDependencies.Uid}
-        }
-        foreach ($psDependency in $psDependencies) {
-            if ($psDependency.Id -eq "Module") { 
-                $requiredModules +=  @{ Name = $psDependency.Object.Name }
-            }
-            if ($psDependency.Id -eq "Package") { 
-                $requiredPackages +=  @{ Name = $psDependency.Object.Name }
-            }
-        }
+        $newLineClosed = $false
 
         if (!(Get-PackageSource -ProviderName PowerShellGet)) {
             Register-PackageSource -Name PSGallery -ProviderName PowerShellGet -Trusted -ErrorAction SilentlyContinue | Out-Null
@@ -1233,48 +1218,75 @@ $global:Location.Definitions = $tempLocationDefinitions
             Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -Trusted -ErrorAction SilentlyContinue | Out-Null
         }
 
-        $requiredModules += @()
-        foreach ($module in $requiredModules) {
+        # get all the installed catalog objects with Powershell prerequisites
+        $psPrerequisites = (Get-Catalog) | Where-Object {$_.IsInstalled() -and $_.Installation.Prerequisites.Type -and $_.Installation.Prerequisites.Type -eq "Powershell"}
+        foreach ($psPrerequisite in $psPrerequisites) {
 
-            # complete -NoNewLine from above
-            Write-Host+ 
+            $prerequisiteTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -Quiet
+            if (!$prerequisiteTestResults.Pass) {
+                foreach ($prerequisite in $prerequisiteTestResults.Prerequisites | Where-Object {!$_.Pass}) {
 
-            $message = "<  $($module.name) <.>36> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                    switch ($prerequisite.Type) {
+                        "Powershell" {
+                            switch ($prerequisite.Id) {
+                                "Modules" {
+                                    foreach ($module in $prerequisite.Tests.Powershell.Modules) {
+                    
+                                        if ($module.Status -ne "Installed") {
 
-            $installedColor = "DarkGray"
-            if (!(Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue)) {
-                Install-Module -Name $module.name -Force -ErrorAction SilentlyContinue | Out-Null
-                Import-Module -Name $module.name -ErrorAction SilentlyContinue | Out-Null
-                $installedColor = "DarkGreen"
+                                            if (!$newLineClosed) {
+                                                Write-Host+ 
+                                                $newLineClosed = $true
+                                            }
+
+                                            $message = "<  $($module.name) <.>36> PENDING"
+                                            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                                            $installedColor = "DarkGray"
+
+                                            Install-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -ErrorAction SilentlyContinue | Out-Null
+                                            Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -ErrorAction SilentlyContinue | Out-Null
+                                            $installedColor = "DarkGreen"
+
+                                            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
+                                            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
+                                            
+                                        }
+
+                                    }
+                                }
+                                "Packages" {
+                                    foreach ($package in $prerequisite.Tests.Powershell.Packages) {
+
+                                        if ($package.Status -ne "Installed") {
+
+                                            if (!$newLineClosed) {
+                                                Write-Host+ 
+                                                $newLineClosed = $true
+                                            }
+
+                                            $message = "<  $($package.name) <.>36> PENDING"
+                                            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                                            $installedColor = "DarkGray"
+
+                                            Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue | Out-Null
+                                            $installedColor = "DarkGreen"
+
+                                            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
+                                            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
+
+                                        }
+
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            
-            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
 
         }
 
-        # $requiredPackages += @()
-        foreach ($package in $requiredPackages) {
-
-            # complete -NoNewLine if not already done in required modules
-            Write-Host+ -Iff $(!$requiredModules) 
-            
-            $message = "<  $($package.name) <.>36> PENDING"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-            $installedColor = "DarkGray"
-            if (!(Get-Package -Name $package.name -ErrorAction SilentlyContinue)) {
-                Install-Package -Name $package.name -SkipDependencies -Force | Out-Null
-                $installedColor = "DarkGreen"
-            }
-
-            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
-
-        }
-
-        if ($requiredModules -or $requiredPackages) {
+        if ($newLineClosed) {
             $message = "<Powershell modules/packages <.>48> INSTALLED"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
         }
