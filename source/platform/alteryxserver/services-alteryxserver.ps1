@@ -590,127 +590,167 @@ function global:Invoke-AlteryxService {
 }  
 
 #endregion ALTERYXSERVICE
-#region START-STOP
+#region PLATFORM JOBS
 
-function global:Get-PlatformJob {
+    function global:Get-PlatformJob {
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName= (Get-PlatformTopology components.worker.nodes -Online -Keys)
-    ) 
+        [CmdletBinding(DefaultParameterSetName="ByComputerName")]
+        param (
+            [Parameter(Mandatory=$false,ParameterSetName="ByComputerName")]
+            [string[]]$ComputerName,
+
+            [Parameter(Mandatory=$true,ParameterSetName="ById")]
+            [string[]]$Id, # format: <ComputerName>:<Id>
+            
+            [Parameter(Mandatory=$false,ParameterSetName="ByComputerName")]
+            [Parameter(Mandatory=$false,ParameterSetName="ById")]
+            [switch]$Orphaned
+        ) 
+
+        if (!$ComputerName -and !$Id) { 
+            $ComputerName = Get-PlatformTopology components.worker.nodes -Online -Keys
+        }
+
+        $jobs = Get-PlatformProcess -ComputerName $ComputerName | 
+            Where-Object {$_.DisplayName -eq $PlatformDictionary.AlteryxEngineCmd -and $_.Status -eq "Active"}        
                 
-    $jobs = Get-PlatformProcess -ComputerName $ComputerName | 
-        Where-Object {$_.DisplayName -eq $PlatformDictionary.AlteryxEngineCmd -and $_.Status -eq "Active"}
-
-    return $jobs
-
-}
-Set-Alias -Name jobsGet -Value Get-PlatformJob -Scope Global
-
-function global:Watch-PlatformJob {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][int32]$Seconds = 15
-    ) 
-
-    $platformTopology = Get-PlatformTopology -Online
-    if ([string]::IsNullOrEmpty($ComputerName)) {
-        $ComputerName = $platformTopology.nodes.Keys
-    }
-
-    $timer = [Diagnostics.Stopwatch]::StartNew()
-
-    $jobs = Get-PlatformJob -ComputerName $ComputerName  
-    
-    do {
-
-        if ($jobs) {
+        if (!$ComputerName -and $Id) {
+            $_jobs = @()
             foreach ($job in $jobs) {
-                Write-Host+ -NoTrace  "Jobs are running on $($job.Node)"
+                if ("$($job.Node):$($job.Id)" -in $Id) {
+                    $_jobs += $job
+                }
             }
-        }
-        else {
-            Write-Host+ -NoTrace  "*NO* jobs are running"
+            $jobs = $_jobs
         }
 
-        Start-Sleep -seconds $Seconds
+        if ($Orphaned) {
+            $jobs = $jobs | Where-Object {$_.status -eq "Orphaned"}
+        }
 
-        $jobs = Get-PlatformJob -ComputerName $ComputerName  
+        return $jobs
 
-    } until (($jobs.Count -eq 0) -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt $PlatformComponentTimeout))
-
-    $timer.Stop()
-
-    if ($jobs) {
-        Write-Host+ -NoTrace "Timeout"
     }
-    else {
-        Write-Host+ -NoTrace "*NO* jobs are running"
-    }
+    Set-Alias -Name jobsGet -Value Get-PlatformJob -Scope Global
 
-    return 
-
-}
-Set-Alias -Name jobsWatch -Value Watch-PlatformJob -Scope Global
-
-function global:Stop-PlatformJob {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,Position=0)][string[]]$ComputerName
-    ) 
-
-    function Stop-ProcessTree {
+    function global:Watch-PlatformJob {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$true)][string]$ComputerName,
-            [Parameter(Mandatory=$true)][int]$ProcessId
-        )
+            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = (Get-PlatformTopology components.worker.nodes -Online -Keys),
+            [Parameter(Mandatory=$false)][int32]$Seconds = 15
+        ) 
+
+        # $platformTopology = Get-PlatformTopology -Online
+        # if ([string]::IsNullOrEmpty($ComputerName)) {
+        #     $ComputerName = $platformTopology.nodes.Keys
+        # }
+
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+
+        $jobs = Get-PlatformJob -ComputerName $ComputerName  
         
-        Get-CimInstance -ClassName Win32_Process -Computername $ComputerName | 
-            Where-Object { $_.ParentProcessId -eq $ProcessId } | 
-                ForEach-Object { 
-                    Stop-ProcessTree -Computername $ComputerName -ProcessId $_.ProcessId
+        do {
+
+            if ($jobs) {
+                foreach ($job in $jobs) {
+                    Write-Host+ -NoTrace  "Jobs are running on $($job.Node)"
                 }
+            }
+            else {
+                Write-Host+ -NoTrace  "*NO* jobs are running"
+            }
 
-        $psSession = Use-PSSession+ -ComputerName $ComputerName
-        Invoke-Command -Session $psSession {Stop-Process -Id $using:ProcessId -Force | Wait-Process -Timeout 30} 
-        # Remove-PSSession $psSession
+            Start-Sleep -seconds $Seconds
+
+            $jobs = Get-PlatformJob -ComputerName $ComputerName  
+
+        } until (($jobs.Count -eq 0) -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt $PlatformComponentTimeout))
+
+        $timer.Stop()
+
+        if ($jobs) {
+            Write-Host+ -NoTrace "Timeout"
+        }
+        else {
+            Write-Host+ -NoTrace "*NO* jobs are running"
+        }
+
+        return 
+
     }
-                
-    $jobsTerminated = @()
-    $jobs = Get-PlatformJob -ComputerName $ComputerName 
+    Set-Alias -Name jobsWatch -Value Watch-PlatformJob -Scope Global
 
-    foreach ($job in $jobs) {
-        $message = "Terminating $($PlatformDictionary.AlteryxEngineCmd) ($($job.Id)) on $($job.Node)"
-        Write-Host+ -NoTrace $message -ForegroundColor DarkGray
-        # Write-Log -Action $Command -Status $services.Status -Message $message -EntryType "Warning"
-        # Stop-ProcessTree -ComputerName $job.Node -ProcessId $job.Instance.Id
-        $jobsTerminated += $job | Copy-Object
+    function global:Stop-PlatformJob {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string[]]$ComputerName,
+            [Parameter(Mandatory=$false)][string[]]$Id # format: <ComputerName>:<Id>
+        ) 
+
+        function Stop-ProcessTree {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$true)][string]$ComputerName,
+                [Parameter(Mandatory=$true)][int]$ProcessId
+            )
+            
+            Get-CimInstance -ClassName Win32_Process -Computername $ComputerName | 
+                Where-Object { $_.ParentProcessId -eq $ProcessId } | 
+                    ForEach-Object { 
+                        Stop-ProcessTree -Computername $ComputerName -ProcessId $_.ProcessId
+                    }
+
+            $psSession = Use-PSSession+ -ComputerName $ComputerName
+            Invoke-Command -Session $psSession {Stop-Process -Id $using:ProcessId -Force | Wait-Process -Timeout 30} 
+            # Remove-PSSession $psSession
+        }
+
+        if (!$ComputerName -and !$Id) { $ComputerName = Get-PlatformTopology components.worker.nodes -Online -Keys }
+
+        if ($ComputerName -and !$Id) { $jobs = Get-PlatformJob -ComputerName $ComputerName }
+        if (!$ComputerName -and $Id) { $jobs = Get-PlatformJob -Id $Id }
+        foreach ($job in $jobs) {
+            Stop-ProcessTree -ComputerName $job.Node -ProcessId $job.Instance.Id
+            $message = "$($PlatformDictionary.AlteryxEngineCmd) ($($job.Id)) was terminated with force on node '$($job.Node)'"
+            Write-Host+ -NoTrace  $message -ForegroundColor DarkGray
+            Write-Log -Action $Command -Status $services.Status -EntryType Error -Message $message
+        } 
+
+        if ($ComputerName -and !$Id) { $jobs = Get-PlatformJob -ComputerName $ComputerName }
+        if (!$ComputerName -and $Id) { $jobs = Get-PlatformJob -Id $Id }
+        foreach ($job in $jobs) {
+            $message = "$($PlatformDictionary.AlteryxEngineCmd) ($($job.Id)) is still running on node '$($job.Node)'"
+            Write-Host+ -NoTrace  $message -ForegroundColor DarkRed
+            Write-Log -Action $Command -Status $services.Status -EntryType Error -Message $message
+        } 
+        if ($jobs.Count -gt 0) {
+            Write-Host+ -NoTrace "Unable to stop $($jobs.Count) job$($jobs.Count -le 1 ? '' : 's')" -ForegroundColor DarkRed
+        }
+
+        return 
+
     }
 
-    foreach ($job in $jobsTerminated) {
-        $message = "$($PlatformDictionary.AlteryxEngineCmd) ($($job.Id)) was terminated with force on node '$($job.Node)'"
-        Write-Host+ -NoTrace  $message -ForegroundColor DarkGray
-        Write-Log -Action $Command -Status $services.Status -EntryType Error -Message $message
-    } 
+    function global:Update-PlatformJob {
 
-    $jobs = Get-PlatformJob -ComputerName $ComputerName 
-    foreach ($job in $jobs) {
-        $message = "$($PlatformDictionary.AlteryxEngineCmd) ($($job.Id)) is still running on node '$($job.Node)'"
-        Write-Host+ -NoTrace  $message -ForegroundColor DarkRed
-        Write-Log -Action $Command -Status $services.Status -EntryType Error -Message $message
-    } 
-    if ($jobs.Count -gt 0) {
-        Write-Host+ -NoTrace "Unable to stop $($jobs.Count) job$($jobs.Count -le 1 ? '' : 's')" -ForegroundColor DarkRed
+        [CmdletBinding()]
+        param()
+
+        # find/kill orphaned AlteryxEngine processes
+        $orphanedJobs = Get-PlatformJob -Orphaned
+        foreach ($orphanedJob in $orphanedJobs) {
+            Stop-PlatformJob -Id "$($orphanedJob.Node):$($orphanedJob.Id)"
+        }
+
+        return
+
     }
 
-    return 
-
-}
+#endregion PLATFORM JOBS
+#region PLATFORM/COMPONENT START/STOP
 
 function global:Request-PlatformComponent {
 
@@ -1045,7 +1085,7 @@ function global:Restart-Worker {
     Request-PlatformComponent Start Worker -ComputerName $ComputerName
 }
 
-#endregion STOP-START
+#endregion PLATFORM/COMPONENT START/STOP
 #region BACKUP
 
 function global:Backup-Platform {
@@ -1653,17 +1693,17 @@ function global:Set-PlatformTopology {
                         $platformTopology.Nodes.$ComputerName.Remove("Shutdown")
                     }
 
-                    # invoke preflight checks for this node (again)
-                    # if these fail, do not continue
-                    try {
-                        Invoke-Preflight -Action Check -Target PlatformInstance -ComputerName $ComputerName -Throw -Quiet
-                        $platformTopology.Nodes.$ComputerName.Remove("Shutdown")
-                    }
-                    catch {
-                        $platformTopology.Nodes.$ComputerName.Shutdown = $true
-                        Write-Host+ -NoTrace "Node","$($ComputerName)","is","Shutdown" -ForegroundColor Gray,Blue,Gray,DarkRed
-                        return
-                    }
+                    # # invoke preflight checks for this node (again)
+                    # # if these fail, do not continue
+                    # try {
+                    #     Invoke-Preflight -Action Check -Target PlatformInstance -ComputerName $ComputerName -Throw -Quiet
+                    #     $platformTopology.Nodes.$ComputerName.Remove("Shutdown")
+                    # }
+                    # catch {
+                    #     $platformTopology.Nodes.$ComputerName.Shutdown = $true
+                    #     Write-Host+ -NoTrace "Node","$($ComputerName)","is","Shutdown" -ForegroundColor Gray,Blue,Gray,DarkRed
+                    #     return
+                    # }
 
                 }
 
@@ -1738,12 +1778,13 @@ function global:Set-PlatformTopology {
                 # if these fail, do not continue
                 try {
                     Invoke-Preflight -Action Check -Target PlatformInstance -ComputerName $ComputerName -Throw
-                    $platformTopology.Nodes.$ComputerName.Remove("Shutdown")
+                    $platformTopology.Nodes.$ComputerName.Shutdown = $false
                 }
                 catch {
                     $platformTopology.Nodes.$ComputerName.Shutdown = $true
                     # Write-Host+ -NoTrace "Node","$($ComputerName)","is","Shutdown" -ForegroundColor Gray,Blue,Gray,DarkRed
                 }
+                $platformTopology | Write-Cache platformtopology
 
                 if (!$platformTopology.Nodes.$ComputerName.Shutdown) {
 
@@ -1763,6 +1804,7 @@ function global:Set-PlatformTopology {
                 foreach ($ptNodeComponent in $ptNodeComponents) {
                     $platformTopology.Components.$ptNodeComponent.Remove($ComputerName)
                 }
+                $platformTopology | Write-Cache platformtopology
 
                 Write-Log -Action ptOffline -Target $ComputerName -Status Offline -EntryType Warning -Force
                 Write-Host+ -NoTrace "Node","$($ComputerName)","is","Offline" -ForegroundColor Gray, Blue, Gray, DarkRed
