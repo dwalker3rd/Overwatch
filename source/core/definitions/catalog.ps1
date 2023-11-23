@@ -55,16 +55,7 @@ $global:Catalog.Cloud += @{ Azure =
                     Type = "Powershell"
                     Powershell = @{
                         Modules = @(
-                            @{ Name = "Az.Accounts" },
-                            @{ Name = "Az.Compute" },
-                            @{ Name = "Az.Resources" },
-                            @{ Name = "Az.Storage" },
-                            @{ Name = "Az.Network" },
-                            @{ Name = "Az.CosmosDb" },
-                            @{ Name = "Az.SqlVirtualMachine" },
-                            @{ Name = "Az.KeyVault" },
-                            @{ Name = "Az.DataFactory" },
-                            @{ Name = "Az.Batch" }
+                            @{ Name = "Az"; RequiredVersion = "11.0.0"; Repository = "PSGallery" }
                         )
                     }
                 }
@@ -475,9 +466,9 @@ $global:Catalog.Provider += @{ SMTP =
                     Type = "Powershell"
                     Powershell = @{
                         Packages = @(
-                            @{ Name = "Portable.BouncyCastle" },
-                            @{ Name = "MimeKit" },
-                            @{ Name = "MailKit" }
+                            @{ Name = "Portable.BouncyCastle"; RequiredVersion = "1.9.0"; ProviderName = "NuGet" },
+                            @{ Name = "MimeKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet"; SkipDependencies = $true },
+                            @{ Name = "MailKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet" }
                         )
                     }
                 }
