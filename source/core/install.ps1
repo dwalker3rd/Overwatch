@@ -1239,7 +1239,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                                 $newLineClosed = $true
                                             }
 
-                                            $message = "<  $($module.name) <.>36> PENDING"
+                                            $message = "<  $($module.name) $($module.$($module.VersionToInstall)) <.>36> PENDING"
                                             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
                                             $installedColor = "DarkGray"
 
@@ -1264,7 +1264,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                                 $newLineClosed = $true
                                             }
 
-                                            $message = "<  $($package.name) <.>36> PENDING"
+                                            $message = "<  $($package.name) $($package.$($package.VersionToInstall)) <.>36> PENDING"
                                             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
                                             $installedColor = "DarkGray"
 
