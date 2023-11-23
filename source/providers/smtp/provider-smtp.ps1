@@ -25,10 +25,17 @@ The message object used by the Overwatch messaging service serialized into JSON.
 
 $prerequisiteTestResults = Test-Prerequisites -Type Provider -Id SMTP -PrerequisiteType Initialization -Quiet
 if (!$prerequisiteTestResults.Pass) {
-    throw $package.Reason -join "`r`n"
+    foreach ($package in $prerequisiteTestResults.Prerequisites.Tests.Powershell.Packages) {
+        if ($package.Status -ne "Installed") {
+            throw $package.Reason
+        }
+    }
 }
 foreach ($package in $prerequisiteTestResults.Prerequisites.Tests.Powershell.Packages) {
-    Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib\net48\$($package.Name).dll"
+    try{
+        Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib\net48\$($package.Name).dll"
+    }
+    catch {}
 }
 
 # $mailKit = Get-Package -Name MailKit
