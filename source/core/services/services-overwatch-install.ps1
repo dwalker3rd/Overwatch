@@ -585,7 +585,7 @@ function script:Copy-File {
 
 #region CATALOG OBJECT
 
-    function script:Install-CatalogObject {
+    function global:Install-CatalogObject {
         [CmdletBinding()]
         Param (
             [Parameter(Mandatory=$true,Position=0)][string]$Type,
@@ -611,8 +611,31 @@ function script:Copy-File {
         if (!$prerequisiteTestResults.Pass) {
             foreach ($prerequisite in $prerequisiteTestResults.Prerequisites | Where-Object {!$_.Pass}) {
                 # TODO: Prompt user for manual/automatic installation of prerequisites (including children) 
-                Install-CatalogObject -Type $prerequisite.Type -Id $prerequisite.Id -UseDefaultResponses:$UseDefaultResponses
-                Invoke-Command (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id).Installation.Install
+                switch ($prerequisite.Type) {
+                    "Powershell" {
+                        switch ($prerequisite.Id) {
+                            "Modules" {
+                                foreach ($module in $prerequisite.Tests.Powershell.Modules) {
+                                    if ($module.Status -ne "Installed") {
+                                        Install-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -ErrorAction SilentlyContinue #| Out-Null
+                                        Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -ErrorAction SilentlyContinue #| Out-Null
+                                    }
+                                }
+                            }
+                            "Packages" {
+                                foreach ($package in $prerequisite.Tests.Powershell.Packages) {
+                                    if ($package.Status -ne "Installed") {
+                                        Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue #| Out-Null
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    default {
+                        Install-CatalogObject -Type $prerequisite.Type -Id $prerequisite.Id -UseDefaultResponses:$UseDefaultResponses
+                        Invoke-Command (Get-Catalog -Type $prerequisite.Type -Id $prerequisite.Id).Installation.Install
+                    }
+                }
             }
         }
 
