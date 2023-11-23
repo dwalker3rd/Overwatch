@@ -1534,6 +1534,21 @@
             [switch]$Quiet
         )
 
+        function IsValidVersion {
+
+            param (
+                [Parameter(Mandatory=$true)][AllowNull()][AllowEmptyString()][string]$Version,
+                [Parameter(Mandatory=$true)][Alias("Package","Module")][object[]]$InputObject
+            )
+
+            if ([string]::IsNullOrEmpty($Version)) { return $true }
+            return $Version -ge $InputObject.Version[-1] -and $Version -le $InputObject.Version[0]
+
+        }
+
+        $global:PsDefaultModuleRepositoryName = "PSGallery"
+        $global:PsDefaultPackageProviderName = "NuGet"
+
         if (![string]::IsNullOrEmpty($Uid) -and ([string]::IsNullOrEmpty($Type) -or [string]::IsNullOrEmpty($Id))) { 
             $Type = ($Uid -split "\.")[0]
             $Id = ($Uid -split "\.")[1]
@@ -1595,7 +1610,7 @@
                     Status = $null
                     Pass = $false
                     Block = $false
-                    Results = $null
+                    # Results = $null
                 }
                 
                 # test for prerequisite types which are drivers
@@ -1620,25 +1635,205 @@
                         if ($prerequisite.Id.Modules) {
                             $prerequisiteTest.DisplayName = "Powershell Modules"
                             $prerequisiteTest.$($prerequisite.Type) += @{ Modules = @() }
+                            $prerequisiteTest.Id = "Modules"
                             foreach ($module in $prerequisite.Id.Modules) {
-                                $psModuleIsInstalled = $null -ne (Get-InstalledModule -Name $module.name -ErrorAction SilentlyContinue)
-                                $prerequisiteTest.$($prerequisite.Type).Modules += @{ 
-                                    Name = $module.name 
-                                    Status = $psModuleIsInstalled ? "Installed" : "Not Installed"
+                                
+                                $modulereason = @()
+                                
+                                $moduleRequiredVersion = ![string]::IsNullOrEmpty($module.RequiredVersion) ? $module.RequiredVersion : $null
+                                $moduleMinimumVersion = [string]::IsNullOrEmpty($moduleRequiredVersion) -and ![string]::IsNullOrEmpty($module.MinimumVersion) ? $module.MinimumVersion : $null
+                                $moduleMaximumVersion = [string]::IsNullOrEmpty($moduleRequiredVersion) -and [string]::IsNullOrEmpty($moduleMinimumVersion) -and ![string]::IsNullOrEmpty($module.MaximumVersion) ? $module.MaximumVersion : $null
+                                
+                                $psModuleRepositoryName = ![string]::IsNullOrEmpty($module.Repository) ? $module.Repository : $global:PsDefaultModuleRepositoryName 
+                                $repositoryModule = Find-Module -Name $module.Name -Repository $psModuleRepositoryName -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                
+                                $installedModule = $null # establish scope
+                                $requiredVersion = $minimumVersion = $maximumVersion = $null
+                                if ($repositoryModule) {
+
+                                    $requiredVersion = ![string]::IsNullOrEmpty($moduleRequiredVersion) ? $moduleRequiredVersion : $null                                    
+                                    if (!(IsValidVersion -Version $moduleRequiredVersion -Module $repositoryModule)) {
+                                        throw "RequiredVersion $moduleRequiredVersion for module $($module.Name) must be between $($repositoryModule.Version[-1]) and $($repositoryModule.Version[0])."
+                                    }
+                                    if ([string]::IsNullOrEmpty($moduleRequiredVersion)) {
+                                        $minimumVersion = ![string]::IsNullOrEmpty($moduleMinimumVersion) ? $moduleMinimumVersion : $null                                    
+                                        if (!(IsValidVersion -Version $moduleMinimumVersion -Module $repositoryModule)) {
+                                            throw "MinimumVersion $moduleMinimumVersion for module $($module.Name) must be between $($repositoryModule.Version[-1]) and $($repositoryModule.Version[0])."
+                                        }
+                                        $maximumVersion = ![string]::IsNullOrEmpty($moduleMaximumVersion) ? $moduleMaximumVersion : $null                                    
+                                        if (!(IsValidVersion -Version $moduleMaximumVersion -Module $repositoryModule)) {
+                                            throw "MaximumVersion $moduleMaximumVersion for module $($module.Name) must be between $($repositoryModule.Version[-1]) and $($repositoryModule.Version[0])."
+                                        }
+                                    }
+
+                                    $installedModule = Get-InstalledModule -Name $module.Name -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedModuleVersion = [array]$installedModule.Version # this needs to be an array for the comparisons below to work
+                                    # if ($installedModule.Version.GetType().BaseType.Name -ne "Array") {
+                                    #     $installedModule.Version = [array]($installedModule.Version) # this needs to be an array for the comparisons below to work
+                                    # }
+
+                                    if ($installedModule) {
+                                        $isModuleInstalled = $true
+                                        $isRequiredVersionInstalled = (
+                                            ([string]::IsNullOrEmpty($requiredVersion) -and [string]::IsNullOrEmpty($minimumVersion) -and [string]::IsNullOrEmpty($maximumVersion)) -or 
+                                            ((![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $installedModuleVersion) -or 
+                                            (![string]::IsNullOrEmpty($minimumVersion) -and $installedModuleVersion[0] -ge $minimumVersion) -or 
+                                            (![string]::IsNullOrEmpty($maximumVersion) -and $installedModuleVersion[0] -le $maximumVersion))  
+                                        )
+                                        $installedVersion = $installedModuleVersion[0]
+                                        if (![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $installedModuleVersion) {
+                                            $installedVersion = $requiredVersion
+                                        }
+                                        $modulereason += "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
+                                        if (!$isRequiredVersionInstalled) {
+                                            $modulereason += "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is required."
+                                        }
+                                    }
+                                    else {
+                                        $isModuleInstalled = $false
+                                        $isRequiredVersionInstalled = $false
+                                        $modulereason += "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
+                                    }
+
                                 }
-                                $_isInstalled = $_isInstalled -and $psModuleIsInstalled
+                                else {
+                                    $modulereason += "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$module.Repository ? " in repository '$($module.Repository)'" : $null)."
+                                }
+
+                                $_module = [ordered]@{}
+                                $_module += [ordered]@{ 
+                                    Name = $module.name
+                                    Status = $isModuleInstalled -and $isRequiredVersionInstalled ? "Installed" : "Not Installed"
+                                    MinimumVersion = $minimumVersion
+                                    MaximumVersion = $maximumVersion
+                                    RequiredVersion = $requiredVersion
+                                    InstalledVersion = $installedVersion                             
+                                    IsInstalled = $isModuleInstalled
+                                    IsRequiredVersionInstalled = $isRequiredVersionInstalled
+                                    Reason = $modulereason
+                                    Source = "Repository"
+                                    Repository = $psModuleRepositoryName
+                                    VersionToInstall = $null
+                                }
+                                if (![string]::IsNullOrEmpty($minimumVersion)) { $_module.VersionToInstall = "MinimumVersion"; $_module.MinimumVersion = $minimumVersion }
+                                elseif (![string]::IsNullOrEmpty($maximumVersion)) { $_module.VersionToInstall = "MaximumVersion"; $_module.MaximumVersion = $maximumVersion }
+                                elseif (![string]::IsNullOrEmpty($requiredVersion)) { $_module.VersionToInstall = "RequiredVersion"; $_module.RequiredVersion = $requiredVersion }
+                                else { $_module.Remove("VersionToInstall")}
+                                if ([string]::IsNullOrEmpty($minimumVersion)) { $_module.Remove("MinimumVersion") }
+                                if ([string]::IsNullOrEmpty($maximumVersion)) { $_module.Remove("MaximumVersion") }
+                                if ([string]::IsNullOrEmpty($requiredVersion)) { $_module.Remove("requiredVersion") } 
+                                $prerequisiteTest.$($prerequisite.Type).Modules += $_module                               
+                                $_isInstalled = $_isInstalled -and $isModuleInstalled -and $isRequiredVersionInstalled
+
+                                if (!$prerequisite.$($prerequisite.Type).Modules) {
+                                    $prerequisite.$($prerequisite.Type) += @{ Modules = $prerequisiteId.Modules }
+                                }
+                                else {
+                                    $prerequisite.$($prerequisite.Type).Modules += $prerequisiteId.Modules
+                                }
+                                $prerequisite.Id = "Modules"
                             }
                         }
                         if ($prerequisite.Id.Packages) {
                             $prerequisiteTest.DisplayName = "Powershell Packages"
                             $prerequisiteTest.$($prerequisite.Type) += @{ Packages = @() }
+                            $prerequisiteTest.Id = "Packages"
                             foreach ($package in $prerequisite.Id.Packages) {
-                                $psPackageIsInstalled = $null -ne (Get-Package -Name $package.name -ErrorAction SilentlyContinue)
-                                $prerequisiteTest.$($prerequisite.Type).Packages += @{ 
-                                    Name = $package.name 
-                                    Status = $psPackageIsInstalled ? "Installed" : "Not Installed"
+
+                                $packagereason = @()
+                                
+                                $packageRequiredVersion = ![string]::IsNullOrEmpty($package.RequiredVersion) ? $package.RequiredVersion : $null
+                                $packageMinimumVersion = [string]::IsNullOrEmpty($package.RequiredVersion) -and ![string]::IsNullOrEmpty($package.MinimumVersion) ? $package.MinimumVersion : $null
+                                $packageMaximumVersion = [string]::IsNullOrEmpty($package.RequiredVersion) -and [string]::IsNullOrEmpty($package.MinimumVersion) -and ![string]::IsNullOrEmpty($package.MaximumVersion) ? $package.MaximumVersion : $null
+                                
+                                $psPackageProviderName = ![string]::IsNullOrEmpty($package.ProviderName) ? $package.ProviderName : $global:PsDefaultPackageProviderName
+                                $providerPackage = Find-Package -Name $package.Name -ProviderName $psPackageProviderName -AllVersions -ErrorAction SilentlyContinue| Sort-Object -Property Version -Descending
+                                
+                                $installedPackage = $null # establish scope
+                                $requiredVersion = $minimumVersion = $maximumVersion = $null
+                                if ($providerPackage) {
+
+                                    $requiredVersion = ![string]::IsNullOrEmpty($packageRequiredVersion) ? $packageRequiredVersion : $null                                    
+                                    if (!(IsValidVersion -Version $packageRequiredVersion -Package $providerPackage)) {
+                                        throw "RequiredVersion $packageRequiredVersion for package $($package.Name) must be between $($providerPackage.Version[-1]) and $($providerPackage.Version[0])."
+                                    }
+                                    if ([string]::IsNullOrEmpty($packageRequiredVersion)) {
+                                        $minimumVersion = ![string]::IsNullOrEmpty($packageMinimumVersion) ? $packageMinimumVersion : $null                                    
+                                        if (!(IsValidVersion -Version $packageMinimumVersion -Package $providerPackage)) {
+                                            throw "MinimumVersion $packageMinimumVersion for package $($package.Name) must be between $($providerPackage.Version[-1]) and $($providerPackage.Version[0])."
+                                        }
+                                        $maximumVersion = ![string]::IsNullOrEmpty($packageMaximumVersion) ? $packageMaximumVersion : $null                                    
+                                        if (!(IsValidVersion -Version $packageMaximumVersion -Package $providerPackage)) {
+                                            throw "MaximumVersion $packageMaximumVersion for package $($package.Name) must be between $($providerPackage.Version[-1]) and $($providerPackage.Version[0])."
+                                        }
+                                    }
+                                    
+                                    $installedPackage = Get-Package -Name $package.Name -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedPackageVersion = [array]$installedPackage.Version # this needs to be an array for the comparisons below to work
+                                    # if ($installedPackage.Version.GetType().BaseType.Name -ne "Array") {
+                                    #     $installedPackage.Version = [array]($installedPackage.Version) # this needs to be an array for the comparisons below to work
+                                    # }
+                                    
+                                    if ($installedPackage) {
+                                        $isPackageInstalled = $true
+                                        $isRequiredVersionInstalled = (
+                                            ([string]::IsNullOrEmpty($requiredVersion) -and [string]::IsNullOrEmpty($minimumVersion) -and [string]::IsNullOrEmpty($maximumVersion)) -or 
+                                            ((![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $installedPackageVersion) -or 
+                                            (![string]::IsNullOrEmpty($minimumVersion) -and $installedPackageVersion[0] -ge $minimumVersion) -or 
+                                            (![string]::IsNullOrEmpty($maximumVersion) -and $installedPackageVersion[0] -le $maximumVersion))
+                                        )
+                                        $installedVersion = $installedPackageVersion[0]
+                                        if (![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $installedPackageVersion) {
+                                            $installedVersion = $requiredVersion
+                                        }
+                                        $packagereason += "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
+                                        if (!$isRequiredVersionInstalled) {
+                                            $packagereason += "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is required."
+                                        }
+                                    }
+                                    else {
+                                        $isPackageInstalled = $false
+                                        $isRequiredVersionInstalled = $false
+                                        $packagereason += "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
+                                    }
+
                                 }
-                                $_isInstalled = $_isInstalled -and $psPackageIsInstalled
+                                else {
+                                    $packagereason += "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$package.Repository ? " in repository '$($package.Repository)'" : $null)."
+                                }
+                                $_package = [ordered]@{}
+                                $_package += [ordered]@{ 
+                                    Name = $package.name
+                                    Status = $isPackageInstalled -and $isRequiredVersionInstalled ? "Installed" : "Not Installed"
+                                    MinimumVersion = $minimumVersion
+                                    MaximumVersion = $maximumVersion
+                                    RequiredVersion = $requiredVersion
+                                    InstalledVersion = $installedVersion                             
+                                    IsInstalled = $isPackageInstalled
+                                    IsRequiredVersionInstalled = $isRequiredVersionInstalled
+                                    Reason = $packagereason
+                                    Source = "ProviderName"
+                                    ProviderName = $psPackageProviderName
+                                    VersionToInstall = $null
+                                    SkipDependencies = $package.SkipDependencies
+                                }
+                                if (![string]::IsNullOrEmpty($minimumVersion)) { $_package.VersionToInstall = "MinimumVersion"; $_package.MinimumVersion = $minimumVersion }
+                                elseif (![string]::IsNullOrEmpty($maximumVersion)) { $_package.VersionToInstall = "MaximumVersion"; $_package.MaximumVersion = $maximumVersion }
+                                elseif (![string]::IsNullOrEmpty($requiredVersion)) { $_package.VersionToInstall = "RequiredVersion"; $_package.RequiredVersion = $requiredVersion } 
+                                else { $_package.Remove("VersionToInstall")}
+                                if ([string]::IsNullOrEmpty($minimumVersion)) { $_package.Remove("MinimumVersion") }
+                                if ([string]::IsNullOrEmpty($maximumVersion)) { $_package.Remove("MaximumVersion") }
+                                if ([string]::IsNullOrEmpty($requiredVersion)) { $_package.Remove("requiredVersion") }   
+                                $prerequisiteTest.$($prerequisite.Type).Packages += $_package                               
+                                $_isInstalled = $_isInstalled -and $isPackageInstalled -and $isRequiredVersionInstalled
+
+                                if (!$prerequisite.$($prerequisite.Type).Packages) {
+                                    $prerequisite.$($prerequisite.Type) += [ordered]@{ Packages = $prerequisiteId.Packages }
+                                }
+                                else {
+                                    $prerequisite.$($prerequisite.Type).Packages += $prerequisiteId.Packages
+                                }
+                                $prerequisite.Id = "Packages"
                             }
                         }
                     }
