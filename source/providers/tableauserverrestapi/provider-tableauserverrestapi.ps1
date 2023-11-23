@@ -131,7 +131,7 @@ function global:Initialize-TSRestApiConfiguration {
 
     $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerRestApi" -ComputerName $Server -Quiet
     if (!$prerequisiteTestResults.Pass) { 
-        Write-Host+ -NoTrace $prerequisiteTestResults.ErrorMessage -ForegroundColor Red
+        Write-Host+ -NoTrace $prerequisiteTestResults.Reason -join "`r`n" -ForegroundColor Red
         return 
     }
 

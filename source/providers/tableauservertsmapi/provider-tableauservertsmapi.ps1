@@ -71,7 +71,7 @@ function global:Initialize-TsmApiConfiguration {
 
     $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -ComputerName $Server -Quiet
     if (!$prerequisiteTestResults.Pass) { 
-        Write-Host+ -NoTrace $prerequisiteTestResults.ErrorMessage -ForegroundColor Red
+        Write-Host+ -NoTrace $prerequisiteTestResults.Reason -join "`r`n" -ForegroundColor Red
         return 
     }
 

@@ -12,7 +12,7 @@ function global:Connect-Tabcmd {
 
     $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTabCmd" -Quiet
     if (!$prerequisiteTestResults.Pass) { 
-        throw $prerequisiteTestResults.ErrorMessage
+        throw $prerequisiteTestResults.Reason -join "`r`n"
     }
 
     $_credentials = get-Credentials -Id $Credentials -ComputerName $Server
