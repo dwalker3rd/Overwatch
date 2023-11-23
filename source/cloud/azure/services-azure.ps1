@@ -590,6 +590,7 @@ function Invoke-ComputerCommand {
     param(
         [Parameter(Mandatory=$true,Position=0)][ValidateSet("Start","Stop")][string]$Command,
         [Parameter(Mandatory=$true,Position=1)][string]$ComputerName,
+        [Parameter(Mandatory=$false)][string]$Tenant,
         [switch]$NoWait
     )
 
@@ -611,10 +612,14 @@ function Invoke-ComputerCommand {
     #     Write-Host+
     # }
 
+    $Tenant = ![string]::IsNullOrEmpty($Tenant) ? $Tenant : ($global:Azure.$($global:Azure.Home).Tenant.Id)
+
     $azContext = Get-AzContext
     if (!$azContext.Subscription) {
-        Connect-AzAccount+ -Tenant $azContext.Tenant
+        Connect-AzAccount+ -Tenant $Tenant
     }
+
+    $powerStateTarget = switch ($Command) { "Start" { "VM running" }; "Stop" { "VM deallocated" }}
 
     $azVm = Get-AzVM -Name $ComputerName -Status
     $resourceGroupName = $azVm.ResourceGroupName
@@ -633,52 +638,56 @@ function Invoke-ComputerCommand {
         IsSuccessStatusCode = $true
         StatusCode = $NoWait ? "Accepted" : "Succeeded" 
     }
-    if (Invoke-Expression "`$powerState -$($Command -eq "Start" ? "ne" : "eq") `"VM running`"") {
+
+    if ($powerState -ne $powerStateTarget) {
+
         $commandExpression = "$Command-AzVM -ResourceGroupName `"$resourceGroupName`" -Name `"$ComputerName`" -NoWait"
         # if ($NoWait) { $commandExpression += " -NoWait"}
         if ($Command -eq "Stop") { $commandExpression += " -Force"}
         $result = Invoke-Expression $commandExpression
-    }
     
-    $timer = [Diagnostics.Stopwatch]::StartNew()
+        $timer = [Diagnostics.Stopwatch]::StartNew()
 
-    $azVm = Get-AzVM -Name $ComputerName -Status
-    $powerState = $azVm.PowerState
-    $powerStateColor = Get-PowerStateColor -PowerState $powerState
-    $message = "<    $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$powerStateColor
-
-    do {
-        Start-Sleep -Seconds 5
         $azVm = Get-AzVM -Name $ComputerName -Status
+        $reverseLineFeedCount = $powerState -eq $azVm.PowerState ? 1 : 0
         $powerState = $azVm.PowerState
         $powerStateColor = Get-PowerStateColor -PowerState $powerState
         $message = "<    $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
-        Write-Host+ -NoTrace -ReverseLineFeed 1 -Parse $message -ForegroundColor Gray,DarkGray,$powerStateColor
-    } until ((Invoke-Expression "`$powerState -$($Command -eq "Start" ? "eq" : "ne") `"VM running`"") -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt (New-TimeSpan -Minutes 5).TotalSeconds))
-
-    $timer.Stop()
-
-    if ($Command -eq "Start") {
-
-        $timer = [Diagnostics.Stopwatch]::StartNew()
+        Write-Host+ -NoTrace -ReverseLineFeed $reverseLineFeedCount -Parse $message -ForegroundColor Gray,DarkGray,$powerStateColor
 
         do {
             Start-Sleep -Seconds 5
-            $pass = $false
-            # ensure that node is reachable via network and psremoting
-            if ((Test-NetConnection+ -ComputerName $ComputerName -NoHeader).Result -notcontains "Fail") {
-                if ((Test-PSRemoting -ComputerName $ComputerName -NoHeader).Result -notcontains "Fail") {
-                    $pass = $true
+            $azVm = Get-AzVM -Name $ComputerName -Status
+            $reverseLineFeedCount = $powerState -eq $azVm.PowerState ? 1 : 0
+            $powerState = $azVm.PowerState
+            $powerStateColor = Get-PowerStateColor -PowerState $powerState
+            $message = "<    $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
+            Write-Host+ -NoTrace -ReverseLineFeed $reverseLineFeedCount -Parse $message -ForegroundColor Gray,DarkGray,$powerStateColor
+        } until ($powerState -eq $powerStateTarget -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt (New-TimeSpan -Minutes 5).TotalSeconds))
+
+        $timer.Stop()
+
+        if ($Command -eq "Start") {
+
+            $timer = [Diagnostics.Stopwatch]::StartNew()
+
+            do {
+                Start-Sleep -Seconds 5
+                $pass = $false
+                # ensure that node is reachable via network and psremoting
+                if ((Test-NetConnection+ -ComputerName $ComputerName -NoHeader).Result -notcontains "Fail") {
+                    if ((Test-PSRemoting -ComputerName $ComputerName -NoHeader).Result -notcontains "Fail") {
+                        $pass = $true
+                    }
                 }
-            }
-        } until ($pass -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt (New-TimeSpan -Minutes 5).TotalSeconds))
+            } until ($pass -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt (New-TimeSpan -Minutes 5).TotalSeconds))
 
-        $timer.Stop()    
+            $timer.Stop()    
 
+        }
     }
 
-    $statusText = (Invoke-Expression "`$powerState -$($Command -eq "Start" ? "eq" : "ne") `"VM running`"") ? "SUCCESS" : "FAIL"
+    $statusText = $powerState -eq $powerStateTarget ? "SUCCESS" : "FAIL"
     $statusColor = switch ($statusText) {
         "SUCCESS" { "DarkGreen" }
         "FAIL" { "DarkRed" }
