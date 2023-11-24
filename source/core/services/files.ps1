@@ -6,12 +6,20 @@ function global:Get-Files {
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
         [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Recurse,
-        [Parameter(Mandatory=$false)][string]$View
+        [Parameter(Mandatory=$false)][string]$View,
+        [Parameter(Mandatory=$false)][int]$Depth,
+        [Parameter(Mandatory=$false)][string]$Include,
+        [Parameter(Mandatory=$false)][string]$Exclude
     )
 
     $params = @{}
     if ($Filter) {$params += @{Filter = $Filter}}
-    if ($Recurse) {$params += @{Recurse = $true}}
+    if ($Include) {$params += @{Include = $Include}}
+    if ($Exclude) {$params += @{Exclude = $Exclude}}
+    if ($Recurse) {
+        $params += @{ Recurse = $true }
+        if ($null -ne $Depth) { $params += @{ Depth = $Depth } }
+    }
 
     $files = @()
     foreach ($node in $ComputerName) {
@@ -31,7 +39,7 @@ function global:Get-Files {
         }
     } 
 
-    return $files #| Select-Object -Property $($View ? $FileObjectView.$($View) : $FileObjectView.Default)
+    return $files
 
 }
 
@@ -48,7 +56,10 @@ function global:Remove-Files {
         [switch]$Days,
         [switch]$Hours,
         [switch]$Recurse,
-        [switch]$Force
+        [switch]$Force,
+        [Parameter(Mandatory=$false)][int]$Depth,
+        [Parameter(Mandatory=$false)][string]$Include,
+        [Parameter(Mandatory=$false)][string]$Exclude
     )
 
     # if $Keep -eq 0, then mode is delete
@@ -56,9 +67,15 @@ function global:Remove-Files {
     # if $Keep -gt 0 -and $Days.IsPresent, then retain $Keep days of the most recent files
     
     $getParams = @{}
-    if ($Recurse) {$getParams += @{Recurse = $Recurse}}  
+
     if (![string]::IsNullOrEmpty($ComputerName)) {$getParams += @{ComputerName = $ComputerName}}
     if (![string]::IsNullOrEmpty($Filter)) {$getParams += @{Filter = $Filter}}
+    if ($Include) {$params += @{Include = $Include}}
+    if ($Exclude) {$params += @{Exclude = $Exclude}}
+    if ($Recurse) {
+        $params += @{ Recurse = $true }
+        if ($null -ne $Depth) { $params += @{ Depth = $Depth } }
+    }
 
     $removeParams = @{}
     if ($Force) {$removeParams += @{Force = $Force}}
@@ -138,7 +155,10 @@ function global:Copy-Files {
         [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Overwrite,
         [switch]$Quiet,
-        [switch]$Recurse
+        [switch]$Recurse,
+        [Parameter(Mandatory=$false)][int]$Depth,
+        [Parameter(Mandatory=$false)][string]$Include,
+        [Parameter(Mandatory=$false)][string]$Exclude
     )
 
     #region VALIDATION
@@ -177,7 +197,12 @@ function global:Copy-Files {
 
     $params = @{}
     if ($Filter) {$params += @{Filter = $Filter}}
-    if ($Recurse) {$params += @{Recurse = $true}}
+    if ($Include) {$params += @{Include = $Include}}
+    if ($Exclude) {$params += @{Exclude = $Exclude}}
+    if ($Recurse) {
+        $params += @{ Recurse = $true }
+        if ($null -ne $Depth) { $params += @{ Depth = $Depth } }
+    }
 
     # $pathAsFileObject = [FileObject]::new($Path)
     # $sourceDirectory = $pathAsFileObject.IsDirectory() ? $pathAsFileObject : [DirectoryObject]::new($pathAsFileObject.Directory.FullName)
@@ -235,7 +260,10 @@ function global:Move-Files {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
         [switch]$Overwrite,
         [switch]$Quiet,
-        [switch]$Recurse
+        [switch]$Recurse,
+        [Parameter(Mandatory=$false)][int]$Depth,
+        [Parameter(Mandatory=$false)][string]$Include,
+        [Parameter(Mandatory=$false)][string]$Exclude
     )
 
     if ($ComputerName -eq $env:COMPUTERNAME -and $Path -eq $Destination) {
@@ -245,7 +273,12 @@ function global:Move-Files {
 
     $params = @{}
     if ($Filter) {$params += @{Filter = $Filter}}
-    if ($Recurse) {$params += @{Recurse = $true}}
+    if ($Include) {$params += @{Include = $Include}}
+    if ($Exclude) {$params += @{Exclude = $Exclude}}
+    if ($Recurse) {
+        $params += @{ Recurse = $true }
+        if ($null -ne $Depth) { $params += @{ Depth = $Depth } }
+    }
 
     $files = Get-Files $Path @params
     $moveDirectoryandContents = $files.count -eq 1 -and $files[0].IsDirectory()
