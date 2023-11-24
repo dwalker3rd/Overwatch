@@ -31,11 +31,16 @@ if (!$prerequisiteTestResults.Pass) {
         }
     }
 }
+
 foreach ($package in $prerequisiteTestResults.Prerequisites.Tests.Powershell.Packages) {
-    try{
-        Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib\net48\$($package.Name).dll"
+    $dotNetDirectories = Get-Files -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib" -Recurse -Depth 0
+    $dotNetDirectoryName = (($dotNetDirectories | Where-Object {[regex]::IsMatch($_.Name,"net[\d\.]+")}).Name | Sort-Object -Descending)[0]
+    try {
+        Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib\$dotNetDirectoryName\$($package.Name).dll"
     }
-    catch {}
+    catch {
+        Write-Log -Exception $_.Exception
+    }
 }
 
 # $mailKit = Get-Package -Name MailKit
