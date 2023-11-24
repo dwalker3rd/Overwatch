@@ -1668,9 +1668,6 @@
 
                                     $installedModule = Get-InstalledModule -Name $module.Name -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                     $installedModuleVersion = [array]$installedModule.Version # this needs to be an array for the comparisons below to work
-                                    # if ($installedModule.Version.GetType().BaseType.Name -ne "Array") {
-                                    #     $installedModule.Version = [array]($installedModule.Version) # this needs to be an array for the comparisons below to work
-                                    # }
 
                                     if ($installedModule) {
                                         $isModuleInstalled = $true
@@ -1718,7 +1715,7 @@
                                 if (![string]::IsNullOrEmpty($minimumVersion)) { $_module.VersionToInstall = "MinimumVersion"; $_module.MinimumVersion = $minimumVersion }
                                 elseif (![string]::IsNullOrEmpty($maximumVersion)) { $_module.VersionToInstall = "MaximumVersion"; $_module.MaximumVersion = $maximumVersion }
                                 elseif (![string]::IsNullOrEmpty($requiredVersion)) { $_module.VersionToInstall = "RequiredVersion"; $_module.RequiredVersion = $requiredVersion }
-                                # if ($isRequiredVersionInstalled) { $_module.Remove("VersionToInstall") }
+
                                 if ([string]::IsNullOrEmpty($minimumVersion)) { $_module.Remove("MinimumVersion") }
                                 if ([string]::IsNullOrEmpty($maximumVersion)) { $_module.Remove("MaximumVersion") }
                                 if ([string]::IsNullOrEmpty($requiredVersion)) { $_module.Remove("requiredVersion") } 
@@ -1770,9 +1767,6 @@
                                     
                                     $installedPackage = Get-Package -Name $package.Name -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                     $installedPackageVersion = [array]$installedPackage.Version # this needs to be an array for the comparisons below to work
-                                    # if ($installedPackage.Version.GetType().BaseType.Name -ne "Array") {
-                                    #     $installedPackage.Version = [array]($installedPackage.Version) # this needs to be an array for the comparisons below to work
-                                    # }
                                     
                                     if ($installedPackage) {
                                         $isPackageInstalled = $true
@@ -1820,7 +1814,7 @@
                                 if (![string]::IsNullOrEmpty($minimumVersion)) { $_package.VersionToInstall = "MinimumVersion"; $_package.MinimumVersion = $minimumVersion }
                                 elseif (![string]::IsNullOrEmpty($maximumVersion)) { $_package.VersionToInstall = "MaximumVersion"; $_package.MaximumVersion = $maximumVersion }
                                 elseif (![string]::IsNullOrEmpty($requiredVersion)) { $_package.VersionToInstall = "RequiredVersion"; $_package.RequiredVersion = $requiredVersion } 
-                                # if ($isRequiredVersionInstalled) { $_package.Remove("VersionToInstall")}
+      
                                 if ([string]::IsNullOrEmpty($minimumVersion)) { $_package.Remove("MinimumVersion") }
                                 if ([string]::IsNullOrEmpty($maximumVersion)) { $_package.Remove("MaximumVersion") }
                                 if ([string]::IsNullOrEmpty($requiredVersion)) { $_package.Remove("requiredVersion") }   
@@ -1890,17 +1884,15 @@
                     $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
                     $prerequisiteTest.Pass = $_isInstalled
                     $prerequisiteTest.Status = $prerequisiteTest.Pass ? "Installed" : "Not Installed"
-                    # Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal +4
+                    # TODO: what about testing prerequisites of prerequisites?  for example:  the Portable.BouncyCastle package is required by the MimeKit package
+                    # right now, prerequisites and their prerequistes are all tested at the same level
+                    # tried testing prerequisites of prerequisites, but it went cray-cray
                     # $prerequisiteTest.Results = Test-Prerequisites -Type $prerequisite.Type -Id $prerequisiteId -PrerequisiteType Installation -Quiet:$Quiet
-                    # Write-Host+ -Iff $(!$Quiet) -SetIndentGlobal -4
                     if (!$prerequisiteTest.Pass) {
                         $prerequisiteTest.Block = $true
                         if ($global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag) {
                             if (Compare-Object $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag @("AlwaysInstall","NoPrompt") -ExcludeDifferent -PassThru) {
                                 $prerequisiteTest.Block = $false
-                                # if (!$PrerequisiteTest.Results.Pass) {
-                                #     $prerequisiteTest.Block = $true
-                                # }
                             }
                         }
                     }
