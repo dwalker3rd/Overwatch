@@ -836,7 +836,7 @@ function global:Write-Log {
         [Parameter(Mandatory=$false)][string]$Target,
         [Parameter(Mandatory=$false)][string]$LogLevel = "Warning",
         [Parameter(Mandatory=$false)][datetime]$TimeStamp = [datetime]::Now,
-        [Parameter(Mandatory=$false)][System.Management.Automation.RuntimeException]$Exception,
+        [Parameter(Mandatory=$false)][object]$Exception,
         [switch]$Force
     )
 
