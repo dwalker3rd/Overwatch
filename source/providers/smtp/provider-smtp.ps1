@@ -38,9 +38,7 @@ foreach ($package in $prerequisiteTestResults.Prerequisites.Tests.Powershell.Pac
     try {
         Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib\$dotNetDirectoryName\$($package.Name).dll"
     }
-    catch {
-        Write-Log -Exception $_.Exception
-    }
+    catch {}
 }
 
 # $mailKit = Get-Package -Name MailKit
