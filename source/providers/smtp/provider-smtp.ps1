@@ -23,29 +23,6 @@ The message object used by the Overwatch messaging service.
 The message object used by the Overwatch messaging service serialized into JSON.
 #>
 
-$prerequisiteTestResults = Test-Prerequisites -Type Provider -Id SMTP -PrerequisiteType Initialization -Quiet
-if (!$prerequisiteTestResults.Pass) {
-    foreach ($package in $prerequisiteTestResults.Prerequisites.Tests.Powershell.Packages) {
-        if ($package.Status -ne "Installed") {
-            throw $package.Reason
-        }
-    }
-}
-
-foreach ($package in $prerequisiteTestResults.Prerequisites.Tests.Powershell.Packages) {
-    $dotNetDirectories = Get-Files -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib" -Recurse -Depth 0
-    $dotNetDirectoryName = (($dotNetDirectories | Where-Object {[regex]::IsMatch($_.Name,"net[\d\.]+")}).Name | Sort-Object -Descending)[0]
-    try {
-        Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($package.Name).$($package.$($package.VersionToInstall))\lib\$dotNetDirectoryName\$($package.Name).dll"
-    }
-    catch {}
-}
-
-# $mailKit = Get-Package -Name MailKit
-# $mimeKit = Get-Package -Name MimeKit
-# try {Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mailKit.Name).$($mailKit.Version)\lib\net48\MailKit.dll"} catch {}
-# try {Add-Type -Path "C:\Program Files\PackageManagement\NuGet\Packages\$($mimeKit.Name).$($mimeKit.Version)\lib\net48\MimeKit.dll"} catch {}
-
 function global:Send-SMTP {
  
     [CmdletBinding()]
