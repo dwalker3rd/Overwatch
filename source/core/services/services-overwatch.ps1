@@ -1781,14 +1781,17 @@
                                             $installedVersion = $requiredVersion
                                         }
                                         $packageReason = "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
-                                        if (!$isRequiredVersionInstalled) {
-                                            $packageReason = "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is not installed."
+                                        if (!$isRequiredVersionInstalled -and $installedVersion -eq $installedPackageVersion[0]) {
+                                            $packageReason = "Package $($package.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is required but not installed."
+                                        }
+                                        elseif ($installedVersion -ne $installedPackageVersion[0]) {
+                                            $packageReason = "Package $($package.Name) $installedVersion is required, but package $($package.Name) $($installedPackageVersion[0]) is installed."
                                         }
                                     }
                                     else {
                                         $isPackageInstalled = $false
                                         $isRequiredVersionInstalled = $false
-                                        $packageReason = "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
+                                        $packageReason = "Package $($package.Name) $($installedVersion)$($installedVersion ? " " : $null)is required but not installed."
                                     }
 
                                 }
