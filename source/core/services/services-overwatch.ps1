@@ -1,6 +1,6 @@
 . "$($global:Location.Definitions)\classes.ps1"
 
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls11  
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls13
 
 #region OVERWATCH
 
@@ -1645,7 +1645,7 @@
                                 $moduleMaximumVersion = [string]::IsNullOrEmpty($moduleRequiredVersion) -and [string]::IsNullOrEmpty($moduleMinimumVersion) -and ![string]::IsNullOrEmpty($module.MaximumVersion) ? $module.MaximumVersion : $null
                                 
                                 $psModuleRepositoryName = ![string]::IsNullOrEmpty($module.Repository) ? $module.Repository : $global:PsDefaultModuleRepositoryName 
-                                $repositoryModule = Find-Module -Name $module.Name -Repository $psModuleRepositoryName -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                $repositoryModule = Find-PSResource -Name $module.Name -Repository $psModuleRepositoryName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                 
                                 $installedModule = $null # establish scope
                                 $requiredVersion = $minimumVersion = $maximumVersion = $null
@@ -1666,7 +1666,7 @@
                                         }
                                     }
 
-                                    $installedModule = Get-InstalledModule -Name $module.Name -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedModule = Get-InstalledPSResource -Name $module.Name -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                     $installedModuleVersion = [array]$installedModule.Version # this needs to be an array for the comparisons below to work
 
                                     if ($installedModule) {
