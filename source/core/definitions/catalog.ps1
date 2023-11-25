@@ -550,29 +550,6 @@ $global:Catalog.Provider += @{ Postgres =
     }
 }
 
-# $global:Catalog.Driver += @{ "PostgreSQL Unicode(x64)" = 
-#     [Driver]@{
-#         Id = "PostgreSQL Unicode(x64)"
-#         Name = "PostgreSQL Unicode(x64)"
-#         DisplayName = "PostgreSQL Unicode(x64)"
-#         Category = "Driver"
-#         SubCategory = "Database"
-#         DatabaseType = "PostgreSQL"
-#         DriverType = "ODBC"
-#         Publisher = "PostgreSQL Global Development Group"
-#         Version = @{
-#             Minimum = "12.02.00.00"
-#             AutoUpdate = $false
-#         }
-#         Platform = "64-bit"
-#         Installation = @{
-#             Prerequisites = @(
-#                 @{ Type = "Platform"; Platform = "TableauServer"}
-#             )
-#         }
-#     }
-# }
-
 $global:Catalog.Provider += @{ TableauServerWC = 
     [Provider]@{
         Id = "TableauServerWC"
