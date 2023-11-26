@@ -248,10 +248,18 @@ function global:Get-PSBoundParameters {
 
             [CmdletBinding()]
             param (
-                [Parameter(Mandatory=$true,Position=0)][string]$Name
+                [Parameter(Mandatory=$false,Position=0)][string]$Name
             )
 
-            return Get-PSRepository -Name $Name
+            $repository = @()
+            if ([string]::IsNullOrEmpty($Name)) {
+                $repository = Get-PackageSource
+            }
+            else {
+                $repository = Get-PackageSource -Name $Name
+            }
+
+            return $repository
 
         }
 

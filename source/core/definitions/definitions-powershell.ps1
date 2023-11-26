@@ -14,12 +14,23 @@ switch ($PSVersionTable.PSVersion.Major) {
 #endregion PSVERSION
 #region REGISTER PACKAGE SOURCES
 
-if (!(Get-PSResourceRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
-    Register-PSResourceRepository -PSGallery -Trusted -ErrorAction SilentlyContinue | Out-Null
-}
-if (!(Get-PSResourceRepository -Name NuGet -ErrorAction SilentlyContinue)) {
-    Register-PSResourceRepository -Name Nuget -Uri "https://www.nuget.org/api/v2" -Trusted -ErrorAction SilentlyContinue | Out-Null
-}
+    if ($PSVersionTable.PSVersion -lt "7.4.0") {
+        if (!(Get-PackageSource -ProviderName PowerShellGet -ErrorAction SilentlyContinue)) {
+            Register-PackageSource -Name PSGallery -ProviderName PowerShellGet -Trusted -ErrorAction SilentlyContinue | Out-Null
+        }
+        if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
+            Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -Trusted -ErrorAction SilentlyContinue | Out-Null
+        }
+
+    }
+    else {
+        if (!(Get-PSResourceRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+            Register-PSResourceRepository -PSGallery -Trusted -ErrorAction SilentlyContinue | Out-Null
+        }
+        if (!(Get-PSResourceRepository -Name NuGet -ErrorAction SilentlyContinue)) {
+            Register-PSResourceRepository -Name Nuget -Uri "https://www.nuget.org/api/v2" -Trusted -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
 
 #endregion REGISTER PACKAGE SOURCES
 #region CONSOLE SEQUENCES
