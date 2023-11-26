@@ -240,9 +240,20 @@ function global:Get-PSBoundParameters {
 
 }
 
-#region PSRESOURCEGET 
+#region PSRESOURCEGET FALLBACK SUPPORT
 
     if ($PSVersionTable.PSVersion -lt "7.4.0") {
+
+        function global:Get-PSResourceRepository {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$true,Position=0)][string]$Name
+            )
+
+            return Get-PSRepository -Name $Name
+
+        }
 
         function global:Register-PSResourceRepository {
 
@@ -416,4 +427,4 @@ function global:Get-PSBoundParameters {
 
     }
 
-#endregion PSRESOURCEGET
+#endregion PSRESOURCEGET FALLBACK SUPPORT
