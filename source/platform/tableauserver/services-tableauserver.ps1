@@ -316,30 +316,32 @@ function global:Request-Platform {
             $platformJob = Wait-PlatformJob -Id $platformJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
         }
 
+        Write-Host+
         if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
-            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) has $($platformJob.status). $($platformJob.errorMessage)"
-            Write-Log -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
             $commandStatus = $global:PlatformEventStatus.Failed
+            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) has "
+            Write-Log -Action $Command -EntryType "Warning" -Status "Failure" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $platformJob.status.ToUpper(), ". ", $platformJob.errorMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,$global:PlatformEventStatusColor.$commandStatus
         } 
         elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
-            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was $($platformJob.status). $($platformJob.errorMessage)"
-            Write-Log -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
             $commandStatus = $global:PlatformEventStatus.Cancelled
+            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was "
+            Write-Log -Action $Command -EntryType "Warning" -Status "Cancelled" -Message $message
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $platformJob.status.ToUpper(), ". ", $platformJob.errorMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,$global:PlatformEventStatusColor.$commandStatus
         }
         elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Created -and $NoWait) {
-            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was $($platformJob.status) with -NoWait. $($platformJob.statusMessage)"
-            Write-Log -Action $Command -EntryType "Information" -Status "Created" -Message $message -Force
-            Write-Host+ -NoTrace -NoTimestamp $message 
             $commandStatus = $global:PlatformEventStatus.Created
+            $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was "
+            Write-Log -Action $Command -EntryType "Information" -Status "Created" -Message $message -Force
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $platformJob.status.ToUpper(), ". ", $platformJob.statusMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,Gray
         }
         elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
+            $commandStatus = $global:PlatformEventStatus.Completed
             $message = "Timeout waiting for platform $($Command.ToUpper()) (Job id: $($platformJob.id)) to complete. $($platformJob.statusMessage)"
             Write-Log -Action $Command -EntryType "Warning" -Status "Timeout" -Message $message
-            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkYellow
-            $commandStatus = $global:PlatformEventStatus.Completed
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor $global:PlatformEventStatusColor.$commandStatus
         }
+        Write-Host+
 
         # preflight checks
         if ($Command -eq "Start") {
@@ -356,7 +358,7 @@ function global:Request-Platform {
     }
 
     $message = "<  $($Command.ToUpper()) <.>25> $($commandStatus.ToUpper())"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($commandStatus -eq $PlatformEventStatus.Completed ? "Green" : "Red")
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformEventStatusColor.$commandStatus
     Write-Host+
 
     Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
