@@ -273,16 +273,9 @@
 
         [CmdletBinding()]
         param (
-            
-            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
-            [Parameter(Mandatory=$false)][string]$Uid,
-            
-            [Parameter(Mandatory=$false)]
-            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
-            
-            [Parameter(Mandatory=$false,Position=0)]
-            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
-            
+            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [switch]$AllowDuplicates,
             [switch]$Installed,
             [switch]$NotInstalled,
@@ -483,16 +476,9 @@
 
         [CmdletBinding()]
         param (
-
-            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
-            [Parameter(Mandatory=$false)][string]$Uid,
-            
-            [Parameter(Mandatory=$false)]
-            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
-            
-            [Parameter(Mandatory=$false,Position=0)]
-            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
-
+            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [switch]$AllowDuplicates
 
         )
@@ -547,16 +533,9 @@
 
         [CmdletBinding()]
         param (
-
-            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
-            [Parameter(Mandatory=$false)][string]$Uid,
-            
-            [Parameter(Mandatory=$false)]
-            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
-            
-            [Parameter(Mandatory=$false,Position=0)]
-            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),   
-
+            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [Parameter(Mandatory=$false)][string[]]$History = @(),      
             [switch]$DoNotRecurse,
             [Parameter(Mandatory=$false)][int]$RecurseLevel = 0,
@@ -650,16 +629,9 @@
 
         [CmdletBinding()]
         param (
-
-            [ValidatePattern("^(\w*?)\.{1}(\w*?)$")]
-            [Parameter(Mandatory=$false)][string]$Uid,
-            
-            [Parameter(Mandatory=$false)]
-            [string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
-            
-            [Parameter(Mandatory=$false,Position=0)]
-            [string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}), 
-                    
+            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [Parameter(Mandatory=$false)][string[]]$IncludeDependencyType,
             [Parameter(Mandatory=$false)][string[]]$ExcludeDependencyType,
             [Parameter(Mandatory=$false)][string[]]$History = @(),
@@ -1542,7 +1514,14 @@
             )
 
             if ([string]::IsNullOrEmpty($Version)) { return $true }
-            return $Version -ge $InputObject.Version[-1] -and $Version -le $InputObject.Version[0]
+            if ($InputObject.Count -eq 1) {
+                return $Version -eq $InputObject.Version
+            }
+            if ($InputObject.Count -gt 1) {
+                return $Version -ge $InputObject.Version[-1] -and $Version -le $InputObject.Version[0]
+            }
+
+            return $false
 
         }
 
