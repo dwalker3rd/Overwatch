@@ -443,69 +443,6 @@ function script:Copy-File {
     }
 
 #endregion OVERWATCH
-#region OS
-
-    # function script:Uninstall-OS { 
-
-    #     [CmdletBinding()]
-    #     Param (
-    #         [switch]$Force
-    #     )
-
-    #     Remove-OSFiles 
-
-    # }
-
-    # function script:Remove-OSFiles {
-
-    #     Remove-Files "$($global:Location.Scripts)\config\config-os-$($global:Environ.OS.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\definitions\definitions-os-$($global:Environ.OS.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\initialize\initialize-os-$($global:Environ.OS.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\preflight\preflight*-os-$($global:Environ.OS.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\postflight\postflight*-os-$($global:Environ.OS.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\services\services-$($global:Environ.OS.ToLower())*.ps1"
-
-    # }
-
-#endregion OS
-
-#region PLATFORM
-
-    # function script:Uninstall-Platform {
-
-    #     [CmdletBinding()]
-    #     Param (
-    #         [switch]$Force
-    #     )
-
-    #     Remove-PlatformInstanceFiles
-    #     Remove-PlatformFiles
-    #     Remove-Files "$($global:Location.Data)\*.cache"
-
-    # }
-
-    # function script:Remove-PlatformInstanceFiles {
-
-    #     Remove-Files "$($global:Location.Scripts)\config\config-platforminstance-$($global:Environ.Instance.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\definitions\definitions-platforminstance-$($global:Environ.Instance.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\initialize\initialize-platforminstance-$($global:Environ.Instance.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\preflight\preflight*-platforminstance-$($global:Environ.Instance.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\postflight\postflight*-platforminstance-$($global:Environ.Instance.ToLower()).ps1"
-
-    # }
-
-    # function script:Remove-PlatformFiles {
-
-    #     Remove-Files "$($global:Location.Scripts)\config\config-platform-$($global:Environ.Platform.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\definitions\definitions-platform-$($global:Environ.Platform.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\initialize\initialize-platform-$($global:Environ.Platform.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\preflight\preflight*-platform-$($global:Environ.Platform.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\postflight\postflight*-platform-$($global:Environ.Platform.ToLower()).ps1"
-    #     Remove-Files "$($global:Location.Scripts)\services\services-$($global:Environ.Platform.ToLower())*.ps1"
-
-    # }
-
-#endregion PLATFORM
 #region PRODUCT
 
     function script:Disable-Product {
@@ -588,8 +525,9 @@ function script:Copy-File {
     function global:Install-CatalogObject {
         [CmdletBinding()]
         Param (
-            [Parameter(Mandatory=$true,Position=0)][string]$Type,
-            [Parameter(Mandatory=$true,Position=1)][string]$Id,
+            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [switch]$UseDefaultResponses,
             [switch]$NoNewLine
         )
@@ -616,16 +554,32 @@ function script:Copy-File {
                         switch ($prerequisite.Id) {
                             "Modules" {
                                 foreach ($module in $prerequisite.Tests.Powershell.Modules) {
+                                    # install modules in the installation prerequisite section - do NOT import!
+                                    # this allows you to install an uber-package such as Az without importing all its modules
                                     if ($module.Status -ne "Installed") {
-                                        Install-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -ErrorAction SilentlyContinue #| Out-Null
-                                        Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -ErrorAction SilentlyContinue #| Out-Null
+                                        $installedModule = Install-PSResource -Name $module.Name -Version $module.$($module.VersionToInstall)  -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+                                        $installedModule | Out-Null
+                                    }
+
+                                    # install and import modules in the installation prerequisite section
+                                    # this allows you to install an uber-package such as Az without importing all its modules (above) and then ...
+                                    # import only the modules you specify in the initialization prerequisite section
+                                    $modulesToImport = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Initialization -Quiet
+                                    foreach ($moduleToImport in $modulesToImport.Prerequisites.Tests.Powershell.Modules) {
+                                        if ($moduleToImport.Status -ne "Installed") {
+                                            $installedModule = Install-PSResource -Name $moduleToImport.Name -Version $moduleToImport.$($moduleToImport.VersionToInstall)  -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+                                            $installedModule | Out-Null
+                                        }
+                                        $global:InformationPreference = "SilentlyContinue"
+                                        Import-Module -Name $moduleToImport.Name -RequiredVersion $moduleToImport.$($moduleToImport.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
+                                        $global:InformationPreference = "Continue"
                                     }
                                 }
                             }
                             "Packages" {
                                 foreach ($package in $prerequisite.Tests.Powershell.Packages) {
                                     if ($package.Status -ne "Installed") {
-                                        Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue #| Out-Null
+                                        Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue | Out-Null
                                     }
                                 }
                             }
@@ -649,8 +603,9 @@ function script:Uninstall-CatalogObject {
 
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Type,
-        [Parameter(Mandatory=$true,Position=1)][string]$Id,
+        [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+        [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+        [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
         [switch]$Force,
         [switch]$DeleteAllData,
         [switch]$Quiet
@@ -734,8 +689,9 @@ function script:Uninstall-CatalogObject {
 function script:Remove-CatalogObjectFiles {
 
     Param (
-        [Parameter(Mandatory=$true,Position=0)][string]$Type,
-        [Parameter(Mandatory=$true,Position=1)][string]$Id,
+        [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+        [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+        [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
         [switch]$DeleteAllData
     )
 

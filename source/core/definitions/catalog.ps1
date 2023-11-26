@@ -54,8 +54,37 @@ $global:Catalog.Cloud += @{ Azure =
                 @{
                     Type = "Powershell"
                     Powershell = @{
+                        # Modules listed here will be installed but *NOT* imported
+                        # Tip: Put uber-modules here (like Az) and the modules you want imported in Initialization.Prerequisites
+                        # Tip: This allows you to avoid loading many modules from an uber-module
                         Modules = @(
                             @{ Name = "Az"; RequiredVersion = "11.0.0"; Repository = "PSGallery" }
+                        )
+                    }
+                }
+            )
+        }
+        Initialization = @{
+            Prerequisites = @(
+                @{
+                    Type = "Powershell"
+                    Powershell = @{
+                        # Tip: List the modules here that you want installed and imported
+                        # Tip: if these modules are part of an uber-module, 
+                        # Tip: List the uber-module in Installation.Prerequisites and it will be installed but *NOT* imported
+                        # Tip: This allows you to avoid loading many modules from an uber-module\
+                        # Tip: To import all the modules from an uber-module, list the uber-module in the Initialization Prerequisites
+                        Modules = @(
+                            @{ Name = "Az.Accounts"; RequiredVersion = "2.13.2" },
+                            @{ Name = "Az.Compute"; RequiredVersion = "7.0.0" },
+                            @{ Name = "Az.Resources"; RequiredVersion = "6.12.0" },
+                            @{ Name = "Az.Storage"; RequiredVersion = "6.0.0" },
+                            @{ Name = "Az.Network"; RequiredVersion = "7.0.0" },
+                            @{ Name = "Az.CosmosDb"; RequiredVersion = "1.13.0" },
+                            @{ Name = "Az.SqlVirtualMachine"; RequiredVersion = "2.1.0" },
+                            @{ Name = "Az.KeyVault"; RequiredVersion = "5.0.0" },
+                            @{ Name = "Az.DataFactory"; RequiredVersion = "1.17.1" },
+                            @{ Name = "Az.Batch"; RequiredVersion = "3.5.0" }
                         )
                     }
                 }

@@ -320,13 +320,13 @@ function global:Get-PSBoundParameters {
             if ([string]::IsNullOrEmpty($bracketLeft) -and [string]::IsNullOrEmpty($bracketLeft) -or 
             (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[" -and ![string]::IsNullOrEmpty($bracketRight) -and $bracketRight -eq "]" -and [string]::IsNullOrEmpty($comma))) {
                 $params += @{ RequiredVersion = $versionRangeMinimum }
-                return Find-Module @params
+                return Find-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null
             }
             else {
                 $params += @{ AllVersions = $true }
             }
 
-            $repositoryModule = Find-Module @params
+            $repositoryModule = Find-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null
 
             if (![string]::IsNullOrEmpty($versionRangeMinimum)) {
                 if (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[") {
@@ -372,14 +372,15 @@ function global:Get-PSBoundParameters {
 
             if ([string]::IsNullOrEmpty($bracketLeft) -and [string]::IsNullOrEmpty($bracketLeft) -or 
             (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[" -and ![string]::IsNullOrEmpty($bracketRight) -and $bracketRight -eq "]" -and [string]::IsNullOrEmpty($comma))) {
-                $params += @{ RequiredVersion = $versionRangeMinimum }
-                return Get-InstalledModule @params
+                if (![string]::IsNullOrEmpty($versionRangeMinimum)) { $params += @{ RequiredVersion = $versionRangeMinimum } }
+                $installedModule = Get-InstalledModule @params  -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null
+                return $installedModule
             }
             else {
                 $params += @{ AllVersions = $true }
             }
 
-            $installedModule = Get-InstalledModule @params
+            $installedModule = Get-InstalledModule @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null
 
             if (![string]::IsNullOrEmpty($versionRangeMinimum)) {
                 if (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[") {
@@ -398,7 +399,7 @@ function global:Get-PSBoundParameters {
                 }
             }
 
-            return $installedModule
+            return $installedModule | Sort-Object -Property Version -Descending
 
         }
 
@@ -425,11 +426,48 @@ function global:Get-PSBoundParameters {
             $repositoryModule = Find-PSResource -Name $Name -Repository $Repository -Version $Version
             $repositoryModule | Foreach-Object {
                 $params.RequiredVersion = $_.Version
-                Install-Module @params
+                $global:InformationPreference = "SilentlyContinue"
+                Install-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
+                $global:InformationPreference = "Continue"
                 $installedModule += Get-InstalledPSResource -Name $_.Name -Version $_.Version
             }
 
-            return $installedModule
+            return $installedModule | Sort-Object -Property Version -Descending 
+
+        }
+
+        function global:Uninstall-PSResource {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$true,Position=0)][string]$Name,
+                [Parameter(Mandatory=$false)][string]$Version
+            )
+
+            $params = @{}
+            $params += @{
+                Name = $Name
+            }
+            if ($Version) { $params += @{ Version = $Version }}
+
+            $uninstalledModule = @()
+            $installedModule = Get-InstalledPSResource @params | Sort-Object -Property Version -Descending
+
+            $params = @{}
+            $params += @{
+                Name = $Name
+                RequiredVersion = $null
+            }
+
+            $installedModule | Foreach-Object {
+                $params.RequiredVersion = $_.Version
+                $global:InformationPreference = "SilentlyContinue"
+                Uninstall-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
+                $global:InformationPreference = "Continue"
+                $uninstalledModule += Get-InstalledPSResource -Name $_.Name -Version $_.Version
+            }
+
+            return
 
         }
 

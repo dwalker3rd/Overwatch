@@ -61,6 +61,7 @@ if (!(Test-Path "environ.ps1")) {
 . $PSScriptRoot\source\core\services\cache.ps1
 . $PSScriptRoot\source\core\services\files.ps1
 
+Write-Host+ -ResetAll
 Write-Host+
 
 #region POST INSTALL SHORTCUT
@@ -1221,35 +1222,59 @@ $global:Location.Definitions = $tempLocationDefinitions
         # get all the installed catalog objects with Powershell prerequisites
         $psPrerequisites = (Get-Catalog) | Where-Object {$_.IsInstalled() -and $_.Installation.Prerequisites.Type -and $_.Installation.Prerequisites.Type -eq "Powershell"}
         foreach ($psPrerequisite in $psPrerequisites) {
-
             $prerequisiteTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -Quiet
-            if (!$prerequisiteTestResults.Pass) {
-                foreach ($prerequisite in $prerequisiteTestResults.Prerequisites | Where-Object {!$_.Pass}) {
-
+                foreach ($prerequisite in $prerequisiteTestResults.Prerequisites) {
                     switch ($prerequisite.Type) {
                         "Powershell" {
                             switch ($prerequisite.Id) {
                                 "Modules" {
                                     foreach ($module in $prerequisite.Tests.Powershell.Modules) {
-                    
-                                        if ($module.Status -ne "Installed") {
 
-                                            if (!$newLineClosed) {
-                                                Write-Host+ 
-                                                $newLineClosed = $true
+                                        # get modules to import from the initialization prerequisite section
+                                        # this allows you to install an uber-package such as Az and only import specific modules
+                                        $modulesToImport = @()
+                                        $testResultsModulesToImport = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Initialization -Quiet
+                                        foreach ($moduleToImport in $testResultsModulesToImport.Prerequisites.Tests.Powershell.Modules) {
+                                            if (!(Get-Module -Name $moduleToImport.Name)) {
+                                                $modulesToImport += $moduleToImport
                                             }
-
+                                        }
+                                        if ($module.Status -ne "Installed" -or $modulesToImport.Count -gt 0) {
+                                            
+                                            Write-Host+; $newLineClosed = $true
                                             $message = "<  $($module.name) $($module.$($module.VersionToInstall)) <.>36> PENDING"
-                                            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                                            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
                                             $installedColor = "DarkGray"
 
-                                            Install-PSResource -Name $module.Name -Version $module.$($module.VersionToInstall) -ErrorAction SilentlyContinue | Out-Null
-                                            Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -ErrorAction SilentlyContinue | Out-Null
+                                            # install modules in the installation prerequisite section - do NOT import!
+                                            # this allows you to install an uber-package such as Az without importing all its modules
+                                            if ($module.Status -ne "Installed") {
+                                                $installedModule = Install-PSResource -Name $module.Name -Version $module.$($module.VersionToInstall) -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+                                                Write-Host+ -NoTrace -NoTimestamp "    Installed Module '$($installedModule.Name)'" -ForegroundColor DarkGray
+                                            }
+
+                                            # install and import modules in the installation prerequisite section
+                                            # this allows you to install an uber-package such as Az without importing all its modules (above) and then ...
+                                            # import only the modules you specify in the initialization prerequisite section
+                                            # if ($modulesToImport.Count -gt 0) { Write-Host+ }
+                                            foreach ($moduleToImport in $modulesToImport) {
+                                                if ($moduleToImport.Status -ne "Installed") {
+                                                    $installedModule = Install-PSResource -Name $moduleToImport.Name -Version $moduleToImport.$($moduleToImport.VersionToInstall) -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+                                                    Write-Host+ -NoTrace -NoTimestamp "    Installed Module '$($installedModule.Name)'" -ForegroundColor DarkGray
+                                                }
+                                                if (!(Get-Module -Name $moduleToImport.Name)) {
+                                                    $global:InformationPreference = "SilentlyContinue"
+                                                    Import-Module -Name $moduleToImport.Name -RequiredVersion $moduleToImport.$($moduleToImport.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
+                                                    $global:InformationPreference = "Continue"
+                                                    Write-Host+ -NoTrace -NoTimestamp "    Loaded Module '$($moduleToImport.Name)'" -ForegroundColor DarkGray
+                                                }
+                                            }
                                             $installedColor = "DarkGreen"
 
-                                            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
-                                            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
-                                            
+                                            # Write-Host+
+                                            $message = "<  $($module.name) $($module.$($module.VersionToInstall)) <.>36> SUCCESS"
+                                            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
                                         }
 
                                     }
@@ -1284,11 +1309,10 @@ $global:Location.Definitions = $tempLocationDefinitions
                 }
             }
 
-        }
-
         if ($newLineClosed) {
             $message = "<Powershell modules/packages <.>48> INSTALLED"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+            Write-Host+
         }
         else {
             $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
