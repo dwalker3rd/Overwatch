@@ -213,6 +213,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
 #region OVERWATCH INSTALL LOCATION
 
+    $_useDefaultResponses = $UseDefaultResponses
     do {
         $overwatchInstallLocationResponse = $null
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Overwatch Install Location ", "$($overwatchInstallLocation ? "[$overwatchInstallLocation]" : $PSScriptRoot)", ": " -ForegroundColor Gray, Blue, Gray
@@ -225,10 +226,12 @@ $global:Location.Definitions = $tempLocationDefinitions
         $overwatchInstallLocation = ![string]::IsNullOrEmpty($overwatchInstallLocationResponse) ? $overwatchInstallLocationResponse : $overwatchInstallLocation
         Write-Host+ -NoTrace -NoTimestamp "Overwatch Install Location: $overwatchInstallLocation" -IfDebug -ForegroundColor Yellow
         if (!(Test-Path -Path $overwatchInstallLocation)) {
+            $UseDefaultResponses = $false
             Write-Host+ -NoTrace -NoTimestamp "[ERROR] Cannot find path '$overwatchInstallLocation' because it does not exist." -ForegroundColor Red
             $overwatchInstallLocation = $null
         }
         elseif ((Get-Location).Path -ne $overwatchInstallLocation) {
+            $UseDefaultResponses = $false
             Write-Host+ -NoTrace -NoTimestamp "[ERROR] Current location and install location must be the same." -ForegroundColor Red
             $overwatchInstallLocation = $null
         }
@@ -236,6 +239,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The path '$overwatchInstallLocation' is valid." -IfVerbose -ForegroundColor DarkGreen
         }
     } until ($overwatchInstallLocation)
+    if ($_useDefaultResponses) { $UseDefaultResponses = $true }
     Write-Host+ -NoTrace -NoTimestamp "Overwatch Install Location: $overwatchInstallLocation" -IfDebug -ForegroundColor Yellow
 
     #region REGISTRY
@@ -260,6 +264,8 @@ $global:Location.Definitions = $tempLocationDefinitions
     $supportedCloudProviderIds += $global:Catalog.Cloud.Keys
     # Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Supported Cloud Providers: ", "$($supportedCloudProviderIds -join ", ")" -ForegroundColor Gray, Blue 
     if ([string]::IsNullOrEmpty($cloudId)) { $cloudId = "None" }
+
+    $_useDefaultResponses = $UseDefaultResponses
     do {
         $cloudIdResponse = $null
         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Cloud Provider ", "[$($supportedCloudProviderIds -join ", ")]", " or enter `"None`" ", "[$cloudId]", ": " -ForegroundColor Gray, Blue, Gray, Blue, Gray 
@@ -272,10 +278,12 @@ $global:Location.Definitions = $tempLocationDefinitions
         $cloudId = ![string]::IsNullOrEmpty($cloudIdResponse) ? $cloudIdResponse : $cloudId
         Write-Host+ -NoTrace -NoTimestamp "Cloud ID: $cloudId" -IfDebug -ForegroundColor Yellow
         if ($supportedCloudProviderIds -notcontains $cloudId -and $cloudId -ne "None") {
+            $UseDefaultResponses = $false
             Write-Host+ -NoTrace -NoTimestamp "Cloud provider must be one of the following: $($supportedCloudProviderIds -join ", ")" -ForegroundColor Red
             $cloudId = $null
         }
     } until ($supportedCloudProviderIds -contains $cloudId -or $cloudId -eq "None")
+    if ($_useDefaultResponses) { $UseDefaultResponses = $true }
     if (![string]::IsNullOrEmpty($cloudId) -and $cloudId -ne "None") {
         $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Cloud -Id $cloudId -Include Product,Provider -NotInstalled
     }
@@ -294,9 +302,11 @@ $global:Location.Definitions = $tempLocationDefinitions
         }
     }
     $platformId = $installedPlatforms[0]
+
+    $_useDefaultResponses = $UseDefaultResponses
     do {
         $platformIdResponse = $null
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Platform ", "$($installedPlatforms ? "[$($installedPlatforms -join ", ")]" : $null)", ": " -ForegroundColor Gray, Blue, Gray 
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Platform ", "$($installedPlatforms ? "[$($installedPlatforms -join ", ")]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray 
         if (!$UseDefaultResponses) {
             $platformIdResponse = Read-Host
         }
@@ -306,18 +316,21 @@ $global:Location.Definitions = $tempLocationDefinitions
         $platformId = ![string]::IsNullOrEmpty($platformIdResponse) ? $platformIdResponse : $platformId
         Write-Host+ -NoTrace -NoTimestamp "Platform ID: $platformId" -IfDebug -ForegroundColor Yellow
         if ($installedPlatforms -notcontains $platformId) {
+            $UseDefaultResponses = $false
             Write-Host+ -NoTrace -NoTimestamp "Platform must be one of the following: $($installedPlatforms -join ", ")" -ForegroundColor Red
         }
     } until ($installedPlatforms -contains $platformId)
+    if ($_useDefaultResponses) { $UseDefaultResponses = $true }
     $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Platform -Id $platformId -Include Cloud,Product,Provider -NotInstalled
 
 #endregion PLATFORM ID
 #region PLATFORM INSTALL LOCATION
 
     if ($platformId -notin $unInstallablePlatforms) {
+        $_useDefaultResponses = $UseDefaultResponses
         do {
             $platformInstallLocationResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $platformInstallLocationResponse = Read-Host
             }
@@ -327,6 +340,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             $platformInstallLocation = ![string]::IsNullOrEmpty($platformInstallLocationResponse) ? $platformInstallLocationResponse : $platformInstallLocation
             Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
             if (!(Test-Path -Path $platformInstallLocation)) {
+                $UseDefaultResponses = $false
                 Write-Host+ -NoTrace -NoTimestamp "[ERROR] Cannot find path '$platformInstallLocation' because it does not exist." -ForegroundColor Red
                 $platformInstallLocation = $null
             }
@@ -334,6 +348,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                 Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] The path '$platformInstallLocation' is valid." -IfVerbose -ForegroundColor DarkGreen
             }
         } until ($platformInstallLocation)
+        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
         Write-Host+ -NoTrace -NoTimestamp "Platform Install Location: $platformInstallLocation" -IfDebug -ForegroundColor Yellow
     }
 
@@ -341,10 +356,11 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region PLATFORM INSTANCE URI
 
     if ($platformId -notin $unInstallablePlatforms) {
+        $_useDefaultResponses = $UseDefaultResponses
         do {
             try {
                 $platformInstanceUriResponse = $null
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? "[$platformInstanceUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? "[$platformInstanceUri]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
                 if (!$UseDefaultResponses) {
                     $platformInstanceUriResponse = Read-Host
                 }
@@ -355,21 +371,12 @@ $global:Location.Definitions = $tempLocationDefinitions
                 $platformInstanceUri = [System.Uri]::new($platformInstanceUri)
             }
             catch {
+                $UseDefaultResponses = $false
                 Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid URI format" -ForegroundColor Red
                 $platformInstanceUri = $null
             }
-            # if ($platformInstanceUri) {
-            #     try {
-            #         Invoke-WebRequest $platformInstanceUri -Method Head | Out-Null
-            #         Write-Host+ -NoTrace -NoTimestamp "[SUCCESS] Response from '$platformInstanceUri'" -IfVerbose -ForegroundColor DarkGreen
-            #     }
-            #     catch
-            #     {
-            #         Write-Host+ -NoTrace -NoTimestamp "[ERROR] No response from '$platformInstanceUri'" -ForegroundColor Red
-            #         # $platformInstanceUri = $null
-            #     }
-            # }
         } until ($platformInstanceUri)
+        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
     }
 
@@ -378,9 +385,10 @@ $global:Location.Definitions = $tempLocationDefinitions
 
     if ($platformId -notin $unInstallablePlatforms) {
         $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
+        $_useDefaultResponses = $UseDefaultResponses
         do {
             $platformInstanceDomainResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $platformInstanceDomainResponse = Read-Host
             }
@@ -389,10 +397,12 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
             $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceWriteDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
             if (![string]::IsNullOrEmpty($platformInstanceDomain) -and $platformInstanceUri.Host -notlike "*$platformInstanceDomain") {
+                $UseDefaultResponses = $false
                 Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid domain. Domain must match the platform instance URI" -ForegroundColor Red
                 $platformInstanceDomain = $null
             }
         } until ($platformInstanceDomain)
+        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceDomain" -IfDebug -ForegroundColor Yellow
     }
 
@@ -412,9 +422,11 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
         }
         $platformInstanceId ??= (Invoke-Expression $platformInstanceIdRegex.Input) -replace $platformInstanceIdRegex.Pattern,$platformInstanceIdRegex.Replacement
+
+        $_useDefaultResponses = $UseDefaultResponses
         do {
             $platformInstanceIdResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $platformInstanceIdResponse = Read-Host
             }
@@ -423,14 +435,17 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
             $platformInstanceId = ![string]::IsNullOrEmpty($platformInstanceIdResponse) ? $platformInstanceIdResponse : $platformInstanceId
             if ([string]::IsNullOrEmpty($platformInstanceId)) {
+                $UseDefaultResponses = $false
                 Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance ID is required" -ForegroundColor Red
                 $platformInstanceId = $null
             }
             if ($platformInstanceId -notmatch "^[a-zA-Z0-9\-]*$") {
+                $UseDefaultResponses = $false
                 Write-Host+ -NoTrace -NoTimestamp "INVALID CHARACTER: letters, digits and hypen only" -ForegroundColor Red
                 $platformInstanceId = $null
             }
         } until ($platformInstanceId)
+        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance ID: $platformInstanceId" -IfDebug -ForegroundColor Yellow
     # }
 
@@ -438,9 +453,10 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region PLATFORM INSTANCE NODES
 
     if ($platformId -eq "AlteryxServer") {
+        $_useDefaultResponses = $UseDefaultResponses
         do {
             $platformInstanceNodesResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Nodes ", "$($platformInstanceNodes ? "[$($platformInstanceNodes -join ", ")]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Nodes ", "$($platformInstanceNodes ? "[$($platformInstanceNodes -join ", ")]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $platformInstanceNodesResponse = Read-Host
             }
@@ -449,10 +465,12 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
             $platformInstanceNodes = ![string]::IsNullOrEmpty($platformInstanceNodesResponse) ? $platformInstanceNodesResponse : $platformInstanceNodes
             if ([string]::IsNullOrEmpty($platformInstanceNodes)) {
+                $UseDefaultResponses = $false
                 Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance Nodes is required" -ForegroundColor Red
                 $platformInstanceNodes = $null
             }
         } until ($platformInstanceNodes)
+        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
         $platformInstanceNodes = $platformInstanceNodes -split "," | ForEach-Object { $_.Trim(" ") }
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance Nodes: $platformInstanceNodes" -IfDebug -ForegroundColor Yellow
     }
@@ -470,7 +488,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             $pythonSitePackagesLocation = "$pythonEnvLocation\Lib\site-packages"
 
             $requiredPythonPackagesResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $requiredPythonPackagesResponse = Read-Host
             }
@@ -487,10 +505,11 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region PYTHON
 #region IMAGES
 
+    $_useDefaultResponses = $UseDefaultResponses
     do {
         try {
             $imagesUriResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Images URL ", "$($imagesUri ? "[$imagesUri]" : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Images URL ", "$($imagesUri ? "[$imagesUri]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $imagesUriResponse = Read-Host
             }
@@ -513,11 +532,13 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
             catch
             {
+                $UseDefaultResponses = $false
                 Write-Host+ -NoTrace -NoTimestamp "[ERROR] Overwatch image files not found at '$imgFile'" -ForegroundColor Red
                 $imagesUri = $null
             }
         }
     } until ($imagesUri)
+    if ($_useDefaultResponses) { $UseDefaultResponses = $true }
     Write-Host+ -NoTrace -NoTimestamp "Public URI for images: $imagesUri" -IfDebug -ForegroundColor Yellow
 
 #endregion IMAGES
