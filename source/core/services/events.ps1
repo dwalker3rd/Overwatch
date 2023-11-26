@@ -7,7 +7,7 @@ function global:Set-PlatformEvent {
         [Parameter(Mandatory=$true)][string]$Event,
         [Parameter(Mandatory=$true)][string]$Context,
         [Parameter(Mandatory=$false)][string]$EventReason,
-        [Parameter(Mandatory=$false)][ValidateSet("InProgress","In Progress","Completed","Failed","Reset","Testing")][string]$EventStatus,
+        [Parameter(Mandatory=$false)][string]$EventStatus,
         [Parameter(Mandatory=$false)][string]$EventStatusTarget,
         [Parameter(Mandatory=$false)][object]$PlatformStatus = (Get-PlatformStatus)
 

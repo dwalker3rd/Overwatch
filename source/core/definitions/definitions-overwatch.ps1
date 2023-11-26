@@ -18,8 +18,26 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
 
     $global:PlatformEventColor = @{ Stop = "DarkRed"; Start = "DarkGreen" }
     $global:PlatformEventStatusTarget = @{ Stop = "Stopped"; Start = "Running"; }
-    $global:PlatformEventStatus = @{ InProgress = "In Progress"; "In Progress" = "In Progress"; Completed = "Completed"; Failed = "Failed"; Reset = "Reset"; Testing = "Testing"; }
-    $global:PlatformEventStatusColor = @{ InProgress = "DarkYellow"; "In Progress" = "DarkYellow"; Completed = "DarkGreen"; Failed = "DarkRed"; Reset = "DarkYellow"; Testing = "DarkYellow"; }
+    $global:PlatformEventStatus = @{ 
+        InProgress = "In Progress" 
+        "In Progress" = "In Progress" 
+        Completed = "Completed" 
+        Failed = "Failed" 
+        Reset = "Reset" 
+        Testing = "Testing" 
+        Cancelled = "Cancelled"
+        Created = "Created"
+    }
+    $global:PlatformEventStatusColor = @{ 
+        InProgress = "DarkYellow" 
+        "In Progress" = "DarkYellow" 
+        Completed = "DarkGreen" 
+        Failed = "DarkRed" 
+        Reset = "DarkYellow" 
+        Testing = "DarkYellow" 
+        Cancelled = "DarkYeallow"
+        Created = "DarkGreen"
+    }
 
 #endregion EVENTS
 #region TASKS
