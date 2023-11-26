@@ -239,3 +239,200 @@ function global:Get-PSBoundParameters {
     return $boundParameters | ConvertTo-PSCustomObject
 
 }
+
+#region PSRESOURCEGET FALLBACK SUPPORT
+
+    if ($PSVersionTable.PSVersion -lt "7.4.0") {
+
+        function global:Get-PSResourceRepository {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$false,Position=0)][string]$Name
+            )
+
+            $repository = @()
+            if ([string]::IsNullOrEmpty($Name)) {
+                $repository = Get-PackageSource
+            }
+            else {
+                $repository = Get-PackageSource -Name $Name
+            }
+
+            return $repository
+
+        }
+
+        function global:Register-PSResourceRepository {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$true,Position=0)][string]$Name,
+                [Parameter(Mandatory=$false)][Uri]$Uri,
+                [switch]$PSGallery,
+                [switch]$Trusted
+            )
+
+            if ([string]::IsNullOrEmpty($Name) -and $PSGallery) {
+                $Name = "PSGallery"
+            }
+            $ProviderName = $Name
+
+            if ((Get-PackageSource -ProviderName $ProviderName)) { return }
+
+            $params = @{}
+            $params += @{
+                Name = $Name
+                Trusted = $Trusted.IsPresent
+                ProviderName = $ProviderName
+            }
+            if ($Uri) { $params += @{ Location = $Uri }}
+
+            return Register-PackageSource @params
+
+        }
+
+        function global:Find-PSResource {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$true,Position=0)][string]$Name,
+                [Parameter(Mandatory=$false)][string]$Repository,
+                [Parameter(Mandatory=$false)][string]$Version,
+                [switch]$IncludeDependencies
+            )
+
+            $params = @{}
+            $params += @{
+                Name = $Name
+            }
+            if ($Repository) { $params += @{ Repository = $Repository }}
+            if ($IncludeDependencies) { $params += @{ IncludeDependencies = $IncludeDependencies }}
+
+            $nugetVersionRange = [Regex]::Matches($Version,$global:RegexPattern.NuGet.Version.Range.Notation)
+
+            $bracketLeft = $nugetVersionRange[0].Groups['bracketLeft'].Value
+            $versionRangeMinimum = ![string]::IsNullOrEmpty($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) ? [version]($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) : $null
+            $comma = $nugetVersionRange[0].Groups['comma'].Value
+            $versionRangeMaximum = ![string]::IsNullOrEmpty($nugetVersionRange[0].Groups['versionRangeMaximum'].Value) ? [version]($nugetVersionRange[0].Groups['versionRangeMaximum'].Value) : $null
+            $bracketRight = $nugetVersionRange[0].Groups['bracketRight'].Value
+
+            if ([string]::IsNullOrEmpty($bracketLeft) -and [string]::IsNullOrEmpty($bracketLeft) -or 
+            (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[" -and ![string]::IsNullOrEmpty($bracketRight) -and $bracketRight -eq "]" -and [string]::IsNullOrEmpty($comma))) {
+                $params += @{ RequiredVersion = $versionRangeMinimum }
+                return Find-Module @params
+            }
+            else {
+                $params += @{ AllVersions = $true }
+            }
+
+            $repositoryModule = Find-Module @params
+
+            if (![string]::IsNullOrEmpty($versionRangeMinimum)) {
+                if (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[") {
+                    $repositoryModule = $repositoryModule | Where-Object {[version]($_.Version) -ge $versionRangeMinimum}
+                }
+                else {
+                    $repositoryModule = $repositoryModule | Where-Object {[version]($_.Version) -gt $versionRangeMinimum}
+                }
+            }
+            if (![string]::IsNullOrEmpty($versionRangeMaximum)) {
+                if (![string]::IsNullOrEmpty($bracketRight) -and $bracketRight -eq "]") {
+                    $repositoryModule = $repositoryModule | Where-Object {[version]($_.Version) -le $versionRangeMaximum}
+                }
+                else {
+                    $repositoryModule = $repositoryModule | Where-Object {[version]($_.Version) -lt $versionRangeMaximum}
+                }
+            }
+
+            return $repositoryModule
+
+        }
+
+        function global:Get-InstalledPSResource {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$true,Position=0)][string]$Name,
+                [Parameter(Mandatory=$false)][string]$Version
+            )
+
+            $params = @{}
+            $params += @{
+                Name = $Name
+            }
+
+            $nugetVersionRange = [Regex]::Matches($Version,$global:RegexPattern.NuGet.Version.Range.Notation)
+
+            $bracketLeft = $nugetVersionRange[0].Groups['bracketLeft'].Value
+            $versionRangeMinimum = ![string]::IsNullOrEmpty($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) ? [version]($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) : $null
+            $comma = $nugetVersionRange[0].Groups['comma'].Value
+            $versionRangeMaximum = ![string]::IsNullOrEmpty($nugetVersionRange[0].Groups['versionRangeMaximum'].Value) ? [version]($nugetVersionRange[0].Groups['versionRangeMaximum'].Value) : $null
+            $bracketRight = $nugetVersionRange[0].Groups['bracketRight'].Value
+
+            if ([string]::IsNullOrEmpty($bracketLeft) -and [string]::IsNullOrEmpty($bracketLeft) -or 
+            (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[" -and ![string]::IsNullOrEmpty($bracketRight) -and $bracketRight -eq "]" -and [string]::IsNullOrEmpty($comma))) {
+                $params += @{ RequiredVersion = $versionRangeMinimum }
+                return Get-InstalledModule @params
+            }
+            else {
+                $params += @{ AllVersions = $true }
+            }
+
+            $installedModule = Get-InstalledModule @params
+
+            if (![string]::IsNullOrEmpty($versionRangeMinimum)) {
+                if (![string]::IsNullOrEmpty($bracketLeft) -and $bracketLeft -eq "[") {
+                    $installedModule = $installedModule | Where-Object {[version]($_.Version) -ge $versionRangeMinimum}
+                }
+                else {
+                    $installedModule = $installedModule | Where-Object {[version]($_.Version) -gt $versionRangeMinimum}
+                }
+            }
+            if (![string]::IsNullOrEmpty($versionRangeMaximum)) {
+                if (![string]::IsNullOrEmpty($bracketRight) -and $bracketRight -eq "]") {
+                    $installedModule = $installedModule | Where-Object {[version]($_.Version) -le $versionRangeMaximum}
+                }
+                else {
+                    $installedModule = $installedModule | Where-Object {[version]($_.Version) -lt $versionRangeMaximum}
+                }
+            }
+
+            return $installedModule
+
+        }
+
+        function global:Install-PSResource {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$true,Position=0)][string]$Name,
+                [Parameter(Mandatory=$false)][string]$Repository,
+                [Parameter(Mandatory=$false)][string]$Version,
+                [switch]$Reinstall
+            )
+
+            $params = @{}
+            $params += @{
+                Name = $Name
+                RequiredVersion = $null
+                AcceptLicense = $true
+            }
+            if ($Repository) { $params += @{ Repository = $Repository }}
+            if ($Reinstall) { $params += @{ Reinstall = $Reinstall }}
+
+            $installedModule = @()
+            $repositoryModule = Find-PSResource -Name $Name -Repository $Repository -Version $Version
+            $repositoryModule | Foreach-Object {
+                $params.RequiredVersion = $_.Version
+                Install-Module @params
+                $installedModule += Get-InstalledPSResource -Name $_.Name -Version $_.Version
+            }
+
+            return $installedModule
+
+        }
+
+    }
+
+#endregion PSRESOURCEGET FALLBACK SUPPORT
