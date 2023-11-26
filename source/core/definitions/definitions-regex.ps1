@@ -43,5 +43,13 @@ $global:RegexPattern = @{
         TrimLeading = "^\s*"
         TrimTrailing = "\s*$"
     }
+    NuGet = @{
+        Version = @{
+            Notation = "^(?'versionMajor'\d+)\.?(?'versionMinor'\d+)?\.?(?'versionPatch'\d+)?$"
+            Range = @{
+                Notation = "^(?'bracketLeft'\[?\(?)(?'versionRangeMinimum'(\d+(\.\d+)*)?)(?'comma'\,?)(?'versionRangeMaximum'(\d+(\.\d+)*)?)(?'bracketRight'\]?\)?)$"
+            }
+        }
+    }
 
 }
