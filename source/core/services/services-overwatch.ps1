@@ -476,9 +476,9 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
             [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
-            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
+            [Parameter(Mandatory=$false,Position=0)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [switch]$AllowDuplicates
 
         )
@@ -533,9 +533,9 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
             [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
-            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
+            [Parameter(Mandatory=$false,Position=0)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [Parameter(Mandatory=$false)][string[]]$History = @(),      
             [switch]$DoNotRecurse,
             [Parameter(Mandatory=$false)][int]$RecurseLevel = 0,
@@ -629,9 +629,9 @@
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$false)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
             [Parameter(Mandatory=$false)][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
-            [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
+            [Parameter(Mandatory=$false,Position=0)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
             [Parameter(Mandatory=$false)][string[]]$IncludeDependencyType,
             [Parameter(Mandatory=$false)][string[]]$ExcludeDependencyType,
             [Parameter(Mandatory=$false)][string[]]$History = @(),
@@ -1502,6 +1502,7 @@
             [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Type,
             [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Id,
             [Parameter(Mandatory=$false)][ValidateSet("Initialization","Installation")][string]$PrerequisiteType = "Initialization",
+            [Parameter(Mandatory=$false)][string]$PrerequisiteFilter,
             [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
             [switch]$Quiet
         )
@@ -1561,12 +1562,29 @@
         }
 
         $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Copy-Object
+
+        # apply prerequisite filter, if specified
+        $prerequisiteTypeObjects = $null
+        if (![string]::IsNullOrEmpty($PrerequisiteFilter)) {
+            if ($prerequisites.$($prerequisites.Type).GetType().Name -eq "Hashtable") {
+                $prerequisiteTypeObjects = $prerequisites.$($prerequisites.Type).$($prerequisites.$($prerequisites.Type).Keys)
+            }
+            $prerequisiteTypeObjects = Invoke-Expression "`$prerequisiteTypeObjects | Where-Object {`$_.$PrerequisiteFilter}"
+            if ($prerequisites.$($prerequisites.Type).GetType().Name -eq "Hashtable") {
+                Invoke-Expression "`$prerequisites.$($prerequisites.Type).$($prerequisites.$($prerequisites.Type).Keys) = `$prerequisiteTypeObjects"
+            }
+            elseif ($prerequisites.$($prerequisites.Type).GetType().Name -eq "Array") {
+                Invoke-Expression "`$prerequisites.$($prerequisites.Type) = `$prerequisiteTypeObjects"
+            }
+        }
+        $prerequisiteTypeObjects | Out-Null
+
         foreach ($_prerequisite in $prerequisites) {
 
             $prerequisite = [ordered]@{}
             $prerequisite += [ordered]@{
                 Type = $_prerequisite.Type
-                Id = $_prerequisite.$($_prerequisite.Type) | Copy-Object
+                Id = $_prerequisite.$($_prerequisite.Type) # | Copy-Object
             }
 
             foreach ($key in ($_prerequisite.keys | Where-Object {$_ -notin @("Type",$_prerequisite.Type)} | Sort-Object)) {
@@ -1624,7 +1642,7 @@
                                 $moduleMaximumVersion = [string]::IsNullOrEmpty($moduleRequiredVersion) -and [string]::IsNullOrEmpty($moduleMinimumVersion) -and ![string]::IsNullOrEmpty($module.MaximumVersion) ? $module.MaximumVersion : $null
                                 
                                 $psModuleRepositoryName = ![string]::IsNullOrEmpty($module.Repository) ? $module.Repository : $global:PsDefaultModuleRepositoryName 
-                                $repositoryModule = Find-PSResource -Name $module.Name -Repository $psModuleRepositoryName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                $repositoryModule = Find-PSResource -Name $module.Name -Repository $psModuleRepositoryName -ErrorAction SilentlyContinue  | Sort-Object -Property Version -Descending
                                 
                                 $installedModule = $null # establish scope
                                 $requiredVersion = $minimumVersion = $maximumVersion = $null
@@ -1645,7 +1663,7 @@
                                         }
                                     }
 
-                                    $installedModule = Get-InstalledPSResource -Name $module.Name -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedModule = Get-InstalledPSResource -Name $module.Name | Sort-Object -Property Version -Descending
                                     $installedModuleVersion = [array]$installedModule.Version # this needs to be an array for the comparisons below to work
 
                                     if ($installedModule) {
@@ -1660,20 +1678,51 @@
                                         if (![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $installedModuleVersion) {
                                             $installedVersion = $requiredVersion
                                         }
-                                        $moduleReason = "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
+                                        $moduleReason += "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is installed."
                                         if (!$isRequiredVersionInstalled) {
-                                            $moduleReason = "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is not installed."
+                                            $moduleReason += "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is not installed."
                                         }
                                     }
                                     else {
                                         $isModuleInstalled = $false
                                         $isRequiredVersionInstalled = $false
-                                        $moduleReason = "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
+                                        $moduleReason += "Module $($module.Name) $($installedVersion)$($installedVersion ? " " : $null)is not installed."
+                                    }
+
+                                    if (!$module.DoNotImport) {
+
+                                        $importedModule = Get-Module -Name $module.Name | Sort-Object -Property Version -Descending
+                                        $importedModuleVersion = [array]$importedModule.Version # this needs to be an array for the comparisons below to work
+
+                                        if ($importedModule) {
+
+                                            $isModuleImported = $true
+                                            $isRequiredVersionImported = (
+                                                ([string]::IsNullOrEmpty($requiredVersion) -and [string]::IsNullOrEmpty($minimumVersion) -and [string]::IsNullOrEmpty($maximumVersion)) -or 
+                                                ((![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $importedModuleVersion) -or 
+                                                (![string]::IsNullOrEmpty($minimumVersion) -and $importedModuleVersion[0] -ge $minimumVersion) -or 
+                                                (![string]::IsNullOrEmpty($maximumVersion) -and $importedModuleVersion[0] -le $maximumVersion))  
+                                            )
+                                            $importedVersion = $importedModuleVersion[0]
+                                            if (![string]::IsNullOrEmpty($requiredVersion) -and $requiredVersion -in $importedModuleVersion) {
+                                                $importedVersion = $requiredVersion
+                                            }
+                                            $moduleReason += "Module $($module.Name) $($importedVersion)$($importedVersion ? " " : $null)is imported."
+                                            if (!$isRequiredVersionImported) {
+                                                $moduleReason += "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)is not imported."
+                                            }
+                                        }
+                                        else {
+                                            $isModuleImported = $false
+                                            $isRequiredVersionImported = $false
+                                            $moduleReason += "Module $($module.Name) $($importedVersion)$($importedVersion ? " " : $null)is not imported."
+                                        }
+
                                     }
 
                                 }
                                 else {
-                                    $moduleReason = "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$module.Repository ? " in repository '$($module.Repository)'" : $null)."
+                                    $moduleReason += "Module $($module.Name) $($requiredVersion ?? $minimumVersion ?? $maximumVersion)$(($requiredVersion ?? $minimumVersion ?? $maximumVersion) ? " " : $null)was not found$(![string]::$module.Repository ? " in repository '$($module.Repository)'" : $null)."
                                 }
 
                                 $_module = [ordered]@{}
@@ -1686,29 +1735,47 @@
                                     InstalledVersion = $installedVersion                             
                                     IsInstalled = $isModuleInstalled
                                     IsRequiredVersionInstalled = $isRequiredVersionInstalled
+                                    ImportedVersion = $importedVersion                             
+                                    IsImported = $isModuleImported
+                                    IsRequiredVersionImported = $isRequiredVersionImported
                                     Reason = $moduleReason
                                     Source = "Repository"
                                     Repository = $psModuleRepositoryName
                                     VersionToInstall = $null
                                 }
-                                if (![string]::IsNullOrEmpty($minimumVersion)) { $_module.VersionToInstall = "MinimumVersion"; $_module.MinimumVersion = $minimumVersion }
-                                elseif (![string]::IsNullOrEmpty($maximumVersion)) { $_module.VersionToInstall = "MaximumVersion"; $_module.MaximumVersion = $maximumVersion }
-                                elseif (![string]::IsNullOrEmpty($requiredVersion)) { $_module.VersionToInstall = "RequiredVersion"; $_module.RequiredVersion = $requiredVersion }
 
+                                # finalize version properties
+                                if (![string]::IsNullOrEmpty($minimumVersion)) { 
+                                    $_module.VersionToInstall = "MinimumVersion"; $_module.MinimumVersion = $minimumVersion
+                                }
+                                elseif (![string]::IsNullOrEmpty($maximumVersion)) {
+                                    $_module.VersionToInstall = "MaximumVersion"; $_module.MaximumVersion = $maximumVersion
+                                }
+                                elseif (![string]::IsNullOrEmpty($requiredVersion)) {
+                                    $_module.VersionToInstall = "RequiredVersion"; $_module.RequiredVersion = $requiredVersion
+                                }
                                 if ([string]::IsNullOrEmpty($minimumVersion)) { $_module.Remove("MinimumVersion") }
                                 if ([string]::IsNullOrEmpty($maximumVersion)) { $_module.Remove("MaximumVersion") }
                                 if ([string]::IsNullOrEmpty($requiredVersion)) { $_module.Remove("requiredVersion") } 
+                                
+                                # copy other properties from module object
+                                foreach ($key in ($module.keys | Where-Object {$_ -notin $_module.keys} | Sort-Object)) {
+                                    $_module += [ordered]@{ $key = $module.$key }
+                                }
+
                                 $prerequisiteTest.$($prerequisite.Type).Modules += $_module                               
                                 $_isInstalled = $_isInstalled -and $isModuleInstalled -and $isRequiredVersionInstalled
 
-                                if (!$prerequisite.$($prerequisite.Type).Modules) {
-                                    $prerequisite.$($prerequisite.Type) += @{ Modules = $prerequisiteId.Modules }
-                                }
-                                else {
-                                    $prerequisite.$($prerequisite.Type).Modules += $prerequisiteId.Modules
-                                }
-                                $prerequisite.Id = "Modules"
                             }
+
+                            if (!$prerequisite.$($prerequisite.Type).Modules) {
+                                $prerequisite.$($prerequisite.Type) += @{ Modules = $prerequisiteId.Modules }
+                            }
+                            else {
+                                $prerequisite.$($prerequisite.Type).Modules += $prerequisiteId.Modules
+                            }
+                            $prerequisite.Id = "Modules"
+
                         }
                         if ($prerequisite.Id.Packages) {
                             $prerequisiteTest.DisplayName = "Powershell Packages"
@@ -1803,14 +1870,16 @@
                                 $prerequisiteTest.$($prerequisite.Type).Packages += $_package                               
                                 $_isInstalled = $_isInstalled -and $isPackageInstalled -and $isRequiredVersionInstalled
 
-                                if (!$prerequisite.$($prerequisite.Type).Packages) {
-                                    $prerequisite.$($prerequisite.Type) += [ordered]@{ Packages = $prerequisiteId.Packages }
-                                }
-                                else {
-                                    $prerequisite.$($prerequisite.Type).Packages += $prerequisiteId.Packages
-                                }
-                                $prerequisite.Id = "Packages"
                             }
+
+                            if (!$prerequisite.$($prerequisite.Type).Packages) {
+                                $prerequisite.$($prerequisite.Type) += [ordered]@{ Packages = $prerequisiteId.Packages }
+                            }
+                            else {
+                                $prerequisite.$($prerequisite.Type).Packages += $prerequisiteId.Packages
+                            }
+                            $prerequisite.Id = "Packages"
+
                         }
                     }
                     $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"

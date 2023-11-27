@@ -574,24 +574,6 @@ $global:Location.Definitions = $tempLocationDefinitions
         Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
         ($installedProducts.Id | Sort-Object) -join ", "
     }
-
-    # $uninstalledProducts = Get-Catalog -Type Product -NotInstalled | 
-    #     Where-Object {[string]::IsNullOrEmpty($_.Installation.Prerequisites.Platform) -or $_.Installation.Prerequisites.Platform -contains $global:Platform.Id}
-    # if ($uninstalledProducts) {
-    #     Write-Host+ # -MaxBlankLines 1
-    #     Write-Host+ -NoTrace -NoTimestamp "Unavailable Products" -ForegroundColor DarkGray
-    #     Write-Host+ -NoTrace -NoTimestamp "--------------------" -ForegroundColor DarkGray
-    #     foreach ($uninstalledProduct in $uninstalledProducts) {
-    #         $testResults = Test-Prerequisites -Type $uninstalledProduct.Type -Id $uninstalledProduct.Id -PrerequisiteType Installation -Quiet
-    #         if (!$testResults.Pass) {
-    #             foreach ($productPrerequisite in ($testResults.Prerequisites | Where-Object {!$_.Pass}) ) {
-    #                 foreach ($productPrerequisiteTest in $productPrerequisite.Tests) {
-    #                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $uninstalledProduct.Id, ", Prerequisite, $($productPrerequisiteTest.Type) `'$($productPrerequisiteTest.Id)`', $($productPrerequisiteTest.Status)" -ForegroundColor Gray,DarkGray
-    #                 }
-    #             }
-    #         }
-    #     }
-    # }
     
     $productHeaderWritten = $false
     $productsSelected = @()
@@ -644,58 +626,38 @@ $global:Location.Definitions = $tempLocationDefinitions
         ($installedProviders.Id | Sort-Object) -join ", "
     }
 
-    # $uninstalledProviders = Get-Catalog -Type Provider -NotInstalled | 
-    #     Where-Object {[string]::IsNullOrEmpty($_.Installation.Prerequisites.Platform) -or $_.Installation.Prerequisites.Platform -contains $global:Platform.Id}
-    # if ($uninstalledProviders) {
-    #     Write-Host+ # -MaxBlankLines 1
-    #     Write-Host+ -NoTrace -NoTimestamp "Unavailable Providers" -ForegroundColor DarkGray
-    #     Write-Host+ -NoTrace -NoTimestamp "--------------------" -ForegroundColor DarkGray
-    #     foreach ($uninstalledProvider in $uninstalledProviders) {
-    #         $testResults = Test-Prerequisites -Type $uninstalledProvider.Type -Id $uninstalledProvider.Id -PrerequisiteType Installation -Quiet
-    #         if (!$testResults.Pass) {
-    #             foreach ($providerPrerequisite in ($testResults.Prerequisites | Where-Object {!$_.Pass}) ) {
-    #                 foreach ($providerPrerequisiteTest in $providerPrerequisite.Tests) {
-    #                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator $uninstalledProvider.Id, ", Prerequisite, $($providerPrerequisiteTest.Type) `'$($providerPrerequisiteTest.Id)`', $($providerPrerequisiteTest.Status)" -ForegroundColor Gray,DarkGray
-    #                 }
-    #             }
-    #         }
-    #     }
-    # }
-
     $providerHeaderWritten = $false
     $providersSelected = @()
     foreach ($key in $global:Catalog.Provider.Keys) {
         $provider = $global:Catalog.Provider.$key
         if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId) {
             if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $requiredDependenciesNotInstalled.Id) {
-                # if ((Test-Prerequisites -Type "Provider" -Id $provider.Id -PrerequisiteType "Installation" -Quiet).Pass) {
-                    if (!$providerHeaderWritten) {
-                        Write-Host+ # -MaxBlankLines 1
-                        Write-Host+ -NoTrace -NoTimestamp "Select Providers" -ForegroundColor DarkGray
-                        Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
-                        $providerHeaderWritten = $true
+                if (!$providerHeaderWritten) {
+                    Write-Host+ # -MaxBlankLines 1
+                    Write-Host+ -NoTrace -NoTimestamp "Select Providers" -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
+                    $providerHeaderWritten = $true
+                }
+                if ($provider.Installation.Flag -contains "AlwaysInstall") {
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Install $($provider.Id) ","[Y]",": Always Install" -ForegroundColor DarkGray,DarkBlue,DarkGray
+                    $providersSelected += $provider.Id
+                }
+                elseif ($provider.Installation.Flag -notcontains "NoPrompt") {
+                    $providerResponseDefault = $provider.ID -in $providerIds ? "Y" : "N"
+                    $providerResponse = $null
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($provider.Id) ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
+                    if (!$UseDefaultResponses) {
+                        $providerResponse = Read-Host
                     }
-                    if ($provider.Installation.Flag -contains "AlwaysInstall") {
-                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Install $($provider.Id) ","[Y]",": Always Install" -ForegroundColor DarkGray,DarkBlue,DarkGray
+                    else {
+                        Write-Host+
+                    }
+                    if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
+                    if ($providerResponse -eq "Y") {
                         $providersSelected += $provider.Id
+                        $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Provider -Id $provider.id -Exclude Overwatch,Cloud,OS,Platform -NotInstalled -Platform $platformId
                     }
-                    elseif ($provider.Installation.Flag -notcontains "NoPrompt") {
-                        $providerResponseDefault = $provider.ID -in $providerIds ? "Y" : "N"
-                        $providerResponse = $null
-                        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($provider.Id) ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
-                        if (!$UseDefaultResponses) {
-                            $providerResponse = Read-Host
-                        }
-                        else {
-                            Write-Host+
-                        }
-                        if ([string]::IsNullOrEmpty($providerResponse)) {$providerResponse = $providerResponseDefault}
-                        if ($providerResponse -eq "Y") {
-                            $providersSelected += $provider.Id
-                            $requiredDependenciesNotInstalled += Get-CatalogDependencies -Type Provider -Id $provider.id -Exclude Overwatch,Cloud,OS,Platform -NotInstalled -Platform $platformId
-                        }
-                    }
-                # }
+                }
             }
         }
     }
@@ -1228,9 +1190,12 @@ $global:Location.Definitions = $tempLocationDefinitions
 
     if (!$SkipPowerShell) {
 
+        Set-CursorInVisible
         Write-Host+ -MaxBlankLines 1
-        $message = "<Powershell modules/packages <.>48> INSTALLING"
+        $psStatus = "PENDING"
+        $message = "<Powershell modules/packages <.>48> $psStatus"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+        $psStatusPadLeft = $psStatus.Length + 1
         $newLineClosed = $false
 
         if (!(Get-PSResourceRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
@@ -1240,105 +1205,135 @@ $global:Location.Definitions = $tempLocationDefinitions
             Register-PSResourceRepository -Name Nuget -Uri "https://www.nuget.org/api/v2" -Trusted -ErrorAction SilentlyContinue | Out-Null
         }
 
-        # get all the installed catalog objects with Powershell prerequisites
+        $psStatus = "SCANNING"
+        $psStatusPadRight =  $psStatusPadLeft-$psStatus.Length -lt 0 ? 0 : $psStatusPadLeft-$psStatus.Length
+        $message = "$($emptyString.PadLeft($psStatusPadLeft,"`b")) $psStatus$($emptyString.PadLeft($psStatusPadRight," "))$($emptyString.PadLeft($psStatusPadRight,"`b"))"
+        Write-Host+ -NoTrace -NoSeparator -NoNewLine -NoTimeStamp $message -ForegroundColor DarkGray
+        $psStatusPadLeft = $psStatus.Length + 1
+
         $psPrerequisites = (Get-Catalog) | Where-Object {$_.IsInstalled() -and $_.Installation.Prerequisites.Type -and $_.Installation.Prerequisites.Type -eq "Powershell"}
+
+        $psStatus = "PENDING"
+        $psStatusPadRight =  $psStatusPadLeft-$psStatus.Length -lt 0 ? 0 : $psStatusPadLeft-$psStatus.Length
+        $message = "$($emptyString.PadLeft($psStatusPadLeft,"`b")) $psStatus$($emptyString.PadLeft($psStatusPadRight," "))$($emptyString.PadLeft($psStatusPadRight,"`b"))"
+        Write-Host+ -NoTrace -NoSeparator -NoNewLine -NoTimeStamp $message -ForegroundColor DarkGray
+        $psStatusPadLeft = $psStatus.Length + 1
+
         foreach ($psPrerequisite in $psPrerequisites) {
-            $prerequisiteTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -Quiet
-                foreach ($prerequisite in $prerequisiteTestResults.Prerequisites) {
-                    switch ($prerequisite.Type) {
-                        "Powershell" {
-                            switch ($prerequisite.Id) {
-                                "Modules" {
-                                    foreach ($module in $prerequisite.Tests.Powershell.Modules) {
+            switch ($psPrerequisite.Installation.Prerequisites.Type) {                    
+                "Powershell" {
+                    switch ($psPrerequisite.Installation.Prerequisites.$($psPrerequisite.Installation.Prerequisites.Type).Keys[0]) {
+                        "Modules" {                             
+                            foreach ($prerequisiteModule in $psPrerequisite.Installation.Prerequisites.Powershell.Modules) {    
+                                
+                                if (!$newLineClosed) { Write-Host+; $newLineClosed = $true }
+                                
+                                $moduleStatus = "TESTING"
+                                $messageBodyLength = 40
+                                $message = "<  $($prerequisiteModule.name) $($prerequisiteModule.RequiredVersion) <.>$messageBodyLength> $moduleStatus"
+                                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                                $moduleStatusPadLeft = $moduleStatus.Length + 1
 
-                                        # get modules to import from the initialization prerequisite section
-                                        # this allows you to install an uber-package such as Az and only import specific modules
-                                        $modulesToImport = @()
-                                        $testResultsModulesToImport = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Initialization -Quiet
-                                        foreach ($moduleToImport in $testResultsModulesToImport.Prerequisites.Tests.Powershell.Modules) {
-                                            if (!(Get-Module -Name $moduleToImport.Name)) {
-                                                $modulesToImport += $moduleToImport
-                                            }
-                                        }
-                                        if ($module.Status -ne "Installed" -or $modulesToImport.Count -gt 0) {
-                                            
-                                            Write-Host+; $newLineClosed = $true
-                                            $message = "<  $($module.name) $($module.$($module.VersionToInstall)) <.>36> PENDING"
-                                            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-                                            $installedColor = "DarkGray"
+                                $moduleTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -PrerequisiteFilter "Name -eq `"$($prerequisiteModule.Name)`"" -Quiet
+                                $module = $moduleTestResults.Prerequisites.Tests.PowerShell.Modules
 
-                                            # install modules in the installation prerequisite section - do NOT import!
-                                            # this allows you to install an uber-package such as Az without importing all its modules
-                                            if ($module.Status -ne "Installed") {
-                                                $installedModule = Install-PSResource -Name $module.Name -Version $module.$($module.VersionToInstall) -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-                                                Write-Host+ -NoTrace -NoTimestamp "    Installed Module '$($installedModule.Name)'" -ForegroundColor DarkGray
-                                            }
+                                $moduleStatus = "PENDING"
+                                $moduleStatusPadRight =  $moduleStatusPadLeft-$moduleStatus.Length -lt 0 ? 0 : $moduleStatusPadLeft-$moduleStatus.Length
+                                $message = "$($emptyString.PadLeft($moduleStatusPadLeft,"`b")) $moduleStatus$($emptyString.PadLeft($moduleStatusPadRight," "))$($emptyString.PadLeft($moduleStatusPadRight,"`b"))"
+                                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGray
+                                $moduleStatusPadLeft = $moduleStatus.Length + 1
 
-                                            # install and import modules in the installation prerequisite section
-                                            # this allows you to install an uber-package such as Az without importing all its modules (above) and then ...
-                                            # import only the modules you specify in the initialization prerequisite section
-                                            # if ($modulesToImport.Count -gt 0) { Write-Host+ }
-                                            foreach ($moduleToImport in $modulesToImport) {
-                                                if ($moduleToImport.Status -ne "Installed") {
-                                                    $installedModule = Install-PSResource -Name $moduleToImport.Name -Version $moduleToImport.$($moduleToImport.VersionToInstall) -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-                                                    Write-Host+ -NoTrace -NoTimestamp "    Installed Module '$($installedModule.Name)'" -ForegroundColor DarkGray
-                                                }
-                                                if (!(Get-Module -Name $moduleToImport.Name)) {
-                                                    $global:InformationPreference = "SilentlyContinue"
-                                                    Import-Module -Name $moduleToImport.Name -RequiredVersion $moduleToImport.$($moduleToImport.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                                                    $global:InformationPreference = "Continue"
-                                                    Write-Host+ -NoTrace -NoTimestamp "    Loaded Module '$($moduleToImport.Name)'" -ForegroundColor DarkGray
-                                                }
-                                            }
-                                            $installedColor = "DarkGreen"
+                                if (!$module.IsInstalled -or 
+                                    ($module.IsInstalled -and !$module.IsRequiredVersionInstalled) -or 
+                                    ($module.IsInstalled -and !$module.IsImported) -or
+                                    ($module.IsInstalled -and $module.IsImported -and !$module.isRequiredVersionImported) -and 
+                                    (!$module.DoNotImport)) {
 
-                                            # Write-Host+
-                                            $message = "<  $($module.name) $($module.$($module.VersionToInstall)) <.>36> SUCCESS"
-                                            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-
-                                        }
-
+                                    if (!$module.isInstalled -or ($module.IsInstalled -and !$module.IsRequiredVersionInstalled)) {
+                                        $installedModule = Install-PSResource -Name $module.Name -Version $module.$($module.VersionToInstall) -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
                                     }
-                                }
-                                "Packages" {
-                                    foreach ($package in $prerequisite.Tests.Powershell.Packages) {
 
-                                        if ($package.Status -ne "Installed") {
+                                    $moduleStatus = "INSTALLED"
+                                    $moduleStatusPadRight =  $moduleStatusPadLeft-$moduleStatus.Length -lt 0 ? 0 : $moduleStatusPadLeft-$moduleStatus.Length
+                                    $message = "$($emptyString.PadLeft($moduleStatusPadLeft,"`b")) $moduleStatus$($emptyString.PadLeft($moduleStatusPadRight," "))$($emptyString.PadLeft($moduleStatusPadRight,"`b"))"
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
+                                    $moduleStatusPadLeft = $moduleStatus.Length + 1
 
-                                            if (!$newLineClosed) {
-                                                Write-Host+ 
-                                                $newLineClosed = $true
-                                            }
-
-                                            $message = "<  $($package.name) $($package.$($package.VersionToInstall)) <.>36> PENDING"
-                                            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-                                            $installedColor = "DarkGray"
-
-                                            Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue | Out-Null
-                                            $installedColor = "DarkGreen"
-
-                                            $message = "$($emptyString.PadLeft(7,"`b"))INSTALLED "
-                                            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor $installedColor
-
+                                    if (!$module.DoNotImport) {
+                                        
+                                        # the module has not been imported
+                                        # or, if it was just reinstalled, then reimport
+                                        if (!$module.IsImported -or $installedModule) {
+                                            $global:InformationPreference = "SilentlyContinue"
+                                            Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
+                                            $global:InformationPreference = "Continue"
                                         }
 
+                                        $moduleStatus = "IMPORTED"
+                                        $moduleStatusPadRight =  $moduleStatusPadLeft-$moduleStatus.Length -lt 0 ? 0 : $moduleStatusPadLeft-$moduleStatus.Length
+                                        $message = "$($emptyString.PadLeft($moduleStatusPadLeft,"`b")) $moduleStatus$($emptyString.PadLeft($moduleStatusPadRight," "))$($emptyString.PadLeft($moduleStatusPadRight,"`b"))"
+                                        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
+                                        $moduleStatusPadLeft = $moduleStatus.Length + 1
+                                    
                                     }
+
+                                    Write-Host+ # close the -NoNewLine
+
                                 }
+                                else {
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"`b")
+                                }
+
+                            }
+                        }
+                        "Packages" {
+                            foreach ($prerequisitePackage in $psPrerequisite.Installation.Prerequisites.Powershell.Packages) {                                
+
+                                $packageTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -PrerequisiteFilter "Name -eq `"$($prerequisitePackage.Name)`"" -Quiet
+                                $package = $packageTestResults.Prerequisites.Tests.PowerShell.Packages                                    
+
+                                if (!$package.isInstalled -or ($package.IsInstalled -and !$package.IsRequiredVersionInstalled)) {
+
+                                    if (!$newLineClosed) { Write-Host+; $newLineClosed = $true }
+
+                                    $packageStatus = "PENDING"
+                                    $message = "<  $($package.name) $($package.$($package.VersionToInstall)) <.>40> $packageStatus"
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                                    $packageStatusPadLeft = $packageStatus.Length + 1
+
+                                    Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue | Out-Null
+
+                                    $packageStatus = "INSTALLED"
+                                    $packageStatusPadRight =  $packageStatusPadLeft-$packageStatus.Length -lt 0 ? 0 : $packageStatusPadLeft-$packageStatus.Length
+                                    $message = "$($emptyString.PadLeft($packageStatusPadLeft,"`b")) $packageStatus$($emptyString.PadLeft($packageStatusPadRight," "))$($emptyString.PadLeft($packageStatusPadRight,"`b"))"
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
+                                    $packageStatusPadLeft = $packageStatus.Length + 1
+
+                                    Write-Host+ # close the -NoNewLine
+
+                                }
+
                             }
                         }
                     }
                 }
             }
 
+
+        }
+
+        $psStatus = "INSTALLED"
         if ($newLineClosed) {
-            $message = "<Powershell modules/packages <.>48> INSTALLED"
+            $message = "<Powershell modules/packages <.>48> $psStatus"
             Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
             Write-Host+
         }
         else {
-            $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
+            $psStatusPadRight =  $psStatusPadLeft-$psStatus.Length -lt 0 ? 0 : $psStatusPadLeft-$psStatus.Length
+            $message = "$($emptyString.PadLeft($psStatusPadLeft,"`b")) $psStatus$($emptyString.PadLeft($psStatusPadRight," "))$($emptyString.PadLeft($psStatusPadRight,"`b"))"
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
         }
+        Set-CursorVisible
 
     }
 
@@ -1768,7 +1763,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         #endregion REMOVE PSSESSIONS
 
-        Write-Host+ -MaxBlankLines 1
+        # Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."
         Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
         Write-Host+
