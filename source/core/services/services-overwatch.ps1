@@ -934,13 +934,20 @@
             
             $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
+            # callers depend on the Get-Service properties
+            # so don't change to Get-CimInstance -ClassName Win32_Service
+            # (unless you mod the properties to match Get-Service)
             $service = Invoke-Command -Session $psSession {
-                Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$using:Name'"
+                Get-Service -Name $using:Name -ErrorAction SilentlyContinue
             }
+            # get the process associated with the service
+            # this is so we can get properties like CreationDate and calculate service uptime/runtime
             $serviceProcess = Invoke-Command -Session $psSession {
-                Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($using:service.ProcessId)"
+                Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$using:Name'" | Foreach-Object {
+                    Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($_.ProcessId)"
+                }
             }
-            # $service | Add-Member -NotePropertyName "Process" -NotePropertyValue $serviceProcess
+            # add CreationDate to the service object
             $service | Add-Member -NotePropertyName CreationDate -NotePropertyValue $serviceProcess.CreationDate
         
             return $service
