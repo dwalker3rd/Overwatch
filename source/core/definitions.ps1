@@ -80,7 +80,15 @@
 #endregion UPDATE CATALOG
 #region MINIMUM DEFINITIONS RETURN
 
-    if ($MinimumDefinitions) { return }
+    if ($MinimumDefinitions) { 
+        $providers = Get-Provider -ResetCache | Where-Object {$_.Installed -and $_.Installation.Flag -contains "AlwaysLoad"}
+        $providers.Id | ForEach-Object {
+            if (Test-Path -Path "$($global:Location.Providers)\provider-$($_).ps1") {
+                $null = . "$($global:Location.Providers)\provider-$($_).ps1"
+            }
+        }
+        return
+    }
 
 #endregion MINIMUM DEFINITIONS RETURN
 #region PRODUCTS
@@ -92,7 +100,8 @@
     $products | Out-Null
 
     # define active/current product (based on $global:Product.Id)
-    $global:Product = (Get-Product -Id $global:Product.Id) ?? @{ Id = $global:Product.Id}
+    $productId = $global:Product.Id ?? "Command"
+    $global:Product = (Get-Product -Id $productId) ?? @{ Id = $productId }
 
 #endregion PRODUCTS
 #region PROVIDERS

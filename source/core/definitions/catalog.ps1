@@ -416,6 +416,7 @@ $global:Catalog.Provider += @{ "OnePassword" =
             Prerequisites = @(
                 @{ Type = "CLI"; CLI = "OnePasswordCLI" }
             )
+            Flag = @("AlwaysLoad")
         }
     }
 }
