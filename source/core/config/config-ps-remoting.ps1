@@ -77,7 +77,18 @@ $global:WarningPreference = "SilentlyContinue"
 
         # configure basic powershell remoting config (for this node)
         # $ignoreOutput = winrm quickconfig -Quiet
-        $ignoreOutput = enable-psremoting -skipnetworkprofilecheck -force
+        $ignoreOutput = Enable-PSRemoting -skipnetworkprofilecheck -force
+        $winRmService = Get-Service+ WinRM
+        $winRmRuntime = (Get-Date -AsUTC) - $winRmService.CreationDate
+        if ($winRmRuntime -gt (New-TimeSpan -Seconds 15)) {
+            Stop-Service WinRM -Force
+            $ignoreOutput = Enable-PSRemoting -skipnetworkprofilecheck -force
+            $winRmService = Get-Service+ WinRM
+            $winRmRuntime = (Get-Date -AsUTC) - $winRmService.CreationDate
+        }
+        if ($winRmService.State -ne "Running") {
+            Start-Service WinRM
+        }
         $ignoreOutput = set-netfirewallrule -name "WINRM-HTTP-In-TCP-PUBLIC" -RemoteAddress Any
 
         # enable WSMan Credssp for both Server and Client (for this node)
