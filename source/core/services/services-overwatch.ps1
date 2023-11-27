@@ -932,16 +932,16 @@
                 [Parameter(Mandatory=$true,Position=0)][string]$Name
             )
             
-            if ($ComputerName -ne $env:COMPUTERNAME) {
-                $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
-            }
+            $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
-            if ($ComputerName -eq $env:COMPUTERNAME) {
-                $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+            $service = Invoke-Command -Session $psSession {
+                Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$using:Name'"
             }
-            else {
-                $service = Invoke-Command -Session $psSession { Get-Service -Name $using:Name -ErrorAction SilentlyContinue }
+            $serviceProcess = Invoke-Command -Session $psSession {
+                Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($using:service.ProcessId)"
             }
+            # $service | Add-Member -NotePropertyName "Process" -NotePropertyValue $serviceProcess
+            $service | Add-Member -NotePropertyName CreationDate -NotePropertyValue $serviceProcess.CreationDate
         
             return $service
         
