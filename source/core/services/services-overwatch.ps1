@@ -931,26 +931,85 @@
                 [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
                 [Parameter(Mandatory=$true,Position=0)][string]$Name
             )
-            
-            $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
 
-            # callers depend on the Get-Service properties
-            # so don't change to Get-CimInstance -ClassName Win32_Service
-            # (unless you mod the properties to match Get-Service)
-            $service = Invoke-Command -Session $psSession {
-                Get-Service -Name $using:Name -ErrorAction SilentlyContinue
-            }
-            # get the process associated with the service
-            # this is so we can get properties like CreationDate and calculate service uptime/runtime
-            $serviceProcess = Invoke-Command -Session $psSession {
-                Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$using:Name'" | Foreach-Object {
+            if ($ComputerName -eq $env:COMPUTERNAME) {
+                # get the local service
+                $service = Get-Service $Name
+                # get the process associated with the service
+                # this is so we can get properties like CreationDate and calculate service uptime/runtime
+                $serviceProcess = Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$Name'" | Foreach-Object {
                     Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($_.ProcessId)"
                 }
             }
+            else {
+                $psSession = Use-PSSession+ -ComputerName $ComputerName -ErrorAction SilentlyContinue
+                if (!$psSession) { 
+                    $message = "Unable to get/create a PowerShell session."
+                    Write-Log -Action "Use-PSSession+" -Target "$($Computername)\$($Name)" -Status "Fail" -EntryType Error -Message $message 
+                    Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+                    return
+                }
+                # get the remote service
+                $service = Invoke-Command -Session $psSession {
+                    Get-Service -Name $using:Name -ErrorAction SilentlyContinue
+                }
+                # get the process associated with the service
+                # this is so we can get properties like CreationDate and calculate service uptime/runtime
+                $serviceProcess = Invoke-Command -Session $psSession {
+                    Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$using:Name'" | Foreach-Object {
+                        Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($_.ProcessId)"
+                    }
+                }
+            }
+
             # add CreationDate to the service object
             $service | Add-Member -NotePropertyName CreationDate -NotePropertyValue $serviceProcess.CreationDate
         
             return $service
+        
+        }
+
+        function global:Start-Service+ {
+
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+                [Parameter(Mandatory=$true,Position=0)][string]$Name,
+                [Parameter(Mandatory=$false)][string]$Status = "Running"
+            )
+
+            $service = $null
+            if ($ComputerName -eq $env:COMPUTERNAME) {
+                $service = Get-Service $Name
+            }
+            else {
+                $service = Get-Service+ $Name -ComputerName $ComputerName
+            }
+            
+            if (!$service -or ($service -and $service.Status -ne $Status)) {
+                $message =  "The $Name service is $($service.Status ?? "Unknown")." 
+                Write-Log -Action "Get-Service" -Target "$($Computername)\$($Name)" -Status $service.Status -EntryType Error -Message $message 
+                Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+
+                if ($ComputerName -eq $env:COMPUTERNAME) {
+                    $service = Start-Service -Name $Name -ErrorAction SilentlyContinue
+                }
+                else {
+                    $service = Invoke-Command -Session $psSession { Start-Service -Name $using:Name -ErrorAction SilentlyContinue}
+                }
+
+                if (!(Wait-Service $Name -Status $Status -WaitTimeInSeconds 5 -TimeOutInSeconds 15)) {
+                    $message = "Unable to start the $Name service."
+                    Write-Log -Action "Start-Service" -Target "$($Computername)\$($Name)" -Status $service.Status -EntryType Error -Message $message 
+                    Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+                }
+                else {
+                    $service = Get-Service $Name
+                    $message =  "The $Name service is $($service.Status ?? "Unknown")." 
+                    Write-Log -Action "Get-Service" -Target "$($Computername)\$($Name)" -Status $service.Status -EntryType Information -Message $message -Force
+                    Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+                }
+            }
         
         }
 
@@ -1100,8 +1159,8 @@
             [switch]$Quiet
         )
 
-        $leader = Format-Leader -Length 46 -Adjust ((("  Powershell Remoting").Length))
-        Write-Host+ -Iff $(!$Quiet -and !$NoHeader) -NoTrace "  Powershell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
+        $leader = Format-Leader -Length 46 -Adjust ((("  PowerShell Remoting").Length))
+        Write-Host+ -Iff $(!$Quiet -and !$NoHeader) -NoTrace "  PowerShell Remoting",$leader,"PENDING" -ForegroundColor Gray,DarkGray,DarkGray
 
         $fail = $false
         $testResults = [PSCustomObject]@()
@@ -1122,7 +1181,7 @@
             }
             catch {
                 Write-Host+ -Iff $(!$Quiet) -NoTimestamp -NoTrace -NoIndent "$($emptyString.PadLeft(8,"`b")) FAIL   " -ForegroundColor DarkRed
-                Write-Log -Action "Test" -Target "Powershell-Remoting" -Status "Fail" -EntryType "Error" -Message "Powershell-Remoting to $($node) failed"
+                Write-Log -Action "Test" -Target "PowerShell-Remoting" -Status "Fail" -EntryType "Error" -Message "PowerShell-Remoting to $($node) failed"
                 $_fail = $fail = $true
             }
 
@@ -1137,7 +1196,7 @@
 
         }
 
-        $message = "  Powershell Remoting"
+        $message = "  PowerShell Remoting"
         $leader = Format-Leader -Length 46 -Adjust $message.Length
         Write-Host+ -Iff $(!$Quiet -and !$NoHeader) -NoTrace $message,$leader,($fail ? "FAIL" : "PASS") -ForegroundColor Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")        
 
@@ -1446,7 +1505,7 @@
                     $remotePsSession = New-PsSession+ -ComputerName $node
                     Remove-PsSession -Session $remotePsSession
 
-                    Write-Host+ -NoTrace "$($node): Connected via Powershell remoting" -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace "$($node): Connected via PowerShell remoting" -ForegroundColor DarkGray
 
                     # is Overwatch Monitor running?
                     try {
@@ -1486,7 +1545,7 @@
                 # the server is not reachable via powershell remoting
                 # this is a proxy for "is the o/s up and running?"
                 catch {
-                    Write-Host+ -NoTrace "$($node): Unable to connect via Powershell remoting" -ForegroundColor DarkRed
+                    Write-Host+ -NoTrace "$($node): Unable to connect via PowerShell remoting" -ForegroundColor DarkRed
                 }
 
             }
@@ -1627,17 +1686,20 @@
                     $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
                     $prerequisiteTest.Pass = $_isInstalled
                     $prerequisiteTest.Block = !$prerequisiteTest.Pass
+                    if (!$prerequisiteTest.Pass) {
+                        $prerequisiteTest += @{ Reason = "The $($prerequisite.Driver) driver is $($prerequisiteTest.Status)."}
+                    }
                 }
 
                 # test for prerequisite types which are powershell modules/packages
-                if ($prerequisite.Type -eq "Powershell") {
+                if ($prerequisite.Type -eq "PowerShell") {
                     $_isInstalled = $true
                     if (!($prerequisite.Id.Modules -or $prerequisite.Id.Packages)) {
                         $_isInstalled = $false
                     }                    
                     else {
                         if ($prerequisite.Id.Modules) {
-                            $prerequisiteTest.DisplayName = "Powershell Modules"
+                            $prerequisiteTest.DisplayName = "PowerShell Modules"
                             $prerequisiteTest.$($prerequisite.Type) += @{ Modules = @() }
                             $prerequisiteTest.Id = "Modules"
                             foreach ($module in $prerequisite.Id.Modules) {
@@ -1785,7 +1847,7 @@
 
                         }
                         if ($prerequisite.Id.Packages) {
-                            $prerequisiteTest.DisplayName = "Powershell Packages"
+                            $prerequisiteTest.DisplayName = "PowerShell Packages"
                             $prerequisiteTest.$($prerequisite.Type) += @{ Packages = @() }
                             $prerequisiteTest.Id = "Packages"
                             foreach ($package in $prerequisite.Id.Packages) {
@@ -1909,6 +1971,9 @@
                     $prerequisiteTest.Status = $_service.Status ?? "Not Running"
                     $prerequisiteTest.Pass = $_isInstalled
                     $prerequisiteTest.Block = !$prerequisiteTest.Pass
+                    if (!$prerequisiteTest.Pass) {
+                        $prerequisiteTest += @{ Reason = "The $($_service.Name) service is $($_service.Status)."}
+                    }
                 }
 
                 # test for prerequisites which have the Installation.IsInstalled test defined
@@ -1933,6 +1998,9 @@
                     $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
                     $prerequisiteTest.Pass = $_isInstalled
                     $prerequisiteTest.Block = !$prerequisiteTest.Pass
+                    if (!$prerequisiteTest.Pass) {
+                        $prerequisiteTest += @{ Reason = "The $($prerequisite.Id) $($prerequisite.Type) is $($prerequisiteTest.Status)."}
+                    }
                 }                
 
                 # test for prerequisite types which are catalog objects
@@ -1953,6 +2021,7 @@
                                 $prerequisiteTest.Block = $false
                             }
                         }
+                        $prerequisiteTest += @{ Reason = "The $($prerequisite.Id) $($prerequisite.Type) is $($prerequisiteTest.Status)."}
                     }
                 }
 
@@ -1965,7 +2034,7 @@
                 Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator "    $($prerequisiteTest.DisplayName) ", $statusMessage, $(![string]::IsNullOrEmpty($blockMessage) ? ", " : ""), $blockMessage -ForegroundColor Gray,($prerequisiteTest.Pass ? "DarkGreen" : "Red"),DarkGray,($prerequisiteTest.Block ? "Red" : "DarkGreen")
 
             }
-
+            $prerequisite.Tests = $prerequisite.Tests
             $prerequisite.Status = $prerequisite.Pass ? "Installed" : "Not Installed"
 
             $results.Pass = $results.Pass -and $prerequisite.Pass
