@@ -36,8 +36,17 @@ function global:Invoke-Preflight {
             $Name = Invoke-Expression "`$global:$($Target).Name"
         }
     }
+
+    $preflightPath = switch ($Target) {
+        "Overwatch" {
+            "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower()).ps1"
+        }
+        default {
+            "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
+        }
+    }
     
-    if (Test-Path -Path "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1") {
+    if (Test-Path -Path $preflightPath) {
         
         Write-Host+ -Iff $(!$Quiet.IsPresent) 
         $message = "<$Name $noun $Action <.>48> PENDING"
@@ -48,7 +57,7 @@ function global:Invoke-Preflight {
         $fail = $false
         $exceptionMessage = $null
         try{
-            $command = "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
+            $command = $preflightPath
             $ComputerNameParam = ((Get-Command $command).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
             . $command @ComputerNameParam
         }
@@ -82,6 +91,7 @@ function global:Confirm-Preflight {
         return
     }
 
+    Invoke-Preflight -Action Check -Target Overwatch
     Invoke-Preflight -Action Check -Target OS
     Invoke-Preflight -Action Check -Target Platform
     Invoke-Preflight -Action Check -Target PlatformInstance
@@ -101,6 +111,7 @@ function global:Update-Preflight {
         return
     }
 
+    Invoke-Preflight -Action Update -Target Overwatch
     Invoke-Preflight -Action Update -Target OS
     Invoke-Preflight -Action Update -Target Platform
     Invoke-Preflight -Action Update -Target PlatformInstance

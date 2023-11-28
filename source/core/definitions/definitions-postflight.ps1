@@ -33,8 +33,17 @@ function global:Invoke-Postflight {
             $Name = Invoke-Expression "`$global:$($Target).Name"
         }
     }
+
+    $postflightPath = switch ($Target) {
+        "Overwatch" {
+            "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower()).ps1"
+        }
+        default {
+            "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
+        }
+    }
     
-    if (Test-Path -Path "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1") {
+    if (Test-Path -Path $postflightPath) {
         
         Write-Host+ -Iff $(!$Quiet.IsPresent) 
         $message = "<$Name $noun $Action <.>48> PENDING"
@@ -45,7 +54,7 @@ function global:Invoke-Postflight {
         $fail = $false
         $exceptionMessage = $null
         try{
-            $command = "$($global:Location.PostFlight)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
+            $command = $postflightPath
             $ComputerNameParam = ((Get-Command $command).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
             . $command @ComputerNameParam
         }
@@ -78,6 +87,7 @@ function global:Confirm-Postflight {
         return
     }
 
+    Invoke-Postflight -Action Check -Target Overwatch
     Invoke-Postflight -Action Check -Target OS
     Invoke-Postflight -Action Check -Target Platform
     Invoke-Postflight -Action Check -Target PlatformInstance
@@ -97,6 +107,7 @@ function global:Update-Postflight {
         return
     }
 
+    Invoke-Postflight -Action Update -Target Overwatch
     Invoke-Postflight -Action Update -Target OS
     Invoke-Postflight -Action Update -Target Platform
     Invoke-Postflight -Action Update -Target PlatformInstance
