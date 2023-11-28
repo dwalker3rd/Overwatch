@@ -445,6 +445,34 @@ class DirectoryObject : FileObjectBase {
 
     }
 
+    [System.Security.AccessControl.DirectorySecurity]GetAcl() { return Get-Acl -Path $this.Path }
+
+    [System.Security.AccessControl.DirectorySecurity]SetAcl(
+        [string]$IdentityReference,
+        [System.Security.AccessControl.FileSystemRights]$FileSystemRights,
+        [System.Security.AccessControl.AccessControlType]$AccessControlType
+        )
+    {
+        $InheritanceFlags = [System.Security.AccessControl.InheritanceFlags]::None
+        $PropagationFlags = [System.Security.AccessControl.PropagationFlags]::None
+        return $this.SetAcl($IdentityReference,$FileSystemRights,$InheritanceFlags,$PropagationFlags,$AccessControlType)
+    }
+    
+    [System.Security.AccessControl.DirectorySecurity]SetAcl(
+        [string]$IdentityReference,
+        [System.Security.AccessControl.FileSystemRights]$FileSystemRights,
+        [System.Security.AccessControl.InheritanceFlags]$InheritanceFlags,
+        [System.Security.AccessControl.PropagationFlags]$PropagationFlags,
+        [System.Security.AccessControl.AccessControlType]$AccessControlType
+        )
+    {
+        $acl = $this.GetAcl()
+        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($IdentityReference, $FileSystemRights, $InheritanceFlags, $PropagationFlags, $AccessControlType)
+        $acl.SetAccessRule($accessRule)
+        Set-Acl -Path $this.Path -AclObject $acl
+        return $this.GetAcl()
+    }
+
 }
 
 class FileObject : FileObjectBase {
@@ -499,6 +527,34 @@ class FileObject : FileObjectBase {
         $this.Exists = $this._Exists
 
     }
+
+    [System.Security.AccessControl.FileSecurity]GetAcl() { return Get-Acl -Path $this.Path }
+
+    [System.Security.AccessControl.FileSecurity]SetAcl(
+        [string]$IdentityReference,
+        [System.Security.AccessControl.FileSystemRights]$FileSystemRights,
+        [System.Security.AccessControl.AccessControlType]$AccessControlType
+        )
+    {
+        $InheritanceFlags = [System.Security.AccessControl.InheritanceFlags]::None
+        $PropagationFlags = [System.Security.AccessControl.PropagationFlags]::None
+        return $this.SetAcl($IdentityReference,$FileSystemRights,$InheritanceFlags,$PropagationFlags,$AccessControlType)
+    }    
+    
+    [System.Security.AccessControl.FileSecurity]SetAcl(
+        [string]$IdentityReference,
+        [System.Security.AccessControl.FileSystemRights]$FileSystemRights,
+        [System.Security.AccessControl.InheritanceFlags]$InheritanceFlags,
+        [System.Security.AccessControl.PropagationFlags]$PropagationFlags,
+        [System.Security.AccessControl.AccessControlType]$AccessControlType
+    )
+    {
+        $acl = $this.GetAcl()
+        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($IdentityReference, $FileSystemRights, $InheritanceFlags, $PropagationFlags, $AccessControlType)
+        $acl.SetAccessRule($accessRule)
+        Set-Acl -Path $this.Path -AclObject $acl
+        return $this.GetAcl()
+    }  
 
 }
 
