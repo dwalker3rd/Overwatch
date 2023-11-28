@@ -679,7 +679,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             $dependentType = ($dependency.Dependent -split "\.")[0]
             $dependentId = ($dependency.Dependent -split "\.")[1]
             if ($dependentType -cne $dependentType.ToUpper()) { $dependentType = $dependentType.ToLower() }
-            if ($dependencyType -eq "Powershell") {
+            if ($dependencyType -eq "PowerShell") {
                 $dependencyId = "$($dependencyId -replace "s$") $($dependency.Object.Name)"
             }
             Write-Host+ -NoTrace -NoTimestamp "$($dependencyType) $($dependencyId)","(required by $dependentId $dependentType)" -ForegroundColor Gray,DarkGray
@@ -1194,7 +1194,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         Set-CursorInVisible
         Write-Host+ -MaxBlankLines 1
         $psStatus = "PENDING"
-        $message = "<Powershell modules/packages <.>48> $psStatus"
+        $message = "<PowerShell modules/packages <.>48> $psStatus"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
         $psStatusPadLeft = $psStatus.Length + 1
         $newLineClosed = $false
@@ -1212,7 +1212,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         Write-Host+ -NoTrace -NoSeparator -NoNewLine -NoTimeStamp $message -ForegroundColor DarkGray
         $psStatusPadLeft = $psStatus.Length + 1
 
-        $psPrerequisites = (Get-Catalog) | Where-Object {$_.IsInstalled() -and $_.Installation.Prerequisites.Type -and $_.Installation.Prerequisites.Type -eq "Powershell"}
+        $psPrerequisites = (Get-Catalog) | Where-Object {$_.IsInstalled() -and $_.Installation.Prerequisites.Type -and $_.Installation.Prerequisites.Type -eq "PowerShell"}
 
         $psStatus = "PENDING"
         $psStatusPadRight =  $psStatusPadLeft-$psStatus.Length -lt 0 ? 0 : $psStatusPadLeft-$psStatus.Length
@@ -1223,10 +1223,10 @@ $global:Location.Definitions = $tempLocationDefinitions
         $noop = $true
         foreach ($psPrerequisite in $psPrerequisites) {
             switch ($psPrerequisite.Installation.Prerequisites.Type) {                    
-                "Powershell" {
+                "PowerShell" {
                     switch ($psPrerequisite.Installation.Prerequisites.$($psPrerequisite.Installation.Prerequisites.Type).Keys[0]) {
                         "Modules" {                             
-                            foreach ($prerequisiteModule in $psPrerequisite.Installation.Prerequisites.Powershell.Modules) {    
+                            foreach ($prerequisiteModule in $psPrerequisite.Installation.Prerequisites.PowerShell.Modules) {    
                                 
                                 if (!$newLineClosed) { Write-Host+; $newLineClosed = $true }
                                 
@@ -1239,6 +1239,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                 $moduleTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -PrerequisiteFilter "Name -eq `"$($prerequisiteModule.Name)`"" -Quiet
                                 $module = $moduleTestResults.Prerequisites.Tests.PowerShell.Modules
 
+                                Start-Sleep -Milliseconds 500
                                 $moduleStatus = "PENDING"
                                 $moduleStatusPadRight =  $moduleStatusPadLeft-$moduleStatus.Length -lt 0 ? 0 : $moduleStatusPadLeft-$moduleStatus.Length
                                 $message = "$($emptyString.PadLeft($moduleStatusPadLeft,"`b")) $moduleStatus$($emptyString.PadLeft($moduleStatusPadRight," "))$($emptyString.PadLeft($moduleStatusPadRight,"`b"))"
@@ -1256,6 +1257,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                         $noop = $false
                                     }
 
+                                    Start-Sleep -Milliseconds 500
                                     $moduleStatus = "INSTALLED"
                                     $moduleStatusPadRight =  $moduleStatusPadLeft-$moduleStatus.Length -lt 0 ? 0 : $moduleStatusPadLeft-$moduleStatus.Length
                                     $message = "$($emptyString.PadLeft($moduleStatusPadLeft,"`b")) $moduleStatus$($emptyString.PadLeft($moduleStatusPadRight," "))$($emptyString.PadLeft($moduleStatusPadRight,"`b"))"
@@ -1273,13 +1275,21 @@ $global:Location.Definitions = $tempLocationDefinitions
                                             $noop = $false
                                         }
 
-                                        $moduleStatus = "IMPORTED"
+                                        Start-Sleep -Milliseconds 500
+                                        $moduleStatus = "LOADED"
                                         $moduleStatusPadRight =  $moduleStatusPadLeft-$moduleStatus.Length -lt 0 ? 0 : $moduleStatusPadLeft-$moduleStatus.Length
                                         $message = "$($emptyString.PadLeft($moduleStatusPadLeft,"`b")) $moduleStatus$($emptyString.PadLeft($moduleStatusPadRight," "))$($emptyString.PadLeft($moduleStatusPadRight,"`b"))"
                                         Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
                                         $moduleStatusPadLeft = $moduleStatus.Length + 1
                                     
                                     }
+
+                                    # repeat the last message, but without color this time
+                                    Start-Sleep -Milliseconds 500
+                                    $moduleStatusPadRight =  $moduleStatusPadLeft-$moduleStatus.Length -lt 0 ? 0 : $moduleStatusPadLeft-$moduleStatus.Length
+                                    $message = "$($emptyString.PadLeft($moduleStatusPadLeft,"`b")) $moduleStatus$($emptyString.PadLeft($moduleStatusPadRight," "))$($emptyString.PadLeft($moduleStatusPadRight,"`b"))"
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGray
+                                    $moduleStatusPadLeft = $moduleStatus.Length + 1
 
                                     Write-Host+ # close the -NoNewLine
 
@@ -1296,7 +1306,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                             }
                         }
                         "Packages" {
-                            foreach ($prerequisitePackage in $psPrerequisite.Installation.Prerequisites.Powershell.Packages) {                                
+                            foreach ($prerequisitePackage in $psPrerequisite.Installation.Prerequisites.PowerShell.Packages) {                                
 
                                 $packageTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -PrerequisiteFilter "Name -eq `"$($prerequisitePackage.Name)`"" -Quiet
                                 $package = $packageTestResults.Prerequisites.Tests.PowerShell.Packages                                    
@@ -1333,7 +1343,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         $psStatus = "INSTALLED"
         if ($newLineClosed) {
-            $message = "<Powershell modules/packages <.>48> $psStatus"
+            $message = "<PowerShell modules/packages <.>48> $psStatus"
             Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed ($noop ? 1 : 0) -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
             Write-Host+
         }

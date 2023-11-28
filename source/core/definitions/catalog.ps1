@@ -1,4 +1,3 @@
-
 $global:Catalog = @{}
 $global:Catalog.Overwatch = @{}
 $global:Catalog.Cloud = @{}
@@ -7,7 +6,6 @@ $global:Catalog.Platform = @{}
 $global:Catalog.Product = @{}
 $global:Catalog.Provider = @{}
 $global:Catalog.Installer = @{}
-# $global:Catalog.Driver = @{}
 $global:Catalog.CLI = @{}
 
 $global:Catalog.Overwatch += @{ Overwatch =  
@@ -16,12 +14,11 @@ $global:Catalog.Overwatch += @{ Overwatch =
         Name = "Overwatch"
         DisplayName = "Overwatch"
         Description = ""
-        Release = "2.1"
+        Version = "2.1"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Registry = @{
                 Path = "HKLM:\SOFTWARE\Overwatch"
-                Key = "InstallLocation"
             }
         }
     }
@@ -66,8 +63,8 @@ $global:Catalog.Cloud += @{ Azure =
             )
             Prerequisites = @(
                 @{
-                    Type = "Powershell"
-                    Powershell = @{
+                    Type = "PowerShell"
+                    PowerShell = @{
                         Modules = $_cloudAzurePowershellModules
                     }
                 }
@@ -76,8 +73,8 @@ $global:Catalog.Cloud += @{ Azure =
         Initialization = @{
             Prerequisites = @(
                 @{
-                    Type = "Powershell"
-                    Powershell = @{
+                    Type = "PowerShell"
+                    PowerShell = @{
                         Modules = $_cloudAzurePowershellModules
                     }
                 }
@@ -486,8 +483,8 @@ $global:Catalog.Provider += @{ SMTP =
         Initialization = @{
             Prerequisites = @(
                 @{
-                    Type = "Powershell"
-                    Powershell = @{
+                    Type = "PowerShell"
+                    PowerShell = @{
                         Packages = @(
                             @{ Name = "MimeKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet"; SkipDependencies = $true },
                             @{ Name = "MailKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet" }
@@ -499,8 +496,8 @@ $global:Catalog.Provider += @{ SMTP =
         Installation = @{
             Prerequisites = @(
                 @{
-                    Type = "Powershell"
-                    Powershell = @{
+                    Type = "PowerShell"
+                    PowerShell = @{
                         Packages = @(
                             @{ Name = "Portable.BouncyCastle"; RequiredVersion = "1.9.0"; ProviderName = "NuGet" },
                             @{ Name = "MimeKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet"; SkipDependencies = $true },

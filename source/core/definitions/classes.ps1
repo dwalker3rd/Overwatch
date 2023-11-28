@@ -10,7 +10,7 @@ class CatalogObject {
     [string]$DisplayName
     [string]$Description
     [string]$Publisher
-    [string]$Release
+    [Version]$Version
     [string]$Suite
     [string]$Image
     [object]$Initialization
@@ -84,12 +84,18 @@ class CatalogObject {
 # move properties/members up if used in multiple class instances
 # consolidate classes if possible/desired
 
-class Overwatch : CatalogObject {}
+class Overwatch : CatalogObject {
+
+    [string]InstallPath() {
+        return "$($this.Type).$($this.Id)"
+    }
+
+}
 
 class OS : CatalogObject {}
 
 class Cloud : CatalogObject {
-    [string]$Version
+    [Version]$Version
     [string]$Build
     [System.Uri]$Uri
     [string]$Log
@@ -97,7 +103,7 @@ class Cloud : CatalogObject {
 
 class Platform : CatalogObject {
     [string]$Instance
-    [string]$Version
+    [Version]$Version
     [string]$Build
     [System.Uri]$Uri
     [string]$Domain
