@@ -8,7 +8,7 @@
         [Parameter(Mandatory=$false)][Alias("Token")][string]$Password,
         [Parameter(Mandatory=$false)][string]$Title,
         [Parameter(Mandatory=$false)][string]$Message,
-        [Parameter(Mandatory=$false)][string]$Prompt1 = "User",
+        [Parameter(Mandatory=$false)][string]$Prompt1 = "Username",
         [Parameter(Mandatory=$false)][string]$Prompt2 = "Password"
     )
 
