@@ -10,7 +10,7 @@ $global:WarningPreference = "SilentlyContinue"
 
 #region POWERSHELL REMOTING
 
-    $message = "<Powershell remoting <.>48> PENDING"
+    $message = "<PowerShell remoting <.>48> PENDING"
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
     # this node is assumed to be the Overwatch controller for this platforminstance

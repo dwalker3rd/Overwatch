@@ -90,7 +90,7 @@ function Update-BgInfoCustomContent {
             Add-Content -Path $bgInfoContent.Path -Value "URL:`t$($global:Platform.Uri)"
             Add-Content -Path $bgInfoContent.Path -Value ""
 
-            Add-Content -Path $bgInfoContent.Path -Value "Powershell:`tPowershell $($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion)"
+            Add-Content -Path $bgInfoContent.Path -Value "PowerShell:`tPowershell $($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion)"
             Add-Content -Path $bgInfoContent.Path -Value ""
 
         #endregion CUSTOMIZE THIS REGION ONLY

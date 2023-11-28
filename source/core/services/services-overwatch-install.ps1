@@ -550,10 +550,10 @@ function script:Copy-File {
             foreach ($prerequisite in $prerequisiteTestResults.Prerequisites | Where-Object {!$_.Pass}) {
                 # TODO: Prompt user for manual/automatic installation of prerequisites (including children) 
                 switch ($prerequisite.Type) {
-                    "Powershell" {
+                    "PowerShell" {
                         switch ($prerequisite.Id) {
                             "Modules" {
-                                foreach ($module in $prerequisite.Tests.Powershell.Modules) {
+                                foreach ($module in $prerequisite.Tests.PowerShell.Modules) {
                                     # install modules in the installation prerequisite section - do NOT import!
                                     # this allows you to install an uber-package such as Az without importing all its modules
                                     if ($module.Status -ne "Installed") {
@@ -565,7 +565,7 @@ function script:Copy-File {
                                     # this allows you to install an uber-package such as Az without importing all its modules (above) and then ...
                                     # import only the modules you specify in the initialization prerequisite section
                                     $modulesToImport = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Initialization -Quiet
-                                    foreach ($moduleToImport in $modulesToImport.Prerequisites.Tests.Powershell.Modules) {
+                                    foreach ($moduleToImport in $modulesToImport.Prerequisites.Tests.PowerShell.Modules) {
                                         if ($moduleToImport.Status -ne "Installed") {
                                             $installedModule = Install-PSResource -Name $moduleToImport.Name -Version $moduleToImport.$($moduleToImport.VersionToInstall)  -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
                                             $installedModule | Out-Null
@@ -577,7 +577,7 @@ function script:Copy-File {
                                 }
                             }
                             "Packages" {
-                                foreach ($package in $prerequisite.Tests.Powershell.Packages) {
+                                foreach ($package in $prerequisite.Tests.PowerShell.Packages) {
                                     if ($package.Status -ne "Installed") {
                                         Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue | Out-Null
                                     }

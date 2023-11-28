@@ -2,7 +2,7 @@
 .Synopsis
 Cache service for Overwatch
 .Description
-This script provides file-based caching for Overwatch objects via Powershell's Import-Clixml 
+This script provides file-based caching for Overwatch objects via PowerShell's Import-Clixml 
 and Export-Clixml cmdlets.
 #>
 
