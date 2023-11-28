@@ -53,6 +53,20 @@ function global:New-PSSession+ {
         $_psSession += New-PSSession -ComputerName $ComputerName -ConfigurationName $ConfigurationName -ErrorAction SilentlyContinue
     } 
 
+    # if $_psSession is null, verify that the WinRM service is running
+    # if the WinRM service is NOT running, start it and call New-PSSession+ again
+    if (!$_psSession -and !$winRMRetry) {
+        $winRM = Get-Service+ WinRM
+        if ($winRM.Status -ne "Running") { 
+            Start-Service+ WinRM
+            $isRunning = Wait-Service WinRM -WaitTimeInSeconds 5 -TimeOutInSeconds 15
+            if ($isRunning) { 
+                $winRMRetry = $true
+                $_psSession += New-PSSession -ComputerName $ComputerName -ConfigurationName $ConfigurationName -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
     return $_psSession
 
 }    
