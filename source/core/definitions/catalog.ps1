@@ -21,6 +21,7 @@ $global:Catalog.Overwatch += @{ Overwatch =
         Installation = @{
             Registry = @{
                 Path = "HKLM:\SOFTWARE\Overwatch"
+                Key = "InstallLocation"
             }
         }
     }
