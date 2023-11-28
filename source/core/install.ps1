@@ -1285,8 +1285,10 @@ $global:Location.Definitions = $tempLocationDefinitions
 
                                 }
                                 else {
-                                    # backspace to beginning position and write over previous text with spaces
-                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"`b")$emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"")
+                                    # backspace to beginning position
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"`b")
+                                    # write over previous text with spaces
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"")
                                     # backspace to beginning position again in prep for next line of text
                                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"`b")
                                 }
