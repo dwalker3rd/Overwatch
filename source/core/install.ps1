@@ -244,10 +244,11 @@ $global:Location.Definitions = $tempLocationDefinitions
 
     #region REGISTRY
 
-        # $overwatchRegistryPath = (Get-Catalog -Uid Overwatch.Overwatch).Installation.Registry.Path
-        $overwatchRegistryPath = "HKLM:\SOFTWARE\Overwatch"
+        $catalogFileContent = Get-Content -Path $global:Location.Catalog -Raw
+        $result = [regex]::Matches($catalogFileContent, $global:RegexPattern.Overwatch.Registry.Path)
+        $overwatchRegistryPath = $result[0].Groups['OverwatchRegistryPath'].Value
         $overwatchRegistryKey = "InstallLocation"
-        if (!(Test-Path $overwatchRegistryPath)) {
+        if (!(Test-Path -Path $overwatchRegistryPath)) {
             New-Item -Path $overwatchRegistryPath -Force | Out-Null
         }
         Set-ItemProperty -Path $overwatchRegistryPath -Name $overwatchRegistryKey -Value $overwatchInstallLocation 
@@ -1219,6 +1220,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         Write-Host+ -NoTrace -NoSeparator -NoNewLine -NoTimeStamp $message -ForegroundColor DarkGray
         $psStatusPadLeft = $psStatus.Length + 1
 
+        $noop = $true
         foreach ($psPrerequisite in $psPrerequisites) {
             switch ($psPrerequisite.Installation.Prerequisites.Type) {                    
                 "Powershell" {
@@ -1251,6 +1253,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
                                     if (!$module.isInstalled -or ($module.IsInstalled -and !$module.IsRequiredVersionInstalled)) {
                                         $installedModule = Install-PSResource -Name $module.Name -Version $module.$($module.VersionToInstall) -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+                                        $noop = $false
                                     }
 
                                     $moduleStatus = "INSTALLED"
@@ -1267,6 +1270,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                             $global:InformationPreference = "SilentlyContinue"
                                             Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
                                             $global:InformationPreference = "Continue"
+                                            $noop = $false
                                         }
 
                                         $moduleStatus = "IMPORTED"
@@ -1281,6 +1285,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 
                                 }
                                 else {
+                                    # backspace to beginning position and write over previous text with spaces
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"`b")$emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"")
+                                    # backspace to beginning position again in prep for next line of text
                                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $moduleStatusPadLeft,"`b")
                                 }
 
@@ -1325,7 +1332,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         $psStatus = "INSTALLED"
         if ($newLineClosed) {
             $message = "<Powershell modules/packages <.>48> $psStatus"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+            Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed ($noop ? 1 : 0) -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
             Write-Host+
         }
         else {
@@ -1395,34 +1402,58 @@ $global:Location.Definitions = $tempLocationDefinitions
     . $PSScriptRoot\services\services-overwatch-install.ps1
 
 #endregion INITIALIZE OVERWATCH
-#region CREDENTIALS
+#region LOCAL ADMIN/RUNAS
 
-    if ($installOverwatch) {
-        . $PSScriptRoot\services\vault.ps1
-        . $PSScriptRoot\services\encryption.ps1
-        . $PSScriptRoot\services\credentials.ps1
+    $message = "<Local Admin/RunAs Account <.>48> VALIDATING"
+    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-        $message = "<Admin Credentials <.>48> VALIDATING"
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+    # check for local admin/runas credentials
+    if (!(Test-Credentials "localadmin-$($global:Platform.Instance)" -NoValidate)) {
+        do {
+            # prompt for credentials and save in vault
+            Request-Credentials -Message "  Overwatch Run As Credentials" -Prompt1 "Username" -Prompt2 "Password" | Set-Credentials "localadmin-$($global:Platform.Instance)" | Out-Null
+        } until (
+            # test credentials
+            Test-Credentials -NoValidate "localadmin-$($global:Platform.Instance)" -NoValidate
+        )
+    }
+    $localAdminCredentials = Get-Credentials "localadmin-$($global:Platform.Instance)"
 
-        if (!$(Test-Credentials -NoValidate "localadmin-$platformInstanceId")) { 
-            Write-Host+
-            Write-Host+
-
-            Request-Credentials -Message "  Enter the local admin credentials" -Prompt1 "  User" -Prompt2 "  Password" | Set-Credentials "localadmin-$($global:Platform.Instance)"
-            
-            Write-Host+
-            $message = "<Admin Credentials <.>48> VALID"
-            Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
-            Write-Host+
-        }
-        else {
-            $message = "$($emptyString.PadLeft(10,"`b"))VALID     "
-            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    # if the username is a down-level logon name, then it's a user on the local machine
+    # ensure the local admin/runas user exists and, if not, create it
+    if ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.UserNameFormat.DownLevelLogonName)) {
+        # get local user
+        $localAdmin = Get-LocalUser+ -Name $localAdminCredentials.Username
+        if (!$localAdmin) {
+            # create local user
+            $localAdmin = New-LocalUser+ -Name $localAdminCredentials.Username -Password $localAdminCredentials.GetNetworkCredential().Password -PasswordNeverExpires $true -Description "Overwatch LocalMachine Admin"
         }
     }
 
-#endregion CREDENTIALS
+    # ensure the local admin/runas user is a member of the local administrators group
+    if ((Get-LocalGroup+ -Name "Administrators").Members.Name -notcontains $localAdmin.Username ) {
+        # add user to local Administrators group
+        $localAdministrators = Add-LocalGroupMember+ -Name "Administrators" -Member $localAdmin.Name
+        $localAdministrators | Out-Null
+    }
+
+    $catalogFileContent = Get-Content -Path $global:Location.Catalog -Raw
+    $result = [regex]::Matches($catalogFileContent, $global:RegexPattern.Overwatch.Registry.Path)
+    $overwatchRegistryPath = $result[0].Groups['OverwatchRegistryPath'].Value
+    $overwatchRegistryKey = "InstallLocation"
+    $overwatchInstallLocation = (Get-ItemProperty -Path $overwatchRegistryPath -Name $overwatchRegistryKey).InstallLocation
+    $overwatchDirectory = Get-Files -Path $overwatchInstallLocation
+
+    if ($overwatchDirectory.GetAcl().Access.IdentityReference -notcontains $localAdmin.Username) {
+        # grant FullControl file system rights to user for Overwatch directory (including all subdirectories and files)
+        $overwatchDirectoryACL = $overwatchDirectory.SetAcl($localAdmin.Name,"FullControl",3,0,"Allow")
+        $overwatchDirectoryACL | Out-Null
+    }
+
+    $message = "$($emptyString.PadLeft(1,"`b"))VALID "
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+#endregion LOCAL ADMIN/RUNAS
 #region REMOTE DIRECTORIES
 
     $requiredDirectories = @("data","config")
