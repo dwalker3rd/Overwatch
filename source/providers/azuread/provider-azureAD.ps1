@@ -106,9 +106,9 @@ function global:Get-AzureADUser {
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $isUserId = $User -match $global:RegexPattern.Guid
-    $isGuestUserPrincipalName = $User -match $global:RegexPattern.AzureAD.UserPrincipalName -and $User -like "*#EXT#*"
+    $isGuestUserPrincipalName = $User -match $global:RegexPattern.UserNameFormat.AzureAD -and $User -like "*#EXT#*"
     $isEmail = $User -match $global:RegexPattern.Mail
-    $isMemberUserPrincipalName = $User -match $global:RegexPattern.AzureAD.UserPrincipalName
+    $isMemberUserPrincipalName = $User -match $global:RegexPattern.UserNameFormat.AzureAD
 
     $isValidUser = $isUserId -or $isEmail -or $isMemberUserPrincipalName -or $isGuestUserPrincipalName
     if (!$isValidUser) {
@@ -175,7 +175,7 @@ function global:Reset-AzureADUserPassword {
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    if ($User -notmatch $global:RegexPattern.Guid -and $User -notmatch $global:RegexPattern.AzureAD.UserPrincipalName) {
+    if ($User -notmatch $global:RegexPattern.Guid -and $User -notmatch $global:RegexPattern.UserNameFormat.AzureAD) {
         throw "'$User' is not a valid AzureAD user id or userPrincipalName."
     }
 
@@ -370,7 +370,7 @@ function global:Get-AzureADUser+ {
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    if ($User -notmatch $global:RegexPattern.Guid -and $User -notmatch $global:RegexPattern.AzureAD.UserPrincipalName) {
+    if ($User -notmatch $global:RegexPattern.Guid -and $User -notmatch $global:RegexPattern.UserNameFormat.AzureAD) {
         throw "'$User' is not a valid AzureAD user id or userPrincipalName."
     }
 

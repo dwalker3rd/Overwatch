@@ -15,9 +15,10 @@ $global:RegexPattern = @{
         Build = "(\d+.\d+.\d+.\d+)"
         Version = "(\d+.\d+.\d+)"
     }
-    AzureAD = @{
-        UserPrincipalName = "^(([\w.]|#EXT#)+)\@(\w+)(\.(\w+))+$"
-        MailFromGuestUserUPN = "^(.*)_(.*)#EXT#\@.*$"
+    UserNameFormat = @{
+        NetBios = "^(\.(\\)|.\w*(\\))?(\w*)$"
+        ActiveDirectory = "^(\w+)\@(\w+)(\.(\w+))+$"
+        AzureAD = "^(([\w.]|#EXT#)+)\@(\w+)(\.(\w+))+$"
     }
     Windows = @{
         ShutdownEvent = @{
@@ -51,5 +52,13 @@ $global:RegexPattern = @{
             }
         }
     }
-
+    Overwatch = @{
+        Registry = @{
+            Path = "\s*Installation\s*=\s*\@\{\s*Registry\s*=\s*\@\{\s*Path\s*=\s*`"(?'OverwatchRegistryPath'.*?)`""
+        }
+    }
 }
+
+# Aliases
+$global:RegexPattern.UsernameFormat = @{ DownLevelLogonName = $global:RegexPattern.UsernameFormat.NetBios }
+$global:RegexPattern.UsernameFormat = @{ AD = $global:RegexPattern.UsernameFormat.ActiveDirectory }
