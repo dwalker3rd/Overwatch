@@ -15,10 +15,21 @@ $global:RegexPattern = @{
         Build = "(\d+.\d+.\d+.\d+)"
         Version = "(\d+.\d+.\d+)"
     }
-    UserNameFormat = @{
-        NetBios = "^(\.(\\)|.\w*(\\))?(\w*)$"
-        ActiveDirectory = "^(\w+)\@(\w+)(\.(\w+))+$"
-        AzureAD = "^(([\w.]|#EXT#)+)\@(\w+)(\.(\w+))+$"
+    HostName = @{
+        DNS = "[A-Za-z0-9-\.]{2,63}"
+        NetBios = "[^\\/:\*\?`"\<\>\|]{0,14}"
+        Windows = "" # aliased below
+    }
+    DomainName = @{
+        DNS = "[A-Za-z0-9-\.]{2,255}"
+        NetBios = "[^,~\:!@\$%\^&'\.\(\)\{\}_\s\\/{0,14}]"
+    }
+    UserName = @{
+        NetBios = "^(?:\.\\|(?'ComputerName'[\w_-]*)\\)?(?'Username'\w*)$"
+        ActiveDirectory = "^(?'Username'\w+)\@(?'Domain'(\w+)(\.(\w+))+)$"
+        AzureAD = "^(?'Username'([\w.]|#EXT#)+)\@('Domain'(\w+)(\.(\w+))+)$"
+        AD = "" # aliased below
+        DownLevelLogonName = "" # aliased below
     }
     Windows = @{
         ShutdownEvent = @{
@@ -60,5 +71,6 @@ $global:RegexPattern = @{
 }
 
 # Aliases
-$global:RegexPattern.UsernameFormat = @{ DownLevelLogonName = $global:RegexPattern.UsernameFormat.NetBios }
-$global:RegexPattern.UsernameFormat = @{ AD = $global:RegexPattern.UsernameFormat.ActiveDirectory }
+$global:RegexPattern.Username.DownLevelLogonName = $global:RegexPattern.Username.NetBios
+$global:RegexPattern.Username.AD = $global:RegexPattern.Username.ActiveDirectory
+$global:RegexPattern.Username.Windows = $global:RegexPattern.Username.NetBios

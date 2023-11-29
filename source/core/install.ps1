@@ -164,6 +164,7 @@ $providerIds = @()
 
     $installedPlatforms = @()
     foreach ($key in $global:Catalog.Platform.Keys) {
+        # TODO: this is awkward and it confuses me: rework this
         $platformIsInstalled = $global:Catalog.Platform.$key.Installation.Flag -contains "UnInstallable" ? $false : $true
         foreach ($installationTest in $global:Catalog.Platform.$key.Installation.IsInstalled) {
             switch ($installationTest) {
@@ -697,8 +698,8 @@ $global:Location.Definitions = $tempLocationDefinitions
     if (!$installOverwatch) {
 
         Write-Host+ -MaxBlankLines 1
-        $message = "<Updated Files <.>48> CHECKING"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+        $message = "<Updated Files <.>48> SCANNING"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
         Write-Host+
 
         $updatedFiles = @()
@@ -1254,7 +1255,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
                                     if (!$module.isInstalled -or ($module.IsInstalled -and !$module.IsRequiredVersionInstalled)) {
                                         $installedModule = Install-PSResource -Name $module.Name -Version $module.$($module.VersionToInstall) -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-                                        $noop = $false
+                                        $noop = $noop -and $false
                                     }
 
                                     Start-Sleep -Milliseconds 500
@@ -1272,7 +1273,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                             $global:InformationPreference = "SilentlyContinue"
                                             Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
                                             $global:InformationPreference = "Continue"
-                                            $noop = $false
+                                            $noop = $noop -and $false
                                         }
 
                                         Start-Sleep -Milliseconds 500
@@ -1306,30 +1307,58 @@ $global:Location.Definitions = $tempLocationDefinitions
                             }
                         }
                         "Packages" {
-                            foreach ($prerequisitePackage in $psPrerequisite.Installation.Prerequisites.PowerShell.Packages) {                                
+                            foreach ($prerequisitePackage in $psPrerequisite.Installation.Prerequisites.PowerShell.Packages) {   
+
+                                if (!$newLineClosed) { Write-Host+; $newLineClosed = $true }
+                                
+                                $packageStatus = "TESTING"
+                                $messageBodyLength = 40
+                                $message = "<  $($prerequisitePackage.name) $($prerequisitePackage.RequiredVersion) <.>$messageBodyLength> $packageStatus"
+                                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                                $packageStatusPadLeft = $packageStatus.Length + 1
 
                                 $packageTestResults = Test-Prerequisites -Type $psPrerequisite.Type -Id $psPrerequisite.Id -PrerequisiteType Installation -PrerequisiteFilter "Name -eq `"$($prerequisitePackage.Name)`"" -Quiet
-                                $package = $packageTestResults.Prerequisites.Tests.PowerShell.Packages                                    
+                                $package = $packageTestResults.Prerequisites.Tests.PowerShell.Packages          
+                                
+                                Start-Sleep -Milliseconds 500
+                                $packageStatus = "PENDING"
+                                $packageStatusPadRight =  $packageStatusPadLeft-$packageStatus.Length -lt 0 ? 0 : $packageStatusPadLeft-$packageStatus.Length
+                                $message = "$($emptyString.PadLeft($packageStatusPadLeft,"`b")) $packageStatus$($emptyString.PadLeft($packageStatusPadRight," "))$($emptyString.PadLeft($packageStatusPadRight,"`b"))"
+                                Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGray
+                                $packageStatusPadLeft = $packageStatus.Length + 1
 
-                                if (!$package.isInstalled -or ($package.IsInstalled -and !$package.IsRequiredVersionInstalled)) {
+                                if (!$package.IsInstalled -or 
+                                    ($package.IsInstalled -and !$package.IsRequiredVersionInstalled)) {
 
-                                    if (!$newLineClosed) { Write-Host+; $newLineClosed = $true }
+                                    if (!$package.isInstalled -or ($package.IsInstalled -and !$package.IsRequiredVersionInstalled)) {
+                                        Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue | Out-Null
+                                        $noop = $noop -and $false
+                                    }
 
-                                    $packageStatus = "PENDING"
-                                    $message = "<  $($package.name) $($package.$($package.VersionToInstall)) <.>40> $packageStatus"
-                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-                                    $packageStatusPadLeft = $packageStatus.Length + 1
-
-                                    Install-Package -Name $package.Name -RequiredVersion $package.$($package.VersionToInstall) -SkipDependencies:$package.SkipDependencies -Force -ErrorAction SilentlyContinue | Out-Null
-
+                                    Start-Sleep -Milliseconds 500
                                     $packageStatus = "INSTALLED"
                                     $packageStatusPadRight =  $packageStatusPadLeft-$packageStatus.Length -lt 0 ? 0 : $packageStatusPadLeft-$packageStatus.Length
                                     $message = "$($emptyString.PadLeft($packageStatusPadLeft,"`b")) $packageStatus$($emptyString.PadLeft($packageStatusPadRight," "))$($emptyString.PadLeft($packageStatusPadRight,"`b"))"
                                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
                                     $packageStatusPadLeft = $packageStatus.Length + 1
 
+                                    # repeat the last message, but without color this time
+                                    Start-Sleep -Milliseconds 500
+                                    $packageStatusPadRight =  $packageStatusPadLeft-$packageStatus.Length -lt 0 ? 0 : $packageStatusPadLeft-$packageStatus.Length
+                                    $message = "$($emptyString.PadLeft($packageStatusPadLeft,"`b")) $packageStatus$($emptyString.PadLeft($packageStatusPadRight," "))$($emptyString.PadLeft($packageStatusPadRight,"`b"))"
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGray
+                                    $packageStatusPadLeft = $packageStatus.Length + 1
+
                                     Write-Host+ # close the -NoNewLine
 
+                                }
+                                else {
+                                    # backspace to beginning position
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $packageStatusPadLeft,"`b")
+                                    # write over previous text with spaces
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $packageStatusPadLeft," ")
+                                    # backspace to beginning position again in prep for next line of text
+                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine $emptyString.PadLeft($messageBodyLength + $packageStatusPadLeft,"`b")
                                 }
 
                             }
@@ -1419,48 +1448,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     $message = "<Local Admin/RunAs Account <.>48> VALIDATING"
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-    # check for local admin/runas credentials
-    if (!(Test-Credentials "localadmin-$($global:Platform.Instance)" -NoValidate)) {
-        do {
-            # prompt for credentials and save in vault
-            Request-Credentials -Message "  Overwatch Run As Credentials" -Prompt1 "Username" -Prompt2 "Password" | Set-Credentials "localadmin-$($global:Platform.Instance)" | Out-Null
-        } until (
-            # test credentials
-            Test-Credentials -NoValidate "localadmin-$($global:Platform.Instance)" -NoValidate
-        )
-    }
-    $localAdminCredentials = Get-Credentials "localadmin-$($global:Platform.Instance)"
-
-    # if the username is a down-level logon name, then it's a user on the local machine
-    # ensure the local admin/runas user exists and, if not, create it
-    if ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.UserNameFormat.DownLevelLogonName)) {
-        # get local user
-        $localAdmin = Get-LocalUser+ -Name $localAdminCredentials.Username
-        if (!$localAdmin) {
-            # create local user
-            $localAdmin = New-LocalUser+ -Name $localAdminCredentials.Username -Password $localAdminCredentials.GetNetworkCredential().Password -PasswordNeverExpires $true -Description "Overwatch LocalMachine Admin"
-        }
-    }
-
-    # ensure the local admin/runas user is a member of the local administrators group
-    if ((Get-LocalGroup+ -Name "Administrators").Members.Name -notcontains $localAdmin.Username ) {
-        # add user to local Administrators group
-        $localAdministrators = Add-LocalGroupMember+ -Name "Administrators" -Member $localAdmin.Name
-        $localAdministrators | Out-Null
-    }
-
-    $catalogFileContent = Get-Content -Path $global:Location.Catalog -Raw
-    $result = [regex]::Matches($catalogFileContent, $global:RegexPattern.Overwatch.Registry.Path)
-    $overwatchRegistryPath = $result[0].Groups['OverwatchRegistryPath'].Value
-    $overwatchRegistryKey = "InstallLocation"
-    $overwatchInstallLocation = (Get-ItemProperty -Path $overwatchRegistryPath -Name $overwatchRegistryKey).InstallLocation
-    $overwatchDirectory = Get-Files -Path $overwatchInstallLocation
-
-    if ($overwatchDirectory.GetAcl().Access.IdentityReference -notcontains $localAdmin.Username) {
-        # grant FullControl file system rights to user for Overwatch directory (including all subdirectories and files)
-        $overwatchDirectoryACL = $overwatchDirectory.SetAcl($localAdmin.Name,"FullControl",3,0,"Allow")
-        $overwatchDirectoryACL | Out-Null
-    }
+    Set-LocalAdmin
 
     $message = "$($emptyString.PadLeft(1,"`b"))VALID "
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -1543,27 +1531,6 @@ $global:Location.Definitions = $tempLocationDefinitions
     }
 
 #endregion CONTACTS
-#region LOG
-
-    # if ($installOverwatch) {
-    #     $message = "<Log files <.>48> CREATING"
-    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
-
-    #     $osLogFile = ((Get-Catalog -Type "OS" -Id $OS.Id).Log).ToLower()
-    #     if (!(Test-Log -Name $osLogFile)) {
-    #         New-Log -Name $osLogFile | Out-Null
-    #     }
-
-    #     $platformLogFile = ((Get-Catalog -Type "Platform" -Id $Platform.Id).Log).ToLower()
-    #     if (!(Test-Log -Name $platformLogFile)) {
-    #         New-Log -Name $platformLogFile | Out-Null
-    #     }
-
-    #     $message = "$($emptyString.PadLeft(8,"`b"))CREATED "
-    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-    # }
-
-#endregion LOG 
 #region MAIN
 
     Set-CursorInvisible

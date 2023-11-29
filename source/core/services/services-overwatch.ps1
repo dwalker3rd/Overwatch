@@ -2445,3 +2445,73 @@ function global:Show-PostInstallation {
 Set-Alias -Name postInstall -Value Show-PostInstallation -Scope Global
 
 #endregion POSTINSTALLATION
+#region LOCAL ADMIN/RUNAS
+
+    function global:Set-LocalAdmin {
+
+        [CmdletBinding()]
+        param (
+            [switch]$Force
+        )
+
+        # get the current local admin username from the "localAdmin-$($global:Platform.Instance)" credentials
+        # if the credentials haven't been set or -Force has been specified, prompt for and set/replace credentials
+        if (!(Test-Credentials "localAdmin-$($global:Platform.Instance)" -NoValidate) -or $Force) {
+            if ((Test-Credentials "localAdmin-$($global:Platform.Instance)" -NoValidate) -and $Force) {
+                $localAdminCredentials = Get-Credentials "localAdmin-$($global:Platform.Instance)"
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Replace $($localAdminCredentials.Username) as the local admin (Y/N)? ", "[N]", ": " -ForegroundColor Gary, Blue, Gray
+                if ((Read-Host).ToUpper() -ne "Y") { return }
+            }
+            do {
+                Request-Credentials -Title "Overwatch Local Admin Credentials" | Set-Credentials "localAdmin-$($global:Platform.Instance)" | Out-Null
+            } until (
+                Test-Credentials -NoValidate "localAdmin-$($global:Platform.Instance)"
+            )
+        }
+        $localAdminCredentials = Get-Credentials "localAdmin-$($global:Platform.Instance)"
+
+        # what type of username?  (Local, AD, AzureAD)
+        if ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.Username.DownLevelLogonName)) {
+            $username = ([Regex]::Matches($localAdminCredentials.Username,$global:RegexPattern.Username.DownLevelLogonName))[0].Groups["Username"].Value
+            $localAdmin = Get-LocalUser+ -Name $username
+            Remove-Variable username
+        }
+        elseif ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.Username.AzureAD)) {
+            Write-Host+ "AzureAD security principals are not yet supported." -ForegroundColor DarkRed
+        }
+        elseif ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.Username.AD)) {
+            Write-Host+ "AD security principals are not yet supported." -ForegroundColor DarkRed
+        }
+
+        # ensure the local admin/runas user exists and, if not, create it
+        if (!$localAdmin) {
+            if ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.Username.DownLevelLogonName)) {
+                $localAdmin = New-LocalUser+ -Name $username -Password $localAdminCredentials.GetNetworkCredential().Password -PasswordNeverExpires $true -Description "Overwatch LocalMachine Admin"
+            }
+        }
+
+        # ensure the local admin/runas user is a member of the local administrators group
+        if ((Get-LocalGroup+ -Name "Administrators").Members.Name -notcontains $localAdmin.username ) {
+            # add user to local Administrators group
+            $localAdministrators = Add-LocalGroupMember+ -Name "Administrators" -Member $localAdmin.Name
+            $localAdministrators | Out-Null
+        }
+
+        # find/get the overwatch installation [root] directory object
+        $catalogFileContent = Get-Content -Path $global:Location.Catalog -Raw
+        $result = [regex]::Matches($catalogFileContent, $global:RegexPattern.Overwatch.Registry.Path)
+        $overwatchRegistryPath = $result[0].Groups['OverwatchRegistryPath'].Value
+        $overwatchRegistryKey = "InstallLocation"
+        $overwatchInstallLocation = (Get-ItemProperty -Path $overwatchRegistryPath -Name $overwatchRegistryKey).InstallLocation
+        $overwatchDirectory = Get-Files -Path $overwatchInstallLocation
+
+        # grant FullControl file system rights to user for Overwatch directory (including all subdirectories and files)
+        $localAdminACE = $overwatchDirectory.GetAcl().Access | Where-Object {$_.IdentityReference -eq $localAdmin.Username}
+        if (!$localAdminACE -or ($localAdminACE -and $localAdminACE.FileSystemRights -ne [System.Security.AccessControl.FileSystemRights]::FullControl)) {
+            $overwatchDirectoryACL = $overwatchDirectory.SetAcl($localAdmin.Name,"FullControl",3,0,"Allow")
+            $overwatchDirectoryACL | Out-Null
+        }
+
+    }
+
+#endregion LOCAL ADMIN/RUNAS

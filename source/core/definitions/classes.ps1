@@ -479,6 +479,18 @@ class DirectoryObject : FileObjectBase {
         return $this.GetAcl()
     }
 
+    [System.Security.AccessControl.DirectorySecurity]SetAcl([object]$Acl) {
+        Set-Acl -Path $this.Path -AclObject $Acl
+        return $this.GetAcl()
+    }
+
+    [System.Security.AccessControl.DirectorySecurity]RemoveAcl([string]$IdentityReference) {
+        $acl = $this.GetAcl()
+        $accessRuleToRemove = $acl.Access | Where-Object {$_.IdentityReference -eq $IdentityReference}
+        if ($accessRuleToRemove) { $acl.RemoveAccessRule($accessRuleToRemove) }
+        return $this.SetAcl($acl)
+    }
+
 }
 
 class FileObject : FileObjectBase {
@@ -561,6 +573,18 @@ class FileObject : FileObjectBase {
         Set-Acl -Path $this.Path -AclObject $acl
         return $this.GetAcl()
     }  
+
+    [System.Security.AccessControl.FileSecurity]SetAcl([object]$Acl) {
+        Set-Acl -Path $this.Path -AclObject $Acl
+        return $this.GetAcl()
+    }
+
+    [System.Security.AccessControl.FileSecurity]RemoveAcl([string]$IdentityReference) {
+        $acl = $this.GetAcl()
+        $accessRuleToRemove = $acl.Access | Where-Object {$_.IdentityReference -eq $IdentityReference}
+        if ($accessRuleToRemove) { $acl.RemoveAccessRule($accessRuleToRemove) }
+        return $this.SetAcl($acl)
+    }
 
 }
 
