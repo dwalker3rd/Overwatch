@@ -1450,7 +1450,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
     Set-LocalAdmin
 
-    $message = "$($emptyString.PadLeft(1,"`b"))VALID "
+    $message = "$($emptyString.PadLeft(10,"`b"))$($emptyString.PadLeft(10," "))$($emptyString.PadLeft(10,"`b"))VALID"
     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
 #endregion LOCAL ADMIN/RUNAS
@@ -1783,4 +1783,3 @@ $global:Location.Definitions = $tempLocationDefinitions
     Set-CursorVisible
 
 #endregion MAIN
-
