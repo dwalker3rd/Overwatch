@@ -956,8 +956,8 @@
                 # get the process associated with the service
                 # this is so we can get properties like CreationDate and calculate service uptime/runtime
                 $serviceProcess = Invoke-Command -Session $psSession {
-                    Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$using:Name'" | Foreach-Object {
-                        Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($_.ProcessId)"
+                    Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$using:Name'" -ErrorAction SilentlyContinue | Foreach-Object {
+                        Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($_.ProcessId)" -ErrorAction SilentlyContinue
                     }
                 }
             }
@@ -1026,7 +1026,7 @@
             
             $totalWaitTimeInSeconds = 0
             
-            $service = Get-Service+ $Name -ComputerName $ComputerName
+            $service = Get-Service+ $Name -ComputerName $ComputerName -ErrorAction SilentlyContinue
             if (!$service) { return $false }
 
             while ($service.Status -ne $Status) {
