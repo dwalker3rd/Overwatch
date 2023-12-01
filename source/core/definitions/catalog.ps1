@@ -190,13 +190,87 @@ $global:Catalog.Platform += @{ AlteryxServer =
         Description = "Overwatch services for the Alteryx Server platform"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
+            UninstallString = [scriptblock]{
+                return (Get-ItemProperty -Path (Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.RegistryKey.Uninstall) -Name UninstallString).UninstallString
+            }
+            InstallLocation = [scriptblock]{
+                $uninstallString = Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.UninstallString
+                return ([xml](Get-Content "$(Split-Path -Parent $uninstallString)\InstallInfo.xml")).Settings.InstallDir64
+            }
+            AlteryxEngineCmd = [scriptblock]{
+                $installLocation = Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.InstallLocation
+                return "$installLocation\AlteryxEngineCmd.exe"
+            }
+            RegistryKey = @{
+                Uninstall = [scriptblock]{
+                    foreach ($registryKey in (Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")) {
+                        $displayName = (Get-ItemProperty -Path $registryKey.Name.Replace("HKEY_LOCAL_MACHINE","HKLM:") -Name DisplayName -ErrorAction SilentlyContinue).DisplayName
+                        if ($displayName -like "Alteryx Server*") {
+                            return $registryKey.Name.Replace("HKEY_LOCAL_MACHINE","HKLM:")
+                        }
+                    }}
+                }
             IsInstalled = @(
-                @{ Type = "Service"; Service = "AlteryxService" }
+                @{ Type = "Command"; Command = [scriptblock]{
+                    try { . $global:Catalog.Platform.AlteryxServer.Installation.AlteryxEngineCmd *>$null; return $true } catch { return $false }
+                }}
             )
+            Build = [scriptblock]{
+                return (Get-Item (Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.AlteryxEngineCmd)).VersionInfo.ProductVersion
+            }
+            Version = [scriptblock]{
+                $build = [version](Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.Build)
+                return "$($build.Major).$($build.Minor)"
+            }
             PlatformInstanceId = @{
                 Input = "`$global:Platform.Uri.Host"
                 Pattern = "\."
                 Replacement = "-"
+            }
+        }
+    }
+}
+
+$global:Catalog.Platform += @{ AlteryxDesigner = 
+    [Platform]@{
+        Id = "AlteryxDesigner"
+        Name = "Alteryx Designer"
+        DisplayName = "Alteryx Designer"
+        Image = "../img/alteryx_a_logo.png"
+        Description = "Overwatch services for the Alteryx Designer platform"
+        Publisher = "Walker Analytics Consulting"
+        Installation = @{
+            UninstallString = [scriptblock]{
+                return (Get-ItemProperty -Path (Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.RegistryKey.Uninstall) -Name UninstallString).UninstallString
+            }
+            InstallLocation = [scriptblock]{
+                $uninstallString = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.UninstallString
+                return ([xml](Get-Content "$(Split-Path -Parent $uninstallString)\InstallInfo.xml")).Settings.InstallDir64
+            }
+            AlteryxEngineCmd = [scriptblock]{
+                $installLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.InstallLocation
+                return "$installLocation\AlteryxEngineCmd.exe"
+            }
+            RegistryKey = @{
+                Uninstall = [scriptblock]{
+                    foreach ($registryKey in (Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")) {
+                        $displayName = (Get-ItemProperty -Path $registryKey.Name.Replace("HKEY_LOCAL_MACHINE","HKLM:") -Name DisplayName -ErrorAction SilentlyContinue).DisplayName
+                        if ($displayName -like "Alteryx Designer*") {
+                            return $registryKey.Name.Replace("HKEY_LOCAL_MACHINE","HKLM:")
+                        }
+                    }}
+                }
+            IsInstalled = @(
+                @{ Type = "Command"; Command = [scriptblock]{
+                    try { . $global:Catalog.Platform.AlteryxDesigner.Installation.AlteryxEngineCmd *>$null; return $true } catch { return $false }
+                }}
+            )
+            Build = [scriptblock]{
+                return (Get-Item (Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.AlteryxEngineCmd)).VersionInfo.ProductVersion
+            }
+            Version = [scriptblock]{
+                $build = [version](Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Build)
+                return "$($build.Major).$($build.Minor)"
             }
         }
     }
