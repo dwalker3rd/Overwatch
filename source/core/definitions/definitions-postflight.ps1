@@ -10,7 +10,7 @@ function global:Invoke-Postflight {
         [string]$Action,
 
         [Parameter(Mandatory=$true,Position=1)]
-        [ValidateSet("OS","Platform","PlatformInstance")]
+        [ValidateSet("Overwatch","OS","Platform","PlatformInstance")]
         [string]$Target,
 
         [Parameter(Mandatory=$false)]

@@ -89,7 +89,9 @@ $global:WarningPreference = "SilentlyContinue"
         if ($winRmService.State -ne "Running") {
             Start-Service WinRM
         }
-        $ignoreOutput = set-netfirewallrule -name "WINRM-HTTP-In-TCP-PUBLIC" -RemoteAddress Any
+        if (Get-NetFirewallRule -Name "WINRM-HTTP-In-TCP-PUBLIC" -ErrorAction SilentlyContinue) {
+            $ignoreOutput = Set-NetFirewallRule -name "WINRM-HTTP-In-TCP-PUBLIC" -RemoteAddress Any
+        }
 
         # enable WSMan Credssp for both Server and Client (for this node)
         $ignoreOutput = Enable-WSManCredSSP -Role Server -Force
@@ -106,7 +108,7 @@ $global:WarningPreference = "SilentlyContinue"
 
         # enable WSMan Credssp for Server (for remote nodes)
         $nodes = @()
-        $nodes += pt nodes -online -keys | Where-Object {$_ -ne $thisNode}
+        $nodes += $ComputerName | Where-Object {$_ -ne $thisNode}
         if ($nodes) {
             $psSession = New-PsSession+ -ComputerName $nodes
             if ($null -ne $psSession) {

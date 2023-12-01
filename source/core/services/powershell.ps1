@@ -323,7 +323,7 @@ function global:Get-PSBoundParameters {
             if ($Repository) { $params += @{ Repository = $Repository }}
             if ($IncludeDependencies) { $params += @{ IncludeDependencies = $IncludeDependencies }}
 
-            $nugetVersionRange = [Regex]::Matches($Version,$global:RegexPattern.NuGet.Version.Range.Notation)
+            $nugetVersionRange = [Regex]::Matches($Version,$global:RegexPattern.NuGet.VersionRange)
 
             $bracketLeft = $nugetVersionRange[0].Groups['bracketLeft'].Value
             $versionRangeMinimum = ![string]::IsNullOrEmpty($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) ? [version]($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) : $null
@@ -376,7 +376,7 @@ function global:Get-PSBoundParameters {
                 Name = $Name
             }
 
-            $nugetVersionRange = [Regex]::Matches($Version,$global:RegexPattern.NuGet.Version.Range.Notation)
+            $nugetVersionRange = [Regex]::Matches($Version,$global:RegexPattern.NuGet.VersionRange)
 
             $bracketLeft = $nugetVersionRange[0].Groups['bracketLeft'].Value
             $versionRangeMinimum = ![string]::IsNullOrEmpty($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) ? [version]($nugetVersionRange[0].Groups['versionRangeMinimum'].Value) : $null

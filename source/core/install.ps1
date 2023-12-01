@@ -21,45 +21,70 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Environ = @{}
 $global:Location = @{}
 
-$sourceEnvironFile = "$PSScriptRoot\source\environ\environ-template.ps1"
-$destinationEnvironFile = "$PSScriptRoot\environ.ps1"
+#region REQUIRED FILES
 
-# if this is first install, then environ.ps1 does not exist
-# copy it to the users' temp directory and update the global Location variable
-if (!(Test-Path "environ.ps1")) {
-
-    $tempEnvironFile = "$($env:TEMP)\environ.ps1"
-    $tempEnvironFileNoProductsNoProviders = "$($env:TEMP)\environNoProductsNoProviders.ps1"
-    
     . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
     . $PSScriptRoot\source\core\services\services-overwatch-install.ps1  
-    Update-Environ -Mode Replace -Source $sourceEnvironFile -Destination $tempEnvironFile -Type Location -Name Root -Expression (Get-Location)
-    Update-Environ -Mode Replace -Source $tempEnvironFile -Destination $tempEnvironFileNoProductsNoProviders -Type Environ -Name Product -Expression ""
-    Update-Environ -Mode Replace -Source $tempEnvironFileNoProductsNoProviders -Destination $tempEnvironFileNoProductsNoProviders -Type Environ -Name Provider -Expression ""
-    Remove-Variable -Scope Global Environ
 
-    $environFile = $tempEnvironFileNoProductsNoProviders
-}
-else {
-    $environFile = "$PSScriptRoot\environ.ps1"
-}
+    #region ENVIRON
 
-. $environFile
+        $sourceEnvironFile = "$PSScriptRoot\source\environ\environ-template.ps1"
+        $destinationEnvironFile = "$PSScriptRoot\environ.ps1"
 
-if (!(Test-Path "environ.ps1")) {
-    $environFile = $tempEnvironFile
-}
+        # if this is first install, then environ.ps1 does not exist
+        # copy it to the users' temp directory and update the global Location variable
+        if (!(Test-Path "environ.ps1")) {
+
+            $tempEnvironFile = "$($env:TEMP)\environ.ps1"
+            $tempEnvironFileNoProductsNoProviders = "$($env:TEMP)\environNoProductsNoProviders.ps1"
+            
+            Update-Environ -Mode Replace -Source $sourceEnvironFile -Destination $tempEnvironFile -Type Location -Name Root -Expression (Get-Location)
+            Update-Environ -Mode Replace -Source $tempEnvironFile -Destination $tempEnvironFileNoProductsNoProviders -Type Environ -Name Product -Expression ""
+            Update-Environ -Mode Replace -Source $tempEnvironFileNoProductsNoProviders -Destination $tempEnvironFileNoProductsNoProviders -Type Environ -Name Provider -Expression ""
+            Remove-Variable -Scope Global Environ
+
+            $environFile = $tempEnvironFileNoProductsNoProviders
+        }
+        else {
+            $environFile = "$PSScriptRoot\environ.ps1"
+        }
+
+        . $environFile
+
+        if (!(Test-Path "environ.ps1")) {
+            $environFile = $tempEnvironFile
+        }
+
+    #endregion ENVIRON
+    #region CATALOG
+
+        if (!(Test-Path $global:Location.Definitions)) {
+            New-Item -ItemType Directory -Path $global:Location.Definitions -Force | Out-Null
+        }
+        if (!(Test-Path $global:Location.Catalog)) {
+            Copy-File "$($global:Location.Source)\core\definitions\catalog.ps1" $global:Location.Catalog -Quiet
+        }
+        if (!(Test-Path $global:Location.Classes)) {
+            Copy-File "$($global:Location.Source)\core\definitions\classes.ps1" $global:Location.Classes -Quiet
+        }
+
+    #endregion CATALOG
+
+#endregion REQUIRED FILES
 
 . $PSScriptRoot\source\core\definitions\definitions-sysinternals.ps1
 . $PSScriptRoot\source\core\definitions\definitions-powershell.ps1
-. $PSScriptRoot\source\core\definitions\classes.ps1
-. $PSScriptRoot\source\core\definitions\catalog.ps1
+. $global:Location.Classes
+. $global:Location.Catalog
 . $PSScriptRoot\source\core\definitions\definitions-regex.ps1
 . $PSScriptRoot\source\core\definitions\definitions-overwatch.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-loadearly.ps1
 . $PSScriptRoot\source\core\services\services-overwatch-install.ps1
+. $PSScriptRoot\source\core\services\services-overwatch.ps1
 . $PSScriptRoot\source\core\services\cache.ps1
 . $PSScriptRoot\source\core\services\files.ps1
+. $PSScriptRoot\source\core\services\logging.ps1
+. $PSScriptRoot\source\core\services\python.ps1
 
 Write-Host+ -ResetAll
 Write-Host+
@@ -120,7 +145,7 @@ $providerIds = @()
 
     $installedProducts = @()
     $installedProviders = @()
-    $installOverwatch = $true
+    $installMode = $null
     try {
 
         $message = "<Overwatch <.>24> SEARCHING"
@@ -132,7 +157,7 @@ $providerIds = @()
 
         $installedProducts = Get-Catalog -Type Product -Installed
         $installedProviders = Get-Catalog -Type Provider -Installed
-        $installOverwatch = $false
+        $installMode = "Update"
 
         $global:WriteHostPlusPreference = "Continue"
         $message = "$($emptyString.PadLeft(9,"`b"))$($Overwatch.DisplayName) "
@@ -140,27 +165,31 @@ $providerIds = @()
 
     }
     catch {
+        $installMode = "Install"
         $global:WriteHostPlusPreference = "Continue"
         $message = "$($emptyString.PadLeft(9,"`b"))None      "
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Gray
     }
 
-    if ($installOverwatch) {
+    if ($installMode -eq "Install") {
         Write-Host+ -NoTrace -NoTimestamp -Parse "<Mode <.>24> Install" -ForegroundColor Gray,DarkGray,Blue
     }
-    else {
+    elseif ($installMode -eq "Update") {
         Write-Host+ -NoTrace -NoTimestamp -Parse  "<Mode <.>24> Update" -ForegroundColor Gray,DarkGray,Blue
     }
 
+    $operatingSystemId = $null
     $installedOperatingSystem = $((Get-CimInstance -ClassName Win32_OperatingSystem).Name -split "\|")[0]
-    if ($installedOperatingSystem -like "*Windows Server*") {
-        $installedOperatingSystem = "WindowsServer"
+    foreach ($key in $global:Catalog.Os.Keys) {
+        if ($installedOperatingSystem.StartsWith($global:Catalog.OS.$key.Name)) {
+            $operatingSystemId = $key
+        }
     }
-    else {
+    if ([string]::IsNullOrEmpty($operatingSystemId)) {
         throw "$installedOperatingSystem is not an Overwatch-supported operating system."
     }
     Write-Host+ -NoTrace -NoTimestamp -Parse "<Operating System <.>24> $installedOperatingSystem" -ForegroundColor Gray,DarkGray,Blue
-    $operatingSystemId = $installedOperatingSystem
+    # $operatingSystemId = $installedOperatingSystem
 
     $installedPlatforms = @()
     foreach ($key in $global:Catalog.Platform.Keys) {
@@ -330,6 +359,11 @@ $global:Location.Definitions = $tempLocationDefinitions
 
     if ($platformId -notin $unInstallablePlatforms) {
         $_useDefaultResponses = $UseDefaultResponses
+        if ([string]::IsNullOrEmpty($platformInstallLocation)) {
+            if ($global:Catalog.Platform.$platformId.Installation.InstallLocation) {
+                $platformInstallLocation = Invoke-Command $global:Catalog.Platform.$platformId.Installation.InstallLocation
+            }
+        }
         do {
             $platformInstallLocationResponse = $null
             Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Install Location ", "$($platformInstallLocation ? "[$platformInstallLocation]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
@@ -355,60 +389,66 @@ $global:Location.Definitions = $tempLocationDefinitions
     }
 
 #endregion PLATFORM INSTALL LOCATION
-#region PLATFORM INSTANCE URI
 
-    if ($platformId -notin $unInstallablePlatforms) {
-        $_useDefaultResponses = $UseDefaultResponses
-        do {
-            try {
-                $platformInstanceUriResponse = $null
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? "[$platformInstanceUri]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
-                if (!$UseDefaultResponses) {
-                    $platformInstanceUriResponse = Read-Host
-                }
-                else {
-                    Write-Host+
-                }
-                $platformInstanceUri = ![string]::IsNullOrEmpty($platformInstanceUriResponse) ? $platformInstanceUriResponse : $platformInstanceUri
-                $platformInstanceUri = [System.Uri]::new($platformInstanceUri)
+    if ($global:Catalog.Platform.$platformId.Installation.Flags -notcontains "NoPlatformInstanceUri") {
+
+        #region PLATFORM INSTANCE URI
+
+            if ($platformId -notin $unInstallablePlatforms) {
+                    $_useDefaultResponses = $UseDefaultResponses
+                    do {
+                        try {
+                            $platformInstanceUriResponse = $null
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance URI ", "$($platformInstanceUri ? "[$platformInstanceUri]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
+                            if (!$UseDefaultResponses) {
+                                $platformInstanceUriResponse = Read-Host
+                            }
+                            else {
+                                Write-Host+
+                            }
+                            $platformInstanceUri = ![string]::IsNullOrEmpty($platformInstanceUriResponse) ? $platformInstanceUriResponse : $platformInstanceUri
+                            $platformInstanceUri = [System.Uri]::new($platformInstanceUri)
+                        }
+                        catch {
+                            $UseDefaultResponses = $false
+                            Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid URI format" -ForegroundColor Red
+                            $platformInstanceUri = $null
+                        }
+                    } until ($platformInstanceUri)
+                    if ($_useDefaultResponses) { $UseDefaultResponses = $true }
+                    Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
             }
-            catch {
-                $UseDefaultResponses = $false
-                Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid URI format" -ForegroundColor Red
-                $platformInstanceUri = $null
+
+        #endregion PLATFORM INSTANCE URI
+        #region PLATFORM INSTANCE DOMAIN
+
+            if ($platformId -notin $unInstallablePlatforms) {
+                $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
+                $_useDefaultResponses = $UseDefaultResponses
+                do {
+                    $platformInstanceDomainResponse = $null
+                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
+                    if (!$UseDefaultResponses) {
+                        $platformInstanceDomainResponse = Read-Host
+                    }
+                    else {
+                        Write-Host+
+                    }
+                    $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceWriteDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
+                    if (![string]::IsNullOrEmpty($platformInstanceDomain) -and $platformInstanceUri.Host -notlike "*$platformInstanceDomain") {
+                        $UseDefaultResponses = $false
+                        Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid domain. Domain must match the platform instance URI" -ForegroundColor Red
+                        $platformInstanceDomain = $null
+                    }
+                } until ($platformInstanceDomain)
+                if ($_useDefaultResponses) { $UseDefaultResponses = $true }
+                Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceDomain" -IfDebug -ForegroundColor Yellow
             }
-        } until ($platformInstanceUri)
-        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
-        Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceUri" -IfDebug -ForegroundColor Yellow
+
+        #endregion PLATFORM INSTANCE DOMAIN
+
     }
 
-#endregion PLATFORM INSTANCE URI
-#region PLATFORM INSTANCE DOMAIN
-
-    if ($platformId -notin $unInstallablePlatforms) {
-        $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
-        $_useDefaultResponses = $UseDefaultResponses
-        do {
-            $platformInstanceDomainResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance Domain ", "$($platformInstanceDomain ? "[$platformInstanceDomain]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
-            if (!$UseDefaultResponses) {
-                $platformInstanceDomainResponse = Read-Host
-            }
-            else {
-                Write-Host+
-            }
-            $platformInstanceDomain = ![string]::IsNullOrEmpty($platformInstanceWriteDomainResponse) ? $platformInstanceDomainResponse : $platformInstanceDomain
-            if (![string]::IsNullOrEmpty($platformInstanceDomain) -and $platformInstanceUri.Host -notlike "*$platformInstanceDomain") {
-                $UseDefaultResponses = $false
-                Write-Host+ -NoTrace -NoTimestamp "ERROR: Invalid domain. Domain must match the platform instance URI" -ForegroundColor Red
-                $platformInstanceDomain = $null
-            }
-        } until ($platformInstanceDomain)
-        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
-        Write-Host+ -NoTrace -NoTimestamp "Platform Instance Uri: $platformInstanceDomain" -IfDebug -ForegroundColor Yellow
-    }
-
-#endregion PLATFORM INSTANCE DOMAIN
 #region PLATFORM INSTANCE ID
 
     # if ($platformId -eq "None") {
@@ -423,7 +463,9 @@ $global:Location.Definitions = $tempLocationDefinitions
                 Replacement = "-"
             }
         }
-        $platformInstanceId ??= (Invoke-Expression $platformInstanceIdRegex.Input) -replace $platformInstanceIdRegex.Pattern,$platformInstanceIdRegex.Replacement
+        if ([string]::IsNullOrEmpty($platformInstanceId)) {
+            $platformInstanceId = (Invoke-Expression $platformInstanceIdRegex.Input) -replace $platformInstanceIdRegex.Pattern,$platformInstanceIdRegex.Replacement
+        }
 
         $_useDefaultResponses = $UseDefaultResponses
         do {
@@ -454,7 +496,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion PLATFORM INSTANCE ID
 #region PLATFORM INSTANCE NODES
 
-    if ($platformId -eq "AlteryxServer") {
+    if ($global:Catalog.Platform.$platformId.Installation.Flags -contains "HasPlatformInstanceNodes") {
         $_useDefaultResponses = $UseDefaultResponses
         do {
             $platformInstanceNodesResponse = $null
@@ -476,32 +518,28 @@ $global:Location.Definitions = $tempLocationDefinitions
         $platformInstanceNodes = $platformInstanceNodes -split "," | ForEach-Object { $_.Trim(" ") }
         Write-Host+ -NoTrace -NoTimestamp "Platform Instance Nodes: $platformInstanceNodes" -IfDebug -ForegroundColor Yellow
     }
+    else {
+        $platformInstanceNodes = $env:COMPUTERNAME
+    }
 
 #endregion PLATFORM INSTANCE NODES 
 #region PYTHON
 
-    $pythonEnvLocation = $null
-    $pythonPipLocation = $null
-    $pythonSitePackagesLocation = $null
-    switch ($platformId) {
-        "AlteryxServer" {
-            $pythonEnvLocation = "$platformInstallLocation\bin\Miniconda3\envs\DesignerBaseTools_vEnv"
-            $pythonPipLocation = "$pythonEnvLocation\Scripts"
-            $pythonSitePackagesLocation = "$pythonEnvLocation\Lib\site-packages"
-
-            $requiredPythonPackagesResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
-            if (!$UseDefaultResponses) {
-                $requiredPythonPackagesResponse = Read-Host
-            }
-            else {
-                Write-Host+
-            }
-            $requiredPythonPackages = ![string]::IsNullOrEmpty($requiredPythonPackagesResponse) ? $requiredPythonPackagesResponse : $requiredPythonPackages
-            $requiredPythonPackages = $requiredPythonPackages -split "," | ForEach-Object { $_.Trim(" ") }
-            Write-Host+ -NoTrace -NoTimestamp "Required Python Packages: $requiredPythonPackages" -IfDebug -ForegroundColor Yellow
+    if ($null -ne $global:Catalog.Platform.$platformId.Installation.Python) {
+        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.$platformId.Installation.Python.Location.Env
+        $pythonPipLocation = Invoke-Command $global:Catalog.Platform.$platformId.Installation.Python.Location.Pip
+        $pythonSitePackagesLocation = Invoke-Command $global:Catalog.Platform.$platformId.Installation.Python.Location.SitePackages
+        $requiredPythonPackagesResponse = $null
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Required Python Packages ", "$($requiredPythonPackages ? "[$($requiredPythonPackages -join ", ")]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
+        if (!$UseDefaultResponses) {
+            $requiredPythonPackagesResponse = Read-Host
         }
-        default {$null}
+        else {
+            Write-Host+
+        }
+        $requiredPythonPackages = ![string]::IsNullOrEmpty($requiredPythonPackagesResponse) ? $requiredPythonPackagesResponse : $requiredPythonPackages
+        $requiredPythonPackages = $requiredPythonPackages -split "," | ForEach-Object { $_.Trim(" ") }
+        Write-Host+ -NoTrace -NoTimestamp "Required Python Packages: $requiredPythonPackages" -IfDebug -ForegroundColor Yellow
     }
 
 #region PYTHON
@@ -695,7 +733,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion DEPENDENCIES 
 #region UPDATES
 
-    if (!$installOverwatch) {
+    if ($installMode -eq "Update") {
 
         Write-Host+ -MaxBlankLines 1
         $message = "<Updated Files <.>48> SCANNING"
@@ -970,10 +1008,10 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion IMPACT
 #region FILES
 
-    if ($installOverwatch -or $updatedFiles) {
+    if ($installMode -eq "Install" -or $updatedFiles) {
 
         Write-Host+ -MaxBlankLines 1
-        $message = $installOverwatch ? "<Source Files <.>48> COPYING" : "<Updated Files <.>48> COPYING"
+        $message = $installMode -eq "Install" ? "<Source Files <.>48> COPYING" : "<Updated Files <.>48> COPYING"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
         Write-Host+
 
@@ -985,10 +1023,10 @@ $global:Location.Definitions = $tempLocationDefinitions
             }
 
             $destinationEnvironFileExists = Test-Path $destinationEnvironFile
-            if ($installOverwatch) {
+            if ($installMode -eq "Install") {
                 Update-Environ -Source  $tempEnvironFile -Destination $destinationEnvironFile
             }
-            else {
+            elseif ($installMode -eq "Update") {
                 if ($environFileUpdated) {
                     Update-Environ -Source $sourceEnvironFile -Destination $destinationEnvironFile
                 }
@@ -1158,20 +1196,42 @@ $global:Location.Definitions = $tempLocationDefinitions
     }
 
 #endregion INSTALLER UPDATE
+#region INITIALIZE OVERWATCH
 
-    . $PSScriptRoot\definitions\definitions-sysinternals.ps1
-    . $PSScriptRoot\definitions\definitions-powershell.ps1
-    . $PSScriptRoot\definitions\classes.ps1
-    . $PSScriptRoot\definitions\catalog.ps1
-    . $PSScriptRoot\definitions\definitions-regex.ps1
-    . $PSScriptRoot\definitions\definitions-overwatch.ps1
-    . $PSScriptRoot\source\core\services\services-overwatch.ps1
-    . $PSScriptRoot\services\services-overwatch-loadearly.ps1
+    # . $PSScriptRoot\definitions\definitions-sysinternals.ps1
+    # . $PSScriptRoot\definitions\definitions-powershell.ps1
+    # . $PSScriptRoot\definitions\classes.ps1
+    # . $PSScriptRoot\definitions\catalog.ps1
+    # . $PSScriptRoot\definitions\definitions-regex.ps1
+    # . $PSScriptRoot\definitions\definitions-overwatch.ps1
+    # . $PSScriptRoot\source\core\services\services-overwatch.ps1
+    # . $PSScriptRoot\services\services-overwatch-loadearly.ps1
+    # . $PSScriptRoot\services\services-overwatch-install.ps1
+    # . $PSScriptRoot\services\cache.ps1
+    # . $PSScriptRoot\services\files.ps1
+    # . $PSScriptRoot\source\core\services\tasks.ps1
+    # . $PSScriptRoot\source\core\services\logging.ps1
+    # . $PSScriptRoot\source\core\services\powershell.ps1
+
+    $message = "<Overwatch <.>48> INITIALIZING"
+    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+
+    try{
+        $global:WriteHostPlusPreference = "SilentlyContinue"
+        $global:Product = @{Id="Command"}
+        . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
+    }
+    catch {}
+    finally {
+        $global:WriteHostPlusPreference = "Continue"
+    }
+
+    $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
     . $PSScriptRoot\services\services-overwatch-install.ps1
-    . $PSScriptRoot\services\cache.ps1
-    . $PSScriptRoot\services\files.ps1
-    . $PSScriptRoot\source\core\services\tasks.ps1
-    . $PSScriptRoot\source\core\services\powershell.ps1
+
+#endregion INITIALIZE OVERWATCH
 
 #region INSTALLER UPDATED
 
@@ -1191,6 +1251,8 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region POWERSHELL MODULES-PACKAGES
 
     if (!$SkipPowerShell) {
+
+        if (Test-Path "$PSScriptRoot\config\config-ps-remoting.ps1") {. "$PSScriptRoot\config\config-ps-remoting.ps1" -ComputerName $env:COMPUTERNAME }
 
         Set-CursorInVisible
         Write-Host+ -MaxBlankLines 1
@@ -1389,28 +1451,25 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region PYTHON-PACKAGES
 
     if (!$SkipPython) {
-        switch ($platformId) {
-            "AlteryxServer" {
-                if ($requiredPythonPackages) {
+        if ($null -ne $global:Catalog.Platform.$platformId.Installation.Python) {
+            if ($requiredPythonPackages) {
 
-                    $message = "<Python Packages <.>48> INSTALLING"
-                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+                $message = "<Python Packages <.>48> INSTALLING"
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-                    Install-PythonPackage -Package $requiredPythonPackages -Pip $pythonPipLocation -ComputerName $platformInstanceNodes -Quiet
+                Install-PythonPackage -Package $requiredPythonPackages -Pip $pythonPipLocation -ComputerName $platformInstanceNodes -Quiet
 
-                    $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
-                    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+                $message = "$($emptyString.PadLeft(10,"`b"))INSTALLED "
+                Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
 
-                }
             }
-            default {}
         }
     }
 
 #region PYTHON-PACKAGES
 #region REMOVE CACHE
 
-    if ($installOverwatch -or $classesFileUpdated) {
+    if ($installMode -eq "Install" -or $classesFileUpdated) {
         Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\clusterstatus.cache"
         Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\heartbeat.cache"
         Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platforminfo.cache"
@@ -1483,7 +1542,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion REMOTE DIRECTORIES
 #region CONTACTS
 
-    if ($installOverwatch) {
+    if ($installMode -eq "Install") {
         $message = "<Contacts <.>48> UPDATING"
         Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
@@ -1537,9 +1596,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         #region CONFIG
 
-            if (!$SkipPowerShell) {    
+            # if (!$SkipPowerShell) {    
                 if (Test-Path "$PSScriptRoot\config\config-ps-remoting.ps1") {. "$PSScriptRoot\config\config-ps-remoting.ps1" }
-            }
+            # }
 
             if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1" }
             if (Test-Path "$PSScriptRoot\config\config-os-$($cloudId.ToLower()).ps1") {. "$PSScriptRoot\config\config-cloud-$($cloudId.ToLower()).ps1" }
@@ -1637,11 +1696,11 @@ $global:Location.Definitions = $tempLocationDefinitions
                     try {
                         if ((Get-Catalog -Uid "Product.$productId").HasTask) {
                             Install-CatalogObject -Type Product -Id $productId -NoNewLine
-                            if (!$installOverwatch) {
+                            if ($installMode -eq "Update") {
                                 if ("Product.$productId" -notin $disabledProductIDs) {
                                     Enable-Product $productId -NoNewLine
                                 }
-                                else {
+                                elseif ($installMode -eq "Install") {
                                     Disable-Product $productId -NoNewLine
                                 }
                             }
@@ -1696,7 +1755,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
             }
 
-            if (!$installOverwatch -and $impactedProductIdsWithEnabledTasks) {
+            if ($installMode -eq "Update" -and $impactedProductIdsWithEnabledTasks) {
 
                 Write-Host+ -MaxBlankLines 1
                 $message = "<Products <.>48> STARTING"

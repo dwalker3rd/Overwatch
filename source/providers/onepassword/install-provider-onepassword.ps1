@@ -10,8 +10,8 @@ $script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge ?? [t
 $script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
 $script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled ?? $true
 $script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge ?? (New-TimeSpan -Minutes 15)
-$script:opVaultItemsCacheEncryptionKeyName = $OnePassword.Config.Cache.EncryptionKey.Name
-$script:opVaultItemsCacheServiceAccountName = $OnePassword.Config.Cache.ServiceAccount.Name
+$script:opCacheEncryptionKey = $OnePassword.Config.Cache.EncryptionKey.Name
+$script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
@@ -25,7 +25,7 @@ $script:opVaultItemsCacheServiceAccountName = $OnePassword.Config.Cache.ServiceA
     . "$($global:Location.Services)\vault.ps1"
 
     $opServiceAccountToken = $null
-    $opServiceAccountCredentials = Get-Credentials $opVaultItemsCacheServiceAccountName
+    $opServiceAccountCredentials = Get-Credentials $opServiceAccountName
     if ($opServiceAccountCredentials) { $opServiceAccountToken = $opServiceAccountCredentials.GetNetworkCredential().Password }
     # if (!$opServiceAccountCredentials) { $migrateToOnePassword = $true }
     $opServiceAccountTokenMasked = $opServiceAccountToken -match "^(.{8}).*(.{4})$" ? $matches[1] + "..." + $matches[2] : $null
@@ -46,8 +46,8 @@ $script:opVaultItemsCacheServiceAccountName = $OnePassword.Config.Cache.ServiceA
     } until ($opServiceAccountToken)
 
     # set the 1Password account token and encryption key via the Overwatch vault service
-    Set-Credentials -Id $opVaultItemsCacheServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
-    Set-Credentials -Id $opVaultItemsCacheEncryptionKeyName -UserName "OnePassword" -Password ([string](New-EncryptionKey))
+    Set-Credentials -Id $opServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
+    Set-Credentials -Id $opCacheEncryptionKey -UserName "OnePassword" -Password ([string](New-EncryptionKey))
 
     # get Overwatch vault names
     $owVaults = (Get-Vaults).FileNameWithoutExtension | Where-Object {$_ -notlike "*Keys"}
@@ -56,8 +56,8 @@ $script:opVaultItemsCacheServiceAccountName = $OnePassword.Config.Cache.ServiceA
     . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
 
     # also set the 1Password account token and encryption key in 1Password
-    Set-Credentials -Id $opVaultItemsCacheServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
-    Set-Credentials -Id $opVaultItemsCacheEncryptionKeyName -UserName "OnePassword" -Password ([string](New-EncryptionKey))
+    Set-Credentials -Id $opServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
+    Set-Credentials -Id $opCacheEncryptionKey -UserName "OnePassword" -Password ([string](New-EncryptionKey))
 
     #region MIGRATION
 
@@ -90,7 +90,7 @@ $script:opVaultItemsCacheServiceAccountName = $OnePassword.Config.Cache.ServiceA
 
             $opVaultItems = Get-VaultItems -Vault $owVault
 
-            foreach ($key in $owVaultItems.Keys | Where-Object {$_ -ne $opVaultItemsCacheServiceAccountName}) {
+            foreach ($key in $owVaultItems.Keys | Where-Object {$_ -ne $opServiceAccountName}) {
                 $owVaultItem = $owVaultItems.$key
                 $encryptionKey = $owEncryptionKeys.$key
                 switch ($owVaultItem.Category) {

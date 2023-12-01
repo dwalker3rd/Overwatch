@@ -5,8 +5,9 @@ $script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge
 $script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name
 $script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled
 $script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge
-$script:opVaultItemsCacheEncryptionKeyName = $OnePassword.Config.Cache.EncryptionKey.Name
+$script:opCacheEncryptionKey = $OnePassword.Config.Cache.EncryptionKey.Name
 $script:opVaultItemsCacheEncryptionKeyValue = $OnePassword.Config.Cache.EncryptionKey.Value
+$script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name
 
 function Write-OpError {
 

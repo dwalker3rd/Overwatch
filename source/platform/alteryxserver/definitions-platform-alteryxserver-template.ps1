@@ -31,7 +31,7 @@
         [PlatformCim]@{
             Name = "AlteryxService"
             DisplayName = $PlatformDictionary.AlteryxService
-            StatusOK = $ServiceUpState
+            StatusOK = $global:ServiceUpState
             Required = $true
             Class = "Service"
         }

@@ -12,8 +12,8 @@ $global:RegexPattern = @{
     PhoneNumber = "\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}"
     SignedInteger = "^(?<sign>\+|-)?(?<number>\d+)$"
     Software = @{
-        Build = "(\d+.\d+.\d+.\d+)"
-        Version = "(\d+.\d+.\d+)"
+        Build = "^(?'build'(?'major'\d+)(?:\.(?'minor'\d+)(?:\.(?'patch'\d+)(?:\.(?'revision'\d+))?)?)?)$"
+        Version = "^(?'version'(?'major'\d+)(?:\.(?'minor'\d+)(?:\.(?'patch'\d+))?)?)(?:\.(?'revision'\d+))?$"
     }
     HostName = @{
         DNS = "[A-Za-z0-9-\.]{2,63}"
@@ -56,12 +56,8 @@ $global:RegexPattern = @{
         TrimTrailing = "\s*$"
     }
     NuGet = @{
-        Version = @{
-            Notation = "^(?'versionMajor'\d+)\.?(?'versionMinor'\d+)?\.?(?'versionPatch'\d+)?$"
-            Range = @{
-                Notation = "^(?'bracketLeft'\[?\(?)(?'versionRangeMinimum'(\d+(\.\d+)*)?)(?'comma'\,?)(?'versionRangeMaximum'(\d+(\.\d+)*)?)(?'bracketRight'\]?\)?)$"
-            }
-        }
+        Version = "^(?'version'(?'major'\d+)(?:\.(?'minor'\d+)(?:\.(?'patch'\d+))?)?)$"
+        VersionRange = "^(?'bracketLeft'\[?\(?)(?'versionRangeMinimum'(\d+(\.\d+)*)?)(?'comma'\,?)(?'versionRangeMaximum'(\d+(\.\d+)*)?)(?'bracketRight'\]?\)?)$"
     }
     Overwatch = @{
         Registry = @{

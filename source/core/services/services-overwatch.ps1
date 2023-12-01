@@ -842,7 +842,7 @@
 
             # this overrides $platformStatus.IsStopped
             # TODO: as above, manage events if $platformStatus doesn't match platform state
-            $platformStatus.IsStopped = $platformStatus.RollupStatus -in $ServiceDownState
+            $platformStatus.IsStopped = $platformStatus.RollupStatus -in $global:ServiceDownState
             
             $platformStatus.ByCimInstance = $platformCimInstance
 
@@ -2457,6 +2457,7 @@ Set-Alias -Name postInstall -Value Show-PostInstallation -Scope Global
         # get the current local admin username from the "localAdmin-$($global:Platform.Instance)" credentials
         # if the credentials haven't been set or -Force has been specified, prompt for and set/replace credentials
         if (!(Test-Credentials "localAdmin-$($global:Platform.Instance)" -NoValidate) -or $Force) {
+            Write-Host+ # close any pending newline
             if ((Test-Credentials "localAdmin-$($global:Platform.Instance)" -NoValidate) -and $Force) {
                 $localAdminCredentials = Get-Credentials "localAdmin-$($global:Platform.Instance)"
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Replace $($localAdminCredentials.Username) as the local admin (Y/N)? ", "[N]", ": " -ForegroundColor Gary, Blue, Gray
