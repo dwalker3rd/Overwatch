@@ -332,12 +332,12 @@ $global:Location.Definitions = $tempLocationDefinitions
             $installedPlatforms = @($platformId)
         }
     }
-    $platformId = $installedPlatforms[0]
+    # $platformId = $installedPlatforms[0]
 
     $_useDefaultResponses = $UseDefaultResponses
     do {
         $platformIdResponse = $null
-        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Platform ", "$($installedPlatforms ? "[$($installedPlatforms -join ", ")]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray 
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Select Platform ", "$(![string]::IsNullOrEmpty($platformId) ? "[$($platformId)]" : "[$($installedPlatforms -join ", ")]")", ": " -ForegroundColor Gray, Blue, Gray 
         if (!$UseDefaultResponses) {
             $platformIdResponse = Read-Host
         }
@@ -1262,11 +1262,24 @@ $global:Location.Definitions = $tempLocationDefinitions
         $psStatusPadLeft = $psStatus.Length + 1
         $newLineClosed = $false
 
-        if (!(Get-PSResourceRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
-            Register-PSResourceRepository -PSGallery -Trusted -ErrorAction SilentlyContinue | Out-Null
+        $psGalleryRepository = Get-PSResourceRepository -Name PSGallery
+        if (!$psGalleryRepository) {
+            $psGalleryRepository = Register-PSResourceRepository -PSGallery -Trusted -ErrorAction SilentlyContinue
+            # Register-PSRepository -Name PSGallery -InstallationPolicy Trusted
         }
-        if (!(Get-PSResourceRepository -Name NuGet -ErrorAction SilentlyContinue)) {
-            Register-PSResourceRepository -Name Nuget -Uri "https://www.nuget.org/api/v2" -Trusted -ErrorAction SilentlyContinue | Out-Null
+        elseif (!$psGalleryRepository.IsTrusted) {
+            $psGalleryRepository = Set-PSResourceRepository -Name PSGallery -Trusted -PassThru
+            # Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        }
+
+        $nugetRepository = Get-PSResourceRepository -Name NuGet -ErrorAction SilentlyContinue
+        if (!$nugetRepository) {
+            $nugetRepository = Register-PSResourceRepository -Name Nuget -Uri "https://www.nuget.org/api/v2" -Trusted -PassThru
+            # Register-PSRepository -Name Nuget -SourceLocation "https://www.nuget.org/api/v2" -InstallationPolicy Trusted
+        }
+        elseif (!$nugetRepository.IsTrusted) {
+            $nugetRepository = Set-PSResourceRepository -Name Nuget -Trusted -PassThru
+            # Set-PSRepository -Name Nuget -InstallationPolicy Trusted
         }
 
         $psStatus = "SCANNING"
@@ -1483,23 +1496,27 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion REMOVE CACHE
 #region INITIALIZE OVERWATCH
 
-    $message = "<Overwatch <.>48> INITIALIZING"
-    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
+    # if (!($SkipPowerShell -and $SkipPython)) {
 
-    try{
-        $global:WriteHostPlusPreference = "SilentlyContinue"
-        $global:Product = @{Id="Command"}
-        . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
-    }
-    catch {}
-    finally {
-        $global:WriteHostPlusPreference = "Continue"
-    }
+    #     $message = "<Overwatch <.>48> INITIALIZING"
+    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-    $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    #     try{
+    #         $global:WriteHostPlusPreference = "SilentlyContinue"
+    #         $global:Product = @{Id="Command"}
+    #         . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
+    #     }
+    #     catch {}
+    #     finally {
+    #         $global:WriteHostPlusPreference = "Continue"
+    #     }
 
-    . $PSScriptRoot\services\services-overwatch-install.ps1
+    #     $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
+    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+
+    #     . $PSScriptRoot\services\services-overwatch-install.ps1
+
+    # }
 
 #endregion INITIALIZE OVERWATCH
 #region LOCAL ADMIN/RUNAS
@@ -1507,10 +1524,15 @@ $global:Location.Definitions = $tempLocationDefinitions
     $message = "<Local Admin/RunAs Account <.>48> VALIDATING"
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
-    Set-LocalAdmin
-
-    $message = "$($emptyString.PadLeft(10,"`b"))$($emptyString.PadLeft(10," "))$($emptyString.PadLeft(10,"`b"))VALID"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    if (!(Test-LocalAdmin)) {
+        Set-LocalAdmin
+        $message = "<Local Admin/RunAs Account <.>48> VALID"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Blue,DarkGray,DarkGreen
+    }
+    else {
+        $message = "$($emptyString.PadLeft(10,"`b"))$($emptyString.PadLeft(10," "))$($emptyString.PadLeft(10,"`b"))VALID"
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+    }
 
 #endregion LOCAL ADMIN/RUNAS
 #region REMOTE DIRECTORIES
@@ -1596,9 +1618,9 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         #region CONFIG
 
-            # if (!$SkipPowerShell) {    
+            if (!$SkipPowerShell) {    
                 if (Test-Path "$PSScriptRoot\config\config-ps-remoting.ps1") {. "$PSScriptRoot\config\config-ps-remoting.ps1" }
-            # }
+            }
 
             if (Test-Path "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1") {. "$PSScriptRoot\config\config-os-$($operatingSystemId.ToLower()).ps1" }
             if (Test-Path "$PSScriptRoot\config\config-os-$($cloudId.ToLower()).ps1") {. "$PSScriptRoot\config\config-cloud-$($cloudId.ToLower()).ps1" }
@@ -1689,13 +1711,15 @@ $global:Location.Definitions = $tempLocationDefinitions
                     $cursorVisible = [console]::CursorVisible
                     Set-CursorVisible
 
-                    $message = "  $productId$($emptyString.PadLeft(20-$productId.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
-                    $messageLength = $message[0].Length + $message[1].Length
-                    Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
-
                     try {
                         if ((Get-Catalog -Uid "Product.$productId").HasTask) {
+
+                            $message = "  $productId$($emptyString.PadLeft(20-$productId.Length," "))","PENDING$($emptyString.PadLeft(13," "))PENDING$($emptyString.PadLeft(13," "))"
+                            $messageLength = $message[0].Length + $message[1].Length
+                            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine $message.Split(":")[0],$message.Split(":")[1] -ForegroundColor Gray,DarkGray
+
                             Install-CatalogObject -Type Product -Id $productId -NoNewLine
+
                             if ($installMode -eq "Update") {
                                 if ("Product.$productId" -notin $disabledProductIDs) {
                                     Enable-Product $productId -NoNewLine
@@ -1704,9 +1728,10 @@ $global:Location.Definitions = $tempLocationDefinitions
                                     Disable-Product $productId -NoNewLine
                                 }
                             }
-                            else {
-                                Write-Host+
-                            }
+                            # else {
+                            #     Write-Host+
+                            # }
+
                         }
                         else {
 

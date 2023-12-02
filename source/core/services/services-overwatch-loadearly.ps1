@@ -82,6 +82,8 @@ function global:Write-Host+ {
         [switch]$ResetTraceGlobal
     )
 
+    $global:WriteHostPlusEndOfLine = $NoNewLine
+
     if ($ResetAll) {
         $global:WriteHostPlusBlankLineCount = 0
         $global:WriteHostPlusIndentGlobal = 0
@@ -223,7 +225,7 @@ function global:Write-Host+ {
         Write-Host ""
     }
 
-    $global:WriteHostPlusEndOfLine = !$NoNewLine
+    # $global:WriteHostPlusEndOfLine = !$NoNewLine
 
     return
 }

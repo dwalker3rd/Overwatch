@@ -86,14 +86,9 @@ function Resolve-OpError {
                             VaultName = $vaultName
                             ItemName = $itemName
                             ItemId = $itemId
-                            # ResolutionMessage = "Retrying '$($_caller.Command)' with item ID '$itemId'" 
                         }
                     }
                 }
-                # else {
-                #     Write-Host+ -NoTrace "Removing duplicate item ID '$itemId' from vault '$vaultName'" -ForegroundColor DarkYellow
-                #     Remove-VaultItem -Id $itemId -Vault $vaultName
-                # }
             }
         }
     }
@@ -731,6 +726,7 @@ function global:Get-VaultItems {
             # convert encrypted password to a securestring for return to caller
             $_customVaultItem.password = $_customVaultItem.password | ConvertTo-SecureString -Key $opVaultItemsCacheEncryptionKeyValue  
         }
+        $_customVaultItems += $_customVaultItem
     }
 
     return $_customVaultItems
@@ -775,7 +771,7 @@ function global:Get-VaultItem {
         Write-OpError $result
         $opErrorResolution = Resolve-OpError $result
         if ($opErrorResolution.ErrorCode -eq "DuplicateItem") {
-            Write-Host+ -NoTrace "Retrying '$($MyInvocation.MyCommand)' with item ID '$($opErrorResolution.itemId)'"  -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace "$($opErrorResolution.ErrorCode.ToUpper()): Retrying '$($MyInvocation.MyCommand)' with item ID '$($opErrorResolution.itemId)'"  -ForegroundColor DarkYellow
             Write-Host+
             $_customVaultItem = Get-VaultItem -Vault $Vault -Id $opErrorResolution.ItemId
             if ($_customVaultItem) {

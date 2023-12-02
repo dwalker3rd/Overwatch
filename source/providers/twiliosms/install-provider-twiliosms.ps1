@@ -19,14 +19,12 @@ $_provider | Out-Null
 
         $interaction = $true
 
-        # complete previous Write-Host+ -NoNewLine
-        Write-Host+
+        if (!$global:WriteHostPlusEndOfLine) { Write-Host+ } # close any pending newline
 
-        Write-Host+ -SetIndentGlobal 8
         Write-Host+
 
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Twilio phone number ", "$($fromPhone ? "[$fromPhone] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "    Twilio phone number ", "$($fromPhone ? "[$fromPhone] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $fromPhoneResponse = Read-Host
             }
@@ -36,11 +34,11 @@ $_provider | Out-Null
             $fromPhone = ![string]::IsNullOrEmpty($fromPhoneResponse) ? $fromPhoneResponse : $fromPhone
             $fromPhone = $fromPhone.Replace(" ","").Replace("-","")
             if ([string]::IsNullOrEmpty($fromPhone)) {
-                Write-Host+ -NoTrace -NoTimestamp "NULL: Twilio phone number is required" -ForegroundColor Red
+                Write-Host+ -NoTrace -NoTimestamp "    NULL: Twilio phone number is required" -ForegroundColor Red
                 $fromPhone = $null
             }
             if ($fromPhone -notmatch "^\+{0,1}[0-9]*$") {
-                Write-Host+ -NoTrace -NoTimestamp "INVALID: Format must match `"^\+{0,1}[0-9]*$`"" -ForegroundColor Red
+                Write-Host+ -NoTrace -NoTimestamp "    INVALID: Format must match `"^\+{0,1}[0-9]*$`"" -ForegroundColor Red
                 $fromPhone = $null
             }
         } until ($fromPhone)
@@ -61,19 +59,13 @@ $_provider | Out-Null
     }
 
     if (!$(Test-Credentials $Provider.Id -NoValidate)) { 
-        if (!$interaction) {
-            # complete previous Write-Host+ -NoNewLine
-            Write-Host+
-            Write-Host+ -SetIndentGlobal 8
-        }
-        Write-Host+
+        if (!$global:WriteHostPlusEndOfLine) { Write-Host+ } # close any pending newline
         $interaction = $true
-        Request-Credentials -Prompt1 "Account SID" -Prompt2 "Auth Token" | Set-Credentials $Provider.Id
+        Request-Credentials -Title "    Twilio Account Credentials" -Prompt1 "    Account SID" -Prompt2 "    Auth Token" | Set-Credentials $Provider.Id
     }
 
     if ($interaction) {
         Write-Host+
-        Write-Host+ -SetIndentGlobal -8
     }
 
 #endregion PROVIDER-SPECIFIC INSTALLATION

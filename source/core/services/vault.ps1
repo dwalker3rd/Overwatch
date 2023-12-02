@@ -337,7 +337,7 @@ function global:New-VaultItem {
     if ($Notes) { $item += @{ Notes = $Notes } }
     
     $vaultItems = Read-Vault $Vault -ComputerName $ComputerName
-    $vaultItems += @{$($Id.ToLower())=$item}
+    $vaultItems += @{$($Id)=$item}
     $vaultItems | Write-Vault $Vault -ComputerName $ComputerName
 
 }
@@ -440,7 +440,7 @@ function global:Update-VaultItem {
     Remove-VaultItem -Vault $Vault -Id $Id -ComputerName $ComputerName
 
     $vaultItems = Read-Vault $Vault -ComputerName $ComputerName
-    $vaultItems += @{$($Id.ToLower())=$item}
+    $vaultItems += @{$($Id)=$item}
     $vaultItems | Write-Vault $Vault -ComputerName $ComputerName
 
 }
@@ -515,7 +515,7 @@ function global:Remove-VaultItem {
     $vaultItems.Remove($Id)
     $vaultItems | Write-Vault $Vault -ComputerName $ComputerName
 
-    # Remove-VaultKey -Id $Id -Vault $Vault -ComputerName $ComputerName
+    Remove-VaultKey -Id $Id -Vault $Vault -ComputerName $ComputerName
 
     return
 
@@ -541,7 +541,7 @@ function New-VaultKey {
     $vaultKey = New-EncryptionKey
 
     $vaultKeys = Read-Vault $Vault -ComputerName $ComputerName
-    $vaultKeys += @{$($Id.ToLower())=$vaultKey}
+    $vaultKeys += @{$($Id)=$vaultKey}
     $vaultKeys | Write-Vault $Vault -ComputerName $ComputerName
 
     return $vaultKey

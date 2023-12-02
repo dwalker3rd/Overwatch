@@ -10,8 +10,8 @@ $script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge ?? [t
 $script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
 $script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled ?? $true
 $script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge ?? (New-TimeSpan -Minutes 15)
-$script:opCacheEncryptionKey = $OnePassword.Config.Cache.EncryptionKey.Name
-$script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name
+$script:opCacheEncryptionKey = $OnePassword.Config.Cache.EncryptionKey.Name.ToLower()
+$script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name.ToLower()
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
@@ -46,8 +46,8 @@ $script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name
     } until ($opServiceAccountToken)
 
     # set the 1Password account token and encryption key via the Overwatch vault service
-    Set-Credentials -Id $opServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
-    Set-Credentials -Id $opCacheEncryptionKey -UserName "OnePassword" -Password ([string](New-EncryptionKey))
+    Set-Credentials -Id $opServiceAccountName -Account $opServiceAccountName -Token $opServiceAccountToken
+    Set-Credentials -Id $opCacheEncryptionKey -UserName $opCacheEncryptionKey -Password ([string](New-EncryptionKey))
 
     # get Overwatch vault names
     $owVaults = (Get-Vaults).FileNameWithoutExtension | Where-Object {$_ -notlike "*Keys"}
@@ -56,8 +56,8 @@ $script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name
     . "$($global:Location.Source)\providers\$($_providerId.ToLower())\provider-$($_providerId).ps1"
 
     # also set the 1Password account token and encryption key in 1Password
-    Set-Credentials -Id $opServiceAccountName -Account "Overwatch" -Token $opServiceAccountToken
-    Set-Credentials -Id $opCacheEncryptionKey -UserName "OnePassword" -Password ([string](New-EncryptionKey))
+    Set-Credentials -Id $opServiceAccountName -Account $opServiceAccountName -Token $opServiceAccountToken | Out-Null
+    Set-Credentials -Id $opCacheEncryptionKey -UserName $opCacheEncryptionKey -Password ([string](New-EncryptionKey)) | Out-Null
 
     #region MIGRATION
 
@@ -83,9 +83,13 @@ $script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name
             $owEncryptionKeys = Import-Clixml "$($global:Location.Data)\$($owVault)Keys.vault"
 
             # if (!(Test-Path -Path "$($global:Location.Archive)\vault\$($owVault).vault")) {
-                $timeStamp = $(Get-Date -Format 'yyyyMMddHHmmss')
-                Move-Item "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault.$timeStamp" -ErrorAction SilentlyContinue
-                Move-Item "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault).vault$timeStamp" -ErrorAction SilentlyContinue
+                # $timeStamp = $(Get-Date -Format 'yyyyMMddHHmmss')
+                Remove-Item "$($global:Location.Archive)\vault\$($owVault).vault" -ErrorAction SilentlyContinue
+                Remove-Item "$($global:Location.Archive)\vault\$($owVault)Keys.vault" -ErrorAction SilentlyContinue
+                Move-Item "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault" -ErrorAction SilentlyContinue
+                Move-Item "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault)Keys.vault" -ErrorAction SilentlyContinue
+                # Move-Item "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault.$timeStamp" -ErrorAction SilentlyContinue
+                # Move-Item "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault)Keys.vault.$timeStamp" -ErrorAction SilentlyContinue
             # }
 
             $opVaultItems = Get-VaultItems -Vault $owVault

@@ -2,7 +2,7 @@ param (
     [switch]$UseDefaultResponses
 )
 
-$_provider = Get-Catalog -Type $_provider AzureAD
+$_provider = Get-Catalog -Type $_provider -Id AzureAD
 $_provider | Out-Null
 
 #region LOAD SETTINGS
