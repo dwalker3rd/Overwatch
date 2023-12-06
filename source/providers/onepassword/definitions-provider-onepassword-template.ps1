@@ -30,12 +30,12 @@ $Provider.Config = @{
             MaxAge = New-TimeSpan -Minutes 15
         }
         EncryptionKey = @{
-            Name = "op-cache-encryption-key"
+            Name = "OP-CACHE-ENCRYPTION-KEY"
             Value = $null
         }
     }
     ServiceAccount = @{
-        Name = "op-service-account-token"
+        Name = "OP-SERVICE-ACCOUNT-TOKEN"
     }
 }
 

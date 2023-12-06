@@ -719,6 +719,7 @@ function script:Remove-CatalogObjectFiles {
     Remove-Files "$($global:Location.Scripts)\config\config-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\initialize\initialize-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1"
+    Remove-Files "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\preflight\preflight*-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\postflight\postflight*-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\services\services-$($Type.ToLower())-$($Id.ToLower()).ps1"

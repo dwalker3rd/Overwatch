@@ -437,9 +437,8 @@ function global:Update-VaultItem {
     if (![string]::IsNullOrEmpty($Url)) { $item.Url = $Url }
     if ($Notes) { $item.Notes = $Notes }
 
-    Remove-VaultItem -Vault $Vault -Id $Id -ComputerName $ComputerName
-
     $vaultItems = Read-Vault $Vault -ComputerName $ComputerName
+    $vaultItems.Remove($Id)
     $vaultItems += @{$($Id)=$item}
     $vaultItems | Write-Vault $Vault -ComputerName $ComputerName
 
@@ -454,7 +453,11 @@ function global:Get-VaultItems {
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
-    return Read-Vault -Vault $Vault -ComputerName $ComputerName
+    $vaultItems = @()
+    foreach ($vaultItemKey in (Read-Vault -Vault $Vault -ComputerName $ComputerName).Keys) {
+        $vaultItems += Get-VaultItem -Vault $Vault -Id $vaultItemKey
+    }
+    return $vaultItems
 
 }
 
@@ -475,6 +478,9 @@ function global:Get-VaultItem {
 
     $vaultItem = (Read-Vault $Vault -ComputerName $ComputerName).$Id
     if (!$vaultItem) { return }
+
+    if (!$vaultItem.Name) { $vaultItem.Name = $Id }
+    if (!$vaultItem.Title) { $vaultItem.Title = $Id }
 
     $encryptionKey = Get-VaultKey -Id $Id -Vault $Vault -ComputerName $ComputerName
     if (!$encryptionKey) {

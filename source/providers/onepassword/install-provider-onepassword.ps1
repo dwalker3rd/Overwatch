@@ -10,8 +10,8 @@ $script:opVaultsCacheItemsMaxAge = $OnePassword.Config.Cache.Vaults.MaxAge ?? [t
 $script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
 $script:opVaultItemsCacheEnabled = $OnePassword.Config.Cache.VaultItems.Enabled ?? $true
 $script:opVaultItemsCacheItemsMaxAge = $OnePassword.Config.Cache.VaultItems.MaxAge ?? (New-TimeSpan -Minutes 15)
-$script:opCacheEncryptionKey = $OnePassword.Config.Cache.EncryptionKey.Name.ToLower()
-$script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name.ToLower()
+$script:opCacheEncryptionKey = $OnePassword.Config.Cache.EncryptionKey.Name
+$script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
@@ -82,15 +82,8 @@ $script:opServiceAccountName = $OnePassword.Config.ServiceAccount.Name.ToLower()
             $owVaultItems = Import-Clixml "$($global:Location.Data)\$($owVault).vault"
             $owEncryptionKeys = Import-Clixml "$($global:Location.Data)\$($owVault)Keys.vault"
 
-            # if (!(Test-Path -Path "$($global:Location.Archive)\vault\$($owVault).vault")) {
-                # $timeStamp = $(Get-Date -Format 'yyyyMMddHHmmss')
-                Remove-Item "$($global:Location.Archive)\vault\$($owVault).vault" -ErrorAction SilentlyContinue
-                Remove-Item "$($global:Location.Archive)\vault\$($owVault)Keys.vault" -ErrorAction SilentlyContinue
-                Move-Item "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault" -ErrorAction SilentlyContinue
-                Move-Item "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault)Keys.vault" -ErrorAction SilentlyContinue
-                # Move-Item "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault.$timeStamp" -ErrorAction SilentlyContinue
-                # Move-Item "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault)Keys.vault.$timeStamp" -ErrorAction SilentlyContinue
-            # }
+            # Copy-Files "$($global:Location.Data)\$($owVault).vault" "$($global:Location.Archive)\vault\$($owVault).vault" -Overwrite -Quiet
+            # Copy-Files "$($global:Location.Data)\$($owVault)Keys.vault" "$($global:Location.Archive)\vault\$($owVault)Keys.vault" -Overwrite -Quiet
 
             $opVaultItems = Get-VaultItems -Vault $owVault
 

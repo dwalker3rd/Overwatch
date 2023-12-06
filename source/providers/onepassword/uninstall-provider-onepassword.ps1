@@ -3,8 +3,9 @@ param (
 )
 
 $_providerId = "OnePassword"
-# $_provider = Get-Provider -Id $_providerId
-# $_provider | Out-Null
+$script:OnePassword = Get-Provider $_providerId
+$script:opVaultsCacheName = $OnePassword.Config.Cache.Vaults.Name ?? "opVaults"
+$script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
 
 #region PROVIDER-SPECIFIC INSTALLATION
 
@@ -19,7 +20,8 @@ $_providerId = "OnePassword"
     }
 
     $opVaults = @()
-    foreach ($opVault in (Get-Vaults)) {
+    foreach ($opVault in (Get-Vaults)) {    
+    # foreach ($opVault in (Get-Vault credentials)) {
         $opVaults += @{
             id = $opVault.name
             vaultItems = Get-VaultItems -Vault $opVault.id
@@ -34,62 +36,85 @@ $_providerId = "OnePassword"
     if ($interaction) {
         # complete previous Write-Host+ -NoNewLine
         Write-Host+
-
-        Write-Host+ -SetIndentGlobal 8
     }
 
     foreach ($opVault in $opVaults) {
 
         Write-Host+
-        Write-Host+ -NoTrace -NoTimestamp "Migrating 1Password vault ",$opVault.id," to Overwatch" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
+        Write-Host+ -NoTrace -NoTimestamp "    Migrating 1Password vault ",$opVault.id," to Overwatch" -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray
 
         if ($opVault.id -notin (Get-Vaults).FileNameWithoutExtension) { 
-            Write-Host+ -NoTrace -NoTimestamp "  Creating Overwatch vault ",$opVault.id -NoSeparator -ForegroundColor DarkGray,DarkBlue
+            Write-Host+ -NoTrace -NoTimestamp "      Creating Overwatch vault ",$opVault.id -NoSeparator -ForegroundColor DarkGray,DarkBlue
             New-Vault -Vault $opVault.id 
         }
 
         $owVaultItems = Get-VaultItems -Vault $opVault.id
 
         foreach ($opVaultItem in $opVault.vaultItems) {
+            
             switch ($opVaultItem.Category) {
                 "Login" {
-                    if ($opVaultItem.name -notin $owVaultItems.Keys) {
-                        Write-Host+ -NoTrace -NoTimestamp "  Creating ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                    if ($opVaultItem.name -notin $owVaultItems.name) {
+                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                         $opVaultItem.Id = $opVaultItem.Name 
+                        $commandParameters = (Get-Command New-VaultItem).Parameters.Keys
+                        foreach ($opVaultItemParameter in ($opVaultItem.Keys | Copy-Object)) {
+                            if ($opVaultItemParameter -notin $commandParameters) { $opVaultItem.Remove($opVaultItemParameter) }
+                        }
                         $opNewVaultItem = New-VaultItem -Vault credentials -Name $opVaultItem.name @opVaultItem
                     }
                     else {
-                        Write-Host+ -NoTrace -NoTimestamp "  Found ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        # Write-Host+ -NoTrace -NoTimestamp "      Found ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        Write-Host+ -NoTrace -NoTimestamp "      Updating ","LOGIN"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        $opVaultItem.Id = $opVaultItem.Name 
+                        $commandParameters = (Get-Command New-VaultItem).Parameters.Keys
+                        foreach ($opVaultItemParameter in ($opVaultItem.Keys | Copy-Object)) {
+                            if ($opVaultItemParameter -notin $commandParameters) { $opVaultItem.Remove($opVaultItemParameter) }
+                        }
+                        Remove-VaultItem -Vault credentials -Id $opVaultItem.Id -ErrorAction SilentlyContinue | Out-Null
+                        $opNewVaultItem = New-VaultItem -Vault credentials -Name $opVaultItem.name @opVaultItem
                     }
                 }
                 "SSH Key" {}
                 "Database" {
-                    if ($opVaultItem.name -notin $owVaultItems.Keys) {
-                        Write-Host+ -NoTrace -NoTimestamp "  Creating ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                    if ($opVaultItem.name -notin $owVaultItems.name) {
+                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
                         $opVaultItem.Id = $opVaultItem.Name 
+                        $commandParameters = (Get-Command New-VaultItem).Parameters.Keys
+                        foreach ($opVaultItemParameter in ($opVaultItem.Keys | Copy-Object)) {
+                            if ($opVaultItemParameter -notin $commandParameters) { $opVaultItem.Remove($opVaultItemParameter) }
+                        }
                         $opNewVaultItem = New-VaultItem -Vault connectionStrings -Name $opVaultItem.name @opVaultItem
                     }
                     else {
-                        Write-Host+ -NoTrace -NoTimestamp "  Found ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        # Write-Host+ -NoTrace -NoTimestamp "      Found ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        Write-Host+ -NoTrace -NoTimestamp "      Creating ","DATABASE"," item ",$opVaultItem.name -NoSeparator -ForegroundColor DarkGray,DarkBlue,DarkGray,DarkBlue
+                        $opVaultItem.Id = $opVaultItem.Name 
+                        $commandParameters = (Get-Command New-VaultItem).Parameters.Keys
+                        foreach ($opVaultItemParameter in ($opVaultItem.Keys | Copy-Object)) {
+                            if ($opVaultItemParameter -notin $commandParameters) { $opVaultItem.Remove($opVaultItemParameter) }
+                        }
+                        Remove-VaultItem -Vault connectionStrings -Id $opVaultItem.Id -ErrorAction SilentlyContinue | Out-Null
+                        $opNewVaultItem = New-VaultItem -Vault connectionStrings -Name $opVaultItem.name @opVaultItem
                     } 
                 }
             }
             $opNewVaultItem  | Out-Null
+            
         }
 
     }
 
-    # switch back to 1Password provider IFF the password provider files still exist
-    if (Test-Path -Path "$($global:Location.Providers)\provider-$($_providerId).ps1") {
-        . "$($global:Location.Providers)\provider-$($_providerId).ps1"
-    }
+    $_providerId = "OnePassword"
+    $script:OnePassword = Get-Provider $_providerId
+    $script:opVaultsCacheName = $OnePassword.Config.Cache.Vaults.Name ?? "opVaults"
+    $script:opVaultItemsCacheName = $OnePassword.Config.Cache.VaultItems.Name ?? "opVaultItems"
 
-    Clear-Cache -Name onePasswordVaults
-    Clear-Cache -Name onePasswordItems
+    Clear-Cache -Name $script:opVaultsCacheName
+    Clear-Cache -Name $script:opVaultItemsCacheName
 
     if ($interaction) {
         Write-Host+
-        Write-Host+ -SetIndentGlobal -8
     }
 
     return $interaction
