@@ -125,26 +125,27 @@
             Class = "Process"
             ParentName = "AlteryxService_MongoController"
             Component = "Controller"
-        }
-
-        $global:PlatformStatusColor = @{
-            Stopping = "DarkYellow"
-            Stopped = "DarkRed"
-            Starting = "DarkYellow"
-            Restarting = "DarkYellow"
-            Running = "DarkGreen"
-            Responding = "DarkGreen"
-            Online = "DarkGreen"
-            Offline = "DarkGray"
-            Degraded = "DarkRed"
-            Shutdown = "DarkGray"
-            Unknown = "DarkGray"
-        }      
-
+        }   
     )
+
+
+    $global:PlatformStatusColor = @{
+        Stopping = "DarkYellow"
+        Stopped = "DarkRed"
+        Starting = "DarkYellow"
+        Restarting = "DarkYellow"
+        Running = "DarkGreen"
+        Responding = "DarkGreen"
+        Online = "DarkGreen"
+        Offline = "DarkGray"
+        Degraded = "DarkRed"
+        Shutdown = "DarkGray"
+        Unknown = "DarkGray"
+    }
 
     $global:Location += @{
         RuntimeSettings = "C:\ProgramData\Alteryx\RuntimeSettings.xml"
     }  
 
 #endregion PLATFORM DEFINITIONS
+

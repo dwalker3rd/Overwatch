@@ -173,15 +173,12 @@ If using the Microsoft Teams provider, it must be configured here.
     #endregion MICROSOFT-TEAMS
     #region PYTHON
 
-        if (!$global:Location.Python) {    
-            $global:Location += @{
-                Python = @{
-                    Env = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Env
-                    Pip = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Pip
-                    SitePackages = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.SitePackages
-                }
-            }
+    $global:Location += @{
+        Python = @{
+            Pip = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Scripts"
+            SitePackages = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Lib\site-packages"
         }
+    }
 
         $global:RequiredPythonPackages = "<requiredPythonPackages>"
 
