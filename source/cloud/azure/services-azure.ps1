@@ -628,10 +628,10 @@ function Invoke-ComputerCommand {
 
     Write-Host+
     Write-Host+ -NoTrace "$Command-Computer"
-    $message = "<  $ComputerName <.>48> PENDING"
+    $message = "<$indent$ComputerName <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
-    $message = "<    $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
+    $message = "<$indent  $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$powerStateColor
 
     $result = @{ 
@@ -652,7 +652,7 @@ function Invoke-ComputerCommand {
         $reverseLineFeedCount = $powerState -eq $azVm.PowerState ? 1 : 0
         $powerState = $azVm.PowerState
         $powerStateColor = Get-PowerStateColor -PowerState $powerState
-        $message = "<    $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
+        $message = "<$indent  $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
         Write-Host+ -NoTrace -ReverseLineFeed $reverseLineFeedCount -Parse $message -ForegroundColor Gray,DarkGray,$powerStateColor
 
         do {
@@ -661,7 +661,7 @@ function Invoke-ComputerCommand {
             $reverseLineFeedCount = $powerState -eq $azVm.PowerState ? 1 : 0
             $powerState = $azVm.PowerState
             $powerStateColor = Get-PowerStateColor -PowerState $powerState
-            $message = "<    $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
+            $message = "<$indent  $($Command -eq "Start" ? "Starting" : "Stopping") $ComputerName <.>42> $powerState$($emptyString.PadLeft(20-$powerState.Length," "))"
             Write-Host+ -NoTrace -ReverseLineFeed $reverseLineFeedCount -Parse $message -ForegroundColor Gray,DarkGray,$powerStateColor
         } until ($powerState -eq $powerStateTarget -or ([math]::Round($timer.Elapsed.TotalSeconds,0) -gt (New-TimeSpan -Minutes 5).TotalSeconds))
 
@@ -693,7 +693,7 @@ function Invoke-ComputerCommand {
         "FAIL" { "DarkRed" }
         default { "DarkGray" }
     }
-    $message = "<  $ComputerName <.>48> $statusText"
+    $message = "<$indent$ComputerName <.>48> $statusText"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$statusColor
     Write-Host+
 
@@ -752,40 +752,99 @@ function global:Remove-AzDisk+ {
         [Parameter(Mandatory=$false)][string]$ResourceGroupName
     )
 
+    $managedDiskScope = "Subscription `"$((Get-AzContext).Subscription.Name)`""
+    if (![string]::IsNullOrEmpty($ResourceGroupName)) { $managedDiskScope = "Resource group `"$ResourceGroupName`"" }
+    if (![string]::IsNullOrEmpty($Name)) { $managedDiskScope = $null }
+
     $params = @{}
     if (![string]::IsNullOrEmpty($Name)) { $params += @{ Name = $Name} }
     if (![string]::IsNullOrEmpty($ResourceGroupName)) { $params += @{ ResourceGroupName = $ResourceGroupName} }
 
     $managedDisks = Get-AzDisk+ @params
+    $attachedManagedDisks = $managedDisks | Where-Object { $_.DiskState -eq "Attached" -and $null -ne $_.ManagedBy }
+    $unattachedManagedDisks = $managedDisks | Where-Object { $_.DiskState -eq "Unattached" -and $null -eq $_.ManagedBy }
 
-    if ($managedDisks.DiskState -contains "Attached") {
-        Write-Host+ -NoTrace -NoTimestamp "One or more of the managed disks are ATTACHED." -ForegroundColor DarkYellow
-        Write-Host+ -NoTrace -NoTimestamp "Managed disks must be UNATTACHED to be deleted." -ForegroundColor DarkYellow
-        Write-Host+ -NoTrace -NoTimestamp "The managed disks which are ATTACHED will be ignored." -ForegroundColor DarkYellow
-        Write-Host+
-    }
-
-    $unattachedManagedDisks = $managedDisks | Where-Object { $_.State -eq "Unattached" -and $null -eq $_.ManagedBy }
-
-    Write-Host+ -NoTrace -NoTimestamp "The following managed disks are UNATTACHED and will be DELETED."
-    $unattachedManagedDisks | Select-Object -Property $AzureView.Disk.Default | Format-Table
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
-    $response = Read-Host
     Write-Host+
-    if ($response.ToUpper().Substring(0,1) -ne "Y") {
-        Write-Host+ -NoTrace -NoTimestamp "Remove-AzDisk+ cancelled." -ForegroundColor DarkGray
+
+    if (!$managedDisks) {
+        Write-Host+ -NoTrace -NoTimestamp "Managed disk `"$Name`" could not be found." -ForegroundColor DarkRed
+        Write-Host+
         return
     }
 
-    # foreach ($unattachedManagedDisk in $unattachedManagedDisks) {
-    #     if($unattachedManagedDisk.State -eq "Unattached" -and $null -eq $unattachedManagedDisk.ManagedBy) {
-    #         Write-Host+ -NoTrace -NoTimestamp "Deleting managed disk $($unattachedManagedDisk.ResourceGroupName)\$($unattachedManagedDisk.Name)." -ForegroundColor DarkRed
-    #         $unattachedManagedDisk | Remove-AzDisk -Force
-    #         Write-Host+ -NoTrace -NoTimestamp "Deleted managed disk $($unattachedManagedDisk.ResourceGroupName)\$($unattachedManagedDisk.Name)." -ForegroundColor DarkRed
-    #     }
-    #     else {
-    #         Write-Host+ -NoTrace -NoTimestamp "Managed disk $($unattachedManagedDisk.ResourceGroupName)\$($unattachedManagedDisk.Name) cannot be removed because it is ATTACHED to $($unattachedManagedDisk.ManagedBy)." -ForegroundColor DarkRed
-    #     }
-    # }
+    if ($managedDisks.DiskState -contains "Attached") {
+        Write-Host+ -NoTrace -NoTimestamp "Note: Only managed disks which are UNATTACHED can be deleted." -ForegroundColor DarkGray
+    }
+
+    if (!$unattachedManagedDisks) {
+        if (!$managedDiskScope) {
+            $attachedManagedDisks | Select-Object -Property $AzureView.Disk.Default | Format-Table
+            Write-Host+ -NoTrace -NoTimestamp "Managed disk `"$Name`" is ATTACHED and cannot be deleted." -ForegroundColor DarkRed
+        }
+        else {
+            Write-Host+ -NoTrace -NoTimestamp "No unattached managed disks in $($managedDiskScope.ToLower())" -ForegroundColor DarkRed
+        }
+        Write-Host+
+        return
+    }
+
+    Write-Host+ -NoTrace -NoTimestamp "The following managed disks are UNATTACHED and will be DELETED."
+
+    $unattachedManagedDisks | Select-Object -Property $AzureView.Disk.Default | Select-Object -ExcludeProperty ManagedBy | Format-Table
+    
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "Continue (Y/N)? "
+    $response = Read-Host
+    if ($response.ToUpper().Substring(0,1) -ne "Y") {
+        Write-Host+ -NoTrace -NoTimestamp "Remove-AzDisk+ cancelled." -ForegroundColor DarkGray
+        Write-Host+
+        return
+    }
+    else {
+        Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed 2
+        Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(20,"`b"))$($emptyString.PadLeft(20," "))"
+        Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed 3
+    }
+    
+    Set-CursorInvisible
+
+    Write-Host+
+    if (![string]::IsNullOrEmpty($managedDiskScope)) {
+        $message = "<$managedDiskScope <.>66> PENDING"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    }
+
+    $indent = ![string]::IsNullOrEmpty($managedDiskScope) ? "  " : ""
+
+    $deleteErrors = $false
+    foreach ($unattachedManagedDisk in $unattachedManagedDisks) {
+        if($unattachedManagedDisk.DiskState -eq "Unattached" -and $null -eq $unattachedManagedDisk.ManagedBy) {
+
+            $message = "<$indent$($unattachedManagedDisk.Name.ToLower()) <.>56> DELETING"
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+    
+            $result = $unattachedManagedDisk | Remove-AzDisk -Force
+    
+            if ($result.Status -eq "Succeeded") {
+                $message = "$($emptyString.PadLeft(9,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+                Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
+            }
+            else {
+                $deleteErrors = $true
+                $message = "$($emptyString.PadLeft(9,"`b")) FAILED$($emptyString.PadLeft(8," "))"
+                Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed
+                if ($result.Error) {
+                    Write-Host+ -NoTrace -NoTimestamp $result.Error -ForegroundColor DarkRed
+                }
+            }
+        }
+    }
+
+    if (![string]::IsNullOrEmpty($managedDiskScope)) {
+        $message = "<$managedDiskScope <.>66> $($deleteErrors ? "FAILED" : "SUCCESS")"
+        Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,($deleteErrors ? "DarkRed" : "DarkGreen")
+    }
+    Write-Host+
+
+    Set-CursorVisible
 
 }
