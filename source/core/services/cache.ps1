@@ -159,10 +159,11 @@ function Format-CacheItemKey {
     )
 
     # examine each key to see if it needs to be quoted
-    $_keys = $Key -split "\."
+    $_keys =  $Key -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)"
     $quotedKey = ""
     foreach ($_key in $_keys) {
         if ($_key -match "^`".*`"`$") {
+            # $_key = $_key -replace """",""""""
             $quotedKey += $_key
         }
         else {
@@ -202,23 +203,49 @@ function global:Get-CacheItem {
     # key0 = @{ Value = @ { key1 = @{ Value = ... @{ keyN = valueObject }}}}
     # so to ensure that $Key will work ...
     # reformat the key to be key1.Value.key2.Value ... keyN.Value
-    $quotedKey = (($quotedKey -split "\." | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
+    $quotedKey = (($quotedKey -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)" | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
 
     $cacheItem = $null
     if ((Get-Cache $Name).Exists) {
         $cache = Read-Cache $Name
         $cacheItem = Invoke-Expression "`$cache.$quotedKey"
-        if (Invoke-Expression "`$cache.$quotedKey.CacheItemTimestamp") {
-            $cacheItemTimestamp = Get-Date (Invoke-Expression "`$cache.$quotedKey.CacheItemTimestamp") -AsUTC
+        if (!$cacheItem) {
+            # find the cacheItem by its Id
+            $quotedKey = ($quotedKey -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)")[0]
+            foreach ($vaultId in $cache.Keys) {
+                # root cacheItem
+                if ($cache.$vaultId.value.id -eq $quotedKey) {
+                    $quotedKey = Format-CacheItemKey -Key "$vaultId.value"
+                    $cacheItem = Invoke-Expression "`$cache.$quotedKey"
+                    break
+                }
+                # non-root cacheItems
+                else {
+                    foreach ($vaultItemId in $cache.$vaultId.value.Keys) {
+                        if ($cache.$vaultId.value.$vaultItemId.value.id -eq $quotedKey) {
+                            $quotedKey = Format-CacheItemKey -Key "$vaultId.value.$vaultItemId.value"
+                            $cacheItem = Invoke-Expression "`$cache.$quotedKey"
+                            break
+                        }
+                    }
+                }
+                if ($cacheItem) { break }
+            }
         }
-        if ($cacheItem -and $CacheItemTimestamp -and $MaxAge -ne [timespan]::MaxValue) {
-            if ([datetime]::Now - $CacheItemTimestamp -gt $MaxAge) {
-                $cacheItemParentKey = ($Key -split "\.",-2)[0]
-                $cacheItemKey = ($Key -split "\.",-2)[1]
-                $expression = "`$cache.$cacheItemParentKey.Remove(`"$cacheItemKey`")"
-                Invoke-Expression $expression
-                $cache | Write-Cache $Name
-                $cacheItem = $null
+        if ([regex]::IsMatch($quotedKey,"^(.*).Value")) {
+            $quotedKeyParent = ([regex]::Matches($quotedKey,"^(.*).Value"))[0].Groups[1].Value
+            if (Invoke-Expression "`$cache.$quotedKeyParent.CacheItemTimestamp") {
+                $cacheItemTimestamp = Get-Date (Invoke-Expression "`$cache.$quotedKeyParent.CacheItemTimestamp") -AsUTC
+            }
+            if ($cacheItem -and $CacheItemTimestamp -and $MaxAge -ne [timespan]::MaxValue) {
+                if ([datetime]::Now - $CacheItemTimestamp -gt $MaxAge) {
+                    $cacheItemParentKey = ($Key -split "\.",-2)[0]
+                    $cacheItemKey = ($Key -split "\.",-2)[1]
+                    $expression = "`$cache.$cacheItemParentKey.Remove(`"$cacheItemKey`")"
+                    Invoke-Expression $expression
+                    $cache | Write-Cache $Name
+                    $cacheItem = $null
+                }
             }
         }
     }
@@ -268,10 +295,9 @@ function Invoke-CacheItemOperation {
 
     if ($Add -and $null -ne (Get-CacheItem -Name $Name -Key $quotedKey) -and !$Overwrite) {
         if ($ErrorActionPreference -ne "SilentlyContinue") {
-            Write-Host+ "ERROR: Unable to ADD cache item '$($Key)' in cache '$Name' because it already exists" -ForegroundColor DarkRed
-            Write-Host+ -NoTrace "ERROR: To overwrite the cache item, add the '-Overwrite' switch" -ForegroundColor DarkRed
+            Write-Host+ -NoTrace "WARNING: Unable to ADD cache item '$($Key)' in cache '$Name' because it already exists" -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace "WARNING: To overwrite the cache item, add the '-Overwrite' switch" -ForegroundColor DarkYellow
         }
-        return
     }
 
     if ($Update -and $null -eq (Get-CacheItem -Name $Name -Key $quotedKey)) {
@@ -283,19 +309,18 @@ function Invoke-CacheItemOperation {
 
     if ($Remove -and $null -eq (Get-CacheItem -Name $Name -Key $quotedKey)) {
         if ($ErrorActionPreference -ne "SilentlyContinue") {
-            Write-Host+ "ERROR: Unable to REMOVE cache item $($Key) in cache $Name because it does not exist" -ForegroundColor DarkRed
+            Write-Host+ "WARNING: Unable to REMOVE cache item $($Key) in cache $Name because it does not exist" -ForegroundColor DarkYellow
         }
-        return
     }
 
     # REMOVE cache item from cache
-    if ($Remove -or $Update) {
+    if ($Remove -or $Update -or ($Add -and $Overwrite)) {
         # reformat the key to be key1.Value.key2.Value ... keyN.Value
-        $quotedKey = (($quotedKey -split "\." | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
+        $quotedKey = (($quotedKey -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)" | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
         if (Invoke-Expression "`$cache.$quotedKey") {
-            $cacheItemParentKey = ($Key -split "\.",-2)[0]
-            $cacheItemParentKey = (($cacheItemParentKey -split "\." | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
-            $cacheItemKey = ($Key -split "\.",-2)[1]
+            $cacheItemParentKey = ($Key -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)",-2)[0]
+            $cacheItemParentKey = (($cacheItemParentKey -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)" | Where-Object {$_ -ne "Value"}) -join ".Value.") + ".Value"
+            $cacheItemKey = ($Key -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)",-2)[1] -replace """"
             $expression = "`$cache.$cacheItemParentKey.Remove(`"$cacheItemKey`")"
             Invoke-Expression $expression
         }
@@ -308,7 +333,7 @@ function Invoke-CacheItemOperation {
     if ($Add -or $Update) {
 
         # $Key can be dot-notation; split into individual keys
-        $_keys = $quotedKey -split "\."
+        $_keys = $quotedKey -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)"
 
         $expression = ""
         $closingBracketCount = 0
@@ -333,8 +358,8 @@ function Invoke-CacheItemOperation {
                 $valueKey = $_key
             }
             else {
-                $valueKey = ($_key -split "\.")[-1]
-                $objectKey = $_key -replace [Regex]::Escape(".$valueKey")
+                $valueKey = ( $_key -split "\.(?=(?:[^`"]|`"[^`"]*`")*$)")[-1]
+                $objectKey = $_key -replace [Regex]::Escape(".$valueKey") -replace """"
             }
             # if the key for this iteration doesn't exist,
             # build the value portion of the expression

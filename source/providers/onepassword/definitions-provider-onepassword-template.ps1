@@ -49,20 +49,24 @@ if (!$Provider.Config.Cache.VaultItems.Enabled) {
 # switch to Overwatch vault service to get/set the 1Password service account token
 . "$($global:Location.Services)\vault.ps1"
 
-$env:OP_SERVICE_ACCOUNT_TOKEN = (Get-Credentials $Provider.Config.ServiceAccount.Name).GetNetworkCredential().Password
-$env:OP_FORMAT = "json"
+if (Get-Credentials $Provider.Config.ServiceAccount.Name) {
 
-if (Get-Credentials $Provider.Config.Cache.EncryptionKey.Name) {
-    $Provider.Config.Cache.EncryptionKey.Value = [byte[]]((Get-Credentials $Provider.Config.Cache.EncryptionKey.Name).GetNetworkCredential().Password -split "\s")
-}
-if (!$Provider.Config.Cache.EncryptionKey.Value) {
-    # create new encryption key
-    Set-Credentials -Id $Provider.Config.Cache.EncryptionKey.Name -UserName "OnePassword" -Password ([string](New-EncryptionKey))
-    # assign encryption key to provider config
-    $Provider.Config.Cache.EncryptionKey.Value = [byte[]]((Get-Credentials $Provider.Config.Cache.EncryptionKey.Name).GetNetworkCredential().Password -split "\s")
-    # since the encryption key has changed, clear the caches
-    Clear-Cache $Provider.Config.Cache.Vaults.Name
-    Clear-Cache $Provider.Config.Cache.VaultItems.Name
+    $env:OP_SERVICE_ACCOUNT_TOKEN = (Get-Credentials $Provider.Config.ServiceAccount.Name).GetNetworkCredential().Password
+    $env:OP_FORMAT = "json"
+
+    if (Get-Credentials $Provider.Config.Cache.EncryptionKey.Name) {
+        $Provider.Config.Cache.EncryptionKey.Value = [byte[]]((Get-Credentials $Provider.Config.Cache.EncryptionKey.Name).GetNetworkCredential().Password -split "\s")
+    }
+    if (!$Provider.Config.Cache.EncryptionKey.Value) {
+        # create new encryption key
+        Set-Credentials -Id $Provider.Config.Cache.EncryptionKey.Name -UserName "OnePassword" -Password ([string](New-EncryptionKey))
+        # assign encryption key to provider config
+        $Provider.Config.Cache.EncryptionKey.Value = [byte[]]((Get-Credentials $Provider.Config.Cache.EncryptionKey.Name).GetNetworkCredential().Password -split "\s")
+        # since the encryption key has changed, clear the caches
+        Clear-Cache $Provider.Config.Cache.Vaults.Name
+        Clear-Cache $Provider.Config.Cache.VaultItems.Name
+    }
+
 }
 
 return $Provider

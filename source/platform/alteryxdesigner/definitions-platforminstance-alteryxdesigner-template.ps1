@@ -46,19 +46,22 @@ If using the Microsoft Teams provider, it must be configured here.
 
     #region PLATFORM-OBJECT
 
-    $global:Platform.Instance = "$($env:COMPUTERNAME.ToLower()).path.org"
-    $global:Platform.Uri = $null
-    $global:Platform.Domain = "path.org"
-    $global:Platform.InstallPath = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.InstallLocation
+    $global:Platform.Instance = "<platformInstanceId>"
+    $global:Platform.InstallPath = "<platformInstallLocation>"
 
     #endregion PLATFORM-OBJECT
     #region PLATFORMTOPOLOGY
 
-        $global:RegexPattern += @{
-            PlatformTopology = @{
-                Alias = @{
-                    Match = "^.*?-(.*?)-0?(\d{1,2})$"
-                    Groups = @(1,2)
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Platform > Topology > Alias
+
+        if (!$global:RegexPattern.PlatformTopology) {
+            $global:RegexPattern += @{
+                PlatformTopology = @{
+                    Alias = @{
+                        Match = ".*"
+                        Groups = @(0)
+                    }
                 }
             }
         }
@@ -70,11 +73,12 @@ If using the Microsoft Teams provider, it must be configured here.
         # use the REMOVE or OFFLINE functions.
 
         $global:PlatformTopologyBase = @{
-            Nodes = @('ayx-designer-01')
+            Nodes = "<platformInstanceNodes>"
             Components = @("Designer")
         }
-        $global:PlatformTopologyDefaultComponentMap = @{
-            'ayx-designer-01' = "Designer"
+        $global:PlatformTopologyDefaultComponentMap = @{}
+        foreach ($node in $PlatformTopologyBase.Nodes) {
+            $global:PlatformTopologyDefaultComponentMap += @{ $node = "Designer" }
         }
 
     #endregion PLATFORMTOPOLOGY
@@ -92,11 +96,21 @@ If using the Microsoft Teams provider, it must be configured here.
     #endregion PRINCIPAL-CONTEXT
     #region CLEANUP
 
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Product > Cleanup > Customization
+
         $global:Cleanup = $null
         $global:Cleanup += @{
             Default = @{
                 Retention = "15D"
             }
+            AlteryxService = @{
+                LogFiles = @{
+                    # Filter derived from controller runtime settings
+                    Retention = "15D" 
+                }
+            }
+            Controller = @{}
             Engine = @{
                 TempFiles = @{
                     Filter = @("Alteryx_*_","AlteryxCEF_*")
@@ -110,7 +124,19 @@ If using the Microsoft Teams provider, it must be configured here.
                     Filter = @("????????-????-????-????-????????????")
                     Retention = "15D"
                 }
-            }           
+            }
+            Gallery = @{
+                LogFiles = @{
+                    Filter = "alteryx-*.csv"
+                    Retention = "15D" 
+                } 
+            }
+            Worker = @{
+                StagingFiles = @{
+                    Filter = @("*_????????????????????????????????")
+                    Retention = "15D"
+                }
+            }            
         }
 
     #endregion CLEANUP
@@ -124,40 +150,45 @@ If using the Microsoft Teams provider, it must be configured here.
     #endregion DISKS
     #region MICROSOFT-TEAMS
 
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Provider > MicrosoftTeams > Webhooks
+
         # If using the MicrosoftTeams provider, enter the webhook URI[s] for each message type (see $PlatformMessageType)
         # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
 
         $global:MicrosoftTeamsConfig = @{
             Connector = @{
-                AllClear = @("***REMOVED***",
-                             "***REMOVED***")
-                Alert = @("***REMOVED***",
-                          "***REMOVED***")
-                Heartbeat = @("***REMOVED***")
-                Information = @("***REMOVED***")
-                Intervention = @("***REMOVED***",
-                                 "***REMOVED***") 
-                Warning = @("***REMOVED***",
-                            "***REMOVED***")
+                AllClear = @("<Microsoft Teams AllClear Webhook>")
+                Alert = @("<Microsoft Teams Alert Webhook>","<Microsoft Teams Alert Webhook>")
+                Heartbeat = @("<Microsoft Teams Heartbeat Webhook>")
+                Information = @("<Microsoft Teams Information Webhook>")
+                Intervention = @("<Microsoft Teams Intervention Webhook>")
+                Warning = @("<Microsoft Teams Warning Webhook>")
             }
         }
-        $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
+        $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
 
     #endregion MICROSOFT-TEAMS
     #region PYTHON
 
+    if (!$global:Location.Python) {    
         $global:Location += @{
             Python = @{
-                Pip = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Scripts"
-                SitePackages = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Lib\site-packages"
+                Env = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Env
+                Pip = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Pip
+                SitePackages = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.SitePackages
             }
         }
+    }
 
-        $global:RequiredPythonPackages = @('tableauhyperapi', 'tableauserverclient==0.25', 'shapely', 'html2text', 'google-cloud-storage', 'azure-storage-blob')
+        $global:RequiredPythonPackages = "<requiredPythonPackages>"
 
     #endregion PYTHON
 
     #region TLS BEST PRACTICES
+    
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > PlatformInstance > BestPractice > TLS
         
         $global:TlsBestPractices = @{
             Protocols = @{
@@ -171,13 +202,16 @@ If using the Microsoft Teams provider, it must be configured here.
             # signatureAlgorithms = @("sha256RSA")
         }
 
-    #endregion TLS BEST PRACTICES       
+    #endregion TLS BEST PRACTICES     
+    
+    #region OVERWATCH TOPOLOGY
 
-    #region OVERWATCH TOPOLOGY 
+        # The following line indicates a post-installation configuration to the installer
+        # Manual Configuration > Platform > Topology > Update Overwatch Remote Controllers    
 
         $global:OverwatchRemoteControllers += @()
         $global:OverwatchControllers += $global:OverwatchRemoteControllers
 
-    #endregion OVERWATCH TOPOLOGY     
+    #endregion OVERWATCH TOPOLOGY    
 
 #endregion INSTANCE-DEFINITIONS

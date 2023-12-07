@@ -82,9 +82,12 @@
 
     if ($MinimumDefinitions) { 
         $providers = Get-Provider -ResetCache | Where-Object {$_.Installed -and $_.Installation.Flag -contains "AlwaysLoad"}
-        $providers.Id | ForEach-Object {
-            if (Test-Path -Path "$($global:Location.Providers)\provider-$($_).ps1") {
-                $null = . "$($global:Location.Providers)\provider-$($_).ps1"
+        if ($providers) {
+            $providers.Id | ForEach-Object {
+                if ((Test-Prerequisites -Uid "Provider.$($_)" -PrerequisiteType Installation -Quiet).Pass) {                    if (Test-Path -Path "$($global:Location.Providers)\provider-$($_).ps1") {
+                        $null = . "$($global:Location.Providers)\provider-$($_).ps1"
+                    }
+                }
             }
         }
         return

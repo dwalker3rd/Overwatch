@@ -2,8 +2,10 @@
 #Requires -Version 7
 
 param(
-    [Parameter(Mandatory=$false,Position=0)][ValidateSet("Cloud","Provider","Product")][string]$Type,
-    [Parameter(Mandatory=$false,Position=1)][string]$Id,
+
+    [Parameter(Mandatory=$false,Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+    [Parameter(Mandatory=$false)][ValidateSet("Cloud","Provider","Product")][string]$Type = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[0]}),
+    [Parameter(Mandatory=$false)][string]$Id = $(if (![string]::IsNullOrEmpty($Uid)) {($Uid -split "\.")[1]}),
     [switch]$Force
 )
 
