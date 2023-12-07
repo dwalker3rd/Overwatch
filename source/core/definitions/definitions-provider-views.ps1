@@ -126,6 +126,14 @@ $global:AzureView = @{
             @{Name="tenantName"; Expression = {$_.tenant.Name}}
             )
     }
+    Disk = @{
+        Default = @("Name",
+        @{Name="Size"; Expression = { "$($_.DiskSizeGB) GB" }},
+        @{Name="IOPS"; Expression = { "$($_.DiskIOPSReadWrite) R/W" }},
+        @{Name="State"; Expression = { $_.DiskState }},
+        "ResourceGroupName",
+        @{Name="ManagedBy"; Expression = { ($_.ManagedBy -split "/")[-1] }})
+    }
 }
 
 $global:LicenseView = @{

@@ -727,3 +727,65 @@ function global:Stop-Computer {
 }
 Set-Alias -Name Stop-VM -Value Stop-Computer -Scope Global
 Set-Alias -Name stopVM -Value Stop-Computer -Scope Global
+
+function global:Get-AzDisk+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ResourceGroupName
+    )
+
+    $params = @{}
+    if (![string]::IsNullOrEmpty($Name)) { $params += @{ Name = $Name} }
+    if (![string]::IsNullOrEmpty($ResourceGroupName)) { $params += @{ ResourceGroupName = $ResourceGroupName} }
+
+    return Get-AzDisk @params
+
+}
+
+function global:Remove-AzDisk+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ResourceGroupName
+    )
+
+    $params = @{}
+    if (![string]::IsNullOrEmpty($Name)) { $params += @{ Name = $Name} }
+    if (![string]::IsNullOrEmpty($ResourceGroupName)) { $params += @{ ResourceGroupName = $ResourceGroupName} }
+
+    $managedDisks = Get-AzDisk+ @params
+
+    if ($managedDisks.DiskState -contains "Attached") {
+        Write-Host+ -NoTrace -NoTimestamp "One or more of the managed disks are ATTACHED." -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace -NoTimestamp "Managed disks must be UNATTACHED to be deleted." -ForegroundColor DarkYellow
+        Write-Host+ -NoTrace -NoTimestamp "The managed disks which are ATTACHED will be ignored." -ForegroundColor DarkYellow
+        Write-Host+
+    }
+
+    $unattachedManagedDisks = $managedDisks | Where-Object { $_.State -eq "Unattached" -and $null -eq $_.ManagedBy }
+
+    Write-Host+ -NoTrace -NoTimestamp "The following managed disks are UNATTACHED and will be DELETED."
+    $unattachedManagedDisks | Select-Object -Property $AzureView.Disk.Default | Format-Table
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
+    $response = Read-Host
+    Write-Host+
+    if ($response.ToUpper().Substring(0,1) -ne "Y") {
+        Write-Host+ -NoTrace -NoTimestamp "Remove-AzDisk+ cancelled." -ForegroundColor DarkGray
+        return
+    }
+
+    # foreach ($unattachedManagedDisk in $unattachedManagedDisks) {
+    #     if($unattachedManagedDisk.State -eq "Unattached" -and $null -eq $unattachedManagedDisk.ManagedBy) {
+    #         Write-Host+ -NoTrace -NoTimestamp "Deleting managed disk $($unattachedManagedDisk.ResourceGroupName)\$($unattachedManagedDisk.Name)." -ForegroundColor DarkRed
+    #         $unattachedManagedDisk | Remove-AzDisk -Force
+    #         Write-Host+ -NoTrace -NoTimestamp "Deleted managed disk $($unattachedManagedDisk.ResourceGroupName)\$($unattachedManagedDisk.Name)." -ForegroundColor DarkRed
+    #     }
+    #     else {
+    #         Write-Host+ -NoTrace -NoTimestamp "Managed disk $($unattachedManagedDisk.ResourceGroupName)\$($unattachedManagedDisk.Name) cannot be removed because it is ATTACHED to $($unattachedManagedDisk.ManagedBy)." -ForegroundColor DarkRed
+    #     }
+    # }
+
+}
