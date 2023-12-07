@@ -842,7 +842,7 @@
 
             # this overrides $platformStatus.IsStopped
             # TODO: as above, manage events if $platformStatus doesn't match platform state
-            $platformStatus.IsStopped = $platformStatus.RollupStatus -in $ServiceDownState
+            $platformStatus.IsStopped = $platformStatus.RollupStatus -in $global:ServiceDownState
             
             $platformStatus.ByCimInstance = $platformCimInstance
 
@@ -1732,7 +1732,7 @@
                                         }
                                     }
 
-                                    $installedModule = Get-InstalledPSResource -Name $module.Name | Sort-Object -Property Version -Descending
+                                    $installedModule = Get-InstalledPSResource -Name $module.Name -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                     $installedModuleVersion = [array]$installedModule.Version # this needs to be an array for the comparisons below to work
 
                                     if ($installedModule) {
@@ -1760,7 +1760,7 @@
 
                                     if (!$module.DoNotImport) {
 
-                                        $importedModule = Get-Module -Name $module.Name | Sort-Object -Property Version -Descending
+                                        $importedModule = Get-Module -Name $module.Name -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                         $importedModuleVersion = [array]$importedModule.Version # this needs to be an array for the comparisons below to work
 
                                         if ($importedModule) {
@@ -2447,6 +2447,10 @@ Set-Alias -Name postInstall -Value Show-PostInstallation -Scope Global
 #endregion POSTINSTALLATION
 #region LOCAL ADMIN/RUNAS
 
+    function global:Test-LocalAdmin {
+        return Test-Credentials "localadmin-$($global:Platform.Instance)" -NoValidate
+    }
+
     function global:Set-LocalAdmin {
 
         [CmdletBinding()]
@@ -2454,21 +2458,24 @@ Set-Alias -Name postInstall -Value Show-PostInstallation -Scope Global
             [switch]$Force
         )
 
-        # get the current local admin username from the "localAdmin-$($global:Platform.Instance)" credentials
+        # get the current local admin username from the "localadmin-$($global:Platform.Instance)" credentials
         # if the credentials haven't been set or -Force has been specified, prompt for and set/replace credentials
-        if (!(Test-Credentials "localAdmin-$($global:Platform.Instance)" -NoValidate) -or $Force) {
-            if ((Test-Credentials "localAdmin-$($global:Platform.Instance)" -NoValidate) -and $Force) {
-                $localAdminCredentials = Get-Credentials "localAdmin-$($global:Platform.Instance)"
+        if (!(Test-Credentials "localadmin-$($global:Platform.Instance)" -NoValidate) -or $Force) {
+            if (!$global:WriteHostPlusEndOfLine) { Write-Host+ } # close any pending newline
+            Write-Host+
+            if ((Test-Credentials "localadmin-$($global:Platform.Instance)" -NoValidate) -and $Force) {
+                $localAdminCredentials = Get-Credentials "localadmin-$($global:Platform.Instance)"
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Replace $($localAdminCredentials.Username) as the local admin (Y/N)? ", "[N]", ": " -ForegroundColor Gary, Blue, Gray
                 if ((Read-Host).ToUpper() -ne "Y") { return }
             }
             do {
-                Request-Credentials -Title "Overwatch Local Admin Credentials" | Set-Credentials "localAdmin-$($global:Platform.Instance)" | Out-Null
+                Request-Credentials -Title "  Overwatch Local Admin Credentials" -Prompt1 "  Username" -Prompt2 "  Password" | Set-Credentials "localadmin-$($global:Platform.Instance)" | Out-Null
             } until (
-                Test-Credentials -NoValidate "localAdmin-$($global:Platform.Instance)"
+                Test-Credentials -NoValidate "localadmin-$($global:Platform.Instance)"
             )
+            Write-Host+
         }
-        $localAdminCredentials = Get-Credentials "localAdmin-$($global:Platform.Instance)"
+        $localAdminCredentials = Get-Credentials "localadmin-$($global:Platform.Instance)"
 
         # what type of username?  (Local, AD, AzureAD)
         if ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.Username.DownLevelLogonName)) {
@@ -2477,10 +2484,16 @@ Set-Alias -Name postInstall -Value Show-PostInstallation -Scope Global
             Remove-Variable username
         }
         elseif ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.Username.AzureAD)) {
-            Write-Host+ "AzureAD security principals are not yet supported." -ForegroundColor DarkRed
+            Write-Host+
+            Write-Host+ "  AzureAD security principals are not yet supported." -ForegroundColor DarkRed
+            Write-Host+
+            return
         }
         elseif ([Regex]::IsMatch($localAdminCredentials.Username,$global:RegexPattern.Username.AD)) {
-            Write-Host+ "AD security principals are not yet supported." -ForegroundColor DarkRed
+            Write-Host+
+            Write-Host+ "  AD security principals are not yet supported." -ForegroundColor DarkRed
+            Write-Host+
+            return
         }
 
         # ensure the local admin/runas user exists and, if not, create it

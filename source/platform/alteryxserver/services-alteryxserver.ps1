@@ -349,7 +349,7 @@ function global:Get-AlteryxServerStatus {
     $controllerService = $platformCimInstance | Where-Object {$platformTopology.Components.Controller.Active.Nodes.Keys -contains $_.Node}
     if ($controllerService) {
         $controllerServiceStatus = @{Status = ($controllerService.Status | Sort-Object -Unique).Count -eq 1 ? ($controllerService.Status | Sort-Object -Unique) : "Degraded"}
-        $controllerServiceStatus += @{IsOK = $controllerService ? $ServiceUpState -in $controllerServiceStatus.Status : $true}
+        $controllerServiceStatus += @{IsOK = $controllerService ? $global:ServiceUpState -in $controllerServiceStatus.Status : $true}
         $controllerServiceNodes = $null
         foreach ($service in $controllerService) {
             Write-Host+ -IfVerbose  "Controller on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
@@ -366,7 +366,7 @@ function global:Get-AlteryxServerStatus {
         $databaseService = $platformCimInstance | Where-Object {$platformTopology.Components.Database.Nodes.Keys -contains $_.Node}
         if ($databaseService) {
             $databaseServiceStatus = @{Status = ($databaseService.Status | Sort-Object -Unique).Count -eq 1 ? ($databaseService.Status | Sort-Object -Unique) : "Degraded"}
-            $databaseServiceStatus += @{IsOK = $databaseService ? $ServiceUpState -in $databaseServiceStatus.Status : $true}
+            $databaseServiceStatus += @{IsOK = $databaseService ? $global:ServiceUpState -in $databaseServiceStatus.Status : $true}
             $databaseServiceNodes = $null
             foreach ($service in $databaseService) {
                 Write-Host+ -IfVerbose  "Database on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
@@ -383,7 +383,7 @@ function global:Get-AlteryxServerStatus {
     $galleryService = $platformCimInstance | Where-Object {$platformTopology.Components.Gallery.Nodes.Keys -contains $_.Node}
     if ($galleryService) {
         $galleryServiceStatus = @{Status = ($galleryService.Status | Sort-Object -Unique).Count -eq 1 ? ($galleryService.Status | Sort-Object -Unique) : "Degraded"}
-        $galleryServiceStatus += @{IsOK = $galleryService ? $ServiceUpState -in $galleryServiceStatus.Status : $true}
+        $galleryServiceStatus += @{IsOK = $galleryService ? $global:ServiceUpState -in $galleryServiceStatus.Status : $true}
         $galleryServiceNodes = $null
         foreach ($service in $galleryService) {
             Write-Host+ -IfVerbose  "Gallery on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
@@ -399,7 +399,7 @@ function global:Get-AlteryxServerStatus {
     $workerService = $platformCimInstance | Where-Object {$platformTopology.Components.Worker.Nodes.Keys -contains $_.Node}
     if ($workerService) {
         $workerServiceStatus = @{Status = ($workerService.Status | Sort-Object -Unique).Count -eq 1 ? ($workerService.Status | Sort-Object -Unique) : "Degraded"}
-        $workerServiceStatus += @{IsOK = $workerService ? $ServiceUpState -in $workerServiceStatus.Status : $true}
+        $workerServiceStatus += @{IsOK = $workerService ? $global:ServiceUpState -in $workerServiceStatus.Status : $true}
         $workerServiceNodes = $null
         foreach ($service in $workerService) {
             Write-Host+ -IfVerbose  "Worker on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow

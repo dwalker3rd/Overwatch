@@ -16,8 +16,8 @@ function global:Get-PlatformInfo {
         }
     }
     
-    $global:Platform.Version = $global:Catalog.Platform.AlteryxDesigner.Installation.Version
-    $global:Platform.Build = $global:Catalog.Platform.AlteryxDesigner.Installation.Build
+    $global:Platform.Version = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Version
+    $global:Platform.Build = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Build
 
     Write-Cache platforminfo -InputObject @{Version=$global:Platform.Version;Build=$global:Platform.Build}
 
@@ -42,17 +42,15 @@ function global:Get-PlatformProcess {
         $ComputerName = $platformTopology.nodes.Keys
     }
 
-    if (!$ResetCache) {
-        if ((Get-Cache platformprocesses).Exists) {
-            Write-Host+ -IfDebug "Read-Cache platformprocesses" -ForegroundColor DarkYellow
-            $platformProcesses = Read-Cache platformprocesses -MaxAge (New-TimeSpan -Seconds 10)
-            if ($platformProcesses) {
-                return $platformProcesses | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
-            }
-        }
-    }
-
-    $platformTopology = Get-PlatformTopology -Online
+    # if (!$ResetCache) {
+    #     if ((Get-Cache platformprocesses).Exists) {
+    #         Write-Host+ -IfDebug "Read-Cache platformprocesses" -ForegroundColor DarkYellow
+    #         $platformProcesses = Read-Cache platformprocesses -MaxAge (New-TimeSpan -Seconds 10)
+    #         if ($platformProcesses) {
+    #             return $platformProcesses | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
+    #         }
+    #     }
+    # }
 
     Write-Host+ -IfVerbose "Get processes from node[s]: RUNNING ..."  -ForegroundColor DarkYellow
     $cimSession = New-CimSession -ComputerName $ComputerName
@@ -113,7 +111,7 @@ function global:Get-PlatformProcess {
         } 
     )
 
-    $platformProcesses | Write-Cache platformprocesses
+    # $platformProcesses | Write-Cache platformprocesses
 
     return $platformProcesses | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
 
@@ -203,14 +201,29 @@ function global:Show-PlatformStatus {
 
     if (!$Summary -and !$All) { $All = $true }
 
-    $platformStatus = Get-PlatformStatus -Quiet
-    $_platformStatusRollupStatus = $platformStatus.RollupStatus
-    if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
-        $_platformStatusRollupStatus = switch ($platformStatus.Event) {
-            "Start" { "Starting" }
-            "Stop"  { "Stopping" }
+    $platformStatus = Get-PlatformStatus -Reset -Quiet
+    $_platformStatusRollupStatus = 
+        switch ($platformStatus.RollupStatus) {
+            "Inactive" {
+                switch ($platformStatus.RollupStatus) {
+                    "Inactive" {
+                        $platformStatus.RollupStatus + ($platformStatus.IsOK ? " (IsOK)" : " (IsNotOK)")
+                    }
+                    default {
+                        $platformStatus.RollupStatus
+                    }
+                }
+            }
+            default {
+                $platformStatus.RollupStatus
+            }
         }
-    }
+    # if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+    #     $_platformStatusRollupStatus = switch ($platformStatus.Event) {
+    #         "Start" { "Starting" }
+    #         "Stop"  { "Stopping" }
+    #     }
+    # }
 
     Write-Host+
     $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
@@ -220,34 +233,35 @@ function global:Show-PlatformStatus {
     
         Write-Host+
 
-        # check platform status and for any active events
-        $platformStatus = Get-PlatformStatus -ResetCache -Quiet
+        # # check platform status and for any active events
+        # $platformStatus = Get-PlatformStatus -ResetCache -Quiet
 
-        $nodeStatusHashTable = (Get-AlteryxDesignerStatus).Nodes
+        $alteryxDesignerStatus = Get-AlteryxDesignerStatus
+        # $nodeStatusHashTable = (Get-AlteryxDesignerStatus).Nodes
 
         $nodeStatus = @()
-        foreach ($node in (Get-PlatformTopology nodes -offline -keys)) {
-            $ptNode = pt nodes.$node
+        foreach ($node in (Get-PlatformTopology nodes -keys)) {
             $nodeStatus += [PsCustomObject]@{
                 Role = pt nodes.$node.components -k
                 Alias = ptBuildAlias $node
                 Node = $node
-                Status = !$ptNode.Shutdown ? "Offline" : "Shutdown"
-            }
-        }
-        foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
-            $nodeStatus += [PsCustomObject]@{
-                Role = pt nodes.$node.components -k
-                Alias = ptBuildAlias $node
-                Node = $node
-                Status = $nodeStatusHashTable[$node]
+                IsOK = $alteryxDesignerStatus.Nodes[$node].IsOK
+                Status = 
+                    switch ($alteryxDesignerStatus.Nodes[$node].Status) {
+                        "Inactive" {
+                            $alteryxDesignerStatus.Nodes[$node].Status + ($alteryxDesignerStatus.Nodes[$node].IsOK ? " (IsOK)" : " (IsNotOK)")
+                        }
+                        default {
+                            $alteryxDesignerStatus.Nodes[$node].Status
+                        }
+                    }
             }
         }
 
         $nodeStatus = $nodeStatus | Sort-Object -Property Role, Node
         
         foreach ($_nodeStatus in $nodeStatus) {
-            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>38> $($_nodeStatus.Status)"
+            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node)) <.>38> $($_nodeStatus.Status)"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($_nodeStatus.Status)
         }
         # $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
@@ -300,7 +314,7 @@ function global:Show-PlatformStatus {
     Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
     
     $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)    
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($_platformStatusRollupStatus)    
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
@@ -310,7 +324,7 @@ function global:Get-AlteryxDesignerStatus {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
-        [Parameter(Mandatory=$false)][ValidateSet("Controller","Database","Gallery","Worker")][string]$Component
+        [Parameter(Mandatory=$false)][ValidateSet("Designer")][string]$Component
     )
 
     if ([string]::IsNullOrEmpty($ComputerName)) {
@@ -323,100 +337,64 @@ function global:Get-AlteryxDesignerStatus {
         $Component = (Get-Culture).TextInfo.ToTitleCase($Component)
         $ComputerName = $platformTopology.Components.$component.Nodes
     }
-    if ($Component -eq $platformTopology.Components.Database.Name -and $platformTopology.Components.Controller.EmbeddedMongoDBEnabled) {
-        throw "Unsupported"
-    }  
 
-    $serviceIsOK = $true
-    $serviceStatus = @()
-    $serviceNodes = $null
+    $processIsOK = $true
+    $processStatus = @()
+    $processNodes = @{}
 
-    $platformCimInstance = Get-PlatformServices -ComputerName $ComputerName
+    $platformCimInstance = Get-PlatformProcess -ComputerName $ComputerName
 
-    $controllerService = $platformCimInstance | Where-Object {$platformTopology.Components.Controller.Active.Nodes.Keys -contains $_.Node}
-    if ($controllerService) {
-        $controllerServiceStatus = @{Status = ($controllerService.Status | Sort-Object -Unique).Count -eq 1 ? ($controllerService.Status | Sort-Object -Unique) : "Degraded"}
-        $controllerServiceStatus += @{IsOK = $controllerService ? $ServiceUpState -in $controllerServiceStatus.Status : $true}
-        $controllerServiceNodes = $null
-        foreach ($service in $controllerService) {
-            Write-Host+ -IfVerbose  "Controller on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
-            $controllerServiceNodes += @{$($service.Node) = $($service.Status)}
-            $serviceNodes += @{$($service.Node) = $($service.Status)}
-        }
-        $controllerServiceStatus += @{Nodes = $controllerServiceNodes}
-        
-        $serviceStatus += $controllerServiceStatus.Status
-        $serviceIsOK = $serviceIsOK -and $controllerServiceStatus.IsOK
-    }
-
-    if (!$platformTopology.Components.Controller.EmbeddedMongoDBEnabled) {
-        $databaseService = $platformCimInstance | Where-Object {$platformTopology.Components.Database.Nodes.Keys -contains $_.Node}
-        if ($databaseService) {
-            $databaseServiceStatus = @{Status = ($databaseService.Status | Sort-Object -Unique).Count -eq 1 ? ($databaseService.Status | Sort-Object -Unique) : "Degraded"}
-            $databaseServiceStatus += @{IsOK = $databaseService ? $ServiceUpState -in $databaseServiceStatus.Status : $true}
-            $databaseServiceNodes = $null
-            foreach ($service in $databaseService) {
-                Write-Host+ -IfVerbose  "Database on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
-                $databaseServiceNodes += @{$($service.Node) = $($service.Status)}
-                $serviceNodes += @{$($service.Node) = $($service.Status)}
+    $designerProcess = $platformCimInstance | Where-Object {$platformTopology.Components.Designer.Nodes.Keys -contains $_.Node}
+    if ($designerProcess) {
+        $designerProcessStatus = @{}
+        $designerProcessStatus += @{ Status = ([array]($designerProcess.Status | Sort-Object -Unique))[0] }
+        $designerProcessStatus += @{ IsOK = ([array]($designerProcess.IsOK | Sort-Object -Unique -Descending))[0] }
+        $designerProcessNodes = @{}
+        foreach ($process in $designerProcess) {
+            if (!$designerProcessNodes.$($process.Node)) {
+                $designerProcessNodes += @{$($process.Node) = $process.Status }
             }
-            $databaseServiceStatus += @{Nodes = $databaseServiceNodes}
-
-            $serviceStatus += $databaseServiceStatus.Status
-            $serviceIsOK = $serviceIsOK -and $databaseServiceStatus.IsOK
+            if (!$processNodes.$($process.Node)) {
+                $processNodes += @{
+                    $($process.Node) = @{
+                        IsOK = $process.IsOK
+                        Status = $process.Status
+                    }
+                }
+            }
         }
+        $designerProcessStatus += @{Nodes = $designerProcessNodes}
+    }
+    else {
+        $designerProcessStatus = @{}
+        $designerProcessStatus += @{ Status = "Inactive" }
+        $designerProcessStatus += @{ IsOK = $true }
+        $designerProcessStatus += @{ Nodes = $ComputerName }     
+        if (!$processNodes.$ComputerName) {
+            $processNodes += @{ 
+                $($ComputerName) = @{
+                    IsOK = $true
+                    Status = "Inactive" 
+                }
+            }
+        } 
     }
 
-    $galleryService = $platformCimInstance | Where-Object {$platformTopology.Components.Gallery.Nodes.Keys -contains $_.Node}
-    if ($galleryService) {
-        $galleryServiceStatus = @{Status = ($galleryService.Status | Sort-Object -Unique).Count -eq 1 ? ($galleryService.Status | Sort-Object -Unique) : "Degraded"}
-        $galleryServiceStatus += @{IsOK = $galleryService ? $ServiceUpState -in $galleryServiceStatus.Status : $true}
-        $galleryServiceNodes = $null
-        foreach ($service in $galleryService) {
-            Write-Host+ -IfVerbose  "Gallery on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
-            $galleryServiceNodes += @{$($service.Node) = $($service.Status)}
-            $serviceNodes += @{$($service.Node) = $($service.Status)}
-        }
-        $galleryServiceStatus += @{Nodes = $galleryServiceNodes}
-
-        $serviceStatus += $galleryServiceStatus.Status
-        $serviceIsOK = $serviceIsOK -and $galleryServiceStatus.IsOK
+    $processStatus += $designerProcessStatus.Status
+    if ($processStatus.Count -gt 1) {
+        $processStatus = ([array]($processStatus | Sort-Object -Unique -Descending))[0]
     }
-
-    $workerService = $platformCimInstance | Where-Object {$platformTopology.Components.Worker.Nodes.Keys -contains $_.Node}
-    if ($workerService) {
-        $workerServiceStatus = @{Status = ($workerService.Status | Sort-Object -Unique).Count -eq 1 ? ($workerService.Status | Sort-Object -Unique) : "Degraded"}
-        $workerServiceStatus += @{IsOK = $workerService ? $ServiceUpState -in $workerServiceStatus.Status : $true}
-        $workerServiceNodes = $null
-        foreach ($service in $workerService) {
-            Write-Host+ -IfVerbose  "Worker on $($service.Node) is $($service.Status)" -ForegroundColor DarkYellow
-            $workerServiceNodes += @{$($service.Node) = $($service.Status)}
-            $serviceNodes += @{$($service.Node) = $($service.Status)}
-        }
-        $workerServiceStatus += @{Nodes = $workerServiceNodes}
-
-        $serviceStatus += $workerServiceStatus.Status
-        $serviceIsOK = $serviceIsOK -and $workerServiceStatus.IsOK
-    }
-
-    $serviceStatus = ($serviceStatus | Sort-Object -Unique).Count -eq 1 ? ($serviceStatus | Sort-Object -Unique) : "Degraded"
-
-    Write-Host+ -IfVerbose  "IsOK = $($serviceIsOK)" -ForegroundColor DarkYellow
-    Write-Host+ -IfVerbose  "Status = $($serviceStatus)" -ForegroundColor DarkYellow
+    $processIsOK = $processIsOK -and $designerProcessStatus.IsOK
 
     $AlteryxDesignerStatus = @{
-        IsOK = $serviceIsOK
-        Status = $serviceStatus
-        Nodes = $serviceNodes
+        IsOK = $processIsOK
+        Status = $processStatus
+        Nodes = $processNodes
     }
+
     if (![string]::IsNullOrEmpty($Component)) {$AlteryxDesignerStatus += @{Component = $Component}}
 
-    if ($controllerService) {$AlteryxDesignerStatus += @{Controller = $controllerServiceStatus}}
-    if ($databaseService) {$AlteryxDesignerStatus += @{Database = $databaseServiceStatus}}
-    if ($galleryService) {$AlteryxDesignerStatus += @{Gallery = $galleryServiceStatus}}
-    if ($workerService) {$AlteryxDesignerStatus += @{Worker = $workerServiceStatus}}
-
-    if ($controllerService -and $platformTopology.Components.Controller.EmbeddedMongoDBEnabled) {$AlteryxDesignerStatus += @{EmbeddedMongoDBEnabled = $true}}
+    if ($designerProcess) {$AlteryxDesignerStatus += @{Designer = $designerProcessStatus}}
 
     return $AlteryxDesignerStatus
 }
@@ -495,88 +473,118 @@ function global:Get-RuntimeSettings {
 #endregion RUNTIMESETTINGS
 #region ALTERYXSERVICE
 
-function global:Invoke-AlteryxService {
+    function global:Invoke-AlteryxService {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true,Position=0)][string]$p0,
+            [Parameter(Mandatory=$false,Position=1)][string]$p1,
+            [Parameter(Mandatory=$false,Position=2)][string]$p2,
+            [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
+            [switch]$Log
+        )
+
+        #$hasValue = $false
+        if ($p0 -match "=") {
+            #$hasValue = $true
+            $kv = $p0 -split "="
+            $p0 = $kv[0]
+            $p1 = "="
+            $p2 = $kv[1]
+        }
+        
+        $hasResult = switch ($p0) {
+            "getversion" {$true}
+            "verifysettingfile" {$true}
+            default {$false}
+        }
+
+        $p2IsFile = switch ($p0) {
+            "emongodump" {$true}
+            "verifysettingfile" {$true}
+            default {$false}
+        }
+
+        $status = "Success"
+        $entryType = "Information"
+        $_exception = $null
+
+        foreach ($node in $ComputerName) {
+            Write-Host+ -IfVerbose "$($node.ToUpper()): alteryxservice $($p0) $($p1) $($p2)" -ForegroundColor DarkYellow
+        }
+
+        try {
+            # note:  $p0$p1$p2 is correct!  no spaces
+            $psSession = Use-PSSession+ -ComputerName $ComputerName
+            if ($hasResult) {
+                $result = Invoke-Command -Session $psSession {& alteryxservice $using:p0$using:p1$using:p2}
+                $result = switch ($p0) {
+                    "getversion" {[regex]::Match($result,$global:RegexPattern.Software.Version).Groups[1].Value}
+                    "verifysettingfile" {$($result -split "`r")[1] -match "success" ? "Success" : "Failure"}
+                    default {$null}
+                }
+            }
+            else {
+                Invoke-Command -Session $psSession {& alteryxservice $using:p0$using:p1$using:p2}  | Out-Null
+            }
+        }
+        catch {
+            $entryType = "Error"
+            $_exception = $_.Exception
+            $status = "Error"
+            $Log = $true
+        }
+        # finally {
+        #     Remove-PSSession $psSession
+        # }
+
+        if ($hasResult) {Write-Host+ -IfVerbose "Result = $($result)" -ForegroundColor DarkYellow}
+
+        $HashArguments = @{
+            Action = $p2Isfile ? $("alteryxservice $($p0)".Trim()) : $("alteryxservice $($p0) $($p1)".Trim())
+            EntryType = $entryType
+            Exception = $_exception
+            Status = $status
+            Target = $p2Isfile ? $p2 : $null
+        }
+
+        if ($Log) {Write-Log @HashArguments}
+
+        return $hasResult ? $result : $null
+
+    }  
+
+#endregion ALTERYXSERVICE
+#region ALTERYXENGINECMD
+
+function global:Invoke-AlteryxEngineCmd {
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,Position=0)][string]$p0,
-        [Parameter(Mandatory=$false,Position=1)][string]$p1,
-        [Parameter(Mandatory=$false,Position=2)][string]$p2,
-        [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-        [switch]$Log
+        [Parameter(Mandatory=$true,ParameterSetName="Workflow")][string]$Workflow,
+        [Parameter(Mandatory=$false,ParameterSetName="AnalyticApp")][string]$AnalyticApp,
+        [Parameter(Mandatory=$true,ParameterSetName="AnalyticApp")][string]$AnalyticAppValues
     )
 
-    #$hasValue = $false
-    if ($p0 -match "=") {
-        #$hasValue = $true
-        $kv = $p0 -split "="
-        $p0 = $kv[0]
-        $p1 = "="
-        $p2 = $kv[1]
-    }
-    
-    $hasResult = switch ($p0) {
-        "getversion" {$true}
-        "verifysettingfile" {$true}
-        default {$false}
-    }
+    $alteryxenginecmd = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.AlteryxEngineCmd
 
-    $p2IsFile = switch ($p0) {
-        "emongodump" {$true}
-        "verifysettingfile" {$true}
-        default {$false}
+    if ($Workflow) {
+        $result = Invoke-Command {& $alteryxenginecmd $Workflow}
     }
-
-    $status = "Success"
-    $entryType = "Information"
-    $_exception = $null
-
-    foreach ($node in $ComputerName) {
-        Write-Host+ -IfVerbose "$($node.ToUpper()): alteryxservice $($p0) $($p1) $($p2)" -ForegroundColor DarkYellow
-    }
-
-    try {
-        # note:  $p0$p1$p2 is correct!  no spaces
-        $psSession = Use-PSSession+ -ComputerName $ComputerName
-        if ($hasResult) {
-            $result = Invoke-Command -Session $psSession {& alteryxservice $using:p0$using:p1$using:p2}
-            $result = switch ($p0) {
-                "getversion" {[regex]::Match($result,$global:RegexPattern.Software.Version).Groups[1].Value}
-                "verifysettingfile" {$($result -split "`r")[1] -match "success" ? "Success" : "Failure"}
-                default {$null}
-            }
+    elseif ($AnalyticAppValues) {
+        if ($AnalyticApp) {
+            $result = Invoke-Command {& $alteryxenginecmd $AnalyticApp $AnalyticAppValues}
         }
         else {
-            Invoke-Command -Session $psSession {& alteryxservice $using:p0$using:p1$using:p2}  | Out-Null
+            $result = Invoke-Command {& $alteryxenginecmd $AnalyticAppValues}
         }
     }
-    catch {
-        $entryType = "Error"
-        $_exception = $_.Exception
-        $status = "Error"
-        $Log = $true
-    }
-    # finally {
-    #     Remove-PSSession $psSession
-    # }
 
-    if ($hasResult) {Write-Host+ -IfVerbose "Result = $($result)" -ForegroundColor DarkYellow}
-
-    $HashArguments = @{
-        Action = $p2Isfile ? $("alteryxservice $($p0)".Trim()) : $("alteryxservice $($p0) $($p1)".Trim())
-        EntryType = $entryType
-        Exception = $_exception
-        Status = $status
-        Target = $p2Isfile ? $p2 : $null
-    }
-
-    if ($Log) {Write-Log @HashArguments}
-
-    return $hasResult ? $result : $null
+    return $result
 
 }  
 
-#endregion ALTERYXSERVICE
+#endregion ALTERYXENGINECMD
 #region PLATFORM JOBS
 
     function global:Get-PlatformJob {
@@ -595,7 +603,7 @@ function global:Invoke-AlteryxService {
         ) 
 
         if (!$ComputerName -and !$Id) { 
-            $ComputerName = Get-PlatformTopology components.worker.nodes -Online -Keys
+            $ComputerName = Get-PlatformTopology components.designer.nodes -Online -Keys
         }
 
         $jobs = Get-PlatformProcess -ComputerName $ComputerName | 
@@ -624,7 +632,7 @@ function global:Invoke-AlteryxService {
 
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = (Get-PlatformTopology components.worker.nodes -Online -Keys),
+            [Parameter(Mandatory=$false,Position=0)][string[]]$ComputerName = (Get-PlatformTopology components.designer.nodes -Online -Keys),
             [Parameter(Mandatory=$false)][int32]$Seconds = 15
         ) 
 
@@ -695,7 +703,7 @@ function global:Invoke-AlteryxService {
             # Remove-PSSession $psSession
         }
 
-        if (!$ComputerName -and !$Id) { $ComputerName = Get-PlatformTopology components.worker.nodes -Online -Keys }
+        if (!$ComputerName -and !$Id) { $ComputerName = Get-PlatformTopology components.designer.nodes -Online -Keys }
 
         if ($ComputerName -and !$Id) { $jobs = Get-PlatformJob -ComputerName $ComputerName }
         if (!$ComputerName -and $Id) { $jobs = Get-PlatformJob -Id $Id }
@@ -838,32 +846,32 @@ function global:Restart-Platform {
 
                 [xml]$runtimeSettings = Get-RunTimeSettings -ComputerName $node
 
-                $controllerLogFilePath = Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -Parent
+                # $controllerLogFilePath = Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -Parent
                 $engineDefaultTempFilePath = $runtimeSettings.SystemSettings.Engine.DefaultTempFilePath
                 $enginePackageStagingPath = $runtimeSettings.SystemSettings.Engine.PackageStagingPath
                 $engineLogFilePath = $runtimeSettings.SystemSettings.Engine.LogFilePath
 
-                # AlteryxService: Log Files
-                if ($global:Cleanup.AlteryxService.LogFiles -and $controllerLogFilePath -and (Test-Path+ -Path $controllerLogFilePath -ComputerName $node)) {
+                # # AlteryxService: Log Files
+                # if ($global:Cleanup.AlteryxService.LogFiles -and $controllerLogFilePath -and (Test-Path+ -Path $controllerLogFilePath -ComputerName $node)) {
 
-                    $message = "<    AlteryxService Log Files <.>48> PENDING"
-                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
+                #     $message = "<    AlteryxService Log Files <.>48> PENDING"
+                #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,Gray
 
-                    $controllerLogFileName = Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -LeafBase
-                    $controllerLogFileExtension= Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -Extension
+                #     $controllerLogFileName = Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -LeafBase
+                #     $controllerLogFileExtension= Split-Path $runtimeSettings.SystemSettings.Controller.LoggingPath -Extension
 
-                    $params = @{}
-                    $params += @{
-                        ComputerName = $node
-                        Path = $controllerLogFilePath
-                        Filter = "$($controllerLogFileName)*$($controllerLogFileExtension)"
-                    }
-                    $params += Get-RetentionPeriod ($global:Cleanup.AlteryxService.LogFiles.Retention ?? $global:Cleanup.Default.Retention)
-                    Remove-Files @params
+                #     $params = @{}
+                #     $params += @{
+                #         ComputerName = $node
+                #         Path = $controllerLogFilePath
+                #         Filter = "$($controllerLogFileName)*$($controllerLogFileExtension)"
+                #     }
+                #     $params += Get-RetentionPeriod ($global:Cleanup.AlteryxService.LogFiles.Retention ?? $global:Cleanup.Default.Retention)
+                #     Remove-Files @params
 
-                    Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
+                #     Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor DarkGreen
 
-                }
+                # }
 
                 # Engine: Default Temporary Directory
                 if ($global:Cleanup.Engine.TempFiles -and $engineDefaultTempFilePath -and (Test-Path+ -Path $engineDefaultTempFilePath -ComputerName $node)) {
@@ -994,6 +1002,18 @@ function global:Initialize-PlatformTopology {
             Name = $component
             Nodes = @{}
         }
+    }
+
+    foreach ($node in $Nodes) {
+
+        # designer
+        $platformTopology.Components.Designer.Nodes += @{$node = @{}}
+        $platformTopology.Nodes.$node.Components += @{
+            Designer = @{
+                Instances = @{}
+            }
+        } 
+
     }
 
     if (!$NoCache -and $platformTopology.Nodes) {

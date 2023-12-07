@@ -178,8 +178,10 @@ function global:Update-ConnectionString {
         throw "$DriverType driver '$Driver' is not installed on $($ComputerName.ToUpper())"
     }
 
-    $vaultItem.Remove("Name")
-    $vaultItem.Remove("timestamp")
+    $commandParameters = (Get-Command Update-VaultItem).Parameters.Keys
+    foreach ($vaultItemParameter in ($vaultItem.Keys | Copy-Object)) {
+        if ($vaultItemParameter -notin $commandParameters) { $vaultItem.Remove($vaultItemParameter) }
+    }
 
     $ComputerNameParam = ((Get-Command Update-VaultItem).Parameters.Keys -contains "ComputerName") ? @{ ComputerName = $ComputerName } : @{}
     Update-VaultItem -Id $Id @vaultItem -Vault $Vault @ComputerNameParam

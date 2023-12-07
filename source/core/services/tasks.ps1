@@ -322,6 +322,11 @@ function global:Disable-PlatformTask {
         $PlatformTask = Get-PlatformTask -Id $Id 
     }
 
+    # check if PlatformTask exists
+    if (!$PlatformTask) {
+        throw "Platform task `"$Id`" was not found."
+    }
+
     # check if PlatformTask is already disabled
     $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Disabled
     if ($isTargetState) {
@@ -391,6 +396,11 @@ function global:Enable-PlatformTask {
         $TaskName = [string]::IsNullOrEmpty($TaskName) ? (Get-Product -Id $Id).TaskName : $TaskName
         $PlatformTask = Get-PlatformTask -Id $Id 
     }
+
+    # check if PlatformTask exists
+    if (!$PlatformTask) {
+        throw "Platform task `"$Id`" was not found."
+    }    
 
     # check if PlatformTask is already enabled
     $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Enabled

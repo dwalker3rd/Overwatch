@@ -20,14 +20,12 @@ $_provider | Out-Null
 
         $interaction = $true
 
-        # complete previous Write-Host+ -NoNewLine
-        Write-Host+
+        if (!$global:WriteHostPlusEndOfLine) { Write-Host+ } # close any pending newline
 
-        Write-Host+ -SetIndentGlobal 8
         Write-Host+
 
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Server ", "$($server ? "[$server] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "  Server ", "$($server ? "[$server] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $serverResponse = Read-Host
             }
@@ -36,12 +34,12 @@ $_provider | Out-Null
             }
             $server = ![string]::IsNullOrEmpty($serverResponse) ? $serverResponse : $server
             if ([string]::IsNullOrEmpty($server)) {
-                Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP server is required" -ForegroundColor Red
+                Write-Host+ -NoTrace -NoTimestamp "  NULL: SMTP server is required" -ForegroundColor Red
                 $server = $null
             }
         } until ($server)
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Port ", "$($port ? "[$port] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "  Port ", "$($port ? "[$port] " : $null)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $portResponse = Read-Host
             }
@@ -50,14 +48,14 @@ $_provider | Out-Null
             }
             $port = ![string]::IsNullOrEmpty($portResponse) ? $portResponse : $port
             if ([string]::IsNullOrEmpty($port)) {
-                Write-Host+ -NoTrace -NoTimestamp "NULL: SMTP port is required" -ForegroundColor Red
+                Write-Host+ -NoTrace -NoTimestamp "  NULL: SMTP port is required" -ForegroundColor Red
                 $port = $null
             }
         } until ($port)
         $useSslDefault = "Y"
         $useSslChar = $useSsl ? "Y" : "N"
         do {
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Use SSL? (Y/N) ", "$($useSslChar ? "[$useSslChar] " : $useSslDefault)", ": " -ForegroundColor Gray, Blue, Gray
+            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "  Use SSL? (Y/N) ", "$($useSslChar ? "[$useSslChar] " : $useSslDefault)", ": " -ForegroundColor Gray, Blue, Gray
             if (!$UseDefaultResponses) {
                 $useSslResponse = Read-Host
             }
@@ -69,7 +67,7 @@ $_provider | Out-Null
                 $useSslChar = $useSslDefault
             }
             if ($useSslChar -notmatch "^(Y|N)$") {
-                Write-Host+ -NoTrace -NoTimestamp "INVALID: Response must be `"Y`" or `"N`"" -ForegroundColor Red
+                Write-Host+ -NoTrace -NoTimestamp "  INVALID: Response must be `"Y`" or `"N`"" -ForegroundColor Red
                 $useSslChar = $null
             }
         } until ($useSslChar -match "^(Y|N)$")
@@ -95,19 +93,14 @@ $_provider | Out-Null
     }
 
     if (!$(Test-Credentials $Provider.Id -NoValidate)) {
-        if (!$interaction) {
-            # complete previous Write-Host+ -NoNewLine
-            Write-Host+
-            Write-Host+ -SetIndentGlobal 8
-        }
+        if (!$global:WriteHostPlusEndOfLine) { Write-Host+ } # close any pending newline
         Write-Host+
         $interaction = $true
-        Request-Credentials -Prompt1 "Account" -Prompt2 "Password" | Set-Credentials $Provider.Id
+        Request-Credentials -Title "  SMTP Account Credentials" -Prompt1 "  Account" -Prompt2 "  Password" | Set-Credentials $Provider.Id
     }
 
     if ($interaction) {
         Write-Host+
-        Write-Host+ -SetIndentGlobal -8
     }
     
     return

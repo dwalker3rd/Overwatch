@@ -273,23 +273,28 @@ function script:Copy-File {
         "`$imagesUri = [System.Uri]::new(""$($global:Location.Images)"")" | Add-Content -Path $global:InstallSettings
         "`$platformInstallLocation = ""$($global:Platform.InstallPath)""" | Add-Content -Path $global:InstallSettings
 
-        if ($platformId -notin $unInstallablePlatforms) {
-            $_platformInstanceUri = [string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : [System.Uri]::new($platformInstanceUri)
-            "`$platformInstanceUri = ""$($_platformInstanceUri)""" | Add-Content -Path $global:InstallSettings
-        }
-        
-        "`$platformInstanceDomain = ""$($global:Platform.Domain)""" | Add-Content -Path $global:InstallSettings
-        if ($global:Environ.Product.Count -gt 0) {
-            "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $global:InstallSettings
+        if ($global:Catalog.Platform.$platformId.Installation.Flags -notcontains "NoPlatformInstanceUri") {
+            if ($platformId -notin $unInstallablePlatforms) {
+                $_platformInstanceUri = [string]::IsNullOrEmpty($platformInstanceUri) ? [System.Uri]::new($($global:Platform.Uri)) : [System.Uri]::new($platformInstanceUri)
+                "`$platformInstanceUri = ""$($_platformInstanceUri)""" | Add-Content -Path $global:InstallSettings
+            }
+            "`$platformInstanceDomain = ""$($global:Platform.Domain)""" | Add-Content -Path $global:InstallSettings
+            if ($global:Environ.Product.Count -gt 0) {
+                "`$productIds = @('$($global:Environ.Product -join "', '")')" | Add-Content -Path $global:InstallSettings
+            }
         }
         if ($global:Environ.Provider.Count -gt 0) {
             "`$providerIds = @('$($global:Environ.Provider -join "', '")')" | Add-Content -Path $global:InstallSettings
         }
-        if ($global:PlatformTopologyBase.Nodes.Count -gt 0) {
-            "`$platformInstanceNodes = @('$($global:PlatformTopologyBase.Nodes -join "', '")')" | Add-Content -Path $global:InstallSettings
+        if ($global:Catalog.Platform.$platformId.Installation.Flags -contains "HasPlatformInstanceNodes") {
+            if ($global:PlatformTopologyBase.Nodes.Count -gt 0) {
+                "`$platformInstanceNodes = @('$($global:PlatformTopologyBase.Nodes -join "', '")')" | Add-Content -Path $global:InstallSettings
+            }
         }
-        if ($global:RequiredPythonPackages.Count -gt 0) {
-            "`$requiredPythonPackages = @('$($global:RequiredPythonPackages -join "', '")')" | Add-Content -Path $global:InstallSettings
+        if ($null -ne $global:Catalog.Platform.$platformId.Installation.Python) {
+            if ($global:RequiredPythonPackages.Count -gt 0) {
+                "`$requiredPythonPackages = @('$($global:RequiredPythonPackages -join "', '")')" | Add-Content -Path $global:InstallSettings
+            }
         }
 
         return
@@ -714,6 +719,7 @@ function script:Remove-CatalogObjectFiles {
     Remove-Files "$($global:Location.Scripts)\config\config-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\initialize\initialize-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1"
+    Remove-Files "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\preflight\preflight*-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\postflight\postflight*-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\services\services-$($Type.ToLower())-$($Id.ToLower()).ps1"

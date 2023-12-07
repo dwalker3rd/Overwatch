@@ -27,10 +27,21 @@ $global:Catalog.Overwatch += @{ Overwatch =
 $global:Catalog.OS += @{ WindowsServer = 
     [OS]@{
         Id = "WindowsServer"
-        Name = "Windows Server"
-        DisplayName = "Windows Server"
+        Name = "Microsoft Windows Server"
+        DisplayName = "Microsoft Windows Server"
         Image = "../img/windows_server.png"  
         Description = "Overwatch services for the Microsoft Windows Server operating system"
+        Publisher = "Walker Analytics Consulting"
+    }
+}
+
+$global:Catalog.OS += @{ Windows11 = 
+    [OS]@{
+        Id = "Windows11"
+        Name = "Microsoft Windows 11"
+        DisplayName = "Microsoft Windows 11"
+        Image = "../img/windows_server.png"  
+        Description = "Overwatch services for the Microsoft Windows 11 operating system"
         Publisher = "Walker Analytics Consulting"
     }
 }
@@ -190,6 +201,9 @@ $global:Catalog.Platform += @{ AlteryxServer =
         Description = "Overwatch services for the Alteryx Server platform"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
+            Flags = @(
+                "HasPlatformInstanceNodes"
+            )
             UninstallString = [scriptblock]{
                 return (Get-ItemProperty -Path (Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.RegistryKey.Uninstall) -Name UninstallString).UninstallString
             }
@@ -219,13 +233,29 @@ $global:Catalog.Platform += @{ AlteryxServer =
                 return (Get-Item (Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.AlteryxEngineCmd)).VersionInfo.ProductVersion
             }
             Version = [scriptblock]{
-                $build = [version](Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.Build)
-                return "$($build.Major).$($build.Minor)"
+                $build = (Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.Build)
+                return [regex]::Matches($build,$global:RegexPattern.Software.Version)[0].Groups[1].Value
             }
             PlatformInstanceId = @{
                 Input = "`$global:Platform.Uri.Host"
                 Pattern = "\."
                 Replacement = "-"
+            }
+            Python = @{
+                Location = @{
+                    Env = [scriptblock]{
+                        $installLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.InstallLocation
+                        return "$installLocation\\Miniconda3\envs\DesignerBaseTools_vEnv"
+                    }
+                    Pip = [scriptblock]{
+                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Python.Location.Env
+                        return "$pythonEnvLocation\Scripts"
+                    }
+                    SitePackages = [scriptblock]{
+                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Python.Location.Env
+                        return "$pythonEnvLocation\Lib\site-packages"
+                    }
+                }
             }
         }
     }
@@ -269,8 +299,32 @@ $global:Catalog.Platform += @{ AlteryxDesigner =
                 return (Get-Item (Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.AlteryxEngineCmd)).VersionInfo.ProductVersion
             }
             Version = [scriptblock]{
-                $build = [version](Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Build)
-                return "$($build.Major).$($build.Minor)"
+                $build = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Build
+                return [regex]::Matches($build,$global:RegexPattern.Software.Version)[0].Groups[1].Value
+            }
+            Flags = @(
+                "NoPlatformInstanceUri","HasPlatformInstanceNodes"
+            )
+            PlatformInstanceId = @{
+                Input = "`$env:COMPUTERNAME"
+                Pattern = "\."
+                Replacement = "-"
+            }
+            Python = @{
+                Location = @{
+                    Env = [scriptblock]{
+                        $installLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.InstallLocation
+                        return "$installLocation\Miniconda3\envs\DesignerBaseTools_vEnv"
+                    }
+                    Pip = [scriptblock]{
+                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Python.Location.Env
+                        return "$pythonEnvLocation\Scripts"
+                    }
+                    SitePackages = [scriptblock]{
+                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Python.Location.Env
+                        return "$pythonEnvLocation\Lib\site-packages"
+                    }
+                }
             }
         }
     }
@@ -531,7 +585,7 @@ $global:Catalog.Installer += @{ "scoop" =
                 @{ Type = "Command"; Command = [scriptblock]{try{scoop update scoop *> $null;$true}catch{$false}} }
             )
             Prerequisites = @(
-                @{ Type = "OS"; OS = "WindowsServer"}
+                @{ Type = "OS"; OS = @("WindowsServer","Windows11")}
             )
             Install = [scriptblock]{
                 Invoke-RestMethod get.scoop.sh -outfile "$($global:Location.Temp)\install-scoop.ps1" *> $null
