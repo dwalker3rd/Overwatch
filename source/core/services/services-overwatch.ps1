@@ -1711,7 +1711,7 @@
                                 $moduleMaximumVersion = [string]::IsNullOrEmpty($moduleRequiredVersion) -and [string]::IsNullOrEmpty($moduleMinimumVersion) -and ![string]::IsNullOrEmpty($module.MaximumVersion) ? $module.MaximumVersion : $null
                                 
                                 $psModuleRepositoryName = ![string]::IsNullOrEmpty($module.Repository) ? $module.Repository : $global:PsDefaultModuleRepositoryName 
-                                $repositoryModule = Find-PSResource -Name $module.Name -Repository $psModuleRepositoryName -ErrorAction SilentlyContinue  | Sort-Object -Property Version -Descending
+                                $repositoryModule = Find-PSResource -Name $module.Name -Repository $psModuleRepositoryName -Version "[0,]" -ErrorAction SilentlyContinue  | Sort-Object -Property Version -Descending
                                 
                                 $installedModule = $null # establish scope
                                 $requiredVersion = $minimumVersion = $maximumVersion = $null
