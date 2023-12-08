@@ -10,7 +10,7 @@ function global:Invoke-Postflight {
         [string]$Action,
 
         [Parameter(Mandatory=$true,Position=1)]
-        [ValidateSet("Overwatch","OS","Platform","PlatformInstance")]
+        [ValidateSet("Overwatch","Cloud","OS","Platform","PlatformInstance")]
         [string]$Target,
 
         [Parameter(Mandatory=$false)]
@@ -36,7 +36,7 @@ function global:Invoke-Postflight {
 
     $postflightPath = switch ($Target) {
         "Overwatch" {
-            "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower()).ps1"
+            "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower()).ps1"
         }
         default {
             "$($global:Location.PostFligh)\postflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
@@ -46,8 +46,7 @@ function global:Invoke-Postflight {
     if (Test-Path -Path $postflightPath) {
         
         Write-Host+ -Iff $(!$Quiet.IsPresent) 
-        $message = "<$Name $noun $Action <.>48> PENDING"
-        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace $Name, "$noun $Action", (Format-Leader -Length 46 -Adjust ("$Name $noun $action").Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
         Write-Log -Action $noun $Action -Target $Id
         
@@ -63,8 +62,7 @@ function global:Invoke-Postflight {
             $fail = $true
         }
 
-        $message = "<$Name $noun $Action <.>48> $($fail ? "FAIL" : "PASS")"
-        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace $Name, "$noun $Action", (Format-Leader -Length 46 -Adjust ("$Name $noun $action").Length), $($fail ? "FAIL" : "PASS") -ForegroundColor DarkBlue,Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")
 
         Write-Log -verb "$noun $Action" -Target $Id -Status ($fail ? "FAIL" : "PASS") -EntryType ($fail ? "Error" : "Information")
 
@@ -88,6 +86,7 @@ function global:Confirm-Postflight {
     }
 
     Invoke-Postflight -Action Check -Target Overwatch
+    Invoke-Postflight -Action Check -Target Cloud
     Invoke-Postflight -Action Check -Target OS
     Invoke-Postflight -Action Check -Target Platform
     Invoke-Postflight -Action Check -Target PlatformInstance
@@ -108,6 +107,7 @@ function global:Update-Postflight {
     }
 
     Invoke-Postflight -Action Update -Target Overwatch
+    Invoke-Postflight -Action Update -Target Cloud
     Invoke-Postflight -Action Update -Target OS
     Invoke-Postflight -Action Update -Target Platform
     Invoke-Postflight -Action Update -Target PlatformInstance

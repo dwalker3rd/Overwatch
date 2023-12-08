@@ -51,7 +51,7 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
     )
 
-    if (!$Summary -and !$All) { $All = $true }
+    if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
 
     $platformStatus = Get-PlatformStatus -ResetCache
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
@@ -62,24 +62,23 @@ function global:Show-PlatformStatus {
         }
     }
 
-    Write-Host+
-    $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    # Write-Host+
+    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
     #region STATUS
 
-        Write-Host+
+        # Write-Host+
 
         $nodes = (Get-TableauServerStatus).Nodes | 
         Select-Object -Property @{Name='node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, nodeId, rollupStatus | 
             Sort-Object -Property node
 
         foreach ($node in $nodes) {
-            $message = "<  $($node.node) ($($node.nodeId))$($node.node -eq (pt InitialNode) ? "*" : $null) <.>38> $($node.RollupStatus)"
+            $message = "<  $($node.node) ($($node.nodeId))$($node.node -eq (pt InitialNode) ? "*" : $null) <.>42> $($node.RollupStatus.ToUpper())"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($node.RollupStatus)
         }
 
-        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>38> $($_platformStatusRollupStatus)" -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>42> $($_platformStatusRollupStatus.ToUpper())" -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
     #endregion STATUS      
     #region EVENTS    
@@ -88,13 +87,13 @@ function global:Show-PlatformStatus {
 
             Write-Host+
 
-            Write-Host+ -NoTrace -Parse "<  Event <.>38> $($platformStatus.Event)" -ForegroundColor Gray,DarkGray, $global:PlatformEventColor.($platformStatus.Event)
-            Write-Host+ -NoTrace -Parse "<  EventStatus <.>38> $($global:PlatformEventStatus.($platformStatus.EventStatus))" -ForegroundColor Gray,DarkGray, $global:PlatformEventStatusColor.($platformStatus.EventStatus)
-            Write-Host+ -NoTrace -Parse "<  EventCreatedBy <.>38> $($platformStatus.EventCreatedBy)" -ForegroundColor Gray,DarkGray, Gray
-            Write-Host+ -NoTrace -Parse "<  EventCreatedAt <.>38> $($platformStatus.EventCreatedAt)" -ForegroundColor Gray,DarkGray, Gray
-            Write-Host+ -Iff $(!$platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventUpdatedAt <.>38> $($platformStatus.EventUpdatedAt)" -ForegroundColor Gray,DarkGray, Gray
-            Write-Host+ -Iff $($platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventCompletedAt <.>38> $($platformStatus.EventCompletedAt)" -ForegroundColor Gray,DarkGray, Gray
-            Write-Host+ -NoTrace -Parse "<  EventHasCompleted <.>38> $($platformStatus.EventHasCompleted)" -ForegroundColor Gray,DarkGray, "$($global:PlatformStatusBooleanColor.($platformStatus.EventHasCompleted))"
+            Write-Host+ -NoTrace -Parse "<  Event <.>42> $($platformStatus.Event)" -ForegroundColor Gray,DarkGray, $global:PlatformEventColor.($platformStatus.Event)
+            Write-Host+ -NoTrace -Parse "<  EventStatus <.>42> $($global:PlatformEventStatus.($platformStatus.EventStatus))" -ForegroundColor Gray,DarkGray, $global:PlatformEventStatusColor.($platformStatus.EventStatus)
+            Write-Host+ -NoTrace -Parse "<  EventCreatedBy <.>42> $($platformStatus.EventCreatedBy)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -NoTrace -Parse "<  EventCreatedAt <.>42> $($platformStatus.EventCreatedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -Iff $(!$platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventUpdatedAt <.>42> $($platformStatus.EventUpdatedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -Iff $($platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventCompletedAt <.>42> $($platformStatus.EventCompletedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -NoTrace -Parse "<  EventHasCompleted <.>42> $($platformStatus.EventHasCompleted)" -ForegroundColor Gray,DarkGray, "$($global:PlatformStatusBooleanColor.($platformStatus.EventHasCompleted))"
 
             # Show-PlatformEvent -PlatformStatus $platformStatus
 
@@ -123,10 +122,9 @@ function global:Show-PlatformStatus {
 
     #endregion SERVICES
 
-    Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
+    # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
 
-    $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
@@ -1384,7 +1382,7 @@ function global:Test-TsmController {
     $fail = $false
     try {
 
-        $leader = Format-Leader -Length 39 -Adjust ((("    Connect to $($tsmApiConfig.Controller)").Length))
+        $leader = Format-Leader -Length 40 -Adjust ((("    Connect to $($tsmApiConfig.Controller)").Length))
         Write-Host+ -NoTrace -NoNewLine "    Connect to",$tsmApiConfig.Controller,$leader -ForegroundColor Gray,DarkBlue,DarkGray
     
         Initialize-TsmApiConfiguration
@@ -1438,7 +1436,7 @@ function global:Test-RepositoryAccess {
     
             Write-Host+ -NoTimestamp -NoTrace  " PENDING" -ForegroundColor DarkGray
 
-            $subLeader = Format-Leader -Length 35 -Adjust ((("Updating pg_hba.conf.ftl").Length))
+            $subLeader = Format-Leader -Length 36 -Adjust ((("Updating pg_hba.conf.ftl").Length))
             Write-Host+ -NoTrace -NoNewLine "    Updating pg_hba.conf.ftl",$subLeader -ForegroundColor Gray,DarkGray
 
             $regionBegin = $templateContent.Trim().IndexOf("# region Overwatch")

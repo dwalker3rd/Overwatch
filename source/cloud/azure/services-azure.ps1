@@ -733,14 +733,58 @@ function global:Get-AzDisk+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][string]$Name,
-        [Parameter(Mandatory=$false)][string]$ResourceGroupName
+        [Parameter(Mandatory=$false)][string]$ResourceGroupName,
+        [Parameter(Mandatory=$false)][string]$VmName,
+        [Parameter(Mandatory=$false)][AllowNull()][ValidateSet("Attached","Unattached","Reserved")][string[]]$DiskState
     )
 
     $params = @{}
     if (![string]::IsNullOrEmpty($Name)) { $params += @{ Name = $Name} }
     if (![string]::IsNullOrEmpty($ResourceGroupName)) { $params += @{ ResourceGroupName = $ResourceGroupName} }
 
-    return Get-AzDisk @params
+    $managedDisks = Get-AzDisk @params
+    if (![string]::IsNullOrEmpty($VmName)) {
+        $managedDisks = $managedDisks | Where-Object { ($_.ManagedBy -split "/")[-1] -eq $VmName }
+    }
+    if (![string]::IsNullOrEmpty($DiskState)) {
+        $managedDisks = $managedDisks | Where-Object { $_.DiskState -in $DiskState }
+    }
+
+    return $managedDisks
+
+}
+
+function global:Show-AzDisk+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$ResourceGroupName,
+        [Parameter(Mandatory=$false)][string]$VmName,
+        [Parameter(Mandatory=$false)][AllowNull()][ValidateSet("Attached","Unattached","Reserved")][string[]]$DiskState
+    )
+
+    $params = @{}
+    if (![string]::IsNullOrEmpty($Name)) { $params += @{ Name = $Name} }
+    if (![string]::IsNullOrEmpty($ResourceGroupName)) { $params += @{ ResourceGroupName = $ResourceGroupName} }
+    if (![string]::IsNullOrEmpty($VmName)) { $params += @{ VmName = $VmName} }
+    if (![string]::IsNullOrEmpty($DiskState)) { $params += @{ DiskState = $DiskState} }
+
+    $managedDisks = Get-AzDisk+ @params
+
+    $managedDisks | Select-Object -Property $AzureView.Disk.Default | Sort-object -property DiskState, ResourceGroupName, ManagedBy | Format-Table -GroupBy DiskState
+
+    $_diskStateNotFound = $false
+    foreach ($_diskState in $DiskState) {
+        Write-Host+
+        if ($managedDisks.DiskState -notcontains $_diskState) {
+            $message = "No $($_diskstate.ToLower()) managed disks could be found."
+            Write-Host+ -NoTrace $message -ForegroundColor DarkRed
+            $_diskStateNotFound = $true
+        }
+    }
+
+    if ($_diskStateNotFound) { Write-Host+ }
 
 }
 
@@ -749,18 +793,24 @@ function global:Remove-AzDisk+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][string]$Name,
-        [Parameter(Mandatory=$false)][string]$ResourceGroupName
+        [Parameter(Mandatory=$false)][string]$ResourceGroupName,
+        [Parameter(Mandatory=$false)][string]$VmName,
+        [Parameter(Mandatory=$false)][AllowNull()][ValidateSet("Attached","Unattached","Reserved")][string[]]$DiskState
     )
 
-    $managedDiskScope = "Subscription `"$((Get-AzContext).Subscription.Name)`""
+    $azContext = Get-AzContext
+    $managedDiskScope = "Subscription `"$($azContext.Subscription.Name)`""
     if (![string]::IsNullOrEmpty($ResourceGroupName)) { $managedDiskScope = "Resource group `"$ResourceGroupName`"" }
     if (![string]::IsNullOrEmpty($Name)) { $managedDiskScope = $null }
 
     $params = @{}
     if (![string]::IsNullOrEmpty($Name)) { $params += @{ Name = $Name} }
     if (![string]::IsNullOrEmpty($ResourceGroupName)) { $params += @{ ResourceGroupName = $ResourceGroupName} }
+    if (![string]::IsNullOrEmpty($VmName)) { $params += @{ VmName = $VmName} }
+    if (![string]::IsNullOrEmpty($DiskState)) { $params += @{ DiskState = $DiskState} }
 
     $managedDisks = Get-AzDisk+ @params
+
     $attachedManagedDisks = $managedDisks | Where-Object { $_.DiskState -eq "Attached" -and $null -ne $_.ManagedBy }
     $unattachedManagedDisks = $managedDisks | Where-Object { $_.DiskState -eq "Unattached" -and $null -eq $_.ManagedBy }
 
@@ -846,5 +896,29 @@ function global:Remove-AzDisk+ {
     Write-Host+
 
     Set-CursorVisible
+
+}
+
+function global:Show-CloudStatus {
+
+    [CmdletBinding()]
+    param()
+
+    $azContext = Get-AzContext
+
+    Write-Host+ -NoTrace $azContext.Environment.Name, "Status", (Format-Leader -Length 39 -Adjust $azContext.Environment.Name.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
+
+    # Write-Host+ -NoTrace "  Subscription:", $azContext.Subscription.Name -ForegroundColor DarkGray
+
+    $unattachedManagedDiskGroups = Get-AzDisk+ -DiskState Unattached | Group-Object -Property ResourceGroupName
+    if ($unattachedManagedDiskGroups) {
+        foreach ($unattachedManagedDiskGroup in $unattachedManagedDiskGroups) {
+            $message = "<  $($unattachedManagedDiskGroup.Count) unattached managed disk$($unattachedManagedDiskGroup.Count -ne 1 ? "s": $null) <.>42> REVIEW"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+        }
+        Write-Host+ -NoTrace "    * Review with Show-AzDisk+" -ForegroundColor DarkGray
+    }
+
+    Write-Host+ -NoTrace $azContext.Environment.Name, "Status", (Format-Leader -Length 39 -Adjust $azContext.Environment.Name.Length), "READY" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGreen
 
 }

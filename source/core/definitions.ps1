@@ -4,6 +4,12 @@
 
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls13
 
+Write-Host
+Write-Host -NoNewLine "[$([datetime]::Now.ToString('u'))] " -ForegroundColor DarkGray
+Write-Host -NoNewLine "Overwatch" -ForegroundColor DarkBlue
+Write-Host -NoNewLine " ..................................... " -ForegroundColor DarkGray
+Write-Host -NoNewLine "LOADING" -ForegroundColor DarkGray
+
 #region ENVIRON
 
     . $PSScriptRoot\environ.ps1
@@ -117,6 +123,9 @@
     }
 
 #endregion PROVIDERS
+
+Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
+
 #region INITIALIZE
 
     # INITIALIZE section must be after PROVIDERS section
@@ -160,12 +169,21 @@
 #endregion POSTFLIGHT
 #region WARNINGS
 
-    if (IsMessagingDisabled) {
-        Write-Host+
-        Show-MessagingStatus
+    # if (IsMessagingDisabled) {
+    #     Write-Host+
+    #     Show-MessagingStatus
+    # }
+
+    $targets = ("Overwatch","Cloud","OS","Platform","Messaging")
+    foreach ($target in $targets) {
+        if (Get-Command "Show-$($target)Status" -ErrorAction SilentlyContinue) {
+            Write-Host+
+            Invoke-Expression "Show-$($target)Status"
+            Write-Host+ -ReverseLineFeed ($global:WriteHostPlusBlankLineCount + 1)
+        }
     }
 
-    Show-PlatformStatus -Required -Issues
+    # Show-PlatformStatus -Required -Issues
 
     $_platformTasksDisabled = Get-PlatformTask -Disabled
     if ($_platformTasksDisabled.Count -gt 0) {

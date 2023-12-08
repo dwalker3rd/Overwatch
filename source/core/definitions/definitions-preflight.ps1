@@ -12,7 +12,7 @@ function global:Invoke-Preflight {
         [string]$Action,
 
         [Parameter(Mandatory=$true,Position=1)]
-        [ValidateSet("Overwatch","OS","Platform","PlatformInstance")]
+        [ValidateSet("Overwatch","Cloud","OS","Platform","PlatformInstance")]
         [string]$Target,
 
         [Parameter(Mandatory=$false)]
@@ -49,8 +49,7 @@ function global:Invoke-Preflight {
     if (Test-Path -Path $preflightPath) {
         
         Write-Host+ -Iff $(!$Quiet.IsPresent) 
-        $message = "<$Name $noun $Action <.>48> PENDING"
-        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace $Name, "$noun $Action", (Format-Leader -Length 46 -Adjust ("$Name $noun $action").Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
         Write-Log -Action $noun $Action -Target $Id
 
@@ -66,9 +65,7 @@ function global:Invoke-Preflight {
             $fail = $true
         }
 
-        $message = "<$Name $noun $Action <.>48> $($fail ? "FAIL" : "PASS")"
-        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($fail ? "Red" : "Green")
-        # Write-Host+ -Iff $(!$Quiet.IsPresent)
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace $Name, "$noun $Action", (Format-Leader -Length 46 -Adjust ("$Name $noun $action").Length), $($fail ? "FAIL" : "PASS") -ForegroundColor DarkBlue,Gray,DarkGray,($fail ? "DarkRed" : "DarkGreen")
 
         Write-Log -verb "$noun $Action" -Target $Id -Status ($fail ? "FAIL" : "PASS") -EntryType ($fail ? "Error" : "Information")
 
@@ -92,6 +89,7 @@ function global:Confirm-Preflight {
     }
 
     Invoke-Preflight -Action Check -Target Overwatch
+    Invoke-Preflight -Action Check -Target Cloud
     Invoke-Preflight -Action Check -Target OS
     Invoke-Preflight -Action Check -Target Platform
     Invoke-Preflight -Action Check -Target PlatformInstance
@@ -112,6 +110,7 @@ function global:Update-Preflight {
     }
 
     Invoke-Preflight -Action Update -Target Overwatch
+    Invoke-Preflight -Action Update -Target Cloud
     Invoke-Preflight -Action Update -Target OS
     Invoke-Preflight -Action Update -Target Platform
     Invoke-Preflight -Action Update -Target PlatformInstance

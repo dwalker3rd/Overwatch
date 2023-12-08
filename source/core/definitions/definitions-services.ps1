@@ -11,6 +11,7 @@
 if (Test-Path -Path "$($global:Location.Services)\services-os-stubs.ps1") {. "$($global:Location.Services)\services-os-stubs.ps1"}
 if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.OS.ToLower()).ps1") {. "$($global:Location.Services)\services-$($global:Environ.OS.ToLower()).ps1"}
 
+if (Test-Path -Path "$($global:Location.Services)\services-cloud-stubs.ps1") {. "$($global:Location.Services)\services-cloud-stubs.ps1"}
 if (Test-Path -Path "$($global:Location.Services)\services-$($global:Environ.Cloud.ToLower()).ps1") {. "$($global:Location.Services)\services-$($global:Environ.Cloud.ToLower()).ps1"}
 
 if (Test-Path -Path "$($global:Location.Services)\services-platform-stubs.ps1") {. "$($global:Location.Services)\services-platform-stubs.ps1"}
@@ -32,4 +33,3 @@ if (Test-Path -Path "$($global:Location.Services)\services-$($global:Overwatch.N
 . "$($global:Location.Services)\python.ps1"
 . "$($global:Location.Services)\connectionstrings.ps1"
 . "$($global:Location.Services)\odbc.ps1"
-

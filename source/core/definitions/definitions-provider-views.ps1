@@ -128,9 +128,10 @@ $global:AzureView = @{
     }
     Disk = @{
         Default = @("Name",
-        @{Name="DiskSize"; Expression = { "$($_.DiskSizeGB) GB" }},
-        "DiskState","ResourceGroupName",
-        @{Name="ManagedBy"; Expression = { ($_.ManagedBy -split "/")[-1] }})
+            @{Name="DiskSize"; Expression = { "$($_.DiskSizeGB) GB" }},
+            "DiskState","ResourceGroupName",
+            @{Name="ManagedBy"; Expression = { ![string]::IsNullOrEmpty($_.ManagedBy) ? ($_.ManagedBy -split "/")[-1] : "---------" }}
+        )
     }
 }
 

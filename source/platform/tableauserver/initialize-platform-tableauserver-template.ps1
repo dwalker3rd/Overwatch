@@ -4,7 +4,7 @@ Set-CursorInvisible
 
 Write-Host+
 $message = "<Platform Initialization <.>48> PENDING"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+Write-Host+ -NoTrace -Parse -NoNewLine $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
 $tsRestApiAvailable = $false
 $tsmApiAvailable = $false
@@ -43,16 +43,20 @@ try {
     Initialize-TSRestApiConfiguration
     $tsRestApiAvailable = $true
 
-    Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
-    $message = "<Platform Initialization <.>48> SUCCESS"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+    # Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
+    # $message = "<Platform Initialization <.>48> SUCCESS"
+    # Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+
+    Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
 
 }
 catch {
 
-    Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
-    $message = "<Platform Initialization <.>48> WARNING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkRed
+    # Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
+    # $message = "<Platform Initialization <.>48> WARNING"
+    # Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkRed
+
+    Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) WARNING" -ForegroundColor DarkYellow
 
     Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message)" -ForegroundColor DarkRed
     

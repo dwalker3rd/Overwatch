@@ -214,7 +214,7 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
     )
 
-    if (!$Summary -and !$All) { $All = $true }
+    if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
 
     $platformStatus = Get-PlatformStatus -Quiet
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
@@ -226,12 +226,11 @@ function global:Show-PlatformStatus {
     }
 
     Write-Host+
-    $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
     #region STATUS    
     
-        Write-Host+
+        # Write-Host+
 
         # check platform status and for any active events
         $platformStatus = Get-PlatformStatus -ResetCache -Quiet
@@ -260,7 +259,7 @@ function global:Show-PlatformStatus {
         $nodeStatus = $nodeStatus | Sort-Object -Property Role, Node
         
         foreach ($_nodeStatus in $nodeStatus) {
-            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>38> $($_nodeStatus.Status)"
+            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>42> $($_nodeStatus.Status.ToUpper())"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($_nodeStatus.Status)
         }
         # $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
@@ -270,19 +269,19 @@ function global:Show-PlatformStatus {
 
         if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
             Write-Host+
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  Event < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  Event < >42> " -ForegroundColor Gray, DarkGray
             Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.Event -ForegroundColor DarkGray, $global:PlatformEventColor.($platformStatus.Event)
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventStatus < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventStatus < >42> " -ForegroundColor Gray, DarkGray
             Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventStatus -ForegroundColor DarkGray, $global:PlatformEventStatusColor.($platformStatus.EventStatus)
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedBy < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedBy < >42> " -ForegroundColor Gray, DarkGray
             Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCreatedBy -ForegroundColor DarkGray, Gray
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCreatedAt < >42> " -ForegroundColor Gray, DarkGray
             Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCreatedAt -ForegroundColor DarkGray, Gray
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventUpdatedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventUpdatedAt < >42> " -ForegroundColor Gray, DarkGray
             Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventUpdatedAt -ForegroundColor DarkGray, Gray
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCompletedAt < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventCompletedAt < >42> " -ForegroundColor Gray, DarkGray
             Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventCompletedAt -ForegroundColor DarkGray, Gray
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventHasCompleted < >$($maxLength+4)> " -ForegroundColor Gray, DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse "<  EventHasCompleted < >42> " -ForegroundColor Gray, DarkGray
             Write-Host+ -NoTrace -NoTimestamp ":", $platformStatus.EventHasCompleted -ForegroundColor DarkGray, "$($global:PlatformStatusBooleanColor.($platformStatus.EventHasCompleted))"
         }
 
@@ -310,10 +309,9 @@ function global:Show-PlatformStatus {
 
     #endregion SERVICES   
     
-    Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
+    # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
     
-    $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)    
+    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)   
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global

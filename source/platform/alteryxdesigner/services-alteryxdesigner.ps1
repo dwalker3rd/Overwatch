@@ -199,7 +199,7 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
     )
 
-    if (!$Summary -and !$All) { $All = $true }
+    if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
 
     $platformStatus = Get-PlatformStatus -Reset -Quiet
     $_platformStatusRollupStatus = 
