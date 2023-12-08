@@ -87,7 +87,6 @@ $global:Location = @{}
 . $PSScriptRoot\source\core\services\python.ps1
 
 Write-Host+ -ResetAll
-Write-Host+
 
 #region POST INSTALL SHORTCUT
 
@@ -212,6 +211,8 @@ $providerIds = @()
     Write-Host+ -NoTrace -NoTimestamp -Parse "<Platform <.>24> $($installedPlatforms ? ($installedPlatforms -join ", ") : "None")" -ForegroundColor Gray,DarkGray,$($installedPlatforms ? "Blue" : "Gray")
 
     Write-Host+ -NoTrace -NoTimestamp -Parse "<Location <.>24> $((Get-Location).Path)" -ForegroundColor Gray,DarkGray,Blue
+
+    Write-Host+
 
 #endregion DISCOVERY
 
@@ -580,6 +581,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     } until ($imagesUri)
     if ($_useDefaultResponses) { $UseDefaultResponses = $true }
     Write-Host+ -NoTrace -NoTimestamp "Public URI for images: $imagesUri" -IfDebug -ForegroundColor Yellow
+    Write-Host+
 
 #endregion IMAGES
 #region LOCAL DIRECTORIES
@@ -592,7 +594,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     }
     if ($missingDirectories) {
 
-        Write-Host+
+        Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "Local Directories" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "-----------------" -ForegroundColor DarkGray
 
@@ -609,10 +611,11 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region PRODUCTS
 
     if ($installedProducts) {
-        Write-Host+ # -MaxBlankLines 1
+        Write-Host+ -MaxBlankLines 1
         Write-Host+ -NoTrace -NoTimestamp "Installed Products" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "------------------" -ForegroundColor DarkGray
         ($installedProducts.Id | Sort-Object) -join ", "
+        Write-Host+
     }
     
     $productHeaderWritten = $false
@@ -623,7 +626,7 @@ $global:Location.Definitions = $tempLocationDefinitions
             if ($product.Id -notin $installedProducts.Id -and $product.Id -notin $requiredDependenciesNotInstalled.Id) {
                 # if ((Test-Prerequisites -Type "Product" -Id $product.Id -PrerequisiteType "Installation" -Quiet).Pass) {
                     if (!$productHeaderWritten) {
-                        Write-Host+ # -MaxBlankLines 1
+                        Write-Host+ -MaxBlankLines 1
                         Write-Host+ -NoTrace -NoTimestamp "Select Products" -ForegroundColor DarkGray
                         Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
                         $productHeaderWritten = $true
@@ -664,6 +667,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         Write-Host+ -NoTrace -NoTimestamp "Installed Providers" -ForegroundColor DarkGray
         Write-Host+ -NoTrace -NoTimestamp "-------------------" -ForegroundColor DarkGray
         ($installedProviders.Id | Sort-Object) -join ", "
+        Write-Host+
     }
 
     $providerHeaderWritten = $false
@@ -673,7 +677,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         if ([string]::IsNullOrEmpty($provider.Installation.Prerequisites.Platform) -or $provider.Installation.Prerequisites.Platform -contains $platformId) {
             if ($provider.Id -notin $installedProviders.Id -and $provider.Id -notin $requiredDependenciesNotInstalled.Id) {
                 if (!$providerHeaderWritten) {
-                    Write-Host+ # -MaxBlankLines 1
+                    Write-Host+ -MaxBlankLines 1
                     Write-Host+ -NoTrace -NoTimestamp "Select Providers" -ForegroundColor DarkGray
                     Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
                     $providerHeaderWritten = $true
@@ -909,15 +913,14 @@ $global:Location.Definitions = $tempLocationDefinitions
         #endregion PROVIDER
 
         if (!$updatedFiles) {
-            Write-Host+ -MaxBlankLines 1
+            Write-Host+ -ReverseLineFeed 1
             $message = "<Updated Files <.>48> NONE    "
             Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed 2 -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
         }
         else {
             $updatedFiles = $updatedFiles | Where-Object {!$_.NoClobber}
+            Write-Host+
         }
-
-        Write-Host+
 
     }
 
@@ -1198,6 +1201,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion INSTALLER UPDATE
 #region INITIALIZE OVERWATCH
 
+    Write-Host+ -MaxBlankLines 1
     $message = "<Overwatch <.>48> INITIALIZING"
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
@@ -1817,7 +1821,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         #endregion REMOVE PSSESSIONS
 
-        # Write-Host+ -MaxBlankLines 1
+        Write-Host+ -MaxBlankLines 1
         $message = "Overwatch installation is complete."
         Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGreen
         Write-Host+
