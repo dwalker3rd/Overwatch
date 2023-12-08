@@ -51,8 +51,7 @@ function global:Initialize-AzProject {
 
     $azureProjectsConfig = (Get-Product "AzureProjects").Config
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
     if ([string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.AccessToken)) {
         Connect-AzureAD -Tenant $tenantKey
@@ -226,8 +225,7 @@ function global:Get-AzProjectResourceScopes {
         [Parameter(Mandatory=$true)][string]$Tenant
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
     $scopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
 
@@ -326,8 +324,7 @@ function global:New-AzProject {
         [Parameter(Mandatory=$true)][string]$Location
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
     $emptyString = ""
 
@@ -638,8 +635,7 @@ function global:Grant-AzProjectRole {
         Write-Host+
     }
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     $resourceGroupName = $global:AzureProject.ResourceType.ResourceGroup.Name
@@ -647,9 +643,9 @@ function global:Grant-AzProjectRole {
     if ($User) {
 
         $isUserId = $User -match $global:RegexPattern.Guid
-        $isGuestUserPrincipalName = $User -match $global:RegexPattern.AzureAD.UserPrincipalName -and $User -like "*#EXT#*"
+        $isGuestUserPrincipalName = $User -match $global:RegexPattern.UserNameFormat.AzureAD -and $User -like "*#EXT#*"
         $isEmail = $User -match $global:RegexPattern.Mail
-        $isMemberUserPrincipalName = $User -match $global:RegexPattern.AzureAD.UserPrincipalName
+        $isMemberUserPrincipalName = $User -match $global:RegexPattern.UserNameFormat.AzureAD
 
         $isValidUser = $isUserId -or $isEmail -or $isMemberUserPrincipalName -or $isGuestUserPrincipalName
         if (!$isValidUser) {
@@ -1234,8 +1230,7 @@ function global:Deploy-AzProject {
         [Parameter(Mandatory=$false)][ValidateSet("dsvm-win-2019","linux-data-science-vm-ubuntu","ubuntuserver")][string]$VmImageOffer
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     switch ($DeploymentType) {
@@ -1268,8 +1263,7 @@ function global:Deploy-DSnA {
         [Parameter(Mandatory=$true)][ValidateSet("dsvm-win-2019","linux-data-science-vm-ubuntu","ubuntuserver")][string]$VmImageOffer
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     $azureProjects = Get-Product "AzureProjects"
