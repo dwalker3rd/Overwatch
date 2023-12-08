@@ -84,7 +84,7 @@
         [CmdletBinding()]
         param ()
 
-        Write-Host+ -ResetAll
+        # Write-Host+ -ResetAll
 
         Write-Host+ -NoTrace -NoTimestamp "Export for Tableau Server"
 
@@ -179,7 +179,7 @@ function global:Export-TSServer {
         # set the server lock file with the current datetime and user
         Set-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock" -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
 
-        Write-Host+ -ResetAll
+        # Write-Host+ -ResetAll
         Write-Host+
         Write-Host+ -NoTrace "Server: $($global:tsRestApiConfig.Platform.Uri.Host) ($($global:tsRestApiConfig.Platform.Name))"
 

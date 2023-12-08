@@ -326,7 +326,7 @@ function global:Summarize-Log {
         }
     }
 
-    Write-Host+ -ResetAll
+    # Write-Host+ -ResetAll
     Write-Host+
 
     $formatData = [ordered]@{}

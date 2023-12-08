@@ -37,7 +37,7 @@ function Write-End {
 
 Connect-TableauServer -Site $contentUrl
 
-Write-Host+ -ResetAll
+# Write-Host+ -ResetAll
 Write-Host+ -NoTrace "Site: $(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")"
 Write-Host+ -SetIndentGlobal +2
 

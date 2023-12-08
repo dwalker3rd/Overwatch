@@ -149,12 +149,15 @@ function global:Write-Host+ {
 
     if ([string]::IsNullOrEmpty($Object)) {
         if ($MaxBlankLines) {
-            if ($MaxBlankLines -le $global:WriteHostPlusBlankLineCount) {
-                Write-Host -NoNewline "`e[$($global:WriteHostPlusBlankLineCount)F" 
+            if ($MaxBlankLines -lt $global:WriteHostPlusBlankLineCount) {
+                Write-Host "`e[$($global:WriteHostPlusBlankLineCount - $MaxBlankLines)F" 
+                $global:WriteHostPlusBlankLineCount = 0
             }
         }
-        Write-Host ""
-        $global:WriteHostPlusBlankLineCount++
+        else {
+            Write-Host ""
+            $global:WriteHostPlusBlankLineCount++
+        }
         return
     }
     else {

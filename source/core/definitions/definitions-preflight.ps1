@@ -42,7 +42,7 @@ function global:Invoke-Preflight {
             "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower()).ps1"
         }
         default {
-            "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Id.ToLower()).ps1"
+            "$($global:Location.PreFlight)\preflight$($Action.ToLower())s-$($Target.ToLower())-$($Target.ToLower()).ps1"
         }
     }
     

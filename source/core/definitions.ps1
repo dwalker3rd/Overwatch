@@ -1,15 +1,44 @@
-﻿param(
-    [switch]$MinimumDefinitions
+﻿[System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
+param(
+    [switch]$MinimumDefinitions,
+    [switch]$LoadOnly,
+    [switch]$SkipPreflight,
+    [switch]$Quiet
 )
 
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12,[System.Net.SecurityProtocolType]::Tls13
 
-Write-Host
-Write-Host -NoNewLine "[$([datetime]::Now.ToString('u'))] " -ForegroundColor DarkGray
-Write-Host -NoNewLine "Overwatch" -ForegroundColor DarkBlue
-Write-Host -NoNewLine " ..................................... " -ForegroundColor DarkGray
-Write-Host -NoNewLine "LOADING" -ForegroundColor DarkGray
+$Quiet = $false
 
+if ($MinimumDefinitions -and ($SkipPreflight -or $SkipStatus)) {
+    if ($SkipPreflight) { throw "-SkipPreflight cannot be used with -MinimumDefinitions" }
+    if ($SkipStatus) { throw "-SkipStatus cannot be used with -MinimumDefinitions" }
+}
+
+$_preflightPreference = $global:PreflightPreference
+$_writeHostPluspreference = $global:WriteHostPlusPreference
+
+if ($MinimumDefinitions -or $LoadOnly) { $Quiet = $true }
+if ($Quiet) { $global:WriteHostPlusPreference = "SilentlyContinue" }
+if ( $SkipPreflight ) { $global:PreflightPreference = "SilentlyContinue" }
+
+function Close-Definitions {
+    $global:PreflightPreference = $_preflightPreference
+    $global:WriteHostPlusPreference = $_writeHostPluspreference
+}
+
+#region LOAD START
+
+    if (!$Quiet) {
+        Write-Host
+        Write-Host -NoNewLine "[$([datetime]::Now.ToString('u'))] " -ForegroundColor DarkGray
+        Write-Host -NoNewLine "Overwatch" -ForegroundColor DarkBlue
+        Write-Host -NoNewLine " ..................................... " -ForegroundColor DarkGray
+        Write-Host -NoNewLine "LOADING" -ForegroundColor DarkGray
+    }
+
+#endregion LOAD START    
 #region ENVIRON
 
     . $PSScriptRoot\environ.ps1
@@ -96,13 +125,17 @@ Write-Host -NoNewLine "LOADING" -ForegroundColor DarkGray
                 }
             }
         }
+        Close-Definitions
         return
     }
 
 #endregion MINIMUM DEFINITIONS RETURN
 #region PRODUCTS
 
-    if (!$global:Environ.Product) {return}
+    if (!$global:Environ.Product) {
+        Close-Definitions
+        return
+    }
 
     # reset product cache (all products installed for this platform)
     $products = Get-Product -ResetCache
@@ -123,9 +156,13 @@ Write-Host -NoNewLine "LOADING" -ForegroundColor DarkGray
     }
 
 #endregion PROVIDERS
+#region LOAD END
 
-Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
+    if (!$Quiet) {
+        Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
+    }
 
+#end#region LOAD END
 #region INITIALIZE
 
     # INITIALIZE section must be after PROVIDERS section
@@ -138,22 +175,24 @@ Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) READY  " -For
 #endregion INITIALIZE
 #region INTRO
 
-    $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
-    Write-Host+
-    Write-Host+ -NoTrace "  Control","$($global:Overwatch.DisplayName) $($global:Overwatch.Release)" -ForegroundColor Gray,DarkBlue -Separator ":    "
-    Write-Host+ -NoTrace "  Product","$($global:Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
-    Write-Host+ -NoTrace "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    Write-Host+ -NoTrace "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    if ($global:Platform.Version) {
-        Write-Host+ -NoTrace "  Version","$($global:Platform.Version)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+    if (!$Quiet) {
+        $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+        Write-Host+
+        Write-Host+ -NoTrace "  Control","$($global:Overwatch.DisplayName) $($global:Overwatch.Release)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+        Write-Host+ -NoTrace "  Product","$($global:Product.Id)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+        Write-Host+ -NoTrace "  Platform","$($global:Platform.Name)" -ForegroundColor Gray,DarkBlue -Separator ":   "
+        Write-Host+ -NoTrace "  Instance","$($global:Platform.Instance)" -ForegroundColor Gray,DarkBlue -Separator ":   "
+        if ($global:Platform.Version) {
+            Write-Host+ -NoTrace "  Version","$($global:Platform.Version)" -ForegroundColor Gray,DarkBlue -Separator ":    "
+        }
+        if ($global:Platform.Build) {
+            Write-Host+ -NoTrace "  Build","$($global:Platform.Build)" -ForegroundColor Gray,DarkBlue -Separator ":      "
+        }
+        Write-Host+ -NoTrace "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
+        Write-Host+ -NoTrace "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
+        Write-Host+ -NoTrace "  Cloud","$($global:Environ.Cloud)" -ForegroundColor Gray,DarkBlue -Separator ":      "
     }
-    if ($global:Platform.Build) {
-        Write-Host+ -NoTrace "  Build","$($global:Platform.Build)" -ForegroundColor Gray,DarkBlue -Separator ":      "
-    }
-    Write-Host+ -NoTrace "  Products","$($products.Name -join ", ")" -ForegroundColor Gray,DarkBlue -Separator ":   "
-    Write-Host+ -NoTrace "  Providers","$($global:Environ.Provider -join ', ')" -ForegroundColor Gray,DarkBlue -Separator ":  "
-    Write-Host+ -NoTrace "  Cloud","$($global:Environ.Cloud)" -ForegroundColor Gray,DarkBlue -Separator ":      "
 
 #endregion INTRO
 #region PREFLIGHT
@@ -167,44 +206,45 @@ Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) READY  " -For
     . "$($global:Location.Definitions)\definitions-postflight.ps1"
 
 #endregion POSTFLIGHT
-#region WARNINGS
+#region STATUS
 
-    # if (IsMessagingDisabled) {
-    #     Write-Host+
-    #     Show-MessagingStatus
-    # }
-
-    $targets = ("Overwatch","Cloud","OS","Platform","Messaging")
-    foreach ($target in $targets) {
-        if (Get-Command "Show-$($target)Status" -ErrorAction SilentlyContinue) {
-            Write-Host+
-            Invoke-Expression "Show-$($target)Status"
-            Write-Host+ -ReverseLineFeed ($global:WriteHostPlusBlankLineCount + 1)
-        }
-    }
-
-    # Show-PlatformStatus -Required -Issues
-
-    $_platformTasksDisabled = Get-PlatformTask -Disabled
-    if ($_platformTasksDisabled.Count -gt 0) {
-        Write-Host+
-        Write-Host+ -NoTrace "Some platform tasks are DISABLED" -ForegroundColor DarkYellow
-        if ($global:Product.HasTask) {
-            if (Get-PlatformTask -Id $global:Product.Id -Disabled) {
-                Write-Host+ -NoTrace "The platform task for","$($Overwatch.DisplayName) $($Product.Id)","is DISABLED" -ForegroundColor DarkYellow,DarkBlue,DarkYellow
+    if (!$LoadOnly) {
+        $targets = ("Overwatch","Cloud","OS","Platform","Messaging")
+        foreach ($target in $targets) {
+            if (Get-Command "Show-$($target)Status" -ErrorAction SilentlyContinue) {
+                Write-Host+
+                Invoke-Expression "Show-$($target)Status"
+                Write-Host+ -ReverseLineFeed ($global:WriteHostPlusBlankLineCount + 1)
             }
         }
-        Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
-        $_platformTasksDisabled | Show-PlatformTasks
-        Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
+
+        # Show-PlatformStatus -Required -Issues
+
+        $_platformTasksDisabled = Get-PlatformTask -Disabled
+        if ($_platformTasksDisabled.Count -gt 0) {
+            Write-Host+
+            Write-Host+ -NoTrace "Some platform tasks are DISABLED" -ForegroundColor DarkYellow
+            if ($global:Product.HasTask) {
+                if (Get-PlatformTask -Id $global:Product.Id -Disabled) {
+                    Write-Host+ -NoTrace "The platform task for","$($Overwatch.DisplayName) $($Product.Id)","is DISABLED" -ForegroundColor DarkYellow,DarkBlue,DarkYellow
+                }
+            }
+            Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
+            $_platformTasksDisabled | Show-PlatformTasks
+            Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
+        }
     }
 
-#endregion WARNINGS
+#endregion STATUS
 #region CLOSE
 
-    Write-Host+ -Iff (!$_warnings)
-    $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
-    Write-Host+
+    if (!$Quiet) {
+        Write-Host+ -Iff (!$_warnings)
+        $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+        Write-Host+
+    }
+
+    Close-Definitions
     
 #endregion CLOSE

@@ -1198,21 +1198,6 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion INSTALLER UPDATE
 #region INITIALIZE OVERWATCH
 
-    # . $PSScriptRoot\definitions\definitions-sysinternals.ps1
-    # . $PSScriptRoot\definitions\definitions-powershell.ps1
-    # . $PSScriptRoot\definitions\classes.ps1
-    # . $PSScriptRoot\definitions\catalog.ps1
-    # . $PSScriptRoot\definitions\definitions-regex.ps1
-    # . $PSScriptRoot\definitions\definitions-overwatch.ps1
-    # . $PSScriptRoot\source\core\services\services-overwatch.ps1
-    # . $PSScriptRoot\services\services-overwatch-loadearly.ps1
-    # . $PSScriptRoot\services\services-overwatch-install.ps1
-    # . $PSScriptRoot\services\cache.ps1
-    # . $PSScriptRoot\services\files.ps1
-    # . $PSScriptRoot\source\core\services\tasks.ps1
-    # . $PSScriptRoot\source\core\services\logging.ps1
-    # . $PSScriptRoot\source\core\services\powershell.ps1
-
     $message = "<Overwatch <.>48> INITIALIZING"
     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
 
@@ -1494,31 +1479,6 @@ $global:Location.Definitions = $tempLocationDefinitions
     }
 
 #endregion REMOVE CACHE
-#region INITIALIZE OVERWATCH
-
-    # if (!($SkipPowerShell -and $SkipPython)) {
-
-    #     $message = "<Overwatch <.>48> INITIALIZING"
-    #     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -Parse $message -ForegroundColor Blue,DarkGray,DarkGray
-
-    #     try{
-    #         $global:WriteHostPlusPreference = "SilentlyContinue"
-    #         $global:Product = @{Id="Command"}
-    #         . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
-    #     }
-    #     catch {}
-    #     finally {
-    #         $global:WriteHostPlusPreference = "Continue"
-    #     }
-
-    #     $message = "$($emptyString.PadLeft(12,"`b"))INITIALIZED "
-    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-
-    #     . $PSScriptRoot\services\services-overwatch-install.ps1
-
-    # }
-
-#endregion INITIALIZE OVERWATCH
 #region LOCAL ADMIN/RUNAS
 
     $message = "<Local Admin/RunAs Account <.>48> VALIDATING"
@@ -1820,7 +1780,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                 $global:WriteHostPlusPreference = "SilentlyContinue"
 
                 $global:Product = @{Id="Command"}
-                . $PSScriptRoot\definitions.ps1
+                . $PSScriptRoot\definitions.ps1 -LoadOnly
 
                 $global:WriteHostPlusPreference = "Continue"
 
@@ -1840,7 +1800,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
             Write-Host+
         
-        #endregion INITIALIZE OVERWATCH 
+        #endregion RE-INITIALIZE OVERWATCH 
         #region POST-INSTALLATION CONFIG
 
             Show-PostInstallation

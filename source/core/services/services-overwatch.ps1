@@ -2439,7 +2439,7 @@ function global:Show-PostInstallation {
     }
 
     Write-Host+
-    Write-Host+ -ResetAll
+    # Write-Host+ -ResetAll
 
 }
 Set-Alias -Name postInstall -Value Show-PostInstallation -Scope Global
