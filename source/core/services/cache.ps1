@@ -6,6 +6,9 @@ This script provides file-based caching for Overwatch objects via PowerShell's I
 and Export-Clixml cmdlets.
 #>
 
+$global:lockRetryDelay = New-Timespan -Milliseconds 1500
+$global:lockRetryMaxAttempts = 5
+
 <# 
 .Synopsis
 Gets the properties of an Overwatch cache.
