@@ -263,7 +263,7 @@ function global:Get-AzProjectDeployedResources {
         $mlWorkspaces = get-azresource -resourcegroupname $global:AzureProject.ResourceType.ResourceGroup.Name | Where-Object {$_.ResourceType -eq "Microsoft.MachineLearningServices/workspaces"}
         if ($mlWorkspaces) {
             az login --output None # required until https://github.com/Azure/azure-cli/issues/20150 is resolved
-            $global:AzureProject.ResourceType.MLWorkspace.Object = Get-AzMlWorkspace -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -WorkspaceName $global:AzureProject.ResourceType.MLWorkspace.Name -ErrorAction SilentlyContinue
+            $global:AzureProject.ResourceType.MLWorkspace.Object = Get-AzMlWorkspace -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Name $global:AzureProject.ResourceType.MLWorkspace.Name -ErrorAction SilentlyContinue
         }
     }
 

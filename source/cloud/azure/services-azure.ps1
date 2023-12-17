@@ -401,10 +401,10 @@ function global:Get-AzMlWorkspace {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][Alias("ResourceGroup")][string]$ResourceGroupName,
-        [Parameter(Mandatory=$true)][Alias("Workspace")][string]$WorkspaceName
+        [Parameter(Mandatory=$true)][Alias("Workspace")][string]$Name
     )
 
-    return (az ml workspace show --resource-group $ResourceGroupName --name $WorkspaceName | ConvertFrom-Json)
+    return (az ml workspace show --resource-group $ResourceGroupName --name $Name | ConvertFrom-Json)
 
 }
 
