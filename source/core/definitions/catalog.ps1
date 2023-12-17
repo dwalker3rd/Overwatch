@@ -244,15 +244,15 @@ $global:Catalog.Platform += @{ AlteryxServer =
             Python = @{
                 Location = @{
                     Env = [scriptblock]{
-                        $installLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.InstallLocation
+                        $installLocation = Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.InstallLocation
                         return "$installLocation\\Miniconda3\envs\DesignerBaseTools_vEnv"
                     }
                     Pip = [scriptblock]{
-                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Python.Location.Env
+                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.Python.Location.Env
                         return "$pythonEnvLocation\Scripts"
                     }
                     SitePackages = [scriptblock]{
-                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxDesigner.Installation.Python.Location.Env
+                        $pythonEnvLocation = Invoke-Command $global:Catalog.Platform.AlteryxServer.Installation.Python.Location.Env
                         return "$pythonEnvLocation\Lib\site-packages"
                     }
                 }

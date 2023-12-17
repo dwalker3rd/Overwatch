@@ -79,9 +79,6 @@ If using the Microsoft Teams provider, it must be configured here.
             Components = @("Controller", "Database", "Gallery", "Worker")
         }
         $global:PlatformTopologyDefaultComponentMap = @{}
-        foreach ($node in $PlatformTopologyBase.Nodes) {
-            $global:PlatformTopologyDefaultComponentMap += @{ $node = "Designer" }
-        }
 
     #endregion PLATFORMTOPOLOGY
     #region PLATFORM-TIMEOUTS

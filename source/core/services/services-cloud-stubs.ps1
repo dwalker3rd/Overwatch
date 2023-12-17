@@ -6,7 +6,7 @@ function global:Start-Computer {
         [switch]$NoWait
     )
 
-    throw ("$($MyInvocation.MyCommand) is a STUB")
+    Write-Host+ "$($MyInvocation.MyCommand) is a STUB" -ForegroundColor DarkYellow
     return
 
 }
@@ -19,7 +19,7 @@ function global:Stop-Computer {
         [switch]$NoWait
     )
 
-    throw ("$($MyInvocation.MyCommand) is a STUB")
+    Write-Host+ "$($MyInvocation.MyCommand) is a STUB" -ForegroundColor DarkYellow
     return
 
 }
@@ -29,7 +29,7 @@ function global:Show-CloudStatus {
     [CmdletBinding()]
     param()
 
-    throw ("$($MyInvocation.MyCommand) is a STUB")
+    Write-Host+ "$($MyInvocation.MyCommand) is a STUB" -ForegroundColor DarkYellow
     return
 
 }

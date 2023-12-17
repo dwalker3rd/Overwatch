@@ -47,9 +47,15 @@ if ($Command) {
 
         $global:UseCredssp = $true
 
+        $global:WriteHostPlusPreference = "SilentlyContinue"
+
         # product id must be set before include files
+        # this needs to be -MinimumDefinitions to avoid executing anything 
+        # for which the azure admin user does not have permission
         $global:Product = @{Id="AzureUpdateMgmt"}
-        . $PSScriptRoot\definitions.ps1
+        . $PSScriptRoot\definitions.ps1 -MinimumDefinitions
+
+        $global:WriteHostPlusPreference = "Continue"
 
         Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset
 
@@ -77,7 +83,7 @@ if ($Command) {
     }
     else {
 
-        $global:WriteHostPlusPreference = "SilentlyContinue"
+        $global:WriteHostPlusPreference = "Continue"
 
         # product id must be set before include files
         $global:Product = @{Id="AzureUpdateMgmt"}
