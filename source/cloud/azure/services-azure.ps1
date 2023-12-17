@@ -404,7 +404,7 @@ function global:Get-AzMlWorkspace {
         [Parameter(Mandatory=$true)][Alias("Workspace")][string]$WorkspaceName
     )
 
-    return (az ml workspace show --resource-group $ResourceGroupName --workspace $WorkspaceName | ConvertFrom-Json)
+    return (az ml workspace show --resource-group $ResourceGroupName --name $WorkspaceName | ConvertFrom-Json)
 
 }
 
@@ -859,7 +859,7 @@ function global:Remove-AzDisk+ {
 
     Write-Host+
     if (![string]::IsNullOrEmpty($managedDiskScope)) {
-        $message = "<$managedDiskScope <.>66> PENDING"
+        $message = "<$managedDiskScope <.>66> DELETING"
         Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     }
 
@@ -875,12 +875,12 @@ function global:Remove-AzDisk+ {
             $result = $unattachedManagedDisk | Remove-AzDisk -Force
     
             if ($result.Status -eq "Succeeded") {
-                $message = "$($emptyString.PadLeft(9,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+                $message = "$($emptyString.PadLeft(9,"`b")) DELETED $($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
             }
             else {
                 $deleteErrors = $true
-                $message = "$($emptyString.PadLeft(9,"`b")) FAILED$($emptyString.PadLeft(8," "))"
+                $message = "$($emptyString.PadLeft(9,"`b")) ERROR   $($emptyString.PadLeft(8," "))"
                 Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkRed
                 if ($result.Error) {
                     Write-Host+ -NoTrace -NoTimestamp $result.Error -ForegroundColor DarkRed
