@@ -6,9 +6,6 @@ This script provides file-based caching for Overwatch objects via PowerShell's I
 and Export-Clixml cmdlets.
 #>
 
-$script:lockRetryDelay = New-Timespan -Milliseconds 1500
-$script:lockRetryMaxAttempts = 5
-
 <# 
 .Synopsis
 Gets the properties of an Overwatch cache.
@@ -25,6 +22,8 @@ Cache object properties (not the content of the cache).
 #>
 
 function global:Get-Cache {
+
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
@@ -35,6 +34,7 @@ function global:Get-Cache {
     $cache = [CacheObject]::new($path, $ComputerName, $MaxAge)
 
     return $cache
+
 }
 
 <# 
@@ -52,6 +52,8 @@ if the cache has expired.  If MaxAge is not specified, the cache never expires.
 Overwatch (or null) object.
 #>
 function global:Read-Cache {
+
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
@@ -78,6 +80,7 @@ function global:Read-Cache {
     else {
         return $null
     }
+
 }
 
 <# 
@@ -91,6 +94,8 @@ The name of the cache.
 The object to be cached.
 #>
 function global:Write-Cache {
+
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
         [Parameter(ValueFromPipeline)][Object]$InputObject,
@@ -114,6 +119,7 @@ function global:Write-Cache {
             throw "Unable to acquire lock on cache $Name"
         }
     }
+
 }
 
 <# 
@@ -127,6 +133,8 @@ The name of the cache.  If Name is not specified, then ALL caches are cleared.
 Stubbed cache object.
 #>
 function global:Clear-Cache {
+
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][String]$Name='*',
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
@@ -149,6 +157,7 @@ function global:Clear-Cache {
         $($cache).Exists = $false
     }
     return $null
+
 }
 
 function Format-CacheItemKey {
@@ -504,6 +513,7 @@ The FileStream object for the lock file.
 #>
 function global:Lock-Cache {
 
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][object]$Cache,
         [Parameter(Mandatory=$false)][ValidateSet("Open","OpenOrCreate")][String]$Mode = "OpenOrCreate",
@@ -512,35 +522,45 @@ function global:Lock-Cache {
     )
 
     $lockFile = $Cache.FullName -replace $Cache.Extension,".lock"
+
+    Write-Host+ -IfDebug -NoTrace "Locking cache $($Cache.Name)" -ForegroundColor DarkCyan
+    Write-Host+ -IfDebug -NoTrace "`$Mode: $Mode"
+    Write-Host+ -IfDebug -NoTrace "`$Access: $Access"
+    Write-Host+ -IfDebug -NoTrace "`$Share: $Share"
+    Write-Host+ -IfDebug -NoTrace "`$lockRetryMaxAttempts: $lockRetryMaxAttempts"
     
-    $lockRetryAttempts = 0
+    $global:lockRetryAttempts = 0
     do {
         try {
-            $lockRetryAttempts++
+            $global:lockRetryAttempts++
+            Write-Host+ -IfDebug -NoTrace "`$global:lockRetryAttempts: $global:lockRetryAttempts"
             $FileStream = [System.IO.File]::Open($lockFile, $Mode, $Access, $Share)
+            Write-Host+ -IfDebug -NoTrace "`$FileStream.CanRead: $($FileStream.CanRead)"
+            Write-Host+ -IfDebug -NoTrace "`$FileStream.CanWrite: $($FileStream.CanWrite)"
         }
         catch {
-            Start-Sleep -Milliseconds $lockRetryDelay.TotalMilliseconds
+            Start-Sleep -Milliseconds $global:lockRetryDelay.TotalMilliseconds
         }
     } 
     until ( 
         ($Access -eq "ReadWrite" -and $FileStream.CanWrite) -or 
         ($Access -eq "Read" -and $FileStream.CanRead) -or 
-        $lockRetryAttempts -ge $lockRetryMaxAttempts 
+        $global:lockRetryAttempts -ge $lockRetryMaxAttempts 
     )
     
-    if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
-        $message = "Unable to acquire lock on cache '$cache' after $($lockRetryAttempts) attempts."
+    if ($global:lockRetryAttempts -ge $lockRetryMaxAttempts) {
+        $message = "Unable to acquire lock on cache '$cache' after $($global:lockRetryAttempts) attempts."
+        Write-Host+ -IfDebug -NoTrace $message -ForegroundColor DarkRed
         Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Error" -Message $message -EntryType "Error"
         return $null
     }
 
-    if ($lockRetryAttempts -gt 2) {
-        # this is only here b/c after this many times, something is probably wrong and we need to figure out what and why
-        $message = "Lock acquired on cache '$cache' after $($lockRetryAttempts) attempts."
-        Write-Log -Action "LockCache" -Target $Cache.FileNameWithoutExtension -Status "Success" -Message $message -Force
+    if (!$FileStream) { 
+        Write-Host+ -IfDebug -NoTrace "`$FileStream is null" -ForegroundColor DarkRed 
     }
-
+    else {
+        Write-Host+ -IfDebug -NoTrace "Locked cache $($Cache.Name)" -ForegroundColor DarkCyan
+    }
     return $FileStream
 }
 
@@ -556,13 +576,23 @@ None.
 #>
 function global:Unlock-Cache {
 
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][object]$Lock
     )
 
+    Write-Host+ -IfDebug -NoTrace "Unlocking lock file $($Lock.Name)" -ForegroundColor DarkCyan
+
     $Lock.Close()
     $Lock.Dispose()
     Remove-Item -Path $Lock.Name -Force -ErrorAction SilentlyContinue
+
+    if (Test-Path $Lock.Name) {
+        Write-Host+ -IfDebug -NoTrace "Unable to remove lock file $($Lock.Name)" -ForegroundColor DarkYellow
+        Write-Host+ -IfDebug -NoTrace "Other processes have a lock on lock file $($Lock.Name)" -ForegroundColor DarkGray
+    }
+
+    Write-Host+ -IfDebug -NoTrace "Unlocked lock file $($Lock.Name)" -ForegroundColor DarkCyan
 
 }
 
@@ -578,6 +608,7 @@ Boolean result from Test-Path
 #>
 function global:Test-IsCacheLocked {
 
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
@@ -602,6 +633,7 @@ None
 #>
 function global:Wait-CacheUnlocked {
 
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,Position=0)][String]$Name,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
@@ -610,21 +642,21 @@ function global:Wait-CacheUnlocked {
     $cache = Get-Cache $Name -ComputerName $ComputerName
     # $lockFile = $cache.FullName -replace $cache.Extension,".lock"
 
-    $lockRetryAttempts = 0
+    $global:lockRetryAttempts = 0
     while (Test-IsCacheLocked $cache.FileNameWithoutExtension) {
-        if ($lockRetryAttempts -ge $lockRetryMaxAttempts) {
+        if ($global:lockRetryAttempts -ge $lockRetryMaxAttempts) {
             $message = "Timeout waiting for lock to be released."
-            # $lockMeta = @{retryDelay = $script:lockRetryDelay; retryMaxAttempts = $script:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+            # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $global:lockRetryAttempts} | ConvertTo-Json -Compress
             Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "Timeout" -Message $message -EntryType "Warning" # -Data $lockMeta 
             throw "($message -replace ".","") on $($cache.FileNameWithoutExtension)."
         }
-        $lockRetryAttempts++
-        Start-Sleep -Milliseconds $lockRetryDelay.TotalMilliseconds
+        $global:lockRetryAttempts++
+        Start-Sleep -Milliseconds $global:lockRetryDelay.TotalMilliseconds
     }
 
-    if ($lockRetryAttempts -gt 1) {
+    if ($global:lockRetryAttempts -gt 1) {
         $message = "Lock released."
-        # $lockMeta = @{retryDelay = $script:lockRetryDelay; retryMaxAttempts = $script:lockRetryMaxAttempts; retryAttempts = $lockRetryAttempts} | ConvertTo-Json -Compress
+        # $lockMeta = @{retryDelay = $global:lockRetryDelay; retryMaxAttempts = $global:lockRetryMaxAttempts; retryAttempts = $global:lockRetryAttempts} | ConvertTo-Json -Compress
         Write-Log -Action "WaitCache" -Target $cache.FileNameWithoutExtension -Status "CacheAvailable" -Message $message -Force # -Data $lockMeta
     }
 
