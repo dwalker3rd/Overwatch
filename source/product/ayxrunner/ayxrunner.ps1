@@ -68,7 +68,7 @@ foreach ($heartbeat in $heartbeats) {
     $now = [datetime]::Now
     $diff = $now - $heartbeat.timestamp
     # Write-Host+ -NoTimestamp -NoTrace $heartbeat.computer_name, $heartbeat.timestamp, $diff
-    if ($diff -ge (New-TimeSpan -Seconds 150)) {
+    if ($diff -ge $global:Product.Config.NotRunningThreshold) {
         Send-AyxRunnerMessage -Message "The Alteryx Designer Runner workflow on $($heartbeat.computer_name) is NOT RUNNING" -ComputerName $heartbeat.computer_name
     }
 }
