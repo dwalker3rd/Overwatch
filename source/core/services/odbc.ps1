@@ -81,7 +81,7 @@ function global:Get-OdbcInstalledDrivers {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false,Position=0)][string]$Name,
-        [Parameter(Mandatory=$false)][ValidateSet("32-bit","64-bit")][AllowNull()][string]$Platform = $null,
+        [Parameter(Mandatory=$false)][ValidateSet("32-bit","64-bit")][AllowNull()][string]$BitVersion = $null,
         [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME
     )
 
