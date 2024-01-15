@@ -528,6 +528,11 @@ $global:Catalog.Product += @{ AyxRunner =
         Description = "Monitors the status of the Alteryx Designer Runner workflow."
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = "None"}
+            )
+        }
     }
 }
 
