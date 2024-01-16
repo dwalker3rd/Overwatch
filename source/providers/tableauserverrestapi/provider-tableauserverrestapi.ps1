@@ -452,6 +452,14 @@ function global:Update-TSRestApiMethods {
                 Response = @{Keys = "permissions"}
             }
 
+            # UpdateProject = [TSRestApiMethod]@{
+            #     Name = "UpdateProject"
+            #     Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>"
+            #     HttpMethod = "PUT"
+            #     Body = "<tsRequest><project id='<0>' ><owner id='<1>' /></project></tsRequest>"
+            #     Response = @{Keys = "project"}
+            # }
+
         #endregion PROJECT METHODS
         #region WORKBOOK METHODS
 
@@ -732,12 +740,6 @@ function global:Update-TSRestApiMethods {
                 Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/virtualconnections"
                 HttpMethod = "GET"
                 Response = @{Keys = "virtualconnections.virtualconnection"}
-                Prerequisite = @{ 
-                    Platform = "TableauCloud"
-                    ApiVersion = @{
-                        Minimum = "3.18" 
-                    }
-                }
             }
 
         #endregion VIRTUALCONNECTION METHODS
@@ -2120,7 +2122,7 @@ function global:Get-TSProjectPermissions+ {
                 if ($granteeCapability.user) {
                     $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
                     foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
-                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContinue
                     }
                 }
                 elseif ($granteeCapability.group) {
@@ -2251,7 +2253,7 @@ function global:Get-TSProjectDefaultPermissions+ {
                 if ($granteeCapability.user) {
                     $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
                     foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
-                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContinue
                     }
                 }
                 elseif ($granteeCapability.group) {
@@ -2364,6 +2366,20 @@ function global:Remove-TSProjectDefaultPermissions {
     
     return $response,$responseError
 }
+
+# function global:Update-TSProject {
+
+#     [CmdletBinding()]
+#     param(
+#         [Parameter(Mandatory=$true)][object]$Project,
+#         [Parameter(Mandatory=$false)][object]$Owner = $Project.Owner
+#     )
+
+#     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateProject -Params @($Project.Id, $Owner.Id) 
+
+#     return $response, $responseError
+
+# }
 
 #endregion PROJECTS
 #region WORKBOOKS
@@ -2490,7 +2506,7 @@ function global:Get-TSWorkbookPermissions+ {
                 if ($granteeCapability.user) {
                     $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
                     foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
-                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContinue
                     }
                 }
                 elseif ($granteeCapability.group) {
@@ -2733,7 +2749,7 @@ function global:Get-TSViewPermissions+ {
                 if ($granteeCapability.user) {
                     $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
                     foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
-                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContinue
                     }
                 }
                 elseif ($granteeCapability.group) {
@@ -2987,7 +3003,7 @@ function global:Get-TSDatasourcePermissions+ {
                 if ($granteeCapability.user) {
                     $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
                     foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
-                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContinue
                     }
                 }
                 elseif ($granteeCapability.group) {
@@ -3216,7 +3232,7 @@ function global:Get-TSFlowPermissions+ {
                 if ($granteeCapability.user) {
                     $granteeCapabilityUser = Find-TSUser -Users $users -Id $granteeCapability.user.id
                     foreach ($member in $granteeCapabilityUser | Get-Member -MemberType Property) {
-                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContine
+                        $granteeCapability.user | Add-Member -NotePropertyName $member.Name -NotePropertyValue $granteeCapabilityUser.($member.Name) -ErrorAction SilentlyContinue
                     }
                 }
                 elseif ($granteeCapability.group) {
