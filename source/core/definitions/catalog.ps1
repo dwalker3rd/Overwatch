@@ -40,7 +40,7 @@ $global:Catalog.OS += @{ Windows11 =
         Id = "Windows11"
         Name = "Microsoft Windows 11"
         DisplayName = "Microsoft Windows 11"
-        Image = "../img/windows_server.png"  
+        Image = "https://pathai4healthusers.z33.web.core.windows.net/Overwatch/img/windows_11.png" 
         Description = "Overwatch services for the Microsoft Windows 11 operating system"
         Publisher = "Walker Analytics Consulting"
     }
@@ -520,6 +520,22 @@ $global:Catalog.Product += @{ SSOMonitor =
     }
 }
 
+$global:Catalog.Product += @{ AyxRunner = 
+    [Product]@{
+        Id = "AyxRunner"
+        Name = "AyxRunner"
+        DisplayName = "Alteryx Designer Runner"
+        Description = "Monitors the status of the Alteryx Designer Runner workflow."
+        Publisher = "Walker Analytics Consulting"
+        HasTask = $true
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Platform"; Platform = "None"}
+            )
+        }
+    }
+}
+
 $global:Catalog.Provider += @{ "OnePassword" = 
     [Provider]@{
         Id = "OnePassword"
@@ -685,16 +701,16 @@ $global:Catalog.Provider += @{ Postgres =
         Description = "Overwatch Provider for Postgres"
         Publisher = "Walker Analytics Consulting"
         Log = "Postgres"
-        Installation = @{
-            Prerequisites = @(
-                @{ Type = "Driver"; Driver = "PostgreSQL"; DriverType = "ODBC"; Platform = "64-bit"}
-            )
-        }
-        Initialization = @{
-            Prerequisites = @(
-                @{ Type = "Driver"; Driver = "PostgreSQL"; DriverType = "ODBC"; Platform = "64-bit"}
-            )
-        }
+        # Installation = @{
+        #     Prerequisites = @(
+        #         @{ Type = "Driver"; Driver = "PostgreSQL"; DriverType = "ODBC"; BitVersion = "64-bit"}
+        #     )
+        # }
+        # Initialization = @{
+        #     Prerequisites = @(
+        #         @{ Type = "Driver"; Driver = "PostgreSQL"; DriverType = "ODBC"; BitVersion = "64-bit"}
+        #     )
+        # }
     }
 }
 

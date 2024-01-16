@@ -148,7 +148,7 @@ class Driver : CatalogObject {
     [string]$Log
     [object]$Config
     [object]$Version
-    [string]$Platform # "32-bit" or "64-bit"
+    [string]$BitVersion # "32-bit" or "64-bit"
 
     [bool]IsInstalled() {
         return $this.Installed
