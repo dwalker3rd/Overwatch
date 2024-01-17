@@ -841,6 +841,54 @@ function global:Send-ServerInterventionMessage {
 
 }
 
+function global:Send-AyxRunnerMessage {
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true)][string]$ComputerName,
+        [Parameter(Mandatory=$true)][string]$Status,
+        [Parameter(Mandatory=$false)][string]$Message,
+        [Parameter(Mandatory=$true)][object]$MessageType,
+        [switch]$NoThrottle
+    )
+
+    $sections = @()
+
+    $serverInfo = Get-ServerInfo -ComputerName $ComputerName
+
+    $facts = @(
+        @{ name = "Status"; value = $Status }
+    )
+    if (![string]::IsNullOrEmpty($Message)) {
+        $facts += @{ name = "Message"; value = $Message }
+    }
+
+    $sectionMain = @{}
+    $sectionMain = @{
+        ActivityTitle = $serverInfo.OSName
+        ActivitySubtitle = $serverInfo.DisplayName.Replace($ComputerName.ToLower(),$computerName.ToUpper())
+        ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) Cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
+        ActivityImage = (Get-Catalog -Uid OS.Windows11).image
+        Facts = $facts
+    }
+
+    $sections += $sectionMain
+
+    $msg = @{
+        Title = "Overwatch Alteryx Designer Runner on $($ComputerName.ToUpper())"
+        Text = "Monitors the status of the Alteryx Designer Runner"
+        Sections = $sections
+        Type = $MessageType
+        Summary = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
+        Subject = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
+        Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
+        Source = "Send-AyxRunnerMessage"
+    }
+
+    return Send-Message -Message $msg
+
+}
+
 function global:Send-GenericMessage {
 
     [CmdletBinding()]
