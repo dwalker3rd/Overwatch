@@ -525,7 +525,7 @@ $global:Catalog.Product += @{ AyxRunner =
         Id = "AyxRunner"
         Name = "AyxRunner"
         DisplayName = "Alteryx Designer Runner"
-        Description = "Monitors the status of the Alteryx Designer Runner workflow."
+        Description = "Monitors the Alteryx Designer Runner"
         Publisher = "Walker Analytics Consulting"
         HasTask = $true
         Installation = @{

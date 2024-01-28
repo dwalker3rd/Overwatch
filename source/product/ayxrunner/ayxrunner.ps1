@@ -13,62 +13,64 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id = "ayxrunner"}
 . $PSScriptRoot\definitions.ps1
 
-function script:Send-AyxRunnerMessage {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true)][string]$ComputerName,
-        [Parameter(Mandatory=$true)][string]$Message,
-        [Parameter(Mandatory=$false)][object]$MessageType = $PlatformMessageType.Intervention,
-        [switch]$NoThrottle
-    )
-
-    $sections = @()
-
-    $serverInfo = Get-ServerInfo -ComputerName $ComputerName
-
-    $facts = @(
-        @{name  = "Message"; value = $Message}
-    )
-
-    $sectionMain = @{}
-    $sectionMain = @{
-        ActivityTitle = $serverInfo.OSName
-        ActivitySubtitle = $serverInfo.DisplayName
-        ActivityText = "$($serverInfo.Model), $($serverInfo.NumberOfLogicalProcessors) Cores, $([math]::round($serverInfo.TotalPhysicalMemory/1gb,0).ToString()) GB"
-        ActivityImage = (Get-Catalog -Uid OS.Windows11).image
-        Facts = $facts
-    }
-
-    $sections += $sectionMain
-
-    $msg = @{
-        Title = "Overwatch Monitor for the Alteryx Designer Runner workflows"
-        Text = "Monitors the health of the Alteryx Designer Runner workflows."
-        Sections = $sections
-        Type = $MessageType
-        Summary = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
-        Subject = "Overwatch $MessageType`: [$($serverInfo.DisplayName ?? $ComputerName.ToUpper())] $Message"
-        Throttle = $NoThrottle ? [timespan]::Zero : (New-TimeSpan -Minutes 15)
-        Source = "Send-ServerInterventionMessage"
-    }
-
-    return Send-Message -Message $msg
-
+$ayxRunnerLogPath = "$($global:Location.Logs)\ayxrunner.log"
+$ayxRunnerLog = @{}
+if (Test-Path $ayxRunnerLogPath) {
+    $ayxRunnerLog = Import-Csv -Path $ayxRunnerLogPath
 }
 
 $connectionString = Get-ConnectionString healthinsightplatform | ConvertTo-OdbcConnectionString
-
 $connection = Connect-OdbcData $connectionString
+$query = @"
+select hb.computer_name,hb.`"timestamp`",log.id,log.workflow,log.status,plan.avg_execution_time,plan.stddev_execution_time from alteryx_runner_heartbeat as hb 
+inner join alteryx_runner_log as log on hb.computer_name = log.computer_name 
+inner join alteryx_runner_execution_plan as plan on log.id = plan.id and log.start_date_time = plan.start_date_time
+where log.status in ('Waiting', 'Running')
+"@
 
-$query = "select * from alteryx_runner_heartbeat"
-$heartbeats = Read-OdbcData -Connection $connection -Query $query
-
-foreach ($heartbeat in $heartbeats) {
+$currentStatus = @()
+$data = Read-OdbcData -Connection $connection -Query $query
+foreach ($dataRow in $data) {
     $now = [datetime]::Now
-    $diff = $now - $heartbeat.timestamp
-    # Write-Host+ -NoTimestamp -NoTrace $heartbeat.computer_name, $heartbeat.timestamp, $diff
-    if ($diff -ge $global:Product.Config.NotRunningThreshold) {
-        Send-AyxRunnerMessage -Message "The Alteryx Designer Runner workflow on $($heartbeat.computer_name) is NOT RUNNING" -ComputerName $heartbeat.computer_name
+    $diff = $now - $dataRow.timestamp
+    if ($dataRow.status -eq "Running") {
+        $3stddev = [string]::IsNullOrEmpty($dataRow.stddev_execution_time) ? 0 : 3*(New-TimeSpan -Seconds $dataRow.stddev_execution_time)
+        $diff = $diff - ((New-TimeSpan -Seconds $dataRow.avg_execution_time) + $3stddev)
     }
+    $notRunning = $dataRow.Status -eq "Waiting" -and $diff -ge $global:Product.Config.NotRunningThreshold
+    $messageType = $notRunning ? $global:PlatformMessageType.Intervention : $global:PlatformMessageType.Information
+    $_currentStatus = [PSCustomObject]@{
+        ComputerName = $dataRow.computer_name
+        Timestamp = $dataRow.timestamp
+        Now = $now
+        Diff = [int]([math]::Ceiling($diff.TotalSeconds))
+        NotRunningThreshold = [int]([math]::Ceiling($global:Product.Config.NotRunningThreshold.TotalSeconds))
+        NotRunning = $notRunning
+        Id = $dataRow.Id
+        Workflow = $dataRow.workflow
+        Status = $dataRow.status
+        AvgExecutionTime = $dataRow.avg_execution_time
+        StdDevExecutionTime = $dataRow.stddev_execution_time
+        MessageType = $messageType
+    }
+    if ($notRunning) {
+        $response = Send-AyxRunnerMessage -MessageType $messageType -Status "NOT RUNNING" -ComputerName $dataRow.computer_name -NoThrottle
+        $response | Out-Null
+        $_currentStatus | Export-CSV -Path $ayxRunnerLogPath -Append
+    }
+    else {
+        $ayxRunnerLogRecords = $ayxRunnerLog | Where-Object {$_.ComputerName -eq $dataRow.computer_name} | Sort-Object -Property Timestamp -Descending
+        if ($ayxRunnerLogRecords) {
+            $ayxRunnerLogRecord = $ayxRunnerLogRecords[0]
+            if ($ayxRunnerLogRecord.NotRunning -eq "True" -and !$_currentStatus.NotRunning) {
+                $messageType = $_currentStatus.MessageType = $global:PlatformMessageType.AllClear
+                $response = Send-AyxRunnerMessage -MessageType $messageType -Status "RUNNING" -ComputerName $dataRow.computer_name -NoThrottle
+                $response | Out-Null
+                $_currentStatus | Export-CSV -Path $ayxRunnerLogPath -Append
+            }
+        }
+    }
+    $currentStatus += $_currentStatus
 }
+
+$currentStatus | Select-Object -ExcludeProperty AvgExecutionTime, StdDevExecutionTime, MessageType | Sort-Object -Property ComputerName | Format-Table

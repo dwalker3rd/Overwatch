@@ -214,7 +214,7 @@ function Close-Definitions {
             if (Get-Command "Show-$($target)Status" -ErrorAction SilentlyContinue) {
                 Write-Host+
                 Invoke-Expression "Show-$($target)Status"
-                Write-Host+ -ReverseLineFeed ($global:WriteHostPlusBlankLineCount + 1)
+                Write-Host+ -ReverseLineFeed ($global:WriteHostPlusBlankLineCount + 2)
             }
         }
 
@@ -232,6 +232,7 @@ function Close-Definitions {
             Write-Host+ -SetIndentGlobal 0 -SetTimeStampGlobal Exclude -SetTraceGlobal Exclude
             $_platformTasksDisabled | Show-PlatformTasks
             Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
+            Write-Host+ -ReverseLineFeed 3
         }
     }
 
