@@ -548,6 +548,7 @@ function global:Grant-AzProjectRole {
             "Microsoft.SqlVirtualMachine/SqlVirtualMachines" {"SqlVM"}
             "Microsoft.KeyVault/vaults" {"KeyVault"}
             "Microsoft.DataFactory/factories" {"DataFactory"}
+            "Microsoft.Batch/BatchAccounts" {"BatchAccount"}
         }
     
         return [PSCustomObject]@{
@@ -743,7 +744,7 @@ function global:Grant-AzProjectRole {
             $missingUsers += $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -notin $users.signInName} | Select-Object -Property @{Name="signInName"; Expression={$_.assignee}}, @{Name="source"; Expression={"Role Assignments"}}
         # }
 
-        if ($missingUsers.Count -gt 0) {
+        if ($missingUsers.Count -gt 0 -and !$RemoveUnauthorizedRoleAssignments) {
             
             Write-Host+ 
 
