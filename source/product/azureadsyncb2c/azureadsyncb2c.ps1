@@ -165,6 +165,7 @@ try {
         $message = "<$target\Disable <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
+        # users from the identity issuer
         $targetUsersEnabledFromIdentityIssuer = $targetUsersFromIdentityIssuer | Where-Object {$_.accountEnabled}
         $targetSignInNames = ($targetUsersEnabledFromIdentityIssuer.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
         $sourceUsersDisabled = $sourceUsers | Where-Object {!$_.accountEnabled} | Where-Object {$_.userPrincipalName -in $targetSignInNames}
@@ -172,6 +173,21 @@ try {
         $targetUsersToDisable = @()
         foreach ($targetUserEnabledFromIdentityIssuer in $targetUsersEnabledFromIdentityIssuer) {
             $targetSignInName = ($targetUserEnabledFromIdentityIssuer.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
+            if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName) {
+                $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
+            }
+        }
+
+        # local/guest accounts with the same email as the one from the identity issuer (just above)
+        $targetUsersFromIdentityIssuerEmails = ($targetUsersFromIdentityIssuer.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
+        $targetUsersAssociatedWithIdentityIssuer = $targetUsers | Where-Object {$_.mail -in $targetUsersFromIdentityIssuerEmails}
+
+        $targetUsersEnabledFromIdentityIssuer = $targetUsersAssociatedWithIdentityIssuer | Where-Object {$_.accountEnabled}
+        $targetSignInNames = ($targetUsersEnabledFromIdentityIssuer | Where-Object {$null -ne $_.mail}).mail
+        $sourceUsersDisabled = $sourceUsers | Where-Object {!$_.accountEnabled} | Where-Object {$_.userPrincipalName -in $targetSignInNames}
+
+        foreach ($targetUserEnabledFromIdentityIssuer in $targetUsersEnabledFromIdentityIssuer) {
+            $targetSignInName = ($targetUserEnabledFromIdentityIssuer | Where-Object {$null -ne $_.mail}).mail
             if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName) {
                 $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
             }
@@ -260,6 +276,9 @@ try {
             foreach ($targetUserToDisable in $targetUsersToDisable) {
 
                 $targetSignInName = ($targetUserToDisable.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
+                if ([string]::IsNullOrEmpty($targetSignInName)) {
+                    $targetSignInName = $targetUserToDisable.mail
+                }
 
                 $message = "<  $targetSignInName <.>50> PENDING"
                 Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
