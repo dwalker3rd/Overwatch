@@ -520,7 +520,8 @@ function global:Grant-AzProjectRole {
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
         [switch]$ReferencedResourcesOnly,
-        [switch]$RemoveUnauthorizedRoleAssignments
+        [switch]$RemoveUnauthorizedRoleAssignments,
+        [switch]$RemoveExpiredInvitations
     )
 
     function Get-AzProjectResourceFromScope {
@@ -600,10 +601,17 @@ function global:Grant-AzProjectRole {
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     $message = "<  -RemoveUnauthorizedRoleAssignments < >40> Removes role assignments not explicity specified in the import files."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+    $message = "<  -RemoveExpiredInvitations < >40> Removes accounts with invitations pending more than 30 days."
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     Write-Host+
 
     if ($User -and $RemoveUnauthorizedRoleAssignments) {
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveUnauthorizedRoleAssignments switch cannot be used with the `$User parameter." -ForegroundColor Red
+        Write-Host+
+        return
+    }
+    if ($User -and $RemoveExpiredInvitations) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveExpiredInvitations switch cannot be used with the `$User parameter." -ForegroundColor Red
         Write-Host+
         return
     }
@@ -633,6 +641,19 @@ function global:Grant-AzProjectRole {
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Only resources referenced in the import files for each user's role assignments will be evaulated." -ForegroundColor Gray
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Note that a users' obsolete/invalid role assignments to other resources cannot be removed when the " -ForegroundColor Gray
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  `"ReferencedResourcesOnly`" switch has been specified." -ForegroundColor Gray
+        Write-Host+
+    }
+
+    if ($RemoveExpiredInvitations) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveExpiredInvitations`" switch has been specified." -ForegroundColor Gray
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Accounts with invitations pending more than 30 days will be deleted." -ForegroundColor Gray
+        Write-Host+
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
+        $response = Read-Host
+        if ($response.ToUpper().Substring(0,1) -ne "Y") {
+            Write-Host+
+            return
+        }
         Write-Host+
     }
 
@@ -744,7 +765,7 @@ function global:Grant-AzProjectRole {
             $missingUsers += $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -notin $users.signInName} | Select-Object -Property @{Name="signInName"; Expression={$_.assignee}}, @{Name="source"; Expression={"Role Assignments"}}
         # }
 
-        if ($missingUsers.Count -gt 0 -and !$RemoveUnauthorizedRoleAssignments) {
+        if ($missingUsers.Count -gt 0) {
             
             Write-Host+ 
 
@@ -887,20 +908,26 @@ function global:Grant-AzProjectRole {
         # Connect-AzureAD -Tenant $tenantKey
 
         $authorizedProjectUsers = @()
+        $unauthorizedProjectUsers = @()
         foreach ($signInName in $signInNames) {
             $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $signInName
-            if ($azureADUser -and $azureADUser.accountEnabled) {
-                $authorizedProjectUsers += $azureADUser
+            if ($azureADUser) {
+                if ($azureADUser.accountEnabled) {
+                    $authorizedProjectUsers += $azureADUser
+                }
+                else {
+                    $unauthorizedProjectUsers += $azureADUser
+                }
             }
         }
         $authorizedProjectUsers | Add-Member -NotePropertyName authorized -NotePropertyValue $true
+        $unauthorizedProjectUsers | Add-Member -NotePropertyName authorized -NotePropertyValue $false
 
         #region UNAUTHORIZED
 
             # identify unauthorized project users and role assignments
             # if $User has been specified, skip this step
             $unauthorizedProjectRoleAssignments = @()
-            $unauthorizedProjectUsers = @()
             if (!$User) {
                 $projectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $ResourceGroupName | 
                     Where-Object {$_.ObjectType -eq "User" -and $_.RoleDefinitionName -ne "Owner" -and $_.Scope -like "*$ResourceGroupName*" -and $_.SignInName -notlike "*admin_path.org*"}
@@ -908,7 +935,8 @@ function global:Grant-AzProjectRole {
                 foreach ($invalidProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
                     $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -User $invalidProjectRoleAssignment.SignInName
                     $unauthorizedAzureADUser | Add-Member -NotePropertyName authorized -NotePropertyValue $false
-                    $unauthorizedAzureADUser | Add-Member -NotePropertyName reason -NotePropertyValue (!$_.accountEnabled ? "ACCOUNT DISABLED" : "UNAUTHORIZED")
+                    $unauthorizedAzureADUserReason = !$unauthorizedAzureADUser.accountEnabled ? "ACCOUNT DISABLED" : "UNAUTHORIZED"
+                    $unauthorizedAzureADUser | Add-Member -NotePropertyName reason -NotePropertyValue $unauthorizedAzureADUserReason
                     if ($unauthorizedAzureADUser.mail -notin $unAuthorizedProjectUsers.mail) {
                         $unauthorizedProjectUsers += $unauthorizedAzureADUser
                         $signInNames += $unauthorizedAzureADUser.mail
@@ -964,13 +992,26 @@ function global:Grant-AzProjectRole {
                 else {
                     $externalUserState = $guest.externalUserState -eq "PendingAcceptance" ? "Pending " : $guest.externalUserState
                     $externalUserStateChangeDateTime = $guest.externalUserStateChangeDateTime
+
+                    if ($guest.externalUserState -eq "PendingAcceptance") {
+                        if (([datetime]::Now - $externalUserStateChangeDateTime).TotalDays -gt 30) {
+                            if ($RemoveExpiredInvitations) {
+                                Remove-AzureADUser -Tenant $tenantKey -Id $guest.id
+                                $guest.Reason = "ACCOUNT DELETED"
+                            }
+                            else {
+                                $guest.Reason = "INVITATION EXPIRED"
+                            }
+                        }
+                    }
+
                     $externalUserStateChangeDateString = $externalUserStateChangeDateTime.ToString("u").Substring(0,10)
                     $externalUserStateColor = $externalUserState -eq "Pending " ? "DarkYellow" : "DarkGray"
                     $message = "$externalUserState $externalUserStateChangeDateString"
                     Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor $externalUserStateColor
 
                     if (!$guest.authorized) {
-                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.reason) ***" -ForegroundColor DarkRed
+                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
                     }
 
                     Write-Host+
@@ -979,6 +1020,10 @@ function global:Grant-AzProjectRole {
             }
         }
 
+        Write-Host+
+        $message = "    * Use -RemoveUnauthorizedUsers to remove accounts with expired invitations"
+        Write-Host+ -NoTrace $message -ForegroundColor DarkGray
+        
         Write-Host+
         $message = "<  User verification <.>60> SUCCESS"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
