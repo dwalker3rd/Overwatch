@@ -13,6 +13,30 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id = "ayxrunner"}
 . $PSScriptRoot\definitions.ps1
 
+#region OVERRIDE MICROSOFTTEAMS
+
+    # If using the MicrosoftTeams provider, enter the webhook URI[s] for each message type (see $PlatformMessageType)
+    # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
+
+    $global:MicrosoftTeamsConfig = @{
+        Connector = @{
+            AllClear = @("***REMOVED***")
+            Alert = @("***REMOVED***")
+            Intervention = @("***REMOVED***")                
+            Information = @("***REMOVED***")
+        }
+    }
+    $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
+
+    $providers = Get-Provider -ResetCache
+    $providers.Id | ForEach-Object {
+        if (Test-Path -Path "$($global:Location.Providers)\provider-$($_).ps1") {
+            $null = . "$($global:Location.Providers)\provider-$($_).ps1"
+        }
+    }    
+
+#endregion OVERRIDE MICROSOFTTEAMS
+
 $ayxRunnerLogPath = "$($global:Location.Logs)\ayxrunner.log"
 $ayxRunnerLog = @{}
 if (Test-Path $ayxRunnerLogPath) {
