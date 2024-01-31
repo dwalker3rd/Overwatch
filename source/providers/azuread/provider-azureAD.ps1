@@ -153,6 +153,36 @@ function global:Get-AzureADUser {
      
 }
 
+function global:Remove-AzureADUser {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta"
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$Id" 
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'DELETE'
+        Uri = $uri
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
+    $response | Out-Null
+
+    return
+     
+}
+
 #
 # ISSUE (MSAL.PS): https://github.com/AzureAD/MSAL.PS/issues/32
 # MSAL.PS and Az.Accounts use different versions of the Microsoft.Identity.Client
