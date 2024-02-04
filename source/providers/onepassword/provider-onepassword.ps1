@@ -772,6 +772,10 @@ function global:Get-VaultItem {
     $op += " 2>&1"
 
     $result = Invoke-Expression $op
+    if ($result -and $result[0].GetType().Name -eq "ErrorRecord") {
+        # Write-OpError $result
+        return
+    }
     if (!$result) { return }
     
     if ($result[0].GetType().Name -eq "ErrorRecord") {
