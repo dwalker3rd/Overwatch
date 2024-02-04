@@ -174,7 +174,12 @@ try {
         foreach ($targetUserEnabledFromIdentityIssuer in $targetUsersEnabledFromIdentityIssuer) {
             $targetSignInName = ($targetUserEnabledFromIdentityIssuer.identities | Where-Object {$_.signInType -eq "emailAddress"}).issuerAssignedId
             if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName) {
-                $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
+                # $targetUserEnabledFromIdentityIssuer is from the $targetUsers cache
+                # get user info directly from AD to get latest value of accountEnabled
+                $targetAzureADUser = Get-AzureADUser -Tenant $targetTenantKey -Id $targetUserToDisable.id
+                if ($targetAzureADUser.accountEnabled) {
+                    $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
+                }
             }
         }
 
@@ -189,9 +194,15 @@ try {
         foreach ($targetUserEnabledFromIdentityIssuer in $targetUsersEnabledFromIdentityIssuer) {
             $targetSignInName = ($targetUserEnabledFromIdentityIssuer | Where-Object {$null -ne $_.mail}).mail
             if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName) {
-                $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
+                # $targetUserEnabledFromIdentityIssuer is from the $targetUsers cache
+                # get user info directly from AD to get latest value of accountEnabled
+                $targetAzureADUser = Get-AzureADUser -Tenant $targetTenantKey -Id $targetUserToDisable.id
+                if ($targetAzureADUser.accountEnabled) {
+                    $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
+                }
             }
         }
+        
 
         $message = "$($emptyString.PadLeft(8,"`b")) $($targetUsersToDisable.Count)$($emptyString.PadLeft(8," "))"
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor ($targetUsersToDisable.Count -gt 0 ? "DarkRed" : "DarkGray")
