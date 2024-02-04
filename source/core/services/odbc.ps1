@@ -89,7 +89,7 @@ function global:Get-OdbcInstalledDrivers {
 
     $params = @{ CimSession = $cimSession }
     if ($Name) { $params += @{ Name = $Name }}
-    if ($Platform) { $params += @{ Platform = $Platform }}
+    if ($BitVersion) { $params += @{ Platform = $BitVersion }}
 
     return Get-OdbcDriver @params
 }
@@ -151,6 +151,7 @@ function ConvertTo-OdbcConnectionString {
                     if ($InputObject.$key.GetType().Name -eq "SecureString") {
                         $InputObject.$key = $InputObject.$key | ConvertFrom-SecureString -AsPlainText
                     }
+                    $InputObject.$key = [System.Web.HttpUtility]::UrlEncode($InputObject.$key)
                 }
                 $connectionString += switch ($key) {
                     "Driver" { "$key={$($InputObject.$key)};" }
