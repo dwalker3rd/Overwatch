@@ -94,8 +94,8 @@ $global:rmtAdmin = "$($global:Platform.InstallPath)\$global:RMTControllerAlias\r
         }
         $controller.IsOK = $controller.RollupStatus -eq "Running"
 
-        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
-        Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen 
+        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS" 
+        Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp -NoNewLine -NoIndent $message -ForegroundColor DarkGreen 
         $message = "/",$controller.RollupStatus.ToUpper()
         Write-Host+ -Iff (!$Quiet) -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGray,($controller.IsOK ? "DarkGreen" : "Red")
 

@@ -19,7 +19,7 @@
         From = "<fromPhone>"
         To = @()
         Throttle = New-TimeSpan -Minutes 15
-        MessageType = @($PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
+        MessageType = @($PlatformMessageType.Intervention)
     }
     $SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
 
