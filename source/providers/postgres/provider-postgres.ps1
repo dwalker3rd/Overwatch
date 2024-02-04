@@ -1,8 +1,8 @@
 function global:Add-PostgresData {
 
-
     [CmdletBinding()]
     param (
+        [Parameter(Mandatory=$false)][string]$Server = $env:COMPUTERNAME,
         [Parameter(Mandatory=$true)][string]$Database,
         [Parameter(Mandatory=$false)][string]$Schema = "public",
         [Parameter(Mandatory=$true)][string]$Table,
@@ -10,11 +10,14 @@ function global:Add-PostgresData {
         [Parameter(Mandatory=$true)][string[]]$Values
     )
 
-    $connection = Connect-OdbcData "$Database-admin-$($Platform.Instance)"
+    $platformInstance = Get-EnvironConfig -Key Environ.Instance -ComputerName $Server
+    $connection = Connect-OdbcData "$Database-admin-$platformInstance"
+
     $query = "INSERT INTO $Schema.$Table"
     if ($Columns) { $query += " ($($Columns -join ", "))"}
     $query += " VALUES ('$($Values -join "', '")')"
     $result = Insert-OdbcData -Connection $connection -Query $Query
+
     Disconnect-OdbcData -Connection $connection
 
     return $result
@@ -28,6 +31,10 @@ function global:Read-PostgresData {
 
     [CmdletBinding(DefaultParameterSetName = "Query")]
     param (
+
+        [Parameter(Mandatory=$false,ParameterSetName="Query")]
+        [Parameter(Mandatory=$false,ParameterSetName="Table")]
+        [string]$Server = $env:COMPUTERNAME,
         
         [Parameter(Mandatory=$true,ParameterSetName="Query")]
         [Parameter(Mandatory=$true,ParameterSetName="Table")]
@@ -58,7 +65,8 @@ function global:Read-PostgresData {
     #endregion GET PROVIDER META
     #region CONNECT
 
-        $connection = Connect-OdbcData "$Database-readonly-$($Platform.Instance)"
+        $platformInstance = Get-EnvironConfig -Key Environ.Instance -ComputerName $Server
+        $connection = Connect-OdbcData "$Database-readonly-$platformInstance"
     
     #endregion CONNECT
     #region QUERY EXECUTION
@@ -161,9 +169,9 @@ Set-Alias -Name pgRead -Value Read-PostgresData -Scope Global
 
 function global:Update-PostgresData {
 
-
     [CmdletBinding()]
     param (
+        [Parameter(Mandatory=$false)][string]$Server = $env:COMPUTERNAME,
         [Parameter(Mandatory=$true)][string]$Database,
         [Parameter(Mandatory=$false)][string]$Schema = "public",
         [Parameter(Mandatory=$true)][string]$Table,
@@ -172,10 +180,13 @@ function global:Update-PostgresData {
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    $connection = Connect-OdbcData "$Database-admin-$($Platform.Instance)"
+    $platformInstance = Get-EnvironConfig -Key Environ.Instance -ComputerName $Server
+    $connection = Connect-OdbcData "$Database-admin-$platformInstance"
+
     $query = "UPDATE $Schema.$Table SET $Column = '$Value'"
     if ($Filter) { $query += " WHERE $Filter" }
     $result = Update-OdbcData -Connection $connection -Query $Query
+
     Disconnect-OdbcData -Connection $connection
 
     return $result
@@ -188,16 +199,20 @@ function global:Remove-PostgresData {
 
     [CmdletBinding()]
     param (
+        [Parameter(Mandatory=$false)][string]$Server = $env:COMPUTERNAME,
         [Parameter(Mandatory=$true)][string]$Database,
         [Parameter(Mandatory=$false)][string]$Schema = "public",
         [Parameter(Mandatory=$true)][string]$Table,
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    $connection = Connect-OdbcData "$Database-admin-$($Platform.Instance)"
+    $platformInstance = Get-EnvironConfig -Key Environ.Instance -ComputerName $Server
+    $connection = Connect-OdbcData "$Database-admin-$platformInstance"
+
     $query = "DELETE FROM $Schema.$Table"
     if ($Filter) { $query += " WHERE $Filter" }
     $result = Delete-OdbcData -Connection $connection -Query $Query
+
     Disconnect-OdbcData -Connection $connection
 
     return $result
