@@ -921,7 +921,9 @@ function global:Grant-AzProjectRole {
             }
         }
         $authorizedProjectUsers | Add-Member -NotePropertyName authorized -NotePropertyValue $true
+        $authorizedProjectUsers | Add-Member -NotePropertyName reason -NotePropertyValue ""
         $unauthorizedProjectUsers | Add-Member -NotePropertyName authorized -NotePropertyValue $false
+        $unauthorizedProjectUsers | Add-Member -NotePropertyName reason -NotePropertyValue "ACCOUNT DISABLED"
 
         #region UNAUTHORIZED
 
@@ -996,11 +998,12 @@ function global:Grant-AzProjectRole {
                     if ($guest.externalUserState -eq "PendingAcceptance") {
                         if (([datetime]::Now - $externalUserStateChangeDateTime).TotalDays -gt 30) {
                             if ($RemoveExpiredInvitations) {
-                                Remove-AzureADUser -Tenant $tenantKey -Id $guest.id
-                                $guest.Reason = "ACCOUNT DELETED"
+                                Disable-AzureADUser -Tenant $tenantKey -User $guest
+                                $guest.authorized = $false
+                                $guest.reason = "ACCOUNT DISABLED"
                             }
                             else {
-                                $guest.Reason = "INVITATION EXPIRED"
+                                $guest.reason = "INVITATION EXPIRED"
                             }
                         }
                     }
@@ -1021,7 +1024,7 @@ function global:Grant-AzProjectRole {
         }
 
         Write-Host+
-        $message = "    * Use -RemoveUnauthorizedUsers to remove accounts with expired invitations"
+        $message = "    * Use -RemoveExpiredInvitiations to remove accounts with expired invitations"
         Write-Host+ -NoTrace $message -ForegroundColor DarkGray
         
         Write-Host+
