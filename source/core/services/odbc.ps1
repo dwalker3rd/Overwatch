@@ -117,7 +117,7 @@ function ConvertFrom-OdbcConnectionString {
                 if ($value -match "^{(.*?)}$") { $value = $Matches[1] }
                 if ($key -in @("Password","Pwd")) {
                     if ($value.GetType().Name -ne "SecureString") {
-                        $value = $value | ConvertTo-SecureString -AsPlainText
+                        $value = [System.Web.HttpUtility]::UrlDecode($value) | ConvertTo-SecureString -AsPlainText
                     }
                 }
                 $ht.$key = $value
@@ -151,10 +151,10 @@ function ConvertTo-OdbcConnectionString {
                     if ($InputObject.$key.GetType().Name -eq "SecureString") {
                         $InputObject.$key = $InputObject.$key | ConvertFrom-SecureString -AsPlainText
                     }
-                    $InputObject.$key = [System.Web.HttpUtility]::UrlEncode($InputObject.$key)
                 }
                 $connectionString += switch ($key) {
                     "Driver" { "$key={$($InputObject.$key)};" }
+                    {$_ -in @("Password","Pwd")} { "$key=$([System.Web.HttpUtility]::UrlEncode($($InputObject.$key)));" }
                     default { "$key=$($InputObject.$key);" }
                 }
             }
