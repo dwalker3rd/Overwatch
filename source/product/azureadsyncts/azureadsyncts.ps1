@@ -413,6 +413,11 @@ $global:Product = @{Id="AzureADSyncTS"}
                         $azureADUserAccountAction = " UPDATE"; $azureADUserAccountActionResult = "Updated"; $azureADUserAccountStateColor = "DarkGreen"
                     }
 
+                    if ($azureADUserAccountAction -eq "DISABLE") {
+                        # update group membership of unlicensed tsUser
+                        Get-TSUserMembership -User $tsUser | Foreach-Object { Remove-TSUserFromGroup -Group $_ -User $tsUser }
+                    }
+
                     # update the user
                     $response, $responseError = Update-TSUser -User $tsUser -FullName $fullName -Email $email -SiteRole $siteRole | Out-Null
                     if ($responseError) {
