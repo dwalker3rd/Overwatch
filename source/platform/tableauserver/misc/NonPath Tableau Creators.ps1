@@ -49,7 +49,7 @@ $tsServerUsers = $tsServerUsers | Where-Object {$_.name -notin $global:tsRestApi
 $tsServerUsersName = $tsServerUsers.Name.Trim().ToLower() | Sort-Object -Unique
 $tsServerGroups = $tsServerGroups | Where-Object {$_.name -notin $global:tsRestApiConfig.SpecialGroups}
 $message = "<Unique Server Users/Groups <.>48> $($tsServerUsersName.count)/$($tsServerGroups.count)"
-Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor Gray,DarkGray,Gray
+Write-Host+ -NoTrace -NoTimestamp -Parse $message -ForegroundColor DarkGray
 
 Write-Host+
 
