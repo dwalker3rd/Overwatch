@@ -91,6 +91,90 @@ function global:Invoke-AzureADRestMethod {
     
 }
 
+function global:Get-AzureADGroup {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter(Mandatory=$false)][string[]]$Properties,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "v1.0",
+        [Parameter(Mandatory=$false)][string]$View
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $AzureADB2C = $global:Azure.$($tenantKey).tenant.type -eq "Azure AD B2C"
+
+    $queryParams = @{
+        default = @{
+            Users = @{
+                property = @("id","userPrincipalName","displayName","mail","accountEnabled","proxyAddresses")
+            }
+        }
+    }
+    $queryParams += @{
+        Users = @{
+            property = $Properties ?? ($AzureADB2C ? @("id","userPrincipalName","userType","displayName","mail","accountEnabled","proxyAddresses","identities") : $queryParams.default.Users.property)
+            select = ""
+            # filter = $Filter
+        }
+        Groups = @{
+            property = $Properties ?? @("id","displayName","groupTypes","securityEnabled","members")
+            select = ""
+            # filter = $Filter
+        }
+    }
+    $queryParams.Users.select = "`$select=$($queryParams.Users.property -join ",")"
+    $queryParams.Groups.select = "`$select=$($queryParams.Groups.property -join ",")"
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/groups/$($Id)?$($queryParams.Groups.select)"
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'GET'
+        Uri = $uri
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+    $azureADGroup = $filter ? $response.value : $response
+    # $azureADGroup = $azureADGroup | Where-Object {((!$_.groupTypes -and $_.securityEnabled) -or ($_.groupTypes -eq "DynamicMembership"))}
+    $azureADGroup | Add-Member -NotePropertyName members -NotePropertyValue @()
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/groups/$Id/members?$($queryParams.Users.select)" 
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'GET'
+        Uri = $uri
+    }   
+
+    do {
+        $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+        $azureADGroup.members += $response.value | Select-Object -ExcludeProperty "@odata.type"
+        # $message = "$($response.value.count)/$($azureADGroup.Members.count)"
+        # Write-Host+ -NoTrace -NoTimestamp -NoNewLine "$($emptyString.PadLeft($messageLength,"`b"))$($emptyString.PadLeft($messageLength," "))$($emptyString.PadLeft($messageLength,"`b"))$message"
+        # $messageLength = $message.Length
+        $restParams.Uri = $response."@odata.nextLink"
+    } until (!$restParams.Uri)
+
+    # Write-Host+
+
+    return $azureADGroup
+     
+}
+
 function global:Get-AzureADUser {
 
     [CmdletBinding()]
