@@ -452,14 +452,6 @@ function global:Update-TSRestApiMethods {
                 Response = @{Keys = "permissions"}
             }
 
-            # UpdateProject = [TSRestApiMethod]@{
-            #     Name = "UpdateProject"
-            #     Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/projects/<0>"
-            #     HttpMethod = "PUT"
-            #     Body = "<tsRequest><project id='<0>' ><owner id='<1>' /></project></tsRequest>"
-            #     Response = @{Keys = "project"}
-            # }
-
         #endregion PROJECT METHODS
         #region WORKBOOK METHODS
 
@@ -740,6 +732,12 @@ function global:Update-TSRestApiMethods {
                 Endpoint ="sites/$($global:tsRestApiConfig.SiteId)/virtualconnections"
                 HttpMethod = "GET"
                 Response = @{Keys = "virtualconnections.virtualconnection"}
+                Prerequisite = @{ 
+                    Platform = "TableauCloud"
+                    ApiVersion = @{
+                        Minimum = "3.18" 
+                    }
+                }
             }
 
         #endregion VIRTUALCONNECTION METHODS
@@ -1690,14 +1688,17 @@ function global:Find-TSSite {
 function global:Get-TSUsers+ {
 
     [CmdletBinding()]
-    param()
+    param(
+        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+    )
 
-    $users = @()
-    Get-TSUsers | ForEach-Object {
-        $users += Get-TSUser+ -Id $_.Id
+    $usersPlus = @()
+    $site = Get-TSCurrentSite
+    $Users | ForEach-Object {
+        $usersPlus += Get-TSUser+ -Id $_.Id -Site $site
     }
 
-    return $users
+    return $usersPlus
     
 }
 
@@ -1705,12 +1706,14 @@ function global:Get-TSUser+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][string]$Id
+        [Parameter(Mandatory=$false)][string]$Id,
+        [Parameter(Mandatory=$false)][object]$Site = (Get-TSCurrentSite)
     )
 
     $user = Get-TSUser -Id $Id
     $groups = Get-TSUserMembership -User $user
     $user | Add-Member -NotePropertyName membership -NotePropertyValue $groups
+    $user | Add-Member -NotePropertyName site -NotePropertyValue $site
 
     return $user
     
@@ -1925,6 +1928,9 @@ function global:Get-TSGroups+ {
         $group | Add-Member -NotePropertyName membership -NotePropertyValue $users
     }
 
+    $site = Get-TSCurrentSite
+    $Groups | Add-Member -NotePropertyName site -NotePropertyValue $site
+
     return $Groups
     
 }
@@ -2049,6 +2055,7 @@ function global:Get-TSProjects+ {
 
     $projects = @()
     Get-TSProjects -Filter $Filter | Foreach-Object {
+        Write-Host+ -NoTrace $_.Name
         $projects += Get-TSProject+ -Id $_.id -Users $Users -Groups $Groups -Filter $Filter
     }
 
@@ -2366,20 +2373,6 @@ function global:Remove-TSProjectDefaultPermissions {
     
     return $response,$responseError
 }
-
-# function global:Update-TSProject {
-
-#     [CmdletBinding()]
-#     param(
-#         [Parameter(Mandatory=$true)][object]$Project,
-#         [Parameter(Mandatory=$false)][object]$Owner = $Project.Owner
-#     )
-
-#     $response, $pagination, $responseError = Invoke-TSRestApiMethod -Method UpdateProject -Params @($Project.Id, $Owner.Id) 
-
-#     return $response, $responseError
-
-# }
 
 #endregion PROJECTS
 #region WORKBOOKS
