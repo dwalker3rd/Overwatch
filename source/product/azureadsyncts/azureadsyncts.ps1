@@ -97,7 +97,7 @@ $global:Product = @{Id="AzureADSyncTS"}
             $tsGroups = @()
             $tsGroups += Get-TSGroups | Where-Object {$_.name -in $azureADGroups.displayName -and $_.name -notin $global:tsRestApiConfig.SpecialGroups} | Select-Object -Property *, @{Name="site";Expression={$null}} | Sort-Object -Property name
 
-            $tsGroups += @()
+            $tsUsers = @()
             $tsUsers += Get-TSUsers | Sort-Object -Property name
 
             foreach ($tsGroup in $tsGroups) {
