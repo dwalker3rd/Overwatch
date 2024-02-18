@@ -144,7 +144,7 @@ function global:Invoke-OktaRestApiMethod {
             }
         }
 
-        Write-Host+ -NoTrace -NoTimestamp $uri -ForegroundColor DarkGray
+        # Write-Host+ -NoTrace -NoTimestamp $uri -ForegroundColor DarkGray
 
     } until ([string]::IsNullOrEmpty($uri))
 
