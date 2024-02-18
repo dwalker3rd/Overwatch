@@ -1732,7 +1732,9 @@
                                         }
                                     }
 
-                                    $installedModule = Get-InstalledPSResource -Name $module.Name -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedModule = @()
+                                    $installedModule += Get-InstalledPSResource -Name $module.Name -Scope AllUsers -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedModule += Get-InstalledPSResource -Name $module.Name -Scope CurrentUser -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                     $installedModuleVersion = [array]$installedModule.Version # this needs to be an array for the comparisons below to work
 
                                     if ($installedModule) {
@@ -1880,7 +1882,9 @@
                                         }
                                     }
                                     
-                                    $installedPackage = Get-Package -Name $package.Name -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedPackage = @()
+                                    $installedPackage += Get-Package -Name $package.Name -Scope AllUsers -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
+                                    $installedPackage += Get-Package -Name $package.Name -Scope CurrentUser -AllVersions -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending
                                     $installedPackageVersion = [array]$installedPackage.Version # this needs to be an array for the comparisons below to work
                                     
                                     if ($installedPackage) {
