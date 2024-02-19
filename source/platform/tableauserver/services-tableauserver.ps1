@@ -37,7 +37,7 @@ function global:Get-PlatformStatusRollup {
         }
     }
 
-    Write-Host+ -IfVerbose "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)" -ForegroundColor DarkYellow
+    Write-Host+ -NoTrace -IfVerbose "IsOK: $($PlatformStatusOK.Contains($tableauServerStatus.rollupStatus)), Status: $($tableauServerStatus.rollupStatus)" -ForegroundColor DarkYellow
     return $PlatformStatusOK.Contains($tableauServerStatus.rollupStatus), $tableauServerStatus.rollupStatus, $issues, $tableauServerStatus
 }
 
