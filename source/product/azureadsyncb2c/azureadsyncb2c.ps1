@@ -176,7 +176,7 @@ try {
             if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName) {
                 # $targetUserEnabledFromIdentityIssuer is from the $targetUsers cache
                 # get user info directly from AD to get latest value of accountEnabled
-                $targetAzureADUser = Get-AzureADUser -Tenant $targetTenantKey -Id $targetUserToDisable.id
+                $targetAzureADUser = Get-AzureADUser -Tenant $targetTenantKey -Id $targetUserEnabledFromIdentityIssuer.id
                 if ($targetAzureADUser.accountEnabled) {
                     $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
                 }
@@ -196,7 +196,7 @@ try {
             if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName) {
                 # $targetUserEnabledFromIdentityIssuer is from the $targetUsers cache
                 # get user info directly from AD to get latest value of accountEnabled
-                $targetAzureADUser = Get-AzureADUser -Tenant $targetTenantKey -Id $targetUserToDisable.id
+                $targetAzureADUser = Get-AzureADUser -Tenant $targetTenantKey -Id $targetUserEnabledFromIdentityIssuer.id
                 if ($targetAzureADUser.accountEnabled) {
                     $targetUsersToDisable += $targetUserEnabledFromIdentityIssuer
                 }
