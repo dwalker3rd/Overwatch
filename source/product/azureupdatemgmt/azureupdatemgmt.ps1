@@ -61,11 +61,11 @@ if ($Command) {
 
         Send-AzureUpdateMgmtMessage -Command $Command -Reason $Reason -Status Starting      
 
-        $action = "Remoting to $OverwatchController using CredSSP"; $status = "Start"; $message = "$($action): $status" 
-        Write-Log -Action $action -Target $Command -Status $status -Message $message
-        Write-Host+ -NoTrace $message 
-
         $creds = Get-Credentials "localadmin-$($global:Platform.Instance)" -LocalMachine
+
+        $action = "Remoting to $OverwatchController as $($creds.Username) using CredSSP"; $status = "Start"; $message = "$($action): $status" 
+        Write-Log -Action $action -Target $Command -Status $status -Message $message -Force
+        Write-Host+ -NoTrace $message 
 
         $workingDirectory = $global:Location.Root
         $result = Invoke-Command -ComputerName $OverwatchController `
@@ -76,8 +76,8 @@ if ($Command) {
             -Authentication Credssp `
             -Credential $creds 
 
-        $action = "Remoting to $OverwatchController using CredSSP"; $status = "Completed"; $message = "$($action): $status" 
-        Write-Log -Action $action -Target $Command -Status $status -Message $message
+        $action = "Remoting to $OverwatchController as $($creds.Username) using CredSSP"; $status = "Completed"; $message = "$($action): $status" 
+        Write-Log -Action $action -Target $Command -Status $status -Message $message -Force
         Write-Host+ -NoTrace $message         
 
     }
@@ -94,7 +94,7 @@ if ($Command) {
         Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset
 
         $action = "Execute"; $status = "Start"; $message = "$action $($Command): $status" 
-        Write-Log -Action $action -Target $Command -Status $status -Message $message
+        Write-Log -Action $action -Target $Command -Status $status -Message $message -Force
         Write-Host+ -NoTrace $message    
 
         $commandExpression = $Command
@@ -105,13 +105,10 @@ if ($Command) {
         if (![string]::IsNullOrEmpty($Reason) -and $commandParametersKeys -contains "Reason") {$commandExpression += " -Reason '$Reason'"}
         if (![string]::IsNullOrEmpty($RunId) -and $commandParametersKeys -contains "RunId") {$commandExpression += " -RunId '$RunId'"}
         
-        Write-Host+ -NoTrace "Command: $commandExpression" 
-        Write-Host+
-        
         $result = Invoke-Expression -Command $commandExpression
 
         $action = "Execute"; $status = "Completed"; $message = "$action $($Command): $status" 
-        Write-Log -Action $action -Target $Command -Status $status -Message $message
+        Write-Log -Action $action -Target $Command -Status $status -Message $message -Force
         Write-Host+ -NoTrace $message 
 
         Send-AzureUpdateMgmtMessage -Command $Command -Reason $Reason -Status Completed   
