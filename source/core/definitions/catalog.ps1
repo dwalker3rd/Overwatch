@@ -643,7 +643,7 @@ $global:Catalog.Provider += @{ SMTP =
                     Type = "PowerShell"
                     PowerShell = @{
                         Packages = @(
-                            @{ Name = "Portable.BouncyCastle"; RequiredVersion = "1.9.0"; ProviderName = "NuGet" },
+                            # @{ Name = "Portable.BouncyCastle"; RequiredVersion = "1.9.0"; ProviderName = "NuGet" },
                             @{ Name = "MimeKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet"; SkipDependencies = $true },
                             @{ Name = "MailKit"; RequiredVersion = "4.3.0"; ProviderName = "NuGet" }
                         )
@@ -840,6 +840,27 @@ $global:Catalog.Provider += @{ AzureAD =
         Publisher = "Walker Analytics Consulting"
         Installation = @{
             Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                        )
+                    }
+                }
+                @{ Type = "Cloud"; Cloud = "Azure"}
+            )
+        }
+        Initialization = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                        )
+                    }
+                }
                 @{ Type = "Cloud"; Cloud = "Azure"}
             )
         }

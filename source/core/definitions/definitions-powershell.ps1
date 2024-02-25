@@ -15,9 +15,9 @@ switch ($PSVersionTable.PSVersion.Major) {
 #region REGISTER PACKAGE SOURCES
 
     # if ($PSVersionTable.PSVersion -lt "7.4.0") {
-        if (!(Get-PackageSource -ProviderName PowerShellGet -ErrorAction SilentlyContinue)) {
-            Register-PackageSource -Name PSGallery -ProviderName PowerShellGet -Trusted -ErrorAction SilentlyContinue | Out-Null
-        }
+        # if (!(Get-PackageSource -ProviderName PowerShellGet -ErrorAction SilentlyContinue)) {
+        #     Register-PackageSource -Name PSGallery -ProviderName PowerShellGet -Trusted -ErrorAction SilentlyContinue | Out-Null
+        # }
         if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
             Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -Trusted -ErrorAction SilentlyContinue | Out-Null
         }

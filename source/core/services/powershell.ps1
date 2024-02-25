@@ -267,10 +267,10 @@ function global:Get-PSBoundParameters {
 
             $repository = @()
             if ([string]::IsNullOrEmpty($Name)) {
-                $repository = Get-PackageSource
+                $repository = Get-PSRepository
             }
             else {
-                $repository = Get-PackageSource -Name $Name
+                $repository = Get-PSRepository -Name $Name
             }
 
             return $repository
@@ -290,19 +290,17 @@ function global:Get-PSBoundParameters {
             if ([string]::IsNullOrEmpty($Name) -and $PSGallery) {
                 $Name = "PSGallery"
             }
-            $ProviderName = $Name
 
-            if ((Get-PackageSource -ProviderName $ProviderName)) { return }
+            if ((Get-PSRepository -Name $Name)) { return }
 
             $params = @{}
             $params += @{
                 Name = $Name
-                Trusted = $Trusted.IsPresent
-                ProviderName = $ProviderName
             }
-            if ($Uri) { $params += @{ Location = $Uri }}
+            if ($Trusted) { $params += @{ InstallationPolicy = "Trusted" }}
+            if ($Uri) { $params += @{ SourceLocation = $Uri }}
 
-            return Register-PackageSource @params
+            return Register-PSRepository @params
 
         }
 

@@ -1254,21 +1254,16 @@ $global:Location.Definitions = $tempLocationDefinitions
         $psGalleryRepository = Get-PSResourceRepository -Name PSGallery
         if (!$psGalleryRepository) {
             $psGalleryRepository = Register-PSResourceRepository -PSGallery -Trusted -ErrorAction SilentlyContinue
-            # Register-PSRepository -Name PSGallery -InstallationPolicy Trusted
         }
         elseif (!$psGalleryRepository.IsTrusted) {
             $psGalleryRepository = Set-PSResourceRepository -Name PSGallery -Trusted -PassThru
-            # Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
         }
 
-        $nugetRepository = Get-PSResourceRepository -Name NuGet -ErrorAction SilentlyContinue
-        if (!$nugetRepository) {
-            $nugetRepository = Register-PSResourceRepository -Name Nuget -Uri "https://www.nuget.org/api/v2" -Trusted -PassThru
-            # Register-PSRepository -Name Nuget -SourceLocation "https://www.nuget.org/api/v2" -InstallationPolicy Trusted
-        }
-        elseif (!$nugetRepository.IsTrusted) {
-            $nugetRepository = Set-PSResourceRepository -Name Nuget -Trusted -PassThru
-            # Set-PSRepository -Name Nuget -InstallationPolicy Trusted
+        # if (!(Get-PackageSource -ProviderName PowerShellGet -ErrorAction SilentlyContinue)) {
+        #     Register-PackageSource -Name PSGallery -ProviderName PowerShellGet -Trusted -ErrorAction SilentlyContinue | Out-Null
+        # }
+        if (!(Get-PackageSource -ProviderName NuGet -ErrorAction SilentlyContinue)) {
+            Register-PackageSource -Name Nuget -Location "https://www.nuget.org/api/v2" -ProviderName NuGet -Trusted -ErrorAction SilentlyContinue | Out-Null
         }
 
         $psStatus = "SCANNING"
