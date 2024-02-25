@@ -270,8 +270,6 @@ function global:Remove-AzureADUser {
 #
 # ISSUE (MSAL.PS): https://github.com/AzureAD/MSAL.PS/issues/32
 # MSAL.PS and Az.Accounts use different versions of the Microsoft.Identity.Client
-# Az.Accounts requires Microsoft.Identity.Client, Version=4.30.1.0
-# MSAL.PS requires Microsoft.Identity.Client, Version=4.21.0 
 # if Connect-AzAccount+ is called first, then Reset-AzureADUserPassword will fail
 # if Reset-AzureADUserPassword is called first, then Connect-AzAccount+ will fail
 # 
@@ -330,7 +328,7 @@ function global:Reset-AzureADUserPassword {
 
     #endregion LIST PASSWORD AUTHENTICATION METHODS
     #region RESET PASSWORD
-    
+
         # MSAL.PS is required here
 
         $appCredentials = Get-Credentials $global:Azure.$tenantKey.MsGraph.Credentials
@@ -352,7 +350,15 @@ function global:Reset-AzureADUserPassword {
         `n  `"newPassword`": `"$newPassword`"
         `n}"
         
-        $response = Invoke-RestMethod "https://graph.microsoft.com/beta/users/$($azureADUser.userPrincipalName)/authentication/passwordMethods/$($passwordAuthenticationMethod.value.id)/resetPassword" -Method POST -Headers $headers -Body $body
+        try {
+            $response = Invoke-RestMethod "https://graph.microsoft.com/beta/users/$($azureADUser.userPrincipalName)/authentication/passwordMethods/$($passwordAuthenticationMethod.value.id)/resetPassword" -Method POST -Headers $headers -Body $body
+        }
+        catch {
+            $resetPasswordError = Get-Error
+            $resetPasswordErrorMessage = (($resetPasswordError | ConvertFrom-Json).error.message | ConvertFrom-Json).error.message
+            Write-Host+ $resetPasswordErrorMessage -ForegroundColor DarkRed
+            return
+        }
 
         #TODO: try/catch for expired secret with critical messaging
 
@@ -1345,7 +1351,7 @@ function global:Find-AzureADObject {
         $tenantKey = $Tenant.split(".")[0].ToLower()
         if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
         
-        $InputObject = Invoke-Expression "Get-AzureAD$($obj) -Tenant $tenantKey -AsArray"
+        $InputObject, $cacheError = Invoke-Expression "Get-AzureAD$($obj) -Tenant $tenantKey -AsArray"
         if (!$InputObject) {
             throw "Missing $Types object"
         }
@@ -1355,7 +1361,10 @@ function global:Find-AzureADObject {
     if ($Id) {$where = "{`$_.id -$Operator `$Id}"}
     if ($UserPrincipalName) {$where = "{`$_.userPrincipalName -$Operator `$UserPrincipalName}"}
     if ($DisplayName) {$where = "{`$_.displayName -$Operator `$DisplayName}"}
-    if ($Mail) {$where = "{`$_.mail -$Operator `$Mail}"}
+    if ($Mail) {
+        # search both the mail property and the issuerAssignedId identity where signInType is emailAddress
+        $where = "{`$_.mail -$Operator `$Mail -or (`$_.identities | Where-Object {`$_.signInType -eq 'emailAddress'}).issuerAssignedId -$Operator `$Mail}"
+    }
 
     $search = "`$InputObject | Where-Object $where"
     
