@@ -57,6 +57,11 @@ if ($Command) {
 
         $global:WriteHostPlusPreference = "Continue"
 
+        # # Tableau Server: wait for TSM to be available
+        # if ($global:Platform.Id -eq "TableauServer") {
+        #     $prerequisiteTestResults = Wait-Prerequisites -Type Provider -Id TableauServerTsmApi -Quiet
+        # }
+
         Disable-Messaging -Duration $global:PlatformMessageDisabledTimeout -Reset
 
         Send-AzureUpdateMgmtMessage -Command $Command -Reason $Reason -Status Starting      

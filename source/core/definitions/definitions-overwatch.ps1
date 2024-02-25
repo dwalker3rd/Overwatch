@@ -16,7 +16,7 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
 #endregion STATUS
 #region EVENTS
 
-    $global:PlatformEventColor = @{ Stop = "DarkRed"; Start = "DarkGreen" }
+    $global:PlatformEventColor = @{ Stop = "DarkRed"; Start = "DarkGreen"; Reset = "DarkYellow" }
     $global:PlatformEventStatusTarget = @{ Stop = "Stopped"; Start = "Running"; }
     $global:PlatformEventStatus = @{ 
         InProgress = "In Progress" 

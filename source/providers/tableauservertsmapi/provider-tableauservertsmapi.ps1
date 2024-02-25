@@ -70,9 +70,8 @@ function global:Initialize-TsmApiConfiguration {
     )
 
     $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -ComputerName $Server -Quiet
-    if (!$prerequisiteTestResults.Pass) { 
-        Write-Host+ -NoTrace $prerequisiteTestResults.Reason -join "`r`n" -ForegroundColor Red
-        return 
+    if (!$prerequisiteTestResults.Pass) {
+        throw $prerequisiteTestResults.Prerequisites[0].Tests.Reason
     }
 
     $global:tsmApiConfig = @{
@@ -380,7 +379,7 @@ function global:Get-TableauServerStatus {
     }
     
     $attempt = 1
-    $maxAttempts = 3
+    $maxAttempts = 5
     $sleepSeconds = 5
 
     $action = "Query"
@@ -392,6 +391,7 @@ function global:Get-TableauServerStatus {
         try {
 
             $tableauServerStatus = Invoke-TsmApiMethod -Method "ClusterStatus"
+            if ($tableauServerStatus.RollupStatus -eq "Error") { throw }
 
         }
         catch {
@@ -408,7 +408,7 @@ function global:Get-TableauServerStatus {
 
         $attempt++
         
-    } until ($tableauServerStatus -or $attempt -gt $maxAttempts)
+    } until (($tableauServerStatus -and $tableauServerStatus.RollupStatus -ne "Error") -or $attempt -gt $maxAttempts)
 
     $platformJob = Get-PlatformJob | Where-Object {$_.status -eq "Running" -and $_.jobType -in ("StartServerJob","StopServerJob","RestartServerJob")}
 

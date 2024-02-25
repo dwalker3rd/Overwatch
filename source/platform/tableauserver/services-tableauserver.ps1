@@ -75,10 +75,10 @@ function global:Show-PlatformStatus {
 
         foreach ($node in $nodes) {
             $message = "<  $($node.node) ($($node.nodeId))$($node.node -eq (pt InitialNode) ? "*" : $null) <.>42> $($node.RollupStatus.ToUpper())"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($node.RollupStatus)
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($node.RollupStatus) ? "DarkGray" : $global:PlatformStatusColor.($node.RollupStatus))
         }
 
-        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>42> $($_platformStatusRollupStatus.ToUpper())" -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>42> $($_platformStatusRollupStatus.ToUpper())" -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.RollupStatus) ? "DarkGray" : $global:PlatformStatusColor.($platformStatus.RollupStatus))
 
     #endregion STATUS      
     #region EVENTS    
@@ -87,8 +87,8 @@ function global:Show-PlatformStatus {
 
             Write-Host+
 
-            Write-Host+ -NoTrace -Parse "<  Event <.>42> $($platformStatus.Event)" -ForegroundColor Gray,DarkGray, $global:PlatformEventColor.($platformStatus.Event)
-            Write-Host+ -NoTrace -Parse "<  EventStatus <.>42> $($global:PlatformEventStatus.($platformStatus.EventStatus))" -ForegroundColor Gray,DarkGray, $global:PlatformEventStatusColor.($platformStatus.EventStatus)
+            Write-Host+ -NoTrace -Parse "<  Event <.>42> $($platformStatus.Event)" -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.Event) ? "DarkGray" : $global:PlatformEventColor.($platformStatus.Event))
+            Write-Host+ -NoTrace -Parse "<  EventStatus <.>42> $($global:PlatformEventStatus.($platformStatus.EventStatus))" -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.EventStatus) ? "DarkGray" : $global:PlatformEventStatusColor.($platformStatus.EventStatus))
             Write-Host+ -NoTrace -Parse "<  EventCreatedBy <.>42> $($platformStatus.EventCreatedBy)" -ForegroundColor Gray,DarkGray, Gray
             Write-Host+ -NoTrace -Parse "<  EventCreatedAt <.>42> $($platformStatus.EventCreatedAt)" -ForegroundColor Gray,DarkGray, Gray
             Write-Host+ -Iff $(!$platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventUpdatedAt <.>42> $($platformStatus.EventUpdatedAt)" -ForegroundColor Gray,DarkGray, Gray
@@ -124,7 +124,7 @@ function global:Show-PlatformStatus {
 
     # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
 
-    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.RollupStatus) ? "DarkGray" : $global:PlatformStatusColor.($platformStatus.RollupStatus))
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global

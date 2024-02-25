@@ -5,6 +5,16 @@ Set-CursorInvisible
 Write-Host+
 $message = "<Platform Initialization <.>48> PENDING"
 Write-Host+ -NoTrace -Parse -NoNewLine $message -ForegroundColor DarkBlue,DarkGray,DarkGray
+$newLineWritten = $false
+
+# have to do this before anything else below
+$prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -Quiet
+if (!$prerequisiteTestResults.Pass) {
+    # throw $prerequisiteTestResults.Prerequisites[0].Tests.Reason
+    $newLineWritten = $true
+    Write-Host+
+    $prerequisiteTestResults = Wait-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -Timeout (New-Timespan -Minutes 10) -Quiet
+}
 
 $tsRestApiAvailable = $false
 $tsmApiAvailable = $false
@@ -47,7 +57,13 @@ try {
     # $message = "<Platform Initialization <.>48> SUCCESS"
     # Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
 
-    Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
+    If (!$newLineWritten) {
+        Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
+    }
+    else {
+        $message = "<Platform Initialization <.>48> READY"
+        Write-Host+ -NoTrace -Parse -NoNewLine $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
+    }
 
 }
 catch {
@@ -56,7 +72,13 @@ catch {
     # $message = "<Platform Initialization <.>48> WARNING"
     # Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkRed
 
-    Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) WARNING" -ForegroundColor DarkYellow
+    If (!$newLineWritten) {
+        Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) WARNING" -ForegroundColor DarkYellow
+    }
+    else {
+        $message = "<Platform Initialization <.>48> WARNING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkYellow
+    }
 
     Write-Host+ -NoTrace -NoSeparator "  $($_.Exception.Message)" -ForegroundColor DarkRed
     

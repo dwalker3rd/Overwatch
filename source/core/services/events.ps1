@@ -44,15 +44,15 @@ function global:Reset-PlatformEvent {
 
     $platformStatus = Get-PlatformStatus
 
-    $platformStatus.Event = $null
+    $platformStatus.Event = "Reset"
     $platformStatus.EventReason = $null
-    $platformStatus.EventStatus = $null
+    $platformStatus.EventStatus = $global:PlatformEventStatus.Reset
     $platformStatus.EventStatusTarget = $null
-    $platformStatus.EventCreatedBy = $null
-    $platformStatus.EventCreatedAt = [datetime]::MinValue
-    $platformStatus.EventUpdatedAt = [datetime]::MinValue
-    $platformStatus.EventCompletedAt = [datetime]::MinValue
-    $platformStatus.EventHasCompleted = $false
+    $platformStatus.EventCreatedBy = "Command"
+    $platformStatus.EventCreatedAt = [datetime]::Now
+    $platformStatus.EventUpdatedAt = [datetime]::Now
+    $platformStatus.EventCompletedAt = [datetime]::Now
+    $platformStatus.EventHasCompleted = $true
 
     $platformStatus | Write-Cache platformstatus
 
