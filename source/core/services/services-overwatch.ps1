@@ -794,7 +794,7 @@
             if ($Quiet) { $params = @{ Quiet = $Quiet } }
             $platformStatus.IsOK, $platformStatus.RollupStatus, $platformStatus.Issues, $platformStatus.StatusObject = Get-PlatformStatusRollup @params
 
-            if ($platformStatus.RollupStatus -eq "Unavailable") {
+            if ($platformStatus.RollupStatus -eq "StatusUnavailable") {
                 return $platformStatus
             }
 
@@ -2052,6 +2052,47 @@
 
         return $results
 
+    }    
+
+    function global:Wait-Prerequisites {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true,ParameterSetName="Uid",Position=0)][ValidatePattern("^(\w*?)\.{1}(\w*?)$")][string]$Uid,
+            [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Type,
+            [Parameter(Mandatory=$true,ParameterSetName="TypeAndId")][string]$Id,
+            [Parameter(Mandatory=$false)][ValidateSet("Initialization","Installation")][string]$PrerequisiteType = "Initialization",
+            [Parameter(Mandatory=$false)][string]$PrerequisiteFilter,
+            [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+            [switch]$Quiet
+        )
+    
+        $loopSecondsToWait = 15
+        $timeout = New-TimeSpan -Minutes 10
+    
+        $prerequisiteTestResults = Test-Prerequisites -Type $Type -Id $Id -PrerequisiteType $PrerequisiteType -PrerequisiteFilter $PrerequisiteFilter -ComputerName $ComputerName -Quiet:$($Quiet.IsPresent)
+        if (!$prerequisiteTestResults.Pass) {
+            Write-Host+ -NoTrace $prerequisiteTestResults.Prerequisites[0].Tests.Reason -ForegroundColor Red
+            Write-Host+ -NoTrace "Waiting for $Type $Id" -ForegroundColor DarkGray
+            $timer = [Diagnostics.Stopwatch]::StartNew()
+            do {
+                if ([math]::Round($timer.Elapsed.TotalSeconds,0) -ge $loopSecondsToWait) {
+                    Write-Host+ -NoTrace "Waiting for $Type $Id ($([math]::Round($timer.Elapsed.TotalSeconds,0)) seconds)" -ForegroundColor DarkGray
+                }
+                Start-Sleep -Seconds $loopSecondsToWait
+                $prerequisiteTestResults = Test-Prerequisites -Type $Type -Id $Id -Quiet
+            } until (
+                $prerequisiteTestResults.Pass -or [math]::Round($timer.Elapsed.TotalSeconds,0) -gt $timeout.TotalSeconds
+            )
+            $timer.Stop()
+            if (!$prerequisiteTestResults.Pass) {
+                Write-Host+ -NoTrace "Timeout waiting for $Type $Id for $([math]::Round($timer.Elapsed.TotalSeconds,0)) seconds" -ForegroundColor Red
+            }
+            else {
+                Write-Host+ -NoTrace "$Type $Id available" -ForegroundColor Red
+            }
+        }
+    
     }    
 
 #endregion TESTS
