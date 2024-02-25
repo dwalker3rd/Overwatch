@@ -309,45 +309,6 @@ function global:Get-ServerStatus {
     return $serverStatus
 }
 
-# function global:Register-GroupPolicyScript {
-
-# [CmdletBinding()]
-# param (
-#     [Parameter(Mandatory=$true)][string]$Path,
-#     [Parameter(Mandatory=$true)][ValidateSet("Shutdown","Startup")][string]$Type,
-#     [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-#     [switch]$AllowDuplicates
-# )
-
-# if (!$(Test-Path $Path)) {throw "$($Path) does not exist"}
-
-# foreach ($node in $ComputerName) {
-
-#     $index = -1
-#     $psScriptsPath = "\\$($node)\c$\Windows\System32\GroupPolicy\Machine\Scripts\psscripts.ini"
-#     if (Test-Path $psScriptsPath) {
-#         $psScripts = Get-IniContent $psScriptsPath
-
-#         if ($psScripts[$Type].Count -gt 0) {
-#             if (!$AllowDuplicates -and $psScripts[$Type].Values -Contains $Path) {continue}
-#             $index = $([regex]::Match($psscripts[$Type].Keys,"^(\d+)").groups[1].Value | Sort-Object -Descending)[0].ToString().ToInt32($null) + 1
-#         }
-#     }
-#     if ($index -eq -1) {
-#         $psScripts = [ordered]@{"$($Type)" = [ordered]@{}}
-#         $index = 0
-#     }
-
-#     $psScripts[$Type].Add("$($index)CmdLine", $Path)
-#     $psScripts[$Type].Add("$($index)Parameters","")
-
-#     $psScripts | Out-IniFile $psScriptsPath -Force
-# }
-
-# return
-
-# }
-
 function global:Get-Disk {
 
 [CmdletBinding()] 
