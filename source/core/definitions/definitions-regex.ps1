@@ -27,7 +27,7 @@ $global:RegexPattern = @{
     UserName = @{
         NetBios = "^(?:\.\\|(?'ComputerName'[\w_-]*)\\)?(?'Username'\w*)$"
         ActiveDirectory = "^(?'Username'\w+)\@(?'Domain'(\w+)(\.(\w+))+)$"
-        AzureAD = "^(?'Username'([\w.]|#EXT#)+)\@('Domain'(\w+)(\.(\w+))+)$"
+        AzureAD = "^(?'Username'(?:[\w\.-]|#EXT#)+)\@(\w+)(?'Domain'(\.(\w+))+)$"
         AD = "" # aliased below
         DownLevelLogonName = "" # aliased below
     }
