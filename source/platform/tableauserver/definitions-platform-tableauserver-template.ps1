@@ -10,8 +10,8 @@ $global:Platform.Image = "$($global:Location.Images)/tableau_sparkle.png"
 $global:PlatformStatusNotOK = @(
     'Unlicensed',
     'Down',
-    'StatusNotAvailable','
-    StatusUnAvailable',
+    'StatusNotAvailable',
+    'StatusUnAvailable',
     'StatusNotAvailableSyncing',
     'NotAvailable',
     'DecommissionedReadOnly',
