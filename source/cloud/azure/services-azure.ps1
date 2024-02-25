@@ -1,8 +1,6 @@
 #
 # ISSUE (MSAL.PS): https://github.com/AzureAD/MSAL.PS/issues/32
 # MSAL.PS and Az.Accounts use different versions of the Microsoft.Identity.Client
-# Az.Accounts requires Microsoft.Identity.Client, Version=4.30.1.0
-# MSAL.PS requires Microsoft.Identity.Client, Version=4.21.0 
 # if Connect-AzAccount+ is called first, then Reset-AzureADUserPassword will fail
 # if Reset-AzureADUserPassword is called first, then Connect-AzAccount+ will fail
 # 
