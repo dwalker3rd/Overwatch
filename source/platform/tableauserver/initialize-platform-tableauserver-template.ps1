@@ -7,14 +7,28 @@ $message = "<Platform Initialization <.>48> PENDING"
 Write-Host+ -NoTrace -Parse -NoNewLine $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 $newLineWritten = $false
 
-# have to do this before anything else below
-$prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -Quiet
-if (!$prerequisiteTestResults.Pass) {
-    # throw $prerequisiteTestResults.Prerequisites[0].Tests.Reason
-    $newLineWritten = $true
-    Write-Host+
-    $prerequisiteTestResults = Wait-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -Timeout (New-Timespan -Minutes 10) -Quiet
-}
+#region TEST
+
+    # this section ensures that the TableauServerTsmApi provider is running/working
+    $prerequisiteTestResults = Test-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -Quiet
+    if (!$prerequisiteTestResults.Pass) {
+        Write-Host+; $newLineWritten = $true
+        # if the TableauServerTsmApi provider is NOT running, wait for it to start
+        $prerequisiteTestResults = Wait-Prerequisites -Type "Provider" -Id "TableauServerTsmApi" -Timeout (New-Timespan -Minutes 10) -Quiet
+        # if the TableauServerTsmApi provider did NOT start (timeout), throw an error
+        if (!$prerequisiteTestResults.Pass) {
+            throw "  $($prerequisiteTestResults.Prerequisites[0].Tests.Reason)"
+        }
+        # wait a few seconds to give the TableauServerTsmApi provider time to initialize
+        Start-Sleep -Seconds 10
+        # request status of Tableau Server via the TableauServerTsmApi provider 
+        $tableauServerStatus = Get-TableauServerStatus -ResetCache
+        if (!$tableauServerStatus) {
+            throw "  Unable to GET Tableau Server status from the TableauServerTsmApi provider"
+        }
+    }
+
+#endregion TEST 
 
 $tsRestApiAvailable = $false
 $tsmApiAvailable = $false
@@ -52,10 +66,6 @@ try {
 
     Initialize-TSRestApiConfiguration
     $tsRestApiAvailable = $true
-
-    # Write-Host+ -Iff $(!$serverStatus) -ReverseLineFeed 1
-    # $message = "<Platform Initialization <.>48> SUCCESS"
-    # Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
 
     If (!$newLineWritten) {
         Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
