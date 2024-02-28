@@ -209,7 +209,11 @@ function global:Initialize-AzProject {
 
     $global:AzureProject = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase
 
-    Get-AzProjectResourceScopes -Tenant $tenantKey
+    $global:AzureProject += @{
+        ScopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
+    }
+
+    Get-AzProjectResourceScopes
     Get-AzProjectDeployedResources
 
     $global:AzureProject.Initialized = $true
@@ -221,24 +225,18 @@ Set-Alias -Name azProjInit -Value Initialize-AzProject -Scope Global
 
 function global:Get-AzProjectResourceScopes {
 
-    param(
-        [Parameter(Mandatory=$true)][string]$Tenant
-    )
+    param()
 
-    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
-
-    $scopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
-
-    $global:AzureProject.ResourceType.BatchAccount.Scope = "$scopeBase/Microsoft.Batch/BatchAccounts/$($global:AzureProject.ResourceType.BatchAccount.Name)"
-    $global:AzureProject.ResourceType.StorageAccount.Scope = "$scopeBase/Microsoft.Storage/storageAccounts/$($global:AzureProject.ResourceType.StorageAccount.Name)"
-    $global:AzureProject.ResourceType.StorageContainer.Scope = "$scopeBase/Microsoft.Storage/storageAccounts/$($global:AzureProject.ResourceType.StorageAccount.Name)/blobServices/default/containers/$($global:AzureProject.ResourceType.StorageContainer.Name)"
-    $global:AzureProject.ResourceType.Bastion.Scope = "$scopeBase/Microsoft.Network/bastionHosts/$($global:AzureProject.ResourceType.Bastion.Name)"
-    $global:AzureProject.ResourceType.VM.Scope = "$scopeBase/Microsoft.Compute/virtualMachines/$($global:AzureProject.ResourceType.VM.Name)"
-    $global:AzureProject.ResourceType.MLWorkspace.Scope = "$scopeBase/Microsoft.MachineLearningServices/workspaces/$($global:AzureProject.ResourceType.MLWorkspace.Name)"
-    $global:AzureProject.ResourceType.CosmosDBAccount.Scope = "$scopeBase/Microsoft.DocumentDB/databaseAccounts/$($global:AzureProject.ResourceType.CosmosDBAccount.Name)" 
-    $global:AzureProject.ResourceType.SqlVM.Scope = "$scopeBase/Microsoft.SqlVirtualMachine/SqlVirtualMachines/$($global:AzureProject.ResourceType.SqlVM.Name)"
-    $global:AzureProject.ResourceType.KeyVault.Scope = "$scopeBase/Microsoft.KeyVault/vaults/$($global:AzureProject.ResourceType.KeyVault.Name)"
-    $global:AzureProject.ResourceType.DataFactory.Scope = "$scopeBase/Microsoft.DataFactory/factories/$($global:AzureProject.ResourceType.DataFactory.Name)"
+    $global:AzureProject.ResourceType.BatchAccount.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.Batch/BatchAccounts/$($global:AzureProject.ResourceType.BatchAccount.Name)"
+    $global:AzureProject.ResourceType.StorageAccount.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($global:AzureProject.ResourceType.StorageAccount.Name)"
+    $global:AzureProject.ResourceType.StorageContainer.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($global:AzureProject.ResourceType.StorageAccount.Name)/blobServices/default/containers/$($global:AzureProject.ResourceType.StorageContainer.Name)"
+    $global:AzureProject.ResourceType.Bastion.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.Network/bastionHosts/$($global:AzureProject.ResourceType.Bastion.Name)"
+    $global:AzureProject.ResourceType.VM.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.Compute/virtualMachines/$($global:AzureProject.ResourceType.VM.Name)"
+    $global:AzureProject.ResourceType.MLWorkspace.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.MachineLearningServices/workspaces/$($global:AzureProject.ResourceType.MLWorkspace.Name)"
+    $global:AzureProject.ResourceType.CosmosDBAccount.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.DocumentDB/databaseAccounts/$($global:AzureProject.ResourceType.CosmosDBAccount.Name)" 
+    $global:AzureProject.ResourceType.SqlVM.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.SqlVirtualMachine/SqlVirtualMachines/$($global:AzureProject.ResourceType.SqlVM.Name)"
+    $global:AzureProject.ResourceType.KeyVault.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.KeyVault/vaults/$($global:AzureProject.ResourceType.KeyVault.Name)"
+    $global:AzureProject.ResourceType.DataFactory.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.DataFactory/factories/$($global:AzureProject.ResourceType.DataFactory.Name)"
 
     return
 
@@ -527,16 +525,11 @@ function global:Grant-AzProjectRole {
     function Get-AzProjectResourceFromScope {
 
         param(
-            [Parameter(Mandatory=$true)][string]$Tenant,
             [Parameter(Mandatory=$true,Position=0)][string]$Scope
         )
-    
-        $tenantKey = $Tenant.split(".")[0].ToLower()
-        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured Azure tenant."}
-    
-        $scopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
+
         $resourceName = $Scope.Split("/")[-1]
-        $provider = $Scope.Replace($scopeBase,"")
+        $provider = $Scope.Replace($global:AzureProject.ScopeBase,"")
         $provider = $provider.Substring(1,$provider.LastIndexOf("/")-1)
     
         $resourceType = switch ($provider) {
@@ -806,15 +799,24 @@ function global:Grant-AzProjectRole {
             $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : $global:AzureProject.ResourceType.$resourceType.Name
             $resourcePath = $resourceGroupName -eq $resourceName ? $resourceGroupName : "$resourceGroupName/$resourceName"
 
+            # set scope
             $scope = $null
-            if ([string]::IsNullOrEmpty($resource.resourceScope)) {
-                $scope = $global:AzureProject.ResourceType.$ResourceType.Scope
-                $scope = $scope.Substring(0,$scope.LastIndexOf("/")+1) + $ResourceName
-            }
-            else {
-                $scope = $resource.resourceScope
+            switch ($resourceType) {
+                default {
+                    if ([string]::IsNullOrEmpty($resource.resourceScope)) {
+                        $scope = $global:AzureProject.ResourceType.$ResourceType.Scope
+                        $scope = $scope.Substring(0,$scope.LastIndexOf("/")+1) + $ResourceName
+                    }
+                    else {
+                        $scope = $resource.resourceScope
+                    }
+                }
+                "StorageContainer" {
+                    $scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($global:AzureProject.ResourceType.StorageAccount.Name)/blobServices/default/containers/$($global:AzureProject.ResourceType.StorageContainer.Name)"
+                }
             }
 
+            # get object
             $object = $null
             $displayScope = $true
             switch ($resourceType) {
@@ -838,6 +840,7 @@ function global:Grant-AzProjectRole {
             $resource.resourceName = [string]::IsNullOrEmpty($resource.resourceName) ? $scope.Substring($scope.LastIndexOf("/")+1, $scope.Length-($scope.LastIndexOf("/")+1)) : $resource.resourceName
             $resource.resourceScope = $scope
 
+            # special cases
             switch ($resourceType) {
                 "VM" {
                     $vm = $object
@@ -878,6 +881,17 @@ function global:Grant-AzProjectRole {
                             }
                         }
                     }
+                }
+                "StorageAccount" {
+                    $global:AzureProject.ResourceType.StorageAccount.Name = $resourceName
+                    $global:AzureProject.ResourceType.StorageAccount.Scope = $scope
+                    $global:AzureProject.ResourceType.StorageAccount.Object = $object
+                    $global:AzureProject.ResourceType.StorageAccount.Context = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
+                }
+                "StorageContainer" {
+                    $global:AzureProject.ResourceType.StorageContainer.Name = $resourceName
+                    $global:AzureProject.ResourceType.StorageContainer.Scope = $scope
+                    $global:AzureProject.ResourceType.StorageContainer.Object = $object
                 }
             }
 
@@ -1073,7 +1087,7 @@ function global:Grant-AzProjectRole {
         }
 
         foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-            $resourceFromScope = Get-AzProjectResourceFromScope -Tenant $tenantKey -Scope $unauthorizedProjectRoleAssignment.Scope
+            $resourceFromScope = Get-AzProjectResourceFromScope -Scope $unauthorizedProjectRoleAssignment.Scope
             $roleAssignments += [PsCustomObject]@{
                 resourceID = $resourceFromScope.resourceType + "-" + $resourceFromScope.resourceName
                 resourceType = $resourceFromScope.resourceType
