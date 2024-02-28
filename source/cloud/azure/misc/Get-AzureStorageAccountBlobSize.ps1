@@ -35,7 +35,7 @@ do {
   $containers = Get-AzStorageContainer -Context $Ctx -MaxCount 5000 -ContinuationToken $container_continuation_token    
   $container_continuation_token = $null
 
-  if ($containers -ne $null) {
+  if ($null -ne $containers) {
     $container_continuation_token = $containers[$containers.Count - 1].ContinuationToken
     
     for ([int] $c = 0; $c -lt $containers.Count; $c++) {
@@ -55,7 +55,7 @@ do {
         $blobs = Get-AzStorageBlob -Context $Ctx -IncludeDeleted -IncludeVersion -Container $container -ConcurrentTaskCount 100 -MaxCount 5000 -ContinuationToken $blob_continuation_token
         $blob_continuation_token = $null
         
-        if ($blobs -ne $null) {
+        if ($null -ne $blobs) {
           $blob_continuation_token = $blobs[$blobs.Count - 1].ContinuationToken
           
           for ([int] $b = 0; $b -lt $blobs.Count; $b++) {
@@ -67,22 +67,22 @@ do {
               $soft_delete_usage += $blobs[$b].Length
             }
             
-            if ($blobs[$b].SnapshotTime -ne $null) {
+            if ($null -ne $blobs[$b].SnapshotTime) {
               $snapshot_count++
               $snapshot_usage+= $blobs[$b].Length
             }
             
-            if ($blobs[$b].VersionId -ne $null) {
+            if ($null -ne $blobs[$b].VersionId) {
               $version_count++
               $version_usage += $blobs[$b].Length
             }
           }
           
-          if ($blob_continuation_token -ne $null) {
+          if ($null -ne $blob_continuation_token) {
             Write-Verbose "Blob listing continuation token = {0}".Replace("{0}",$blob_continuation_token.NextMarker)
           }
         }
-      } while ($blob_continuation_token -ne $null)
+      } while ($null -ne $blob_continuation_token)
       
       Write-Verbose "Calculated size of $container = $total_usage with soft_delete usage of $soft_delete_usage"
       $containerstats += [PSCustomObject] @{ 
@@ -99,10 +99,10 @@ do {
     }
   }
   
-  if ($container_continuation_token -ne $null) {
+  if ($null -ne $container_continuation_token) {
     Write-Verbose "Container listing continuation token = {0}".Replace("{0}",$container_continuation_token.NextMarker)
   }
-} while ($container_continuation_token -ne $null)
+} while ($null -ne $container_continuation_token)
 
 Write-Host "Total container stats"
 $containerstats | Format-Table -AutoSize
