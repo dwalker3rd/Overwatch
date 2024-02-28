@@ -351,8 +351,13 @@ function global:New-AzProject {
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
     }
 
-    $resourceImport = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-    $resources += Import-AzProjectFile -Path $resourceImport | Select-Object -Property resourceType, resourceName, resourceID, @{Name="resourceScope"; Expression={$null}} | Sort-Object -Property resourceType, resourceName -Unique 
+    $ResourceImport = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
+    if (!(Test-Path $ResourceImport)) {
+        Write-Host+ -NoTrace -Prefix "ERROR" "$ResourceImport not found." -ForegroundColor DarkRed
+        return
+    }
+    $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
+    $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
 
     foreach ($resource in $resources) {
 
@@ -457,8 +462,8 @@ function global:ConvertTo-AzProjectFile {
     # ------------------------------
     # <prefix>-users-import.csv: "signInName","fullName"
     # [optional] <prefix>-groups-import.csv: "group","user"
-    # <prefix>-resources-import.csv: "resourceType","resourceName","resourceID"
-    # <prefix>-roleAssignments-import.csv: "resourceID","role","assigneeType","assignee"    
+    # <prefix>-resources-import.csv: "resourceType","resourceName","resourceId","resourceParent"
+    # <prefix>-roleAssignments-import.csv: "resourceId","role","assigneeType","assignee"    
 
     $userImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
     $groupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
@@ -493,8 +498,8 @@ function global:ConvertTo-AzProjectFile {
 
     # write old AzProject import data to new AzProject import files 
     $roleAssignments | Select-Object -Property signInName,fullName | Sort-Object -Property signInName -Unique | Export-Csv $userImportFile -UseQuotes Always -NoTypeInformation
-    $roleAssignments | Select-Object -Property resourceType,resourceName,@{name="resourceID";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}} | Sort-Object -Property resourceType, resourceName -Unique | Export-Csv $resourceImportFile -UseQuotes Always  -NoTypeInformation
-    $roleAssignments | Select-Object -Property @{name="resourceID";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}}, role, @{name="assigneeType";expression={"user"}}, @{name="assignee";expression={$_.signInName}} | Export-Csv $roleAssignmentImportFile -UseQuotes Always  -NoTypeInformation
+    $roleAssignments | Select-Object -Property resourceType,resourceName,@{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}} | Sort-Object -Property resourceType, resourceName -Unique | Export-Csv $resourceImportFile -UseQuotes Always  -NoTypeInformation
+    $roleAssignments | Select-Object -Property @{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}}, role, @{name="assigneeType";expression={"user"}}, @{name="assignee";expression={$_.signInName}} | Export-Csv $roleAssignmentImportFile -UseQuotes Always  -NoTypeInformation
 
     # write headers only to the new AzProject group import file and the export file
     Set-Content -Path $groupImportFile -Value '"group","user"'
@@ -548,7 +553,7 @@ function global:Grant-AzProjectRole {
         return [PSCustomObject]@{
             resourceType = $resourceType
             resourceName = $resourceName
-            resourceID = $resourceType + "-" + $resourceName
+            resourceId = $resourceType + "-" + $resourceName
         }
     
     } 
@@ -736,8 +741,8 @@ function global:Grant-AzProjectRole {
         }
 
         Write-Host+ -NoTrace -NoSeparator "    $ResourceImport" -ForegroundColor DarkGray
-        $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceID = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope}
-        $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceID, @{Name="resourceScope"; Expression={$null}} | Sort-Object -Property resourceType, resourceName -Unique   
+        $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
+        $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
 
         Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImport" -ForegroundColor DarkGray
         $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImport
@@ -749,7 +754,7 @@ function global:Grant-AzProjectRole {
         # if the $ReferencedResourcesOnly switch has been specified, then filter $resources to only those relevant to $users
         # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
         if ($ReferencedResourcesOnly) {
-          $resources = $resources | Where-Object {$_.resourceID -in $roleAssignmentsFromFile.resourceID}
+          $resources = $resources | Where-Object {$_.resourceId -in $roleAssignmentsFromFile.resourceId}
         }
 
         $missingUsers = @()
@@ -797,7 +802,14 @@ function global:Grant-AzProjectRole {
             
             $resourceType = $resource.resourceType
             $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : $global:AzureProject.ResourceType.$resourceType.Name
-            $resourcePath = $resourceGroupName -eq $resourceName ? $resourceGroupName : "$resourceGroupName/$resourceName"
+            $resourcePath = $resourceGroupName -eq $resourceName ? $resourceGroupName : "$resourceGroupName/$resourceType/$resourceName"
+
+            switch ($resourceType) {
+                "StorageContainer" {
+                    $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
+                    $resourcePath = "$resourceGroupName/$($_storageAccount.resourceType)/$($_storageAccount.resourceName)/$($resource.resourceType)/$($resource.resourceName)"
+                }
+            }
 
             # set scope
             $scope = $null
@@ -812,7 +824,8 @@ function global:Grant-AzProjectRole {
                     }
                 }
                 "StorageContainer" {
-                    $scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($global:AzureProject.ResourceType.StorageAccount.Name)/blobServices/default/containers/$($global:AzureProject.ResourceType.StorageContainer.Name)"
+                    $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
+                    $scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($_storageAccount.resourceName)/blobServices/default/containers/$($resourceName)"
                 }
             }
 
@@ -825,20 +838,23 @@ function global:Grant-AzProjectRole {
                     $getAzExpression += $resourceType -ne "ResourceGroup" ? " -Name $resourceName" : $null
                     $object = Invoke-Expression $getAzExpression
                     if (!$object) {
-                        throw "The $resourceType $resourcePath' does not exist."
+                        throw "$resourcePath does not exist."
                     }
                     # $scope = $object.Id ?? $object.ResourceId
                 }
                 "StorageContainer" {
-                    $object = Get-AzStorageContainer -Context $global:AzureProject.ResourceType.StorageAccount.Context -Name $resourceName
+                    $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
+                    $object = Get-AzStorageContainer -Context $_storageAccount.resourceContext -Name $resourceName
                     if (!$object) {
-                        throw "The $resourceType $resourcePath' does not exist."
+                        throw "$resourcePath does not exist."
                     }
                 }
             }
 
             $resource.resourceName = [string]::IsNullOrEmpty($resource.resourceName) ? $scope.Substring($scope.LastIndexOf("/")+1, $scope.Length-($scope.LastIndexOf("/")+1)) : $resource.resourceName
             $resource.resourceScope = $scope
+            $resource.resourceObject = $object
+            $resource.resourcePath = $resourcePath
 
             # special cases
             switch ($resourceType) {
@@ -865,16 +881,18 @@ function global:Grant-AzProjectRole {
                         }
 
                         $newResource = [PSCustomObject]@{
-                            resourceID = $nicType + "-" + $nicName
+                            resourceId = $nicType + "-" + $nicName
                             resourceType = $nicType
                             resourceName = $nicName
                             resourceScope = $nicScope
+                            resourceParent = $resource.resourceId
+                            resourcePath = "$resourceGroupName/$($resource.resourceType)/$($resource.resourceName)/$nicType/$nicName"
                         }
                         $resources += $newResource
 
-                        foreach ($resourceRoleAssignment in ($roleAssignmentsFromFile | Where-Object {$_.resourceID -eq $resource.resourceID} | Sort-Object -Property assigneeType,assignee -Unique)) {
+                        foreach ($resourceRoleAssignment in ($roleAssignmentsFromFile | Where-Object {$_.resourceId -eq $resource.resourceId} | Sort-Object -Property assigneeType,assignee -Unique)) {
                             $roleAssignmentsFromFile += [PSCustomObject]@{
-                                resourceID = $newResource.resourceID
+                                resourceId = $newResource.resourceId
                                 role = "Reader"
                                 assigneeType = $resourceRoleAssignment.assigneeType
                                 assignee = $resourceRoleAssignment.assignee
@@ -883,15 +901,7 @@ function global:Grant-AzProjectRole {
                     }
                 }
                 "StorageAccount" {
-                    $global:AzureProject.ResourceType.StorageAccount.Name = $resourceName
-                    $global:AzureProject.ResourceType.StorageAccount.Scope = $scope
-                    $global:AzureProject.ResourceType.StorageAccount.Object = $object
-                    $global:AzureProject.ResourceType.StorageAccount.Context = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
-                }
-                "StorageContainer" {
-                    $global:AzureProject.ResourceType.StorageContainer.Name = $resourceName
-                    $global:AzureProject.ResourceType.StorageContainer.Scope = $scope
-                    $global:AzureProject.ResourceType.StorageContainer.Object = $object
+                    $resource.resourceContext = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
                 }
             }
 
@@ -1055,9 +1065,9 @@ function global:Grant-AzProjectRole {
             if ($roleAssignment.assigneeType -eq "group") {
                 $members = $groups | Where-Object {$_.group -eq $roleAssignment.assignee}
                 foreach ($member in $members) {
-                    foreach ($resource in ($resources | Where-Object {$_.resourceID -eq $roleAssignment.resourceID})) {
+                    foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $roleAssignment.resourceId})) {
                         $roleAssignments += [PsCustomObject]@{
-                            resourceID = $roleAssignment.resourceID
+                            resourceId = $roleAssignment.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
                             role = $roleAssignment.role
@@ -1070,9 +1080,9 @@ function global:Grant-AzProjectRole {
                 }
             }
             elseif ($roleAssignment.assigneeType -eq "user") {
-                foreach ($resource in ($resources | Where-Object {$_.resourceID -eq $roleAssignment.resourceID})) {
+                foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $roleAssignment.resourceId})) {
                     $roleAssignments += [PsCustomObject]@{
-                        resourceID = $roleAssignment.resourceID
+                        resourceId = $roleAssignment.resourceId
                         resourceType = $resource.resourceType
                         resourceName = $resource.resourceName
                         role = $roleAssignment.role
@@ -1089,7 +1099,7 @@ function global:Grant-AzProjectRole {
         foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
             $resourceFromScope = Get-AzProjectResourceFromScope -Scope $unauthorizedProjectRoleAssignment.Scope
             $roleAssignments += [PsCustomObject]@{
-                resourceID = $resourceFromScope.resourceType + "-" + $resourceFromScope.resourceName
+                resourceId = $resourceFromScope.resourceType + "-" + $resourceFromScope.resourceName
                 resourceType = $resourceFromScope.resourceType
                 resourceName = $resourceFromScope.resourceName
                 role = $unauthorizedProjectRoleAssignment.RoleDefinitionName
@@ -1161,101 +1171,101 @@ function global:Grant-AzProjectRole {
                 $resourceTypes += $global:AzureProject.ResourceType.Keys | Where-Object {$_ -notin $resourceTypes -and $_ -ne "ResourceGroup" -and $global:AzureProject.ResourceType.$_.Object}
             }
 
+            # sort by resourceScope to ensure children are after parents
+            $resourcesToCheck = $resources | Sort-Object -Property resourcePath
+
+            # if the $UserResourcesOnly switch has been specified, then filter $resources to only those relevant to the current assignee
+            # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
+            if ($ReferencedResourcesOnly) {
+                $resourcesToCheck = $resources | Where-Object {$_.resourceId -in (($roleAssignments | Where-Object {$_.signInName -eq $signInName}).resourceId)}
+            }
+
             $roleAssignmentCount = 0
-            foreach ($resourceType in $resourceTypes) {
+            foreach ($resource in $resourcesToCheck) { #| Where-Object {$_.resourceType -eq $resourceType}) {
 
-                # if the $UserResourcesOnly switch has been specified, then filter $resources to only those relevant to the current assignee
-                # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
-                $resourcesToCheck = $resources
-                if ($ReferencedResourcesOnly) {
-                    $resourcesToCheck = $resources | Where-Object {$_.resourceID -in (($roleAssignments | Where-Object {$_.signInName -eq $signInName}).resourceID)}
+                $unauthorizedRoleAssignment = $false
+
+                $resourceType = $resource.resourceType
+                $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : ($global:AzureProject.ResourceType.($resourceType).Scope).split("/")[-1]
+                $resourceScope = $resource.resourceScope ?? (Get-AzProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName)
+
+                $resourceParent = $resources | Where-Object {$_.resourceId -eq $resource.resourceParent}
+                $message = (![string]::IsNullOrEmpty($resourceParent) ? "  " : "") + "    $($resourceType)/$($resourceName)"
+                $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "    
+
+                $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Sort-Object -Property Scope
+                # exclude currentRoleAssignments for resources that are children of $resourceScope
+                $currentRoleAssignments = $currentRoleAssignments | Where-Object {($resourceScope -eq $_.Scope -or $resourceScope.StartsWith($_.Scope)) -and $_.Scope.Length -le $resourceScope.Length}
+                if ($currentRoleAssignments) {
+                    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
+                    foreach ($currentRoleAssignment in $currentRoleAssignments) {
+                        $message = $currentRoleAssignment.RoleDefinitionName
+                        if ($currentRoleAssignment.Scope -ne $resourceScope -and $resourceScope -like "$($currentRoleAssignment.Scope)*") {
+                            $message = "^" + $message
+                        }
+                        if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
+                            $message += ", "
+                        }
+                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                    }
                 }
+                $rolesWrittenCount = $currentRoleAssignments.Count
 
-                foreach ($resource in $resourcesToCheck | Where-Object {$_.resourceType -eq $resourceType}) {
-
-                    $unauthorizedRoleAssignment = $false
-
-                    $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : ($global:AzureProject.ResourceType.($resourceType).Scope).split("/")[-1]
-                    $resourceScope = Get-AzProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName
-
-                    $message = "    $($resourceType)/$($resourceName)"
-                    $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "   
-
-                    $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Sort-Object -Property Scope
-                    # exclude currentRoleAssignments for resources that are children of $resourceScope
-                    $currentRoleAssignments = $currentRoleAssignments | Where-Object {($resourceScope -eq $_.Scope -or $resourceScope.StartsWith($_.Scope)) -and $_.Scope.Length -le $resourceScope.Length}
-                    if ($currentRoleAssignments) {
+                $requiredRoleAssignments = $roleAssignments | Where-Object {$_.signInName -eq $signInName -and $_.resourceType -eq $resourceType}
+                if (![string]::IsNullOrEmpty($resourceName)) {
+                    $requiredRoleAssignments =  $requiredRoleAssignments | Where-Object {$_.resourceName -eq $resourceName}
+                }
+                if ($requiredRoleAssignments) {
+                    if (!$currentRoleAssignments) {
                         Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
-                        foreach ($currentRoleAssignment in $currentRoleAssignments) {
-                            $message = $currentRoleAssignment.RoleDefinitionName
-                            if ($currentRoleAssignment.Scope -ne $resourceScope -and $resourceScope -like "$($currentRoleAssignment.Scope)*") {
-                                $message = "^" + $message
-                            }
-                            if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
-                                $message += ", "
-                            }
-                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                    }
+                    foreach ($roleAssignment in $requiredRoleAssignments) {
+                        $currentRoleAssignment = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role
+                        if (!$currentRoleAssignment -and ($currentRoleAssignment.RoleDefinitionName -ne $roleAssignment.role)) {
+                            New-AzRoleAssignment+ -Scope $resourceScope -RoleDefinitionName $roleAssignment.role -SignInNames $signIn -ErrorAction SilentlyContinue | Out-Null
+                            $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
+                            Write-Host+ -Iff $(![string]::IsNullOrEmpty($message)) -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                            $message = "+$($roleAssignment.role)"
+                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGreen 
+                            $rolesWrittenCount++   
+                        }
+                        if ($unauthorizedProjectRoleAssignments | Where-Object {$_.SignInName -eq $currentRoleAssignment.SignInName -and $_.RoleDefinitionId -eq $currentRoleAssignment.RoleDefinitionId}) {
+                            $unauthorizedRoleAssignment = $true
                         }
                     }
-                    $rolesWrittenCount = $currentRoleAssignments.Count
-
-                    $requiredRoleAssignments = $roleAssignments | Where-Object {$_.signInName -eq $signInName -and $_.resourceType -eq $resourceType}
-                    if (![string]::IsNullOrEmpty($resourceName)) {
-                        $requiredRoleAssignments =  $requiredRoleAssignments | Where-Object {$_.resourceName -eq $resourceName}
-                    }
-                    if ($requiredRoleAssignments) {
-                        if (!$currentRoleAssignments) {
-                            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
-                        }
-                        foreach ($roleAssignment in $requiredRoleAssignments) {
-                            $currentRoleAssignment = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role
-                            if (!$currentRoleAssignment -and ($currentRoleAssignment.RoleDefinitionName -ne $roleAssignment.role)) {
-                                New-AzRoleAssignment+ -Scope $resourceScope -RoleDefinitionName $roleAssignment.role -SignInNames $signIn -ErrorAction SilentlyContinue | Out-Null
-                                $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
-                                Write-Host+ -Iff $(![string]::IsNullOrEmpty($message)) -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
-                                $message = "+$($roleAssignment.role)"
-                                Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGreen 
-                                $rolesWrittenCount++   
-                            }
-                            if ($unauthorizedProjectRoleAssignments | Where-Object {$_.SignInName -eq $currentRoleAssignment.SignInName -and $_.RoleDefinitionId -eq $currentRoleAssignment.RoleDefinitionId}) {
-                                $unauthorizedRoleAssignment = $true
-                            }
-                        }
-                    }
-
-                    $currentRoleAssignmentsThisResourceScope = $currentRoleAssignments | Where-Object {$_.Scope -eq $global:AzureProject.ResourceType.($resourceType).Scope}
-                    if ($currentRoleAssignmentsThisResourceScope) {
-                        foreach ($currentRoleAssignment in $currentRoleAssignmentsThisResourceScope) {
-                            if ($currentRoleAssignment.RoleDefinitionName -notin $requiredRoleAssignments.role -or ($RemoveUnauthorizedRoleAssignments -and $unauthorizedRoleAssignment)) {
-
-                                $resourceLocksCanNotDelete = Get-AzResourceLock -Scope $resourceScope | Where-Object {$_.Properties.level -eq "CanNotDelete"}
-                                $resourceLocksCanNotDelete | Foreach-Object {Remove-AzResourceLock -Scope $resourceScope -LockName $_.Name -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null}
-
-                                Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -SignInName $signIn -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
-
-                                $resourceLocksCanNotDelete | Foreach-Object {Set-AzResourceLock -Scope $resourceScope -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force} | Out-Null
-
-                                $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
-                                Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
-                                $message = "-$($currentRoleAssignment.RoleDefinitionName)"
-                                Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkRed  
-                                $rolesWrittenCount++
-                            }
-                        }
-                    }
-
-                    if ($unauthorizedRoleAssignment) {
-                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** UNAUTHORIZED ***" -ForegroundColor DarkRed 
-                    }
-
-                    if ($currentRoleAssignments -or $requiredRoleAssignments) {
-                        Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8," "))"
-                    }
-
-                    $roleAssignmentCount += $rolesWrittenCount
-                
                 }
 
+                $currentRoleAssignmentsThisResourceScope = $currentRoleAssignments | Where-Object {$_.Scope -eq $global:AzureProject.ResourceType.($resourceType).Scope}
+                if ($currentRoleAssignmentsThisResourceScope) {
+                    foreach ($currentRoleAssignment in $currentRoleAssignmentsThisResourceScope) {
+                        if ($currentRoleAssignment.RoleDefinitionName -notin $requiredRoleAssignments.role -or ($RemoveUnauthorizedRoleAssignments -and $unauthorizedRoleAssignment)) {
+
+                            $resourceLocksCanNotDelete = Get-AzResourceLock -Scope $resourceScope | Where-Object {$_.Properties.level -eq "CanNotDelete"}
+                            $resourceLocksCanNotDelete | Foreach-Object {Remove-AzResourceLock -Scope $resourceScope -LockName $_.Name -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null}
+
+                            Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -SignInName $signIn -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
+
+                            $resourceLocksCanNotDelete | Foreach-Object {Set-AzResourceLock -Scope $resourceScope -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force} | Out-Null
+
+                            $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
+                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                            $message = "-$($currentRoleAssignment.RoleDefinitionName)"
+                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkRed  
+                            $rolesWrittenCount++
+                        }
+                    }
+                }
+
+                if ($unauthorizedRoleAssignment) {
+                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** UNAUTHORIZED ***" -ForegroundColor DarkRed 
+                }
+
+                if ($currentRoleAssignments -or $requiredRoleAssignments) {
+                    Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8," "))"
+                }
+
+                $roleAssignmentCount += $rolesWrittenCount
+            
             }
 
             if ($roleAssignmentCount -eq 0) {
