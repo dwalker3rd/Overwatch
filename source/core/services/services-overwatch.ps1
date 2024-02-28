@@ -1653,8 +1653,16 @@
                 Id = $_prerequisite.$($_prerequisite.Type) # | Copy-Object
             }
 
-            foreach ($key in ($_prerequisite.keys | Where-Object {$_ -notin @("Type",$_prerequisite.Type)} | Sort-Object)) {
-                $prerequisite += [ordered]@{ $key = $_prerequisite.$key | Copy-Object }
+            if ($prerequisite.Type -eq "Command") {
+                $prerequisite.Id = ![string]::IsNullOrEmpty($_prerequisite.Id) ? $_prerequisite.Id : $prerequisite.Id
+                $prerequisite += [ordered]@{
+                    Command = [scriptblock]::Create($_prerequisite.Command)
+                }
+            }
+            else {
+                foreach ($key in ($_prerequisite.keys | Where-Object {$_ -notin @("Id","Type",$_prerequisite.Type)} | Sort-Object)) {
+                    $prerequisite += [ordered]@{ $key = $_prerequisite.$key | Copy-Object }
+                }
             }
             
             $prerequisite += [ordered]@{
@@ -1977,6 +1985,19 @@
                     $prerequisiteTest.Block = !$prerequisiteTest.Pass
                     if (!$prerequisiteTest.Pass) {
                         $prerequisiteTest += @{ Reason = "The $($_service.Name) service is $($_service.Status)."}
+                    }
+                }
+
+                # test for initialization prerequisites which have a command defined
+                if ($PrerequisiteType -eq "Initialization" -and $prerequisite.Type -eq "Command") {
+                    $_scriptBlock = $prerequisite.Command
+                    $_isInstalled = Invoke-Command -ScriptBlock $_scriptBlock #-ComputerName $ComputerName
+                    $prerequisiteTest.$($prerequisite.Type) = $prerequisiteId 
+                    $prerequisiteTest.Status = $_isInstalled ? "Installed" : "Not Installed"
+                    $prerequisiteTest.Pass = $_isInstalled
+                    $prerequisiteTest.Block = !$prerequisiteTest.Pass
+                    if (!$prerequisiteTest.Pass) {
+                        $prerequisiteTest += @{ Reason = "The $($prerequisite.Id) $($prerequisite.Type) is $($prerequisiteTest.Status)."}
                     }
                 }
 

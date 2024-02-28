@@ -19,13 +19,14 @@ $newLineWritten = $false
         if (!$prerequisiteTestResults.Pass) {
             throw "  $($prerequisiteTestResults.Prerequisites[0].Tests.Reason)"
         }
-        # wait a few seconds to give the TableauServerTsmApi provider time to initialize
-        Start-Sleep -Seconds 10
-        # request status of Tableau Server via the TableauServerTsmApi provider 
-        $tableauServerStatus = Get-TableauServerStatus -ResetCache
-        if (!$tableauServerStatus) {
-            throw "  Unable to GET Tableau Server status from the TableauServerTsmApi provider"
-        }
+        # # wait a few seconds to give the TableauServerTsmApi provider time to initialize
+        # Start-Sleep -Seconds 10
+        # # request status of Tableau Server via the TableauServerTsmApi provider 
+        # $tableauServerStatus = Get-TableauServerStatus -ResetCache
+        # if (!$tableauServerStatus) {
+        #     throw "  Unable to GET Tableau Server status from the TableauServerTsmApi provider"
+        # }
+        # Write-Host+ -NoTrace "  The TableauServerTsmApi provider returned a successful status" -ForegroundColor DarkGray
     }
 
 #endregion TEST 
