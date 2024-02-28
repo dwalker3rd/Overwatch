@@ -271,9 +271,10 @@ function global:Get-ServerStatus {
                         }
                         default {}
                     }
-                    if (!$shutdown.reason -or $shutdown.reason.Trim() -eq "No title for this reason could be found") {
-                        $shutdown.reason = "No reason provided"
-                    }
+                }
+
+                if (!$shutdown.reason -or $shutdown.reason.Trim() -eq "No title for this reason could be found") {
+                    $shutdown.reason = "No reason provided"
                 }
 
                 Write-Log -EntryType $PlatformMessageType.Warning -Action $shutdown.event -Target $node -Status $shutdown.status -Message $shutdown.reason
