@@ -783,7 +783,8 @@ $global:Catalog.Provider += @{ TableauServerTsmApi =
                 Version = @{ Minimum = "0.5"; AutoUpdate = $true }
             }
             Prerequisites = @(
-                @{ Type = "Service"; Service = "tabadmincontroller_0" }
+                @{ Type = "Service"; Service = "tabadmincontroller_0" },
+                @{ Type = "Command"; Command = [scriptblock]{try{Get-TableauServerStatus -ResetCache;$true}catch{$false}}; Id = "Get-TableauServerStatus" }              
             )
         }
         Installation = @{
@@ -804,7 +805,7 @@ $global:Catalog.Provider += @{ TableauServerTabCmd =
         Publisher = "Walker Analytics Consulting" 
         Installation = @{
             Prerequisites = @(
-                @{ Type = "Platform"; Platform = @("TableauServer","TableauRMT")}
+                @{ Type = "Platform"; Platform = @("TableauServer","TableauRMT")},
                 @{ Type = "CLI"; CLI = "TableauServerTabCmdCLI"}
             )
         }
