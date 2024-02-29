@@ -783,8 +783,7 @@ $global:Catalog.Provider += @{ TableauServerTsmApi =
                 Version = @{ Minimum = "0.5"; AutoUpdate = $true }
             }
             Prerequisites = @(
-                @{ Type = "Service"; Service = "tabadmincontroller_0" },
-                @{ Type = "Command"; Command = [scriptblock]{try{Get-TableauServerStatus -ResetCache;$true}catch{$false}}; Id = "Get-TableauServerStatus" }              
+                @{ Type = "Service"; Service = "tabadmincontroller_0" }             
             )
         }
         Installation = @{
