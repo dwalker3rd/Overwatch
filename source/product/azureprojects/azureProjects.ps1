@@ -757,10 +757,10 @@ function global:Grant-AzProjectRole {
 
             $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
             if ($duplicateResourceIds) {
-                $errorMessage = "ERROR: Duplicate resource id"
+                $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $ResourceImport -Leaf)."
                 Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
-                foreach ($duplicateResourceId in $duplicateResourceIds.Group) {
-                    Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  $($duplicateResourceId.resourceId), $($duplicateResourceId.resourceType), $($duplicateResourceId.resourceName)," -ForegroundColor DarkGray
+                foreach ($duplicateResourceId in $duplicateResourceIds) {
+                    Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Resource id '$($duplicateResourceId.Name)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
                 }
                 Write-Host+
                 return
