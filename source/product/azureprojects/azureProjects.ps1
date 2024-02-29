@@ -627,7 +627,7 @@ function global:Grant-AzProjectRole {
         Write-Host+
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
         $response = Read-Host
-        if ($response.ToUpper().Substring(0,1) -ne "Y") {
+        if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
             Write-Host+
             return
         }
@@ -648,7 +648,7 @@ function global:Grant-AzProjectRole {
         Write-Host+
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
         $response = Read-Host
-        if ($response.ToUpper().Substring(0,1) -ne "Y") {
+        if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
             Write-Host+
             return
         }
@@ -688,6 +688,7 @@ function global:Grant-AzProjectRole {
 
         if (!(Test-Path $UserImport)) {
             Write-Host+ -NoTrace -Prefix "ERROR" "$UserImport not found." -ForegroundColor DarkRed
+            Write-Host+
             return
         }
 
@@ -702,54 +703,80 @@ function global:Grant-AzProjectRole {
 
         if (!(Test-Path $ResourceImport)) {
             Write-Host+ -NoTrace -Prefix "ERROR" "$ResourceImport not found." -ForegroundColor DarkRed
+            Write-Host+
             return
         }
 
         if (!(Test-Path $RoleAssignmentImport)) {
             Write-Host+ -NoTrace -Prefix "ERROR" "$RoleAssignmentImport not found." -ForegroundColor DarkRed
+            Write-Host+
             return
         }
 
-        Write-Host+ -NoTrace -NoSeparator "    $UserImport" -ForegroundColor DarkGray
-        $users = @()
-        $users += Import-AzProjectFile $UserImport
-        if ($User) {
-            # if $User has been specified, filter $users to the specified $User only
-            $users = $users | Where-Object {$_.signInName -eq $User}
-            if ($users.Count -eq 0) {
-                Write-Host+ -NoTrace -NoSeparator  "      ERROR: User $User not referenced in project `"$($ProjectName)`"'s import files." -ForegroundColor Red
-                Write-Host+
-                return
-            }
-            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $User
-            if (!$azureADUser) {
-                Write-Host+ -NoTrace -NoSeparator  "      ERROR: $User not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
-                Write-Host+
-                return
-            }
-            $User = $azureADUser.mail
-        }
+        #region USER IMPORT
 
-        Write-Host+ -NoTrace -NoSeparator "    $GroupImport" -ForegroundColor DarkGray
-        $groups = @()
-        if (Test-Path $GroupImport) {
-            $groups += Import-AzProjectFile $GroupImport
+            Write-Host+ -NoTrace -NoSeparator "    $UserImport" -ForegroundColor DarkGray
+            $users = @()
+            $users += Import-AzProjectFile $UserImport
             if ($User) {
-                # if $User has been specified, filter $groups to only those containing $User
-                $groups = $groups | Where-Object {$_.user -eq $User}
+                # if $User has been specified, filter $users to the specified $User only
+                $users = $users | Where-Object {$_.signInName -eq $User}
+                if ($users.Count -eq 0) {
+                    Write-Host+ -NoTrace -NoSeparator  "      ERROR: User $User not referenced in project `"$($ProjectName)`"'s import files." -ForegroundColor Red
+                    Write-Host+
+                    return
+                }
+                $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $User
+                if (!$azureADUser) {
+                    Write-Host+ -NoTrace -NoSeparator  "      ERROR: $User not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
+                    Write-Host+
+                    return
+                }
+                $User = $azureADUser.mail
             }
-        }
 
-        Write-Host+ -NoTrace -NoSeparator "    $ResourceImport" -ForegroundColor DarkGray
-        $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
-        $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
+        #endregion USER IMPORT
+        #region GROUP IMPORT
 
-        Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImport" -ForegroundColor DarkGray
-        $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImport
-        if ($User) {
-            # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
-            $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
-        }
+            Write-Host+ -NoTrace -NoSeparator "    $GroupImport" -ForegroundColor DarkGray
+            $groups = @()
+            if (Test-Path $GroupImport) {
+                $groups += Import-AzProjectFile $GroupImport
+                if ($User) {
+                    # if $User has been specified, filter $groups to only those containing $User
+                    $groups = $groups | Where-Object {$_.user -eq $User}
+                }
+            }
+
+        #endregion GROUP IMPORT
+        #region RESOURCE IMPORT
+
+            Write-Host+ -NoTrace -NoSeparator "    $ResourceImport" -ForegroundColor DarkGray
+            $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
+            $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
+
+            $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
+            if ($duplicateResourceIds) {
+                $errorMessage = "ERROR: Duplicate resource id"
+                Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
+                foreach ($duplicateResourceId in $duplicateResourceIds.Group) {
+                    Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  $($duplicateResourceId.resourceId), $($duplicateResourceId.resourceType), $($duplicateResourceId.resourceName)," -ForegroundColor DarkGray
+                }
+                Write-Host+
+                return
+            }
+
+        #endregion RESOURCE IMPORT
+        #region ROLE ASSIGNMENTS IMPORT
+
+            Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImport" -ForegroundColor DarkGray
+            $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImport
+            if ($User) {
+                # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
+                $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
+            }
+
+        #endregion ROLE ASSIGNMENTS IMPORT
 
         # if the $ReferencedResourcesOnly switch has been specified, then filter $resources to only those relevant to $users
         # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
@@ -910,6 +937,33 @@ function global:Grant-AzProjectRole {
                 Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
             }
 
+        }
+
+        $duplicateResourceScopes = $resources | Group-Object -Property resourceScope | Where-Object {$_.Count -gt 1}
+        if ($duplicateResourceScopes) {
+            Write-Host+
+            $errorMessage = "ERROR: Duplicate resource scope"
+            Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
+            foreach ($duplicateResourceScope in $duplicateResourceScopes.Group) {
+                Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  $($duplicateResourceScope.resourceScope)" -ForegroundColor DarkGray
+            }
+            Write-Host+
+            return
+        }
+
+        $duplicateResourceNames = $resources | Group-Object -Property resourceType, resourceName | Where-Object {$_.Count -gt 1}
+        if ($duplicateResourceNames) {
+            Write-Host+
+            Write-Host+ -NoTrace "    WARNING: Multiple objects with different scopes but with the same resource type and name" -ForegroundColor DarkYellow
+            foreach ($duplicateResourceName in $duplicateResourceNames.Group) {
+                Write-Host+ -NoTrace "    $($duplicateResourceName.resourceScope)" -ForegroundColor DarkGray
+            }
+            # Write-Host+ -NoTrace -NoNewLine "    Continue (Y/N)? " -ForegroundColor DarkYellow
+            # $response = Read-Host
+            # if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
+            #     Write-Host+
+            #     return
+            # }
         }
 
         Write-Host+
@@ -1190,7 +1244,7 @@ function global:Grant-AzProjectRole {
                 $resourceScope = $resource.resourceScope ?? (Get-AzProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName)
 
                 $resourceParent = $resources | Where-Object {$_.resourceId -eq $resource.resourceParent}
-                $message = (![string]::IsNullOrEmpty($resourceParent) ? "  " : "") + "    $($resourceType)/$($resourceName)"
+                $message = "    " + (![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : "") + "$($resourceType)/$($resourceName)"
                 $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "    
 
                 $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Sort-Object -Property Scope
