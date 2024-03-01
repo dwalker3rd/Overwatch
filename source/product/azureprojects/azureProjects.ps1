@@ -126,11 +126,19 @@ function global:Initialize-AzProject {
 
     # get/read/update $Prefix
     $prefixIni = "$($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)\$projectNameLowerCase-prefix.ini"
-    if (!$Prefix) {
+    if ([string]::IsNullOrEmpty($Prefix)) {
         if (Test-Path $prefixIni) {
             $Prefix = (Get-Content $prefixIni | Where-Object {$_ -like "prefix*"}).split(" : ")[1].Trim()
         }
-        $Prefix = $Prefix ?? $global:Azure.$tenantKey.Prefix
+        if ([string]::IsNullOrEmpty($Prefix)) {
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "Specify value for the following parameter:"
+            do {
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Prefix: "
+                $Prefix = Read-Host
+            } until (![string]::IsNullOrEmpty($Prefix))
+            Write-Host+
+        }
     }
     if (!(Test-Path $prefixIni)) {
         New-Item -Path $prefixIni -ItemType File | Out-Null
@@ -382,6 +390,79 @@ function global:New-AzProject {
 }
 Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
 
+function global:Export-AzProjectResourceFile {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,ParameterSetName="ByParts")][Alias("Project")][string]$ProjectName,
+        [Parameter(Mandatory=$true,ParameterSetName="ByParts")][Alias("Group")][string]$GroupName,
+        # [Parameter(Mandatory=$true,ParameterSetName="ByParts")][string]$Prefix,
+        [Parameter(Mandatory=$true,ParameterSetName="ByResourceGroupName")][Alias("ResourceGroup")][string]$ResourceGroupName
+    )
+
+    if ([string]::IsNullOrEmpty($ResourceGroupName)) {
+        $ResourceGroupName = "$GroupName-$ProjectName-rg"
+    }    
+
+    $resourceTypeMap = [PSCustomObject]@{
+        "Microsoft.Storage/storageAccounts" = "StorageAccount"
+        "Microsoft.Compute/virtualMachines" = "VM"
+        "Microsoft.KeyVault/vaults" = "KeyVault"
+        "Microsoft.DataFactory/factories" = "DataFactoryV2"
+        "Microsoft.Network/networkInterfaces" = "NetworkInterface"
+        "Microsoft.Network/bastionHosts" = "Bastion"
+    }
+
+    $resources = @()
+    foreach ($resource in (Get-AzResource -ResourceGroupName $ResourceGroupName)) {
+
+        $resourceType = $resourceTypeMap.$($resource.resourceType)
+        
+        if (![string]::IsNullOrEmpty($resourceType)) {
+        
+            $resourceName = $resource.resourceName
+            $resourceObject = Invoke-Expression "Get-Az$resourceType -ResourceGroupName $resourceGroupName -Name $resourceName"
+            $resourceParent = $null
+            $resourceChildren = @()
+
+            switch ($resourceType) {
+                default {}
+                "NetworkInterface" {
+                    $resourceParent = ($resourceObject.VirtualMachine.Id -split "/")[-1]
+                }
+                "StorageAccount" {
+                    $storageAccountContext = New-AzStorageContext -StorageAccountName $resource.resourceName -UseConnectedAccount
+                    foreach ($storageContainer in Get-AzStorageContainer -Context $storageAccountContext) {
+                        if (($storageContainer.Name -split "-")[0] -notin ("bootdiagnostics","insights")) {
+                            $resourceChildren += [PSCustomObject]@{
+                                resourceType = "StorageContainer"
+                                resourceName = $storageContainer.Name
+                                resourceId = $storageContainer.Name
+                                resourceParent = $resourceName
+                            }
+                        }
+                    }
+                }
+            }
+
+            $resources += [PSCustomObject]@{
+                resourceType = $resourceType
+                resourceName = $resourceName
+                resourceId = $resourceName
+                resourceParent = $resourceParent
+            }
+            $resources += $resourceChildren
+
+        }
+    }
+
+    $resourceImport = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
+    $resources | Export-Csv -Path $resourceImport -UseQuotes Always -NoTypeInformation
+
+    return
+
+}
+
 function global:Import-AzProjectFile {
 
     # alternative to Import-CSV which allows for comments in the project files
@@ -444,76 +525,76 @@ function global:Import-AzProjectFile {
 
 }
 
-function global:ConvertTo-AzProjectFile {
+# function global:ConvertTo-AzProjectFile {
 
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
-    )
+#     [CmdletBinding()]
+#     param(
+#         [Parameter(Mandatory=$true)][string]$Tenant,
+#         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
+#     )
 
-    # Original AzProject Import File
-    # ------------------------------
-    # <prefix>-roleAssignments.csv: "project","resourceType","resourceName","role","signInName","fullName"
+#     # Original AzProject Import File
+#     # ------------------------------
+#     # <prefix>-roleAssignments.csv: "project","resourceType","resourceName","role","signInName","fullName"
 
-    $roleAssignmentsFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments.csv"
+#     $roleAssignmentsFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments.csv"
 
-    # Current AzProject Import Files
-    # ------------------------------
-    # <prefix>-users-import.csv: "signInName","fullName"
-    # [optional] <prefix>-groups-import.csv: "group","user"
-    # <prefix>-resources-import.csv: "resourceType","resourceName","resourceId","resourceParent"
-    # <prefix>-roleAssignments-import.csv: "resourceId","role","assigneeType","assignee"    
+#     # Current AzProject Import Files
+#     # ------------------------------
+#     # <prefix>-users-import.csv: "signInName","fullName"
+#     # [optional] <prefix>-groups-import.csv: "group","user"
+#     # <prefix>-resources-import.csv: "resourceType","resourceName","resourceId","resourceParent"
+#     # <prefix>-roleAssignments-import.csv: "resourceId","role","assigneeType","assignee"    
 
-    $userImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
-    $groupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
-    $resourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-    $roleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
+#     $userImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
+#     $groupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
+#     $resourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
+#     $roleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
     
-    # ABORT if any of the new AzProject import files already exist
-    if ((Test-Path $userImportFile) -or (Test-Path $groupImportFile) -or (Test-Path $ResourceImportFile) -or (Test-Path $RoleAssignmentImportFile)) {
-        Write-Host+ -Iff $(Test-Path $userImportFile) -NoTrace -NoTimestamp "INFO: $userImportFile already exists." 
-        Write-Host+ -Iff $(Test-Path $groupImportFile) -NoTrace -NoTimestamp "INFO: $groupImportFile already exists." 
-        Write-Host+ -Iff $(Test-Path $resourceImportFile) -NoTrace -NoTimestamp "INFO: $resourceImportFile already exists." 
-        Write-Host+ -Iff $(Test-Path $roleAssignmentImportFile) -NoTrace -NoTimestamp "INFO: $roleAssignmentImportFile already exists." 
-        Write-Host+ -NoTrace -NoTimestamp "WARN: One or more AzProject import files already exists." -ForegroundColor DarkYellow
-        Write-Host+ -NoTrace -NoTimestamp "WARN: AzProject import file conversion aborted." -ForegroundColor DarkYellow
-        return
-    }   
+#     # ABORT if any of the new AzProject import files already exist
+#     if ((Test-Path $userImportFile) -or (Test-Path $groupImportFile) -or (Test-Path $ResourceImportFile) -or (Test-Path $RoleAssignmentImportFile)) {
+#         Write-Host+ -Iff $(Test-Path $userImportFile) -NoTrace -NoTimestamp "INFO: $userImportFile already exists." 
+#         Write-Host+ -Iff $(Test-Path $groupImportFile) -NoTrace -NoTimestamp "INFO: $groupImportFile already exists." 
+#         Write-Host+ -Iff $(Test-Path $resourceImportFile) -NoTrace -NoTimestamp "INFO: $resourceImportFile already exists." 
+#         Write-Host+ -Iff $(Test-Path $roleAssignmentImportFile) -NoTrace -NoTimestamp "INFO: $roleAssignmentImportFile already exists." 
+#         Write-Host+ -NoTrace -NoTimestamp "WARN: One or more AzProject import files already exists." -ForegroundColor DarkYellow
+#         Write-Host+ -NoTrace -NoTimestamp "WARN: AzProject import file conversion aborted." -ForegroundColor DarkYellow
+#         return
+#     }   
 
-    # Current AzProject Export File
-    # -----------------------------
-    # <prefix>-roleAssignments-export.csv: "resourceType","resourceName","role","name"
+#     # Current AzProject Export File
+#     # -----------------------------
+#     # <prefix>-roleAssignments-export.csv: "resourceType","resourceName","role","name"
 
-    $roleAssignmentExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-export.csv"
+#     $roleAssignmentExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-export.csv"
 
-    # ERROR if the old AzProject import file does not exist
-    if (!(Test-Path $roleAssignmentsFile)) {
-        Write-Host+ -NoTrace -NoTimestamp "ERROR: $roleAssignmentsFile not found." -ForegroundColor DarkRed
-        return
-    } 
+#     # ERROR if the old AzProject import file does not exist
+#     if (!(Test-Path $roleAssignmentsFile)) {
+#         Write-Host+ -NoTrace -NoTimestamp "ERROR: $roleAssignmentsFile not found." -ForegroundColor DarkRed
+#         return
+#     } 
 
-    # read old AzProject import data
-    $roleAssignments = Import-AzProjectFile $roleAssignmentsFile
+#     # read old AzProject import data
+#     $roleAssignments = Import-AzProjectFile $roleAssignmentsFile
 
-    # write old AzProject import data to new AzProject import files 
-    $roleAssignments | Select-Object -Property signInName,fullName | Sort-Object -Property signInName -Unique | Export-Csv $userImportFile -UseQuotes Always -NoTypeInformation
-    $roleAssignments | Select-Object -Property resourceType,resourceName,@{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}} | Sort-Object -Property resourceType, resourceName -Unique | Export-Csv $resourceImportFile -UseQuotes Always  -NoTypeInformation
-    $roleAssignments | Select-Object -Property @{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}}, role, @{name="assigneeType";expression={"user"}}, @{name="assignee";expression={$_.signInName}} | Export-Csv $roleAssignmentImportFile -UseQuotes Always  -NoTypeInformation
+#     # write old AzProject import data to new AzProject import files 
+#     $roleAssignments | Select-Object -Property signInName,fullName | Sort-Object -Property signInName -Unique | Export-Csv $userImportFile -UseQuotes Always -NoTypeInformation
+#     $roleAssignments | Select-Object -Property resourceType,resourceName,@{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}} | Sort-Object -Property resourceType, resourceName -Unique | Export-Csv $resourceImportFile -UseQuotes Always  -NoTypeInformation
+#     $roleAssignments | Select-Object -Property @{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}}, role, @{name="assigneeType";expression={"user"}}, @{name="assignee";expression={$_.signInName}} | Export-Csv $roleAssignmentImportFile -UseQuotes Always  -NoTypeInformation
 
-    # write headers only to the new AzProject group import file and the export file
-    Set-Content -Path $groupImportFile -Value '"group","user"'
-    Set-Content -Path $roleAssignmentExportFile -Value '"resourceType","resourceName","role","name"'
+#     # write headers only to the new AzProject group import file and the export file
+#     Set-Content -Path $groupImportFile -Value '"group","user"'
+#     Set-Content -Path $roleAssignmentExportFile -Value '"resourceType","resourceName","role","name"'
 
-    # archive the old AzProject import file
-    $archiveDirectory = "$($global:AzureProject.Location.Data)\archive"
-    if (!(Test-Path $archiveDirectory)) {
-        New-Item -Path $global:AzureProject.Location.Data -Name "archive" -ItemType Directory | Out-Null
-    }
-    Move-Item -Path $roleAssignmentsFile -Destination $archiveDirectory
-    Write-Host+ -NoTrace -NoTimestamp "INFO: $roleAssignmentsFile archived."
+#     # archive the old AzProject import file
+#     $archiveDirectory = "$($global:AzureProject.Location.Data)\archive"
+#     if (!(Test-Path $archiveDirectory)) {
+#         New-Item -Path $global:AzureProject.Location.Data -Name "archive" -ItemType Directory | Out-Null
+#     }
+#     Move-Item -Path $roleAssignmentsFile -Destination $archiveDirectory
+#     Write-Host+ -NoTrace -NoTimestamp "INFO: $roleAssignmentsFile archived."
 
-}
+# }
 
 function global:Grant-AzProjectRole {
 
