@@ -1359,6 +1359,7 @@ function global:New-StorageOnlyProject {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
+        [Parameter(Mandatory=$false)][string]$StorageAccountSKU = "Standard_LRS",
         [Parameter(Mandatory=$false)][string]$StorageContainerName
     )
 
@@ -1368,6 +1369,7 @@ function global:New-StorageOnlyProject {
     $resourceGroupName = $global:AzureProject.ResourceType.ResourceGroup.Name
     $resourceLocation = $global:AzureProject.ResourceLocation
     
+    Write-Host+
     $message = "<  Resource creation <.>60> PENDING" 
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
     Write-Host+
@@ -1402,7 +1404,7 @@ function global:New-StorageOnlyProject {
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow
         }
         else {
-            $storageAccount = New-AzStorageAccount+ -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $resourceLocation -SKU Standard_LRS -Kind BlobStorage -AccessTier Hot
+            $storageAccount = New-AzStorageAccount+ -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $resourceLocation -SKU $StorageAccountSKU
             $global:AzureProject.ResourceType.StorageAccount.Object = $storageAccount
             $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -1413,7 +1415,7 @@ function global:New-StorageOnlyProject {
     #endregion STORAGE ACCOUNT
     #region STORAGE CONTAINER
 
-        $StorageContainerName = ![string]::IsNullOrEmpty($StorageContainerName) ? $StorageContainerName : "data"
+        $StorageContainerName = (![string]::IsNullOrEmpty($StorageContainerName) ? $StorageContainerName : "data").ToLower()
         $message = "<      $($global:asciiCodes.RightArrowWithHook)  StorageContainer/$StorageContainerName <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
 
@@ -1434,6 +1436,9 @@ function global:New-StorageOnlyProject {
     Write-Host+
     $message = "<  Resource creation <.>60> SUCCESS" 
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+    # scan resource group and create resource import file
+    Export-AzProjectResourceFile -ResourceGroupName $resourceGroupName -Project $ProjectName
     
 }
 Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
@@ -1487,7 +1492,7 @@ function global:New-DsvmProject {
     Set-Location $global:Location.Root
 
     # scan resource group and create resource import file
-    Export-AzProjectResourceFile -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name
+    Export-AzProjectResourceFile -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Project $ProjectName
 
     return
 
