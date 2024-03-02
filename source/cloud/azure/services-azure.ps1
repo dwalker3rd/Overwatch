@@ -279,16 +279,25 @@ function global:New-AzStorageAccount+ {
         [Parameter(Mandatory=$true)][string]$Name,
         [Parameter(Mandatory=$true)][string]$ResourceGroupName,
         [Parameter(Mandatory=$true)][string]$SKU,
-        [Parameter(Mandatory=$true)][string]$Kind,
-        [Parameter(Mandatory=$true)][string]$AccessTier,
+        [Parameter(Mandatory=$false)][string]$Kind,
+        [Parameter(Mandatory=$false)][string]$AccessTier,
         [Parameter(Mandatory=$true)][string]$Location,
         [Parameter(Mandatory=$false)][bool]$EnableSoftDelete,
         [Parameter(Mandatory=$false)][int]$RetentionDays
     )
 
     # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    
+    $params = @{
+        ResourceGroupName = $ResourceGroupName
+        Name = $Name
+        SkuName = $SKU
+        Location = $Location
+    }
+    if (![string]::IsNullOrEmpty($Kind)) { $params += @{ Kind = $Kind } }
+    if (![string]::IsNullOrEmpty($AccessTier)) { $params += @{ AccessTier = $AccessTier } }
 
-    $storageAccount = New-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $Name -SkuName $SKU -Kind $Kind -AccessTier $AccessTier -Location $location
+    $storageAccount = New-AzStorageAccount @params
 
     if ($EnableSoftDelete) {
         Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName $ResourceGroupName -Name $Name -RetentionDays $RetentionDays
