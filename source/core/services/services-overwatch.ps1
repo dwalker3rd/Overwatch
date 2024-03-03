@@ -1628,12 +1628,14 @@
         }
 
         $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Copy-Object 
-        # keep only hashtable and array types
-        $prerequisites = $prerequisites | Where-Object {$_.$($_.Type).GetType().Name -in @("Hashtable","Array")}
 
         # apply prerequisite filter, if specified
         $prerequisiteTypeObjects = $null
         if (![string]::IsNullOrEmpty($PrerequisiteFilter)) {
+            
+            # keep only hashtable and array types
+            $prerequisites = $prerequisites | Where-Object {$_.$($_.Type).GetType().Name -in @("Hashtable","Array")}
+
             if ($prerequisites.$($prerequisites.Type).GetType().Name -eq "Hashtable") {
                 $prerequisiteTypeObjects = $prerequisites.$($prerequisites.Type).$($prerequisites.$($prerequisites.Type).Keys)
             }
@@ -1644,6 +1646,7 @@
             elseif ($prerequisites.$($prerequisites.Type).GetType().Name -eq "Array") {
                 Invoke-Expression "`$prerequisites.$($prerequisites.Type) = `$prerequisiteTypeObjects"
             }
+            
         }
         $prerequisiteTypeObjects | Out-Null
 
