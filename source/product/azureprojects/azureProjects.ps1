@@ -43,9 +43,8 @@ function global:Initialize-AzProject {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$true)][Alias("Group")][string]$GroupName,
-        [Parameter(Mandatory=$false)][Alias("StorageAccount")][string]$StorageAccountName,
-        [Parameter(Mandatory=$false)][Alias("StorageContainer")][string]$StorageContainerName,
-        [Parameter(Mandatory=$false)][string]$Prefix,
+        [Parameter(Mandatory=$true)][string]$Prefix,
+        [Parameter(Mandatory=$true)][Alias("Location")][string]$ResourceLocation,
         [switch]$Reinitialize
     )
 
@@ -126,11 +125,19 @@ function global:Initialize-AzProject {
 
     # get/read/update $Prefix
     $prefixIni = "$($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)\$projectNameLowerCase-prefix.ini"
-    if (!$Prefix) {
+    if ([string]::IsNullOrEmpty($Prefix)) {
         if (Test-Path $prefixIni) {
             $Prefix = (Get-Content $prefixIni | Where-Object {$_ -like "prefix*"}).split(" : ")[1].Trim()
         }
-        $Prefix = $Prefix ?? $global:Azure.$tenantKey.Prefix
+        if ([string]::IsNullOrEmpty($Prefix)) {
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "Specify value for the following parameter:"
+            do {
+                Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Prefix: "
+                $Prefix = Read-Host
+            } until (![string]::IsNullOrEmpty($Prefix))
+            Write-Host+
+        }
     }
     if (!(Test-Path $prefixIni)) {
         New-Item -Path $prefixIni -ItemType File | Out-Null
@@ -144,6 +151,7 @@ function global:Initialize-AzProject {
             Message = "You have been invited by $($global:Azure.$tenantKey.DisplayName) to collaborate on project $projectNameUpperCase."
         }
         ConnectedAccount = $_connectedAccount
+        ResourceLocation = $ResourceLocation
         ResourceType = @{
             ResourceGroup = @{
                 Name = $azureProjectsConfig.Templates.Resources.ResourceGroup.Name.Pattern.replace("<0>",$groupNameLowerCase).replace("<1>",$projectNameLowerCase)
@@ -207,16 +215,17 @@ function global:Initialize-AzProject {
         }
     }
 
-    $global:AzureProject = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase
-
-    $global:AzureProject += @{
-        ScopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:AzureProject.ResourceType.ResourceGroup.Name)/providers"
+    $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase += @{
+        ScopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ResourceType.ResourceGroup.Name)/providers"
     }
+
+    $global:AzureProject = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase
 
     Get-AzProjectResourceScopes
     Get-AzProjectDeployedResources
 
     $global:AzureProject.Initialized = $true
+    # $global:AzureProject = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase
 
     return
 
@@ -257,7 +266,6 @@ function global:Get-AzProjectDeployedResources {
         $global:AzureProject.ResourceType.SqlVM.Object = Get-AzSqlVM -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Name $global:AzureProject.ResourceType.SqlVM.Name -ErrorAction SilentlyContinue
         $global:AzureProject.ResourceType.KeyVault.Object = Get-AzKeyVault -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Name $global:AzureProject.ResourceType.KeyVault.Name -ErrorAction SilentlyContinue
         $global:AzureProject.ResourceType.DataFactory.Object = Get-AzDataFactory -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Name $global:AzureProject.ResourceType.DataFactory.Name -ErrorAction SilentlyContinue
-
         $mlWorkspaces = get-azresource -resourcegroupname $global:AzureProject.ResourceType.ResourceGroup.Name | Where-Object {$_.ResourceType -eq "Microsoft.MachineLearningServices/workspaces"}
         if ($mlWorkspaces) {
             az login --output None # required until https://github.com/Azure/azure-cli/issues/20150 is resolved
@@ -267,120 +275,97 @@ function global:Get-AzProjectDeployedResources {
 
 }
 
-# function global:New-AzResource {
-
-#     [CmdletBinding()]
-#     param(
-#         [Parameter(Mandatory=$true)][Alias("ResourceGroup")][string]$ResourceGroupName,
-#         [Parameter(Mandatory=$true)][string]$ResourceType,
-#         [Parameter(Mandatory=$true)][string]$ResourceName
-#     )
-
-#     $applicationInsights = Get-AzApplicationInsights -ResourceGroupName $ResourceGroupName
-#     $containerRegistry = Get-AzContainerRegistry -ResourceGroupName $ResourceGroupName
-#     $keyVault = $global:AzureProject.ResourceType.KeyVault
-#     $location = ($global:AzureProject.ResourceType.ResourceGroup.Object).Location
-#     $storageAccount = $global:AzureProject.ResourceType.StorageAccount
-
-#     $object = $null
-#     switch ($ResourceType) {
-#         "MLWorkspace" {
-#             $object = Get-AzResource -ResourceGroupName $ResourceGroupName -Name $ResourceName
-#             if ($object) {
-#                 throw "$ResourceName already exists in $ResourceGroupName"
-#             }
-#         }
-#         "StorageContainer" {
-#             $object = Get-AzStorageContainer -Context $storageAccount.Context -Name $ResourceName
-#             if ($object) {
-#                 throw "$ResourceName already exists in $ResourceGroupName"
-#             }
-#         }
-#     }
-
-#     $object = $null
-#     switch ($ResourceType) {
-#         "MLWorkspace" {
-#             $object = New-AzMlWorkspace -ResourceGroupName $ResourceGroupName -WorkspaceName $ResourceName -Location $Location -StorageAccount $storageAccount.Scope -KeyVault $keyVault.Scope -ApplicationInsights $applicationInsights.Id -ContainerRegistry $containerRegistry.Id
-#         }
-#         "StorageContainer" {
-#             $object = New-AzStorageContainer+ -Tenant $tenantKey -Context $storageAccount.Context -ContainerName $ResourceName
-#         }
-#     }
-
-#     return $object
-
-# }
-
-function global:New-AzProject {
+function global:Export-AzProjectResourceFile {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$false)][Alias("StorageContainer")][string]$StorageContainerName,
-        [Parameter(Mandatory=$true)][string]$Location
+        [Parameter(Mandatory=$true)][Alias("ResourceGroup")][string]$ResourceGroupName,
+        [switch]$Overwrite
     )
 
-    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
-
-    $emptyString = ""
-
-    # $projectNameTitleCase = (Get-Culture).TextInfo.ToTitleCase($ProjectName)
-    $projectNameLowerCase = $ProjectName.ToLower()
-    # $projectNameUpperCase = $ProjectName.ToUpper()
-
-    if ($projectNameLowerCase -ne $global:AzureProject.Name) {
-        Write-Host+ -NoTrace "`$global:AzureProject has not been initialized for project $($ProjectName)" -ForegroundColor DarkRed
-    }
-    
-    $message = "<  Resource creation <.>60> PENDING" 
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-    Write-Host+
-
-    $message = "<    ResourceGroup/:$($global:AzureProject.ResourceType.ResourceGroup.Name) <.>60> PENDING"
-    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
-    $resourceGroup = Get-AzResourceGroup -Name $global:AzureProject.ResourceType.ResourceGroup.Name 
-    if ($resourceGroup) {
-        $message = "$($emptyString.PadLeft(8,"`b")) Exists$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow
-    }
-    else {
-        $global:AzureProject.ResourceType.ResourceGroup.Object = New-AzResourceGroup+ -Tenant $tenantKey -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Location $Location
-        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-    }
-
-    $ResourceImport = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-    if (!(Test-Path $ResourceImport)) {
-        Write-Host+ -NoTrace -Prefix "ERROR" "$ResourceImport not found." -ForegroundColor DarkRed
+    $resourceImport = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
+    if ((Test-Path $ResourceImport) -and !$Overwrite) {
+        Write-Host+
+        Write-Host+ -NoTrace "ERROR: $(Split-Path -Path $ResourceImport -Leaf) already exists." -ForegroundColor DarkRed
+        Write-Host+ -NoTrace "Use the -Overwrite switch to overwrite this resource import file." -ForegroundColor DarkGray
+        Write-Host+
         return
+    }   
+
+    $resourceTypeMap = [PSCustomObject]@{
+        "Microsoft.Storage/storageAccounts" = "StorageAccount"
+        "Microsoft.Compute/virtualMachines" = "VM"
+        "Microsoft.KeyVault/vaults" = "KeyVault"
+        "Microsoft.DataFactory/factories" = "DataFactory"
+        "Microsoft.Network/networkInterfaces" = "NetworkInterface"
+        "Microsoft.Network/bastionHosts" = "Bastion"
     }
-    $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
-    $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
 
-    foreach ($resource in $resources) {
+    $resources = @()
+    foreach ($resource in (Get-AzResource -ResourceGroupName $ResourceGroupName)) {
 
-        # if ( # resource exists #) {
-        #     $message = "$($emptyString.PadLeft(8,"`b")) Exists$($emptyString.PadLeft(8," "))"
-        #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow
-        # }
-        # else {
+        $resourceType = $resourceTypeMap.$($resource.resourceType)
+        
+        if (![string]::IsNullOrEmpty($resourceType)) {
 
-        #     # create resource #
+            $resourceName = $resource.resourceName
+            $resourceObject = $null
+            $resourceParent = $null
+            $resourceChildren = @()
 
-        #     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-        #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-        # }
+            switch ($resourceType) {
+                {$_ -notin ("DataFactory")} {
+                    $resourceName = $resource.resourceName
+                    $resourceObject = Invoke-Expression "Get-Az$resourceType -ResourceGroupName $resourceGroupName -Name $resourceName"
+                }
+                "DataFactory" {
+                    $resourceName = $resource.resourceName
+                    $resourceObject = Get-AzDataFactory -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+                    if (!$resourceObject) {
+                        $resourceObject = Get-AzDataFactoryV2 -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+                        if ($resourceObject) {
+                            $resourceType = "DataFactoryV2"
+                        }
+                        else {
+                            throw "The resource type could not be found in the namespace 'Microsoft.DataFactory'"
+                        }
+                    }
+                }
+                "NetworkInterface" {
+                    $resourceParent = ($resourceObject.VirtualMachine.Id -split "/")[-1]
+                }
+                "StorageAccount" {
+                    $storageAccountContext = New-AzStorageContext -StorageAccountName $resource.resourceName -UseConnectedAccount
+                    foreach ($storageContainer in Get-AzStorageContainer -Context $storageAccountContext) {
+                        if (($storageContainer.Name -split "-")[0] -notin ("bootdiagnostics","insights")) {
+                            $resourceChildren += [PSCustomObject]@{
+                                resourceType = "StorageContainer"
+                                resourceName = $storageContainer.Name
+                                resourceId = $storageContainer.Name
+                                resourceParent = $resourceName
+                            }
+                        }
+                    }
+                }
+            }
 
+            $resources += [PSCustomObject]@{
+                resourceType = $resourceType
+                resourceName = $resourceName
+                resourceId = $resourceName
+                resourceParent = $resourceParent
+            }
+            $resources += $resourceChildren
+
+        }
     }
-    
-    Write-Host+
-    $message = "<  Resource creation <.>60> SUCCESS" 
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-    
+
+    $resources | Export-Csv -Path $resourceImport -UseQuotes Always -NoTypeInformation
+
+    return
+
 }
-Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
 
 function global:Import-AzProjectFile {
 
@@ -397,7 +382,7 @@ function global:Import-AzProjectFile {
     )
 
     if (!(Test-Path $Path)) {
-        Write-Host+ -NoTrace -Prefix "ERROR" "$Path not found." -ForegroundColor DarkRed
+        Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $Path -Leaf) not found." -ForegroundColor DarkRed
         return
     }
 
@@ -441,77 +426,6 @@ function global:Import-AzProjectFile {
             Select-Object -Property $propertyNames
 
     return $_object
-
-}
-
-function global:ConvertTo-AzProjectFile {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
-    )
-
-    # Original AzProject Import File
-    # ------------------------------
-    # <prefix>-roleAssignments.csv: "project","resourceType","resourceName","role","signInName","fullName"
-
-    $roleAssignmentsFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments.csv"
-
-    # Current AzProject Import Files
-    # ------------------------------
-    # <prefix>-users-import.csv: "signInName","fullName"
-    # [optional] <prefix>-groups-import.csv: "group","user"
-    # <prefix>-resources-import.csv: "resourceType","resourceName","resourceId","resourceParent"
-    # <prefix>-roleAssignments-import.csv: "resourceId","role","assigneeType","assignee"    
-
-    $userImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
-    $groupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
-    $resourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-    $roleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
-    
-    # ABORT if any of the new AzProject import files already exist
-    if ((Test-Path $userImportFile) -or (Test-Path $groupImportFile) -or (Test-Path $ResourceImportFile) -or (Test-Path $RoleAssignmentImportFile)) {
-        Write-Host+ -Iff $(Test-Path $userImportFile) -NoTrace -NoTimestamp "INFO: $userImportFile already exists." 
-        Write-Host+ -Iff $(Test-Path $groupImportFile) -NoTrace -NoTimestamp "INFO: $groupImportFile already exists." 
-        Write-Host+ -Iff $(Test-Path $resourceImportFile) -NoTrace -NoTimestamp "INFO: $resourceImportFile already exists." 
-        Write-Host+ -Iff $(Test-Path $roleAssignmentImportFile) -NoTrace -NoTimestamp "INFO: $roleAssignmentImportFile already exists." 
-        Write-Host+ -NoTrace -NoTimestamp "WARN: One or more AzProject import files already exists." -ForegroundColor DarkYellow
-        Write-Host+ -NoTrace -NoTimestamp "WARN: AzProject import file conversion aborted." -ForegroundColor DarkYellow
-        return
-    }   
-
-    # Current AzProject Export File
-    # -----------------------------
-    # <prefix>-roleAssignments-export.csv: "resourceType","resourceName","role","name"
-
-    $roleAssignmentExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-export.csv"
-
-    # ERROR if the old AzProject import file does not exist
-    if (!(Test-Path $roleAssignmentsFile)) {
-        Write-Host+ -NoTrace -NoTimestamp "ERROR: $roleAssignmentsFile not found." -ForegroundColor DarkRed
-        return
-    } 
-
-    # read old AzProject import data
-    $roleAssignments = Import-AzProjectFile $roleAssignmentsFile
-
-    # write old AzProject import data to new AzProject import files 
-    $roleAssignments | Select-Object -Property signInName,fullName | Sort-Object -Property signInName -Unique | Export-Csv $userImportFile -UseQuotes Always -NoTypeInformation
-    $roleAssignments | Select-Object -Property resourceType,resourceName,@{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}} | Sort-Object -Property resourceType, resourceName -Unique | Export-Csv $resourceImportFile -UseQuotes Always  -NoTypeInformation
-    $roleAssignments | Select-Object -Property @{name="resourceId";expression={$_.resourceType + ($_.resourceName ? "-" + $_.resourceName : $null)}}, role, @{name="assigneeType";expression={"user"}}, @{name="assignee";expression={$_.signInName}} | Export-Csv $roleAssignmentImportFile -UseQuotes Always  -NoTypeInformation
-
-    # write headers only to the new AzProject group import file and the export file
-    Set-Content -Path $groupImportFile -Value '"group","user"'
-    Set-Content -Path $roleAssignmentExportFile -Value '"resourceType","resourceName","role","name"'
-
-    # archive the old AzProject import file
-    $archiveDirectory = "$($global:AzureProject.Location.Data)\archive"
-    if (!(Test-Path $archiveDirectory)) {
-        New-Item -Path $global:AzureProject.Location.Data -Name "archive" -ItemType Directory | Out-Null
-    }
-    Move-Item -Path $roleAssignmentsFile -Destination $archiveDirectory
-    Write-Host+ -NoTrace -NoTimestamp "INFO: $roleAssignmentsFile archived."
 
 }
 
@@ -627,7 +541,7 @@ function global:Grant-AzProjectRole {
         Write-Host+
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
         $response = Read-Host
-        if ($response.ToUpper().Substring(0,1) -ne "Y") {
+        if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
             Write-Host+
             return
         }
@@ -648,7 +562,7 @@ function global:Grant-AzProjectRole {
         Write-Host+
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
         $response = Read-Host
-        if ($response.ToUpper().Substring(0,1) -ne "Y") {
+        if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
             Write-Host+
             return
         }
@@ -687,69 +601,96 @@ function global:Grant-AzProjectRole {
         $RoleAssignmentExport = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-export.csv"
 
         if (!(Test-Path $UserImport)) {
-            Write-Host+ -NoTrace -Prefix "ERROR" "$UserImport not found." -ForegroundColor DarkRed
+            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $UserImport -Leaf) not found." -ForegroundColor DarkRed
+            Write-Host+
             return
         }
 
         if (!(Test-Path $GroupImport)) {
             $groupsInUse = Select-String -Path $RoleAssignmentImport -Pattern "group" -Quiet
             if ($groupsInUse) {
-                Write-Host+ -NoTrace -Prefix ($groupsInUse ? "ERROR" : "WARNING") "$GroupImport not found." -ForegroundColor ($groupsInUse ? "DarkRed" : "DarkYellow")
+                Write-Host+ -NoTrace "    ($groupsInUse ? 'ERROR' : 'WARNING'): $(Split-Path -Path $GroupImport -Leaf) not found." -ForegroundColor ($groupsInUse ? "DarkRed" : "DarkYellow")
                 Write-Host+
                 return
             }
         }
 
         if (!(Test-Path $ResourceImport)) {
-            Write-Host+ -NoTrace -Prefix "ERROR" "$ResourceImport not found." -ForegroundColor DarkRed
+            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $ResourceImport -Leaf) not found." -ForegroundColor DarkRed
+            Write-Host+
             return
         }
 
         if (!(Test-Path $RoleAssignmentImport)) {
-            Write-Host+ -NoTrace -Prefix "ERROR" "$RoleAssignmentImport not found." -ForegroundColor DarkRed
+            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $RoleAssignmentImport -Leaf) not found." -ForegroundColor DarkRed
+            Write-Host+
             return
         }
 
-        Write-Host+ -NoTrace -NoSeparator "    $UserImport" -ForegroundColor DarkGray
-        $users = @()
-        $users += Import-AzProjectFile $UserImport
-        if ($User) {
-            # if $User has been specified, filter $users to the specified $User only
-            $users = $users | Where-Object {$_.signInName -eq $User}
-            if ($users.Count -eq 0) {
-                Write-Host+ -NoTrace -NoSeparator  "      ERROR: User $User not referenced in project `"$($ProjectName)`"'s import files." -ForegroundColor Red
-                Write-Host+
-                return
-            }
-            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $User
-            if (!$azureADUser) {
-                Write-Host+ -NoTrace -NoSeparator  "      ERROR: $User not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
-                Write-Host+
-                return
-            }
-            $User = $azureADUser.mail
-        }
+        #region USER IMPORT
 
-        Write-Host+ -NoTrace -NoSeparator "    $GroupImport" -ForegroundColor DarkGray
-        $groups = @()
-        if (Test-Path $GroupImport) {
-            $groups += Import-AzProjectFile $GroupImport
+            Write-Host+ -NoTrace -NoSeparator "    $UserImport" -ForegroundColor DarkGray
+            $users = @()
+            $users += Import-AzProjectFile $UserImport
             if ($User) {
-                # if $User has been specified, filter $groups to only those containing $User
-                $groups = $groups | Where-Object {$_.user -eq $User}
+                # if $User has been specified, filter $users to the specified $User only
+                $users = $users | Where-Object {$_.signInName -eq $User}
+                if ($users.Count -eq 0) {
+                    Write-Host+ -NoTrace -NoSeparator  "      ERROR: User $User not referenced in project `"$($ProjectName)`"'s import files." -ForegroundColor Red
+                    Write-Host+
+                    return
+                }
+                $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $User
+                if (!$azureADUser) {
+                    Write-Host+ -NoTrace -NoSeparator  "      ERROR: $User not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
+                    Write-Host+
+                    return
+                }
+                $User = $azureADUser.mail
             }
-        }
 
-        Write-Host+ -NoTrace -NoSeparator "    $ResourceImport" -ForegroundColor DarkGray
-        $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
-        $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
+        #endregion USER IMPORT
+        #region GROUP IMPORT
 
-        Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImport" -ForegroundColor DarkGray
-        $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImport
-        if ($User) {
-            # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
-            $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
-        }
+            Write-Host+ -NoTrace -NoSeparator "    $GroupImport" -ForegroundColor DarkGray
+            $groups = @()
+            if (Test-Path $GroupImport) {
+                $groups += Import-AzProjectFile $GroupImport
+                if ($User) {
+                    # if $User has been specified, filter $groups to only those containing $User
+                    $groups = $groups | Where-Object {$_.user -eq $User}
+                }
+            }
+
+        #endregion GROUP IMPORT
+        #region RESOURCE IMPORT
+
+            Write-Host+ -NoTrace -NoSeparator "    $ResourceImport" -ForegroundColor DarkGray
+            $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
+            $resources += Import-AzProjectFile -Path $ResourceImport | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
+
+            $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
+            if ($duplicateResourceIds) {
+                $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $ResourceImport -Leaf)."
+                Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
+                foreach ($duplicateResourceId in $duplicateResourceIds) {
+                    Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Resource id '$($duplicateResourceId.Name)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
+                }
+                Write-Host+
+                return
+            }
+
+        #endregion RESOURCE IMPORT
+        #region ROLE ASSIGNMENTS IMPORT
+
+            Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImport" -ForegroundColor DarkGray
+            $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImport
+            if ($User) {
+                # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
+                $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
+            }
+
+        #endregion ROLE ASSIGNMENTS IMPORT
 
         # if the $ReferencedResourcesOnly switch has been specified, then filter $resources to only those relevant to $users
         # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
@@ -823,6 +764,15 @@ function global:Grant-AzProjectRole {
                         $scope = $resource.resourceScope
                     }
                 }
+                {$_ -like "DataFactory*"} {
+                    if ([string]::IsNullOrEmpty($resource.resourceScope)) {
+                        $scope = $global:AzureProject.ResourceType.DataFactory.Scope
+                        $scope = $scope.Substring(0,$scope.LastIndexOf("/")+1) + $ResourceName
+                    }
+                    else {
+                        $scope = $resource.resourceScope
+                    }
+                }
                 "StorageContainer" {
                     $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
                     $scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($_storageAccount.resourceName)/blobServices/default/containers/$($resourceName)"
@@ -867,37 +817,44 @@ function global:Grant-AzProjectRole {
                         $nicScope = $nic.Id
                         $nicObject = Get-AzNetworkInterface -ResourceGroupName $resourceGroupName -Name $nicName
 
-                        Write-Host+ -NoTrace -NoSeparator "    $($nic.Id.split("/resourceGroups/")[1])" -ForegroundColor DarkGray
+                        $nicResource = $resources | Where-Object {$_.resourceType -eq $nicType -and $_.resourceScope -eq $nicScope}
+                        if (!$nicResource) {
 
-                        if ([string]::IsNullOrEmpty($global:AzureProject.ResourceType.NetworkInterface.VmName) -or $global:AzureProject.ResourceType.NetworkInterface.VmName -eq $vm.Name) {
-                            if ($global:AzureProject.ResourceType.NetworkInterface.Scope -notcontains $nicScope) {
-                                $global:AzureProject.ResourceType.NetworkInterface += @{
-                                    VmName = $vm.Name
-                                    Name = $nicName
-                                    Scope = $nicScope 
-                                    Object = $nicObject
+                            Write-Host+ -NoTrace -NoSeparator "    $($nic.Id.split("/resourceGroups/")[1])" -ForegroundColor DarkGray
+
+                            if ([string]::IsNullOrEmpty($global:AzureProject.ResourceType.NetworkInterface.VmName) -or $global:AzureProject.ResourceType.NetworkInterface.VmName -eq $vm.Name) {
+                                if ($global:AzureProject.ResourceType.NetworkInterface.Scope -notcontains $nicScope) {
+                                    $global:AzureProject.ResourceType.NetworkInterface += @{
+                                        VmName = $vm.Name
+                                        Name = $nicName
+                                        Scope = $nicScope 
+                                        Object = $nicObject
+                                    }
                                 }
                             }
+
+                            $nicResource = [PSCustomObject]@{
+                                resourceId = $nicType + "-" + $nicName
+                                resourceType = $nicType
+                                resourceName = $nicName
+                                resourceScope = $nicScope
+                                resourceParent = $resource.resourceId
+                                resourcePath = "$resourceGroupName/$($resource.resourceType)/$($resource.resourceName)/$nicType/$nicName"
+                            }
+                            $resources += $nicResource
+
                         }
 
-                        $newResource = [PSCustomObject]@{
-                            resourceId = $nicType + "-" + $nicName
-                            resourceType = $nicType
-                            resourceName = $nicName
-                            resourceScope = $nicScope
-                            resourceParent = $resource.resourceId
-                            resourcePath = "$resourceGroupName/$($resource.resourceType)/$($resource.resourceName)/$nicType/$nicName"
-                        }
-                        $resources += $newResource
-
-                        foreach ($resourceRoleAssignment in ($roleAssignmentsFromFile | Where-Object {$_.resourceId -eq $resource.resourceId} | Sort-Object -Property assigneeType,assignee -Unique)) {
+                        $nicRole = "Reader"
+                        foreach ($resourceRoleAssignment in ($roleAssignmentsFromFile | Where-Object {$_.resourceId -eq $nicResource.resourceId -and $_.role -ne $nicRole} | Sort-Object -Property assigneeType,assignee -Unique)) {
                             $roleAssignmentsFromFile += [PSCustomObject]@{
-                                resourceId = $newResource.resourceId
-                                role = "Reader"
+                                resourceId = $nicResource.resourceId
+                                role = $nicRole
                                 assigneeType = $resourceRoleAssignment.assigneeType
                                 assignee = $resourceRoleAssignment.assignee
                             }
                         }
+
                     }
                 }
                 "StorageAccount" {
@@ -910,6 +867,33 @@ function global:Grant-AzProjectRole {
                 Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
             }
 
+        }
+
+        $duplicateResourceScopes = $resources | Group-Object -Property resourceScope | Where-Object {$_.Count -gt 1}
+        if ($duplicateResourceScopes) {
+            Write-Host+
+            $errorMessage = "ERROR: Duplicate resource scope"
+            Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
+            foreach ($duplicateResourceScope in $duplicateResourceScopes.Group) {
+                Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  $($duplicateResourceScope.resourceScope)" -ForegroundColor DarkGray
+            }
+            Write-Host+
+            return
+        }
+
+        $duplicateResourceNames = $resources | Group-Object -Property resourceType, resourceName | Where-Object {$_.Count -gt 1}
+        if ($duplicateResourceNames) {
+            Write-Host+
+            Write-Host+ -NoTrace "    WARNING: Multiple objects with different scopes but with the same resource type and name" -ForegroundColor DarkYellow
+            foreach ($duplicateResourceName in $duplicateResourceNames.Group) {
+                Write-Host+ -NoTrace "    $($duplicateResourceName.resourceScope)" -ForegroundColor DarkGray
+            }
+            # Write-Host+ -NoTrace -NoNewLine "    Continue (Y/N)? " -ForegroundColor DarkYellow
+            # $response = Read-Host
+            # if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
+            #     Write-Host+
+            #     return
+            # }
         }
 
         Write-Host+
@@ -1190,7 +1174,7 @@ function global:Grant-AzProjectRole {
                 $resourceScope = $resource.resourceScope ?? (Get-AzProjectResourceScope -ResourceType $resourceType -ResourceName $resourceName)
 
                 $resourceParent = $resources | Where-Object {$_.resourceId -eq $resource.resourceParent}
-                $message = (![string]::IsNullOrEmpty($resourceParent) ? "  " : "") + "    $($resourceType)/$($resourceName)"
+                $message = "    " + (![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : "") + "$($resourceType)/$($resourceName)"
                 $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "    
 
                 $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Sort-Object -Property Scope
@@ -1290,94 +1274,225 @@ function global:Grant-AzProjectRole {
 }
 Set-Alias -Name azProjGrant -Value Grant-AzProjectRole -Scope Global
 
-function global:Deploy-AzProject {
+function global:Get-AzAvailableVmSizes {
 
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory=$true)][Alias("Location")][string]$ResourceLocation,
+        [Parameter(Mandatory=$false)][string]$VmSize,
+        [switch]$HasSufficientQuota
+    )
+
+    # Get the list of VM SKUs for the given location
+    $vmSKU = Get-AzComputeResourceSku -Location $ResourceLocation | Where-Object ResourceType -eq "virtualMachines" | Select-Object Name, Family
+    $vmUsage = Get-AzVMUsage -Location $ResourceLocation
+
+    $vmSizes = Get-AzVmSize -Location $ResourceLocation | Where-Object {$_.Name -notlike "%Promo%"}
+    if (![string]::IsNullOrEmpty($VmSize)) {
+        $vmSizes = $vmSizes | Where-Object {$_.Name -eq $VmSize}
+    }
+
+    $availableVmSizes = @()
+    $vmSizes | Foreach-Object {
+        $_vmSizeName = $_.Name
+        $_vmNumberOfCores = $_.NumberOfCores
+        $_vmFamilyKey = ($vmSKU | Where-Object {$_.Name -eq $_vmSizeName}).Family
+        $_vmUsage = $vmUsage | Where-Object {$_.Name.Value -eq $_vmFamilyKey} 
+        $_vmFamilyName = $_vmUsage.Name.LocalizedValue 
+        $_availableVmSize = [PSCustomObject]@{
+            Name = $_vmSizeName
+            Family = $_vmFamilyName
+            NumberOfCores = $_vmNumberOfCores
+            Usage = $_vmUsage.CurrentValue
+            Quota = $_vmUsage.Limit
+            HasSufficientQuota = $null
+        }
+        $_availableVmSize.HasSufficientQuota = $_availableVmSize.Quota - $_availableVmSize.Usage - $_availableVmSize.NumberOfCores -ge 0
+        $availableVmSizes += $_availableVmSize
+
+    }
+
+    return $HasSufficientQuota ? ($availableVmSizes | Where-Object {$_.HasSufficientQuota}) : $availableVmSizes
+
+}
+
+function global:Deploy-Project {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet("DSVM","StorageOnly","MachineLearning")][string]$DeploymentType,
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$true)][ValidateSet("DSnA","StorageAccount")][string]$DeploymentType,   
-        [Parameter(Mandatory=$false)][Alias("StorageContainer")][string]$StorageContainerName,
-        [Parameter(Mandatory=$false)][string]$VmSize,
-        [Parameter(Mandatory=$false)][ValidateSet("canonical","microsoft-dsvm")][string]$VmImagePublisher,
-        [Parameter(Mandatory=$false)][ValidateSet("dsvm-win-2019","linux-data-science-vm-ubuntu","ubuntuserver")][string]$VmImageOffer
+        [Parameter(Mandatory=$true)][string]$VmSize,
+        [Parameter(Mandatory=$false)][ValidateSet("microsoft-dsvm")][string]$VmImagePublisher = "microsoft-dsvm",
+        [Parameter(Mandatory=$true)][ValidateSet("linux","windows")][string]$VmImageOffer,
+        [Parameter(Mandatory=$false)][string]$StorageAccountTier = 'Standard'
     )
 
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     switch ($DeploymentType) {
-        "DSnA" {    
-            Deploy-DSnA -Tenant $tenantKey -Project $ProjectName -VmSize $VmSize -VmImagePublisher $VmImagePublisher -VmImageOffer $VmImageOffer
+        "DSVM" {  
+            New-DsvmProject -Tenant $tenantKey -Project $ProjectName -VmSize $VmSize -VmImagePublisher $VmImagePublisher -VmImageOffer $VmImageOffer
         }
-        "StorageAccount" {
-            New-AzProject -Tenant $tenantKey -Project $ProjectName -StorageContainerName $StorageContainerName
+        "StorageOnly" {
+            New-AzProject -Tenant $tenantKey -Project $ProjectName
+        }
+        "MachineLearning" {
+            Deploy-DsvmProject -Tenant $tenantKey -Project $ProjectName -VmSize $VmSize -VmImagePublisher $VmImagePublisher -VmImageOffer $VmImageOffer
+            # add Azure Machine Learning resources
         }
     }
     
     Get-AzProjectResourceScopes
     Get-AzProjectDeployedResources
 
-    Grant-AzProjectRole -Tenant $tenantKey -Project $ProjectName
-
     return
 
 }
 Set-Alias -Name azProjDeploy -Value Deploy-AzProject -Scope Global
 
-function global:Deploy-DSnA {
+function global:New-StorageOnlyProject {
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$false)][string]$VmSize,
-        [Parameter(Mandatory=$true)][ValidateSet("canonical","microsoft-dsvm")][string]$VmImagePublisher,
-        [Parameter(Mandatory=$true)][ValidateSet("dsvm-win-2019","linux-data-science-vm-ubuntu","ubuntuserver")][string]$VmImageOffer
+        [Parameter(Mandatory=$false)][string]$StorageAccountSKU = "Standard_LRS",
+        [Parameter(Mandatory=$false)][string]$StorageContainerName
+    )
+
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    
+    $resourceGroupName = $global:AzureProject.ResourceType.ResourceGroup.Name
+    $resourceLocation = $global:AzureProject.ResourceLocation
+    
+    Write-Host+
+    $message = "<  Resource creation <.>60> PENDING" 
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    Write-Host+
+
+    #region RESOURCE GROUP
+
+        $message = "<    ResourceGroup/$($resourceGroupName) <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+        
+        $resourceGroup = Get-AzResourceGroup -Name $global:AzureProject.ResourceType.ResourceGroup.Name -ErrorAction SilentlyContinue
+        if ($resourceGroup) {
+            $message = "$($emptyString.PadLeft(8,"`b")) Exists$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow
+        }
+        else {
+            $resourceGroup = New-AzResourceGroup+ -Tenant $tenantKey -ResourceGroupName $resourceGroupName -Location $resourceLocation
+            $global:AzureProject.ResourceType.ResourceGroup.Object = $resourceGroup
+            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        }
+
+    #endregion RESOURCE GROUP
+    #region STORAGE ACCOUNT
+
+        $storageAccountName = $global:AzureProject.ResourceType.StorageAccount.Name
+        $message = "<      StorageAccount/$storageAccountName <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+
+        $storageAccount = Get-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName -ErrorAction SilentlyContinue
+        if ($storageAccount) {
+            $message = "$($emptyString.PadLeft(8,"`b")) Exists$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow
+        }
+        else {
+            $storageAccount = New-AzStorageAccount+ -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $resourceLocation -SKU $StorageAccountSKU
+            $global:AzureProject.ResourceType.StorageAccount.Object = $storageAccount
+            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        }
+        $storageAccountContext = New-AzStorageContext -StorageAccountName $storageAccountName -UseConnectedAccount
+        $global:AzureProject.ResourceType.StorageAccount.Context = $storageAccountContext
+
+    #endregion STORAGE ACCOUNT
+    #region STORAGE CONTAINER
+
+        $StorageContainerName = (![string]::IsNullOrEmpty($StorageContainerName) ? $StorageContainerName : "data").ToLower()
+        $message = "<      $($global:asciiCodes.RightArrowWithHook)  StorageContainer/$StorageContainerName <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+
+        $storageContainer = Get-AzStorageContainer -Context $storageAccountContext -Name $StorageContainerName -ErrorAction SilentlyContinue
+        if ($storageContainer) {
+            $message = "$($emptyString.PadLeft(8,"`b")) Exists$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow
+        }
+        else {
+            $storageContainer = New-AzStorageContainer+ -Context $storageAccountContext -Name $StorageContainerName -Permission Off
+            $global:AzureProject.ResourceType.StorageContainer.Object = $storageContainer
+            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        }
+
+    #endregion STORAGE CONTAINER
+    
+    Write-Host+
+    $message = "<  Resource creation <.>60> SUCCESS" 
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+    # scan resource group and create resource import file
+    Export-AzProjectResourceFile -ResourceGroupName $resourceGroupName -Project $ProjectName
+    
+}
+Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
+
+function global:New-DsvmProject {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
+        [Parameter(Mandatory=$true)][string]$VmSize,
+        [Parameter(Mandatory=$false)][ValidateSet("microsoft-dsvm")][string]$VmImagePublisher = "microsoft-dsvm",
+        [Parameter(Mandatory=$true)][ValidateSet("linux","windows")][string]$VmImageOffer,
+        [Parameter(Mandatory=$false)][string]$StorageAccountTier = 'Standard'
     )
 
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
-    $azureProjects = Get-Product "AzureProjects"
-
-    $VmSize = ![string]::IsNullOrEmpty($VmSize) ? $VmSize : $azureProjects.Config.Templates.Resources.VM.Size 
-    $VmOsType = ![string]::IsNullOrEmpty($VmOsType) ? $VmOsType : $azureProjects.Config.Templates.Resources.VM.OsType
-
-    if (Test-Credentials $global:AzureProject.ResourceType.VM.Admin -NoValidate) {
-        $adminCreds = Get-Credentials $global:AzureProject.ResourceType.VM.Admin -Location $global:AzureProject.Location.Credentials
+    $availableVmSizes = Get-AzAvailableVmSizes -Location $global:AzureProject.ResourceLocation -HasSufficientQuota
+    $selectedVmSize = $availableVmSizes | Where-Object {$_.Name -eq $VmSize}
+    if (!$selectedVmSize) {
+        Write-Host+ -NoTrace "The VM size '$VmSize' is not available in the $($global:AzureProject.ResourceLocation) region." -ForegroundColor DarkRed
+        Write-Host+ -NoTrace "Use Get-AzAvailableVmSizes to see the available VM sizes and quotas/usage." -ForegroundColor DarkGray
+        return
     }
-    else {
-        $adminCreds = Request-Credentials -UserName $global:AzureProject.VM.Admin -Password (New-RandomPassword -ExcludeSpecialCharacters)
-        Set-Credentials $global:AzureProject.VM.Admin -Credentials $adminCreds
-    }
-
-    $params = @{
-        Subscription = $global:Azure.$tenantKey.Subscription.Id
-        Tenant = $global:Azure.$tenantKey.Tenant.Id
-        Prefix = $global:Azure.$tenantKey.Prefix
-        Random = $ProjectName
-        ResourceGroup = $global:AzureProject.ResourceType.ResourceGroup.Name
-        BlobContainerName = $global:AzureProject.ResourceType.StorageContainer.Name
-        VMSize = $VmSize
-        location = ($global:AzureProject.ResourceType.ResourceGroup.Object).Location
+    if (!$selectedVmSize.HasSufficientQuota) {
+        Write-Host+ -NoTrace "There is insufficient quota in the $($global:AzureProject.ResourceLocation) region to provision the VM size '$VmSize'." -ForegroundColor DarkRed
+        Write-Host+ -NoTrace "Use Get-AzAvailableVmSizes to see the available VM sizes and quotas/usage." -ForegroundColor DarkGray
+        return
     }
 
-    Set-Location "$($Location.Data)\azure\deployment\vmImages\$VmImagePublisher\$VmImageOffer\config"
+    $currentAzureUser = Get-AzureAdUser -Tenant $tenantKey -User (Get-AzContext).Account.Id
 
-    if (Select-String -path "deploy.ps1" -Pattern "AdminPassword" -Quiet) {
-        $params += @{AdminPassword = $adminCreds.Password}
-    }
-    if (Select-String -path "deploy.ps1" -Pattern "SshPrivateKeyPath" -Quiet) {
-        $params += @{
-            SshPrivateKeyPath = "~/.ssh/$($ProjectName)_rsa.private"
-            SshPublicKeyPath = "~/.ssh/$($ProjectName)_rsa.public"
-        }
-    }
+    $env:SUBSCRIPTION_ID = $global:Azure.$tenantKey.Subscription.Id
+    $env:TENANT_ID = $global:Azure.$tenantKey.Tenant.Id
+    $env:RESOURCE_LOCATION = $global:AzureProject.ResourceLocation
+    $env:RESOURCE_PREFIX = $global:AzureProject.Prefix
+    $env:RESOURCE_GROUP_NAME = $global:AzureProject.ResourceType.ResourceGroup.Name
+    $env:VM_SIZE = $VmSize
+    $env:RESOURCE_ADMIN_USERNAME = "$($global:AzureProject.Prefix)$($ProjectName)admin"
+    $env:STORAGE_ACCOUNT_TIER = $StorageAccountTier 
+    $env:AUTHORIZED_IP = $(curl -s https://api.ipify.org)
+    $env:USER_ID = $currentAzureUser.id
+    $env:USER_EMAIL = $currentAzureUser.mail
 
-    .\deploy.ps1 @params
+    Set-Location "$($Location.Data)\azure\deployment\vmImages\$VmImagePublisher\$VmImageOffer"
+
+    bash .\echoEnvVars.sh
     
     Set-Location $global:Location.Root
+
+    # scan resource group and create resource import file
+    Export-AzProjectResourceFile -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Project $ProjectName
 
     return
 

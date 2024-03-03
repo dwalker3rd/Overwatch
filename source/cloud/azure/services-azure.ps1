@@ -275,21 +275,32 @@ function global:New-AzStorageAccount+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][string]$StorageAccountName,
+        # [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][string]$Name,
         [Parameter(Mandatory=$true)][string]$ResourceGroupName,
         [Parameter(Mandatory=$true)][string]$SKU,
+        [Parameter(Mandatory=$false)][string]$Kind,
+        [Parameter(Mandatory=$false)][string]$AccessTier,
         [Parameter(Mandatory=$true)][string]$Location,
-        [Parameter(Mandatory=$true)][bool]$EnableSoftDelete,
-        [Parameter(Mandatory=$true)][int]$RetentionDays
+        [Parameter(Mandatory=$false)][bool]$EnableSoftDelete,
+        [Parameter(Mandatory=$false)][int]$RetentionDays
     )
 
     # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    
+    $params = @{
+        ResourceGroupName = $ResourceGroupName
+        Name = $Name
+        SkuName = $SKU
+        Location = $Location
+    }
+    if (![string]::IsNullOrEmpty($Kind)) { $params += @{ Kind = $Kind } }
+    if (![string]::IsNullOrEmpty($AccessTier)) { $params += @{ AccessTier = $AccessTier } }
 
-    $storageAccount = New-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $StorageAccountName -SkuName $SKU -Location $location
+    $storageAccount = New-AzStorageAccount @params
 
     if ($EnableSoftDelete) {
-        Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName -RetentionDays $RetentionDays
+        Enable-AzStorageBlobDeleteRetentionPolicy -ResourceGroupName $ResourceGroupName -Name $Name -RetentionDays $RetentionDays
     }
 
     return $storageAccount
@@ -299,15 +310,15 @@ function global:New-AzStorageContainer+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
+        # [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][object]$Context,
-        [Parameter(Mandatory=$true)][string]$ContainerName,
+        [Parameter(Mandatory=$true)][string]$Name,
         [Parameter(Mandatory=$true)][ValidateSet("Container","Blob","Off")][string]$Permission
     )
 
     # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
 
-    return New-AzStorageContainer -Name $ContainerName.ToLower() -Context $Context -Permission $Permission
+    return New-AzStorageContainer -Name $Name.ToLower() -Context $Context -Permission $Permission
 
 }
 

@@ -197,7 +197,10 @@ function global:Write-Host+ {
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($NoTimestamp ? "" : "[$([datetime]::Now.ToString('u'))] ")
         Write-Host -NoNewLine -ForegroundColor $DefaultForeGroundColor[0] ($NoTrace ? "" : "$($caller)")
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Indent ? $emptyString.PadLeft($Indent," ") : "")
-        Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Prefix ? $Prefix : "")
+        If (![string]::IsNullOrEmpty($Prefix)) {
+            $_foregroundColor = $ForegroundColor ? $ForegroundColor[0] : $DefaultForegroundColor[0]
+            Write-Host -NoNewLine -ForegroundColor $_foregroundColor ($Prefix ? $Prefix : "")
+        }
 
         #+++
         # Object Parser
@@ -221,11 +224,11 @@ function global:Write-Host+ {
 
     $i = 0
     foreach ($obj in $Object) {
-        $foregroundColor_ = $ForegroundColor ? ($i -lt $ForegroundColor.Length-1 ? $ForegroundColor[$i] : $ForegroundColor[$ForegroundColor.Length-1]) : $DefaultForegroundColor[1]
-        Write-Host -NoNewLine -ForegroundColor $foregroundColor_ $obj
+        $_foregroundColor = $ForegroundColor ? ($i -lt $ForegroundColor.Length-1 ? $ForegroundColor[$i] : $ForegroundColor[$ForegroundColor.Length-1]) : $DefaultForegroundColor[1]
+        Write-Host -NoNewLine -ForegroundColor $_foregroundColor $obj
         if ($i -lt $Object.Length-1) {
             if (!$NoSeparator) {
-                Write-Host  -NoNewLine -ForegroundColor $foregroundColor_ $Separator
+                Write-Host  -NoNewLine -ForegroundColor $_foregroundColor $Separator
             }
         }
         $i++
