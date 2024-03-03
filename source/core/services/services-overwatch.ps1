@@ -1627,7 +1627,9 @@
             return $results 
         }
 
-        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Copy-Object
+        $prerequisites = $global:Catalog.$Type.$Id.$PrerequisiteType.Prerequisites | Copy-Object 
+        # keep only hashtable and array types
+        $prerequisites = $prerequisites | Where-Object {$_.$($_.Type).GetType().Name -in @("Hashtable","Array")}
 
         # apply prerequisite filter, if specified
         $prerequisiteTypeObjects = $null

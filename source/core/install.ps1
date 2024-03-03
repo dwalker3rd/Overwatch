@@ -1272,7 +1272,18 @@ $global:Location.Definitions = $tempLocationDefinitions
         Write-Host+ -NoTrace -NoSeparator -NoNewLine -NoTimeStamp $message -ForegroundColor DarkGray
         $psStatusPadLeft = $psStatus.Length + 1
 
-        $psPrerequisites = (Get-Catalog) | Where-Object {$_.IsInstalled() -and $_.Installation.Prerequisites.Type -and $_.Installation.Prerequisites.Type -eq "PowerShell"}
+        # copy catalog object with installation powershell prerequisites
+        $psPrerequisites = (Get-Catalog) | Where-Object {$_.IsInstalled() -and $_.Installation.Prerequisites.Type -and $_.Installation.Prerequisites.Type -eq "PowerShell"} | Copy-Object
+        # remove all non-powershell prerequisites from copied object
+        foreach ($psPrerequisite in $psPrerequisites) {
+            $psInstallationPrerequisites = @()
+            foreach ($installationPrerequisite in $psPrerequisite.Installation.Prerequisites) {
+                if ($installationPrerequisite.Type -eq "PowerShell") {
+                    $psInstallationPrerequisites += $installationPrerequisite
+                }
+            }
+            $psPrerequisite.Installation.Prerequisites = $psInstallationPrerequisites
+        }
 
         $psStatus = "PENDING"
         $psStatusPadRight =  $psStatusPadLeft-$psStatus.Length -lt 0 ? 0 : $psStatusPadLeft-$psStatus.Length
