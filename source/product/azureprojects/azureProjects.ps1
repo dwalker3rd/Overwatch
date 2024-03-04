@@ -34,40 +34,190 @@ $global:Product = @{Id="AzureProjects"}
 
 #endregion SERVER CHECK
 
+function script:Request-AzProjectVariable {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$Default,
+        [Parameter(Mandatory=$false)][string[]]$Suggestions,
+        [Parameter(Mandatory=$false)][string[]]$Selections,
+        [switch]$AllowNone,
+        [switch]$Lowercase, [switch]$Uppercase
+    )
+
+    $_selections = @()
+    $_selections += $Selections
+    if ($AllowNone) {
+        $_selections += "None"
+    }
+
+    if ($Suggestions.Count -gt 1) {
+        Write-Host+ -NoTrace "Suggestions: $($Suggestions -join ", ")" -ForegroundColor DarkGray
+    }
+    if ($AllowNone) {
+        Write-Host+ -NoTrace "Enter 'None' to deselect $Name" -ForegroundColor DarkGray
+    }
+    if ([string]::IsNullOrEmpty($Default) -and $Suggestions.Count -eq 1) {
+        $Default = $Suggestions[0]
+    }
+
+    $showSelections = $true
+    do {
+        $response = $null
+        Write-Host+ -NoTrace -NoSeparator -NoNewLine $Name, $(![string]::IsNullOrEmpty($Default) ? " [$Default]" : ""), ": " -ForegroundColor Gray, Blue, Gray
+        $response = Read-Host
+        $response = ![string]::IsNullOrEmpty($response) ? $response : $Default
+        if ($response -eq "?") { $showSelections = $true }
+        if ($showSelections -and $_selections -and $response -notin $_selections) {
+            Write-Host+ -NoTrace -NoNewLine "  $Name must be one of the following: " -ForegroundColor DarkGray
+            if ($_selections.Count -le 5) {
+                Write-Host+ -NoTrace -NoTimestamp ($_selections -join ", ") -ForegroundColor DarkGray
+            }
+            else {
+                $itemsPerRow = 8
+                Write-Host+
+                for ($i = 0; $i -lt ($_selections.Count - ($_selections.Count % $itemsPerRow))/$itemsPerRow + 1; $i++) {
+                    $selectionsRow = "    "
+                    for ($j = $i*$itemsPerRow; $j -lt $i*$itemsPerRow+$itemsPerRow; $j++) {
+                        $selectionsRow += ![string]::IsNullOrEmpty($_selections[$j]) ? "$($_selections[$j]), " : ""
+                    }
+                    if ($selectionsRow -ne "    ") {
+                        if ($j -ge $_selections.Count) {
+                            $selectionsRow = $selectionsRow.Substring(0,$selectionsRow.Length-2)
+                        }
+                        Write-Host+ -NoTrace $selectionsRow -ForegroundColor DarkGray
+                    }
+                }
+            }
+            $showSelections = $false
+        }
+    } until ($_selections ? $response -in $_selections : $response -ne $global:emptyString)
+
+    if ($Lowercase) { $response = $response.ToLower() }
+    if ($Uppercase) { $response = $response.ToUpper() }
+
+    return $response
+
+}
+
+function script:Read-AzProjectVariable {
+    
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Name
+    )
+    
+    $iniContent = Get-Content $global:AzureProjectIniFile
+
+    $value = $iniContent | Where-Object {$_ -like "$Name*"}
+    if (![string]::IsNullOrEmpty($value)) {
+        return $value.split("=")[1].Trim()
+    } else {
+        return
+    }
+
+}
+
+function script:Write-AzProjectVariable {
+    
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$Value,
+        [switch]$Delete
+    )
+
+    if (!$Delete -and [string]::IsNullOrEmpty($Value)) {
+        Write-Host+ -NoTrace "'Value' is a required field." -ForegroundColor DarkRed
+        return
+    }
+    
+    $iniContent = Get-Content $global:AzureProjectIniFile -Raw
+
+    $valueUpdated = $false
+    if (![string]::IsNullOrEmpty($iniContent)) {
+        $targetDefinition = [regex]::Match($iniContent,"($Name)\s?=\s?(.*)").Groups[0].Value
+        if (![string]::IsNullOrEmpty($targetDefinition)) {
+            if ($Delete) {
+                $iniContent = $iniContent.Replace("$targetDefinition\r\n","")
+            }
+            else {
+                $iniContent = $iniContent.Replace($targetDefinition,"$Name = $Value")
+            }
+            Set-Content -Path $global:AzureProjectIniFile -Value $iniContent.Trim()
+            $valueUpdated = $true
+        }
+    }
+    if (!$valueUpdated) {
+        Add-Content -Path $global:AzureProjectIniFile -Value "$Name = $Value"
+    }
+
+    return
+
+}
+
 function global:Initialize-AzProject {
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$true)][Alias("Group")][string]$GroupName,
-        [Parameter(Mandatory=$true)][string]$Prefix,
-        [Parameter(Mandatory=$true)][Alias("Location")][string]$ResourceLocation,
+        [Parameter(Mandatory=$false)][string]$Tenant,
+        [Parameter(Mandatory=$false)][Alias("Project")][string]$ProjectName,
+        [Parameter(Mandatory=$false)][Alias("Group")][string]$GroupName,
+        [Parameter(Mandatory=$false)][string]$Prefix,
+        [Parameter(Mandatory=$false)][Alias("Location")][string]$ResourceLocation,
         [switch]$Reinitialize
     )
 
     $azureProjectsConfig = (Get-Product "AzureProjects").Config
 
+    if ([string]::IsNullOrEmpty($Tenant)) {
+        $Tenant = Request-AzProjectVariable -Name "Tenant" -Selections (Get-AzureTenantKeys) -Lowercase
+    }
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+
+    $subscriptionId = $global:Azure.$tenantKey.Subscription.Id
+    $tenantId = $global:Azure.$tenantKey.Tenant.Id
+
+    if ([string]::IsNullOrEmpty($GroupName)) {
+        $groupNames = $global:Azure.Group.Keys
+        $GroupName = Request-AzProjectVariable -Name "GroupName" -Suggestions $groupNames -Lowercase
+    }
+
+    if ([string]::IsNullOrEmpty($ProjectName)) {
+        $ProjectName = Request-AzProjectVariable -Name "ProjectName" -Lowercase
+    }
+
+
+    $resourceGroupName = "$($GroupName)-$($ProjectName)-rg".ToLower()
+
+    $global:AzureProjectIniFile = "$($global:Azure.Group.$GroupName.Project.$ProjectName.Location.Data)\$ProjectName.ini"
+    if (!(Test-Path $global:AzureProjectIniFile)) {
+        New-Item -Path $global:AzureProjectIniFile -ItemType File | Out-Null
+    }
+
+    Write-AzProjectVariable -Name Tenant -Value $Tenant
+    Write-AzProjectVariable -Name SubscriptionId -Value $subscriptionId
+    Write-AzProjectVariable -Name TenantId -Value $tenantId
+    Write-AzProjectVariable -Name GroupName -Value $GroupName
+    Write-AzProjectVariable -Name ProjectName -Value $ProjectName
+    Write-AzProjectVariable -Name ResourceGroupName -Value $resourceGroupName
+   
 
     if ([string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.AccessToken)) {
         Connect-AzureAD -Tenant $tenantKey
     }
 
-    $projectNameLowerCase = $ProjectName.ToLower()
-    $projectNameUpperCase = $ProjectName.ToUpper()
-    $groupNameLowerCase = $GroupName.ToLower()
-
     # add new group to Azure
-    if (!$global:Azure.Group.$groupNameLowerCase) {
+    if (!$global:Azure.Group.$groupName) {
         $global:Azure.Group += @{
-            $groupNameLowerCase = @{
-                Name = $groupNameLowerCase
+            $groupName = @{
+                Name = $groupName
                 DisplayName = $GroupName
                 Location = @{
-                    Data = "$($global:Azure.Location.Data)\$groupNameLowerCase"
+                    Data = "$($global:Azure.Location.Data)\$groupName"
                 }
                 Project = @{}
             }
@@ -75,77 +225,91 @@ function global:Initialize-AzProject {
     }
 
     # create group directory
-    if (!(Test-Path -Path $global:Azure.Group.$groupNameLowerCase.Location.Data)) {
-        New-Item -Path $global:Azure.Location.Data -Name $groupNameLowerCase -ItemType "directory" | Out-Null
+    if (!(Test-Path -Path $global:Azure.Group.$groupName.Location.Data)) {
+        New-Item -Path $global:Azure.Location.Data -Name $groupName -ItemType "directory" | Out-Null
     }
 
-    if ($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Initialized) {
-        Write-Host+ -NoTrace "WARN: Project `"$projectNameLowerCase`" has already been initialized." -ForegroundColor DarkYellow
-        Write-Host+ -Iff $(!($Reinitialize.IsPresent)) -NoTrace "INFO: To reinitialize project `"$projectNameLowerCase`", add the -Reinitialize switch."
-        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "WARN: Reinitializing project `"$projectNameLowerCase`"." -ForegroundColor DarkYellow
+    if ($global:Azure.Group.$groupName.Project.$projectName.Initialized) {
+        Write-Host+ -NoTrace "WARN: Project `"$projectName`" has already been initialized." -ForegroundColor DarkYellow
+        if (!($Reinitialize.IsPresent)) {
+            Write-Host+ -NoTrace "INFO: To reinitialize project `"$projectName`", add the -Reinitialize switch."
+            return
+        }
+        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "WARN: Reinitializing project `"$projectName`"." -ForegroundColor DarkYellow
     }
 
     # Connect-AzAccount+
     # if the project's ConnectedAccount contains an AzureProfile, save it for reuse
     # otherwise, connect with Connect-AzAccount+ which returns an AzureProfile
-    if ($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ConnectedAccount) {
-        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "INFO: Reusing ConnectedAccount from project `"$projectNameLowerCase`"`."
-        $_connectedAccount = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ConnectedAccount
+    if ($global:Azure.Group.$groupName.Project.$projectName.ConnectedAccount) {
+        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "INFO: Reusing ConnectedAccount from project `"$projectName`"`."
+        $_connectedAccount = $global:Azure.Group.$groupName.Project.$projectName.ConnectedAccount
     }
     else {
         $_connectedAccount = Connect-AzAccount+ -Tenant $tenantKey
     }
 
     # reinitializing the project, so remove the project from $global:Azure
-    if ($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase) {
-        $global:Azure.Group.$groupNameLowerCase.Project.Remove($projectNameLowerCase)
+    if ($global:Azure.Group.$groupName.Project.$projectName) {
+        $global:Azure.Group.$groupName.Project.Remove($projectName)
     }
 
     # clear the global scope variable AzureProject as it points to the last initialized project
     Remove-Variable AzureProject -Scope Global -ErrorAction SilentlyContinue 
 
     #add new project to Azure
-    $global:Azure.Group.$groupNameLowerCase.Project += @{
-        $projectNameLowerCase = @{
-            Name = $projectNameLowerCase
+    $global:Azure.Group.$groupName.Project += @{
+        $projectName = @{
+            Name = $projectName
             DisplayName = $ProjectName
-            GroupName = $groupNameLowerCase
+            GroupName = $groupName
             Location = @{
-                Data = "$($global:Azure.Group.$groupNameLowerCase.Location.Data)\$projectNameLowerCase"
-                Credentials = "$($global:Azure.Group.$groupNameLowerCase.Location.Data)\$projectNameLowerCase"
+                Data = "$($global:Azure.Group.$groupName.Location.Data)\$projectName"
+                Credentials = "$($global:Azure.Group.$groupName.Location.Data)\$projectName"
             }
             Initialized = $false
         }
     }
     
     #create project directory 
-    if (!(Test-Path -Path $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)) {
-        New-Item -Path $global:Azure.Group.$groupNameLowerCase.Location.Data -Name $projectNameLowerCase -ItemType "directory" | Out-Null
+    if (!(Test-Path -Path $global:Azure.Group.$groupName.Project.$projectName.Location.Data)) {
+        New-Item -Path $global:Azure.Group.$groupName.Location.Data -Name $projectName -ItemType "directory" | Out-Null
     }
 
-    # get/read/update $Prefix
-    $prefixIni = "$($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.Location.Data)\$projectNameLowerCase-prefix.ini"
+    # get/read/update Prefix
     if ([string]::IsNullOrEmpty($Prefix)) {
-        if (Test-Path $prefixIni) {
-            $Prefix = (Get-Content $prefixIni | Where-Object {$_ -like "prefix*"}).split(" : ")[1].Trim()
-        }
-        if ([string]::IsNullOrEmpty($Prefix)) {
-            Write-Host+
-            Write-Host+ -NoTrace -NoTimestamp "Specify value for the following parameter:"
-            do {
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Prefix: "
-                $Prefix = Read-Host
-            } until (![string]::IsNullOrEmpty($Prefix))
-            Write-Host+
-        }
+        $prefixDefault = Read-AzProjectVariable -Name Prefix
+        $prefixes = 
+            $global:Azure.Group.Keys | 
+                Foreach-Object { $_groupName = $_; $global:Azure.Group.$_groupName.Project.Keys } | 
+                    Foreach-Object { $_projectName = $_; $global:Azure.Group.$_groupName.Project.$_projectName.Prefix} |
+                        Sort-Object -Unique
+        $prefixes = $prefixes | Sort-Object -Unique
+        $Prefix = Request-AzProjectVariable -Name "Prefix" -Suggestions $prefixes -Default $prefixDefault
     }
-    if (!(Test-Path $prefixIni)) {
-        New-Item -Path $prefixIni -ItemType File | Out-Null
-    }
-    Clear-Content $prefixIni
-    Add-Content $prefixIni "prefix : $Prefix"
+    # Write-Host+ -NoTrace "Prefix = $Prefix" -ForegroundColor DarkGray
+    Write-AzProjectVariable -Name Prefix -Value $Prefix
+    # Write-Host+
 
-    $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase += @{
+    # get/read/update ResourceLocation
+    $azLocations = Get-AzLocation | Where-Object {$_.providers -contains "Microsoft.Compute"} | 
+        Select-Object -Property displayName, location | Sort-Object -Property location
+    if ([string]::IsNullOrEmpty($ResourceLocation)) {
+        $resourceLocationDefault = Read-AzProjectVariable -Name ResourceLocation
+        $resourceLocationSuggestions = 
+            $global:Azure.Group.Keys | 
+                Foreach-Object { $_groupName = $_; $global:Azure.Group.$_groupName.Project.Keys } | 
+                    Foreach-Object { $_projectName = $_; $global:Azure.Group.$_groupName.Project.$_projectName.ResourceLocation} |
+                        Sort-Object -Unique
+        $resourceLocationSelections = $azLocations.Location
+        $ResourceLocation = Request-AzProjectVariable -Name "ResourceLocation" -Suggestions $resourceLocationSuggestions -Selections $resourceLocationSelections -Default $resourceLocationDefault
+    }
+    # Write-Host+ -NoTrace "ResourceLocation = $ResourceLocation" -ForegroundColor DarkGray
+    Write-AzProjectVariable -Name ResourceLocation -Value $ResourceLocation
+    # Write-Host+ 
+
+    $global:Azure.Group.$groupName.Project.$projectName += @{
+        IniFile = $global:AzureProjectIniFile
         Prefix = $Prefix
         Invitation = @{
             Message = "You have been invited by $($global:Azure.$tenantKey.DisplayName) to collaborate on project $projectNameUpperCase."
@@ -154,85 +318,101 @@ function global:Initialize-AzProject {
         ResourceLocation = $ResourceLocation
         ResourceType = @{
             ResourceGroup = @{
-                Name = $azureProjectsConfig.Templates.Resources.ResourceGroup.Name.Pattern.replace("<0>",$groupNameLowerCase).replace("<1>",$projectNameLowerCase)
-                Scope = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/" + $azureProjectsConfig.Templates.Resources.ResourceGroup.Name.Pattern.replace("<0>",$groupNameLowerCase).replace("<1>",$projectNameLowerCase)
+                Name = $azureProjectsConfig.Templates.Resources.ResourceGroup.Name.Pattern.replace("<0>",$groupName).replace("<1>",$projectName)
+                Scope = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/" + $azureProjectsConfig.Templates.Resources.ResourceGroup.Name.Pattern.replace("<0>",$groupName).replace("<1>",$projectName)
                 Object = $null
             }
             BatchAccount = @{
-                Name =  $azureProjectsConfig.Templates.Resources.BatchAccount.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name =  $azureProjectsConfig.Templates.Resources.BatchAccount.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName)
                 Scope = $null
                 Object = $null
                 Context = $null
             }
             StorageAccount = @{
-                Name =  ![string]::IsNullOrEmpty($StorageAccountName) ? $StorageAccountName : $azureProjectsConfig.Templates.Resources.StorageAccount.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name =  ![string]::IsNullOrEmpty($StorageAccountName) ? $StorageAccountName : $azureProjectsConfig.Templates.Resources.StorageAccount.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName)
                 Scope = $null
                 Object = $null
                 Context = $null
+                Parameters = @{}
             }
             StorageContainer = @{
-                Name = ![string]::IsNullOrEmpty($StorageContainerName) ? $StorageContainerName : $projectNameLowerCase
+                Name = ![string]::IsNullOrEmpty($StorageContainerName) ? $StorageContainerName : $projectName
                 Scope = $null
                 Object = $null
             }
             Bastion = @{
-                Name = $azureProjectsConfig.Templates.Resources.Bastion.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $azureProjectsConfig.Templates.Resources.Bastion.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName)
                 Scope = $null
                 Object = $null
             }
             VM = @{
-                Name = $azureProjectsConfig.Templates.Resources.VM.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
-                Admin = $azureProjectsConfig.Templates.Resources.VM.Admin.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $azureProjectsConfig.Templates.Resources.VM.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName).replace("<2>","01")
+                Admin = $azureProjectsConfig.Templates.Resources.VM.Admin.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName)
                 Scope = $null
                 Object = $null
                 NetworkInterface = @()
+                Parameters = @{}
             }
             MLWorkspace = @{
-                Name = $azureProjectsConfig.Templates.Resources.MLWorkspace.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
+                Name = $azureProjectsConfig.Templates.Resources.MLWorkspace.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName).replace("<2>","01")
                 Scope = $null
                 Object = $null
             }
             CosmosDBAccount = @{
-                Name = $azureProjectsConfig.Templates.Resources.CosmosDBAccount.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
+                Name = $azureProjectsConfig.Templates.Resources.CosmosDBAccount.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName).replace("<2>","01")
                 Scope = $null
                 Object = $null
             }
             SqlVM = @{
-                Name = $azureProjectsConfig.Templates.Resources.SqlVM.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase).replace("<2>","01")
+                Name = $azureProjectsConfig.Templates.Resources.SqlVM.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName).replace("<2>","01")
                 Scope = $null
                 Object = $null
             }
             KeyVault = @{
-                Name = $azureProjectsConfig.Templates.Resources.KeyVault.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $azureProjectsConfig.Templates.Resources.KeyVault.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName)
                 Scope = $null
                 Object = $null
             }
             DataFactory = @{
-                Name = $azureProjectsConfig.Templates.Resources.DataFactory.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectNameLowerCase)
+                Name = $azureProjectsConfig.Templates.Resources.DataFactory.Name.Pattern.replace("<0>",$Prefix).replace("<1>",$projectName)
                 Scope = $null
                 Object = $null
             }
         }
     }
 
-    $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase += @{
-        ScopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase.ResourceType.ResourceGroup.Name)/providers"
+    $global:Azure.Group.$groupName.Project.$projectName += @{
+        ScopeBase = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$($global:Azure.Group.$groupName.Project.$projectName.ResourceType.ResourceGroup.Name)/providers"
     }
 
-    $global:AzureProject = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase
+    $deploymentTypeDefault = "Standard"
+    $deploymentTypeSelections = @("Basic","Standard")
+    $DeploymentType = Request-AzProjectVariable -Name "DeploymentType" --Selections $deploymentTypeSelections -Default $deploymentTypeDefault
 
-    Get-AzProjectResourceScopes
+    $global:Azure.Group.$groupName.Project.$projectName.ResourceType.StorageAccount.Parameters = Get-AzProjectStorageParameters
+    switch ($DeploymentType) {
+        "Basic" {
+            Remove-AzProjectVmParameters
+        }
+        "Standard" {
+            $global:Azure.Group.$groupName.Project.$projectName.ResourceType.Vm.Parameters = Get-AzProjectVmParameters
+        }
+    }
+
+    $global:AzureProject = $global:Azure.Group.$groupName.Project.$projectName
+
+    Set-AzProjectDefaultResourceScopes
     Get-AzProjectDeployedResources
 
     $global:AzureProject.Initialized = $true
-    # $global:AzureProject = $global:Azure.Group.$groupNameLowerCase.Project.$projectNameLowerCase
+    # $global:AzureProject = $global:Azure.Group.$groupName.Project.$projectName
 
     return
 
 }
 Set-Alias -Name azProjInit -Value Initialize-AzProject -Scope Global
 
-function global:Get-AzProjectResourceScopes {
+function global:Set-AzProjectDefaultResourceScopes {
 
     param()
 
@@ -287,7 +467,7 @@ function global:Export-AzProjectResourceFile {
     $resourceImport = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
     if ((Test-Path $ResourceImport) -and !$Overwrite) {
         Write-Host+
-        Write-Host+ -NoTrace "ERROR: $(Split-Path -Path $ResourceImport -Leaf) already exists." -ForegroundColor DarkRed
+        Write-Host+ -NoTrace "WARNING: $(Split-Path -Path $ResourceImport -Leaf) already exists." -ForegroundColor DarkYellow
         Write-Host+ -NoTrace "Use the -Overwrite switch to overwrite this resource import file." -ForegroundColor DarkGray
         Write-Host+
         return
@@ -1316,36 +1496,136 @@ function global:Get-AzAvailableVmSizes {
 
 }
 
-function global:Deploy-Project {
+function Get-AzProjectStorageParameters {
+
+    # get/read/update StorageAccountPerformanceTier
+    $storageAccountPerformanceTiers = @("Standard","Premium")
+    $storageAccountPerformanceTierDefault = "Standard"
+    $storageAccountPerformanceTier = Request-AzProjectVariable -Name "StorageAccountPerformanceTier" -Selections $storageAccountPerformanceTiers -Default $storageAccountPerformanceTierDefault
+    Write-AzProjectVariable -Name StorageAccountPerformanceTier -Value $storageAccountPerformanceTier
+
+    # get/read/update StorageAccountRedundancyConfiguration
+    $storageAccountRedundancyConfigurations = @("LRS", "GRS", "RAGRS", "ZRS", "GZRS", "RAGZRS")
+    $storageAccountRedundancyConfigurationDefault = "LRS"
+    $storageAccountRedundancyConfiguration = Request-AzProjectVariable -Name "StorageAccountRedundancyConfiguration" -Selections $storageAccountRedundancyConfigurations -Default $storageAccountRedundancyConfigurationDefault
+    Write-AzProjectVariable -Name StorageAccountRedundancyConfiguration -Value $storageAccountRedundancyConfiguration
+
+    $storageAccountSku = "$($StorageAccountPerformanceTier)_$($storageAccountRedundancyConfiguration)"
+
+    # get/read/update StorageAccountKind
+    $storageAccountKinds = @("StorageV2","BlockBlobStorage","FileStorage","Storage","BlobStorage")
+    $storageAccountKindDefault = "BlobStorage"
+    $storageAccountKind = Request-AzProjectVariable -Name "StorageAccountKind" -Selections $storageAccountKinds -Default $storageAccountKindDefault
+    Write-AzProjectVariable -Name StorageAccountKind -Value $storageAccountKind
+
+    return [PSCustomObject]@{
+        StorageAccountPerformanceTier = $storageAccountPerformanceTier
+        StorageAccountRedundancyConfiguration = $storageAccountRedundancyConfiguration
+        StorageAccountSku = $storageAccountSku
+        StorageAccountKind = $storageAccountKind
+    }
+
+}
+
+function Remove-AzProjectVmParameters {
+
+    Write-AzProjectVariable -Name VmSize -Value "None"
+    Write-AzProjectVariable -Name VmImagePublisher -Delete
+    Write-AzProjectVariable -Name VmImageOffer -Delete
+    Write-AzProjectVariable -Name ResourceAdminUsername -Delete
+    Write-AzProjectVariable -Name CurrentAzureUserId -Delete
+    Write-AzProjectVariable -Name CurrentAzureUserEmail -Delete
+
+}
+
+function Get-AzProjectVmParameters {
+
+    param(
+        [switch]$AllowNone
+    )
+
+    $ResourceLocation = $global:AzureProject.ResourceLocation
+    $Prefix = $global:AzureProject.$ProjectName.Prefix
+
+    # get/read/update VmSize
+    $availableVmSizes = Get-AzAvailableVmSizes -ResourceLocation $ResourceLocation -HasSufficientQuota
+    $vmSizeDefault = (Read-AzProjectVariable -Name vmSize) ?? "Standard_D4s_v3"
+    $vmSizeSuggestions = @()
+    $vmSizeSuggestions +=  
+        $global:AzureProject.Keys | 
+            Foreach-Object { $_projectName = $_; $global:AzureProject.$_projectName.vmSize} |
+                Sort-Object -Unique
+    $vmSizeSelections = @()
+    $vmSizeSelections += $availableVmSizes.Name | Sort-Object
+    $vmSize = Request-AzProjectVariable -Name "VmSize" -Suggestions $vmSizeSuggestions -Selections $vmSizeSelections -Default $vmSizeDefault -AllowNone:$($AllowNone:IsPresent)
+    Write-AzProjectVariable -Name VmSize -Value $vmSize
+
+    # need to look at project providers and see if compute is included
+    if ($vmSize -ne "None") {
+
+        # get/read/update VmImagePublisher
+        $vmImagePublishers = @("microsoft-dsvm")
+        $vmImagePublisher = Request-AzProjectVariable -Name "VmImagePublisher" -Suggestions $vmImagePublishers -Selections $vmImagePublishers
+        Write-AzProjectVariable -Name VmImagePublisher -Value $vmImagePublisher
+
+        # get/read/update VmImageOffer
+        $vmImageOffers = @("linux","windows")
+        $vmImageOffer = Request-AzProjectVariable -Name "VmImageOffer" -Suggestions $vmImageOffers -Selections $vmImageOffers
+        Write-AzProjectVariable -Name VmImageOffer -Value $vmImageOffer
+
+        $resourceAdminUsername = "$($Prefix)$($ProjectName)adm"
+        Write-AzProjectVariable -Name ResourceAdminUsername -Value $resourceAdminUsername
+
+        $authorizedIp = $(curl -s https://api.ipify.org)
+        Write-AzProjectVariable -Name AuthorizedIp -Value $authorizedIp
+
+        $currentAzureUser = Get-AzureAdUser -Tenant $tenantKey -User (Get-AzContext).Account.Id
+        $currentAzureUserId = $currentAzureUser.id
+        $currentAzureUserEmail = $currentAzureUser.mail
+        Write-AzProjectVariable -Name CurrentAzureUserId -Value $currentAzureUserId
+        Write-AzProjectVariable -Name CurrentAzureUserEmail -Value $currentAzureUserEmail
+
+    }
+    else {
+
+        Remove-AzProjectVmParameters
+
+    }
+
+    return [PSCustomObject]@{
+        VmSize = $vmSize
+        VmImagePublisher = $vmImagePublisher
+        VmImageOffer = $vmImageOffer
+        ResourceAdminUserName = $resourceAdminUsername
+        AuthorizedIp = $authorizedIp
+        CurrentAzureUserId = $currentAzureUserId
+        CurrentAzureUserEmail = $currentAzureUserEmail
+    }
+
+}
+
+function global:Deploy-AzProject {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][ValidateSet("DSVM","StorageOnly","MachineLearning")][string]$DeploymentType,
+        [Parameter(Mandatory=$true)][ValidateSet("Basic","Standard")][string]$DeploymentType,
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$true)][string]$VmSize,
-        [Parameter(Mandatory=$false)][ValidateSet("microsoft-dsvm")][string]$VmImagePublisher = "microsoft-dsvm",
-        [Parameter(Mandatory=$true)][ValidateSet("linux","windows")][string]$VmImageOffer,
-        [Parameter(Mandatory=$false)][string]$StorageAccountTier = 'Standard'
+        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     switch ($DeploymentType) {
-        "DSVM" {  
-            New-DsvmProject -Tenant $tenantKey -Project $ProjectName -VmSize $VmSize -VmImagePublisher $VmImagePublisher -VmImageOffer $VmImageOffer
+        "Basic" {  
+            Deploy-AzProjectBasic -Tenant $tenantKey -Project $ProjectName
         }
-        "StorageOnly" {
-            New-AzProject -Tenant $tenantKey -Project $ProjectName
-        }
-        "MachineLearning" {
-            Deploy-DsvmProject -Tenant $tenantKey -Project $ProjectName -VmSize $VmSize -VmImagePublisher $VmImagePublisher -VmImageOffer $VmImageOffer
-            # add Azure Machine Learning resources
+        "Standard" {
+            Deploy-AzProjectStandard -Tenant $tenantKey -Project $ProjectName
         }
     }
     
-    Get-AzProjectResourceScopes
+    Set-AzProjectDefaultResourceScopes
     Get-AzProjectDeployedResources
 
     return
@@ -1353,14 +1633,12 @@ function global:Deploy-Project {
 }
 Set-Alias -Name azProjDeploy -Value Deploy-AzProject -Scope Global
 
-function global:New-StorageOnlyProject {
+function global:Deploy-AzProjectBasic {
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$false)][string]$StorageAccountSKU = "Standard_LRS",
-        [Parameter(Mandatory=$false)][string]$StorageContainerName
+        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
@@ -1394,6 +1672,8 @@ function global:New-StorageOnlyProject {
     #endregion RESOURCE GROUP
     #region STORAGE ACCOUNT
 
+        $azProjectStorageParameters = $global:AzureProject.ResourceType.StorageAccount.Parameters
+
         $storageAccountName = $global:AzureProject.ResourceType.StorageAccount.Name
         $message = "<      StorageAccount/$storageAccountName <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
@@ -1404,7 +1684,7 @@ function global:New-StorageOnlyProject {
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkYellow
         }
         else {
-            $storageAccount = New-AzStorageAccount+ -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $resourceLocation -SKU $StorageAccountSKU
+            $storageAccount = New-AzStorageAccount+ -ResourceGroupName $resourceGroupName -Name $storageAccountName -Location $resourceLocation -SKU $azProjectStorageParameters.StorageAccountSku
             $global:AzureProject.ResourceType.StorageAccount.Object = $storageAccount
             $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
             Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
@@ -1443,47 +1723,36 @@ function global:New-StorageOnlyProject {
 }
 Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
 
-function global:New-DsvmProject {
+function global:Deploy-AzProjectStandard {
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$true)][string]$VmSize,
-        [Parameter(Mandatory=$false)][ValidateSet("microsoft-dsvm")][string]$VmImagePublisher = "microsoft-dsvm",
-        [Parameter(Mandatory=$true)][ValidateSet("linux","windows")][string]$VmImageOffer,
-        [Parameter(Mandatory=$false)][string]$StorageAccountTier = 'Standard'
+        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
-    $availableVmSizes = Get-AzAvailableVmSizes -Location $global:AzureProject.ResourceLocation -HasSufficientQuota
-    $selectedVmSize = $availableVmSizes | Where-Object {$_.Name -eq $VmSize}
-    if (!$selectedVmSize) {
-        Write-Host+ -NoTrace "The VM size '$VmSize' is not available in the $($global:AzureProject.ResourceLocation) region." -ForegroundColor DarkRed
-        Write-Host+ -NoTrace "Use Get-AzAvailableVmSizes to see the available VM sizes and quotas/usage." -ForegroundColor DarkGray
-        return
-    }
-    if (!$selectedVmSize.HasSufficientQuota) {
-        Write-Host+ -NoTrace "There is insufficient quota in the $($global:AzureProject.ResourceLocation) region to provision the VM size '$VmSize'." -ForegroundColor DarkRed
-        Write-Host+ -NoTrace "Use Get-AzAvailableVmSizes to see the available VM sizes and quotas/usage." -ForegroundColor DarkGray
+    if ($azProjectVmParameters.VmSize -eq "None") {
+        Write-Host+ -NoTrace "VmSize cannot be null for a Microsoft DSVM project." -ForegroundColor DarkRed
         return
     }
 
-    $currentAzureUser = Get-AzureAdUser -Tenant $tenantKey -User (Get-AzContext).Account.Id
+    $azProjectStorageParameters = $global:AzureProject.ResourceType.StorageAccount.Parameters
+    $azProjectVmParameters = $global:AzureProject.ResourceType.VM.Parameters
 
     $env:SUBSCRIPTION_ID = $global:Azure.$tenantKey.Subscription.Id
     $env:TENANT_ID = $global:Azure.$tenantKey.Tenant.Id
     $env:RESOURCE_LOCATION = $global:AzureProject.ResourceLocation
     $env:RESOURCE_PREFIX = $global:AzureProject.Prefix
     $env:RESOURCE_GROUP_NAME = $global:AzureProject.ResourceType.ResourceGroup.Name
-    $env:VM_SIZE = $VmSize
-    $env:RESOURCE_ADMIN_USERNAME = "$($global:AzureProject.Prefix)$($ProjectName)admin"
-    $env:STORAGE_ACCOUNT_TIER = $StorageAccountTier 
-    $env:AUTHORIZED_IP = $(curl -s https://api.ipify.org)
-    $env:USER_ID = $currentAzureUser.id
-    $env:USER_EMAIL = $currentAzureUser.mail
+    $env:VM_SIZE = $azProjectVmParameters.VmSize
+    $env:RESOURCE_ADMIN_USERNAME = $azProjectVmParameters.ResourceAdminUserName
+    $env:STORAGE_ACCOUNT_TIER = $azProjectStorageParameters.StorageAccountSku 
+    $env:AUTHORIZED_IP = $azProjectVmParameters.AuthorizedIp
+    $env:USER_ID = $azProjectVmParameters.CurrentAzureUserId
+    $env:USER_EMAIL = $azProjectVmParameters.CurrentAzureUserEmail
 
     Set-Location "$($Location.Data)\azure\deployment\vmImages\$VmImagePublisher\$VmImageOffer"
 
