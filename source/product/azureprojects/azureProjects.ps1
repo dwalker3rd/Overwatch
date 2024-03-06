@@ -1218,13 +1218,26 @@ function global:Grant-AzProjectRole {
 
             # identify unauthorized project users and role assignments
             # if $User has been specified, skip this step
+
             $unauthorizedProjectRoleAssignments = @()
+
             if (!$User) {
-                $projectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $ResourceGroupName | 
-                    Where-Object {$_.ObjectType -eq "User" -and $_.RoleDefinitionName -ne "Owner" -and $_.Scope -like "*$ResourceGroupName*" -and $_.SignInName -notlike "*admin_path.org*"}
-                $unauthorizedProjectRoleAssignments = ($projectRoleAssignments | Where-Object {$authorizedProjectUsers.userPrincipalName -notcontains $_.SignInName})
-                foreach ($invalidProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-                    $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -User $invalidProjectRoleAssignment.SignInName
+
+                # this is slow, but Get-AzRoleAssignment returns incorrect 
+                # results unless called by resourse
+                # $projectRoleAssignments = @()
+                # foreach ($resource in $resources) {
+                #     $projectRoleAssignments += Get-AzRoleAssignment -Scope $resource.resourceScope | 
+                #         Where-Object {$_.ObjectType -eq "User" -and $_.RoleDefinitionName -ne "Owner" -and $_.SignInName -notlike "*admin_path.org*"} | 
+                #             Where-Object {$_.Scope -eq $resource.resourceScope}
+                # }
+                # $unauthorizedProjectRoleAssignments = ($projectRoleAssignments | Where-Object {$_.SignInName -notin $authorizedProjectUsers.userPrincipalName})
+
+                $unauthorizedProjectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $resourceGroupName | 
+                    Where-Object {$_.Scope -in $resources.resourceScope -and $_.SignInName -notin $authorizedProjectUsers.userPrincipalName}
+
+                foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
+                    $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
                     $unauthorizedAzureADUser | Add-Member -NotePropertyName authorized -NotePropertyValue $false
                     $unauthorizedAzureADUserReason = !$unauthorizedAzureADUser.accountEnabled ? "ACCOUNT DISABLED" : "UNAUTHORIZED"
                     $unauthorizedAzureADUser | Add-Member -NotePropertyName reason -NotePropertyValue $unauthorizedAzureADUserReason
@@ -1234,6 +1247,7 @@ function global:Grant-AzProjectRole {
                     }
                 }
                 $signInNames = $signInNames | Sort-Object -Unique
+
             }
         
         #endregion UNAUTHORIZED
@@ -1512,16 +1526,18 @@ function global:Grant-AzProjectRole {
                         Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
                     }
                     foreach ($roleAssignment in $requiredRoleAssignments) {
-                        $currentRoleAssignment = 
-                            switch ($resourceType) {
-                                default {
-                                    Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role  
-                                }
-                                "ResourceGroup" {
-                                    Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role | Where-Object {$_.Scope -eq $resourceScope}
-                                }
+                        $currentRoleAssignment = @()
+                        $inheritedRoleAssignment = @()
+                        switch ($resourceType) {
+                            default {
+                                $currentRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role | Where-Object {$_.Scope -eq $resourceScope}
+                                $inheritedRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Where-Object {$_.Scope -ne $resourceScope}  
                             }
-                        if (!$currentRoleAssignment -and ($currentRoleAssignment.RoleDefinitionName -ne $roleAssignment.role)) {
+                            "ResourceGroup" {
+                                $currentRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role | Where-Object {$_.Scope -eq $resourceScope}
+                            }
+                        }
+                        if (!$currentRoleAssignment -and ($roleAssignment.role -notin $currentRoleAssignment.RoleDefinitionName -and $roleAssignment.role -notin $inheritedRoleAssignment.RoleDefinitionName)) {
 
                             if (!$WhatIf) {
                                 New-AzRoleAssignment+ -Scope $resourceScope -RoleDefinitionName $roleAssignment.role -SignInNames $signIn -ErrorAction SilentlyContinue | Out-Null
