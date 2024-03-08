@@ -459,10 +459,14 @@ function New-AzProjectResourceFiles {
         Set-Content -Path $ResourceImportFile -Value "`"resourceType`",`"resourceName`",`"resourceId`",`"resourceParent`""
     }
 
-    $RoleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
-    if (!(Test-Path $RoleAssignmentImportFile)) {
-        Set-Content -Path $RoleAssignmentImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
+    $SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
+    if (!(Test-Path $SecurityImportFile)) {
+        Set-Content -Path $SecurityImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
     }
+    # $RoleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
+    # if (!(Test-Path $RoleAssignmentImportFile)) {
+    #     Set-Content -Path $RoleAssignmentImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
+    # }
 
 }
 
@@ -664,7 +668,8 @@ function global:Import-AzProjectFile {
         if ($token.Kind -eq "StringExpandable") {
             $diff = $token.Text -replace $token.Value
             if (![string]::IsNullOrEmpty($diff)) {
-                if ($diff -in ('""',"''")) {
+                $tokenValueAlwaysQuoted = $token.Value -match "[,]"
+                if ($diff -in ('""',"''") -and !$tokenValueAlwaysQuoted) {
                     $tokenText += [string]::IsNullOrEmpty($token.Value) ? "" : $token.Value
                 }
                 else {
@@ -678,6 +683,11 @@ function global:Import-AzProjectFile {
     }
     $content = -join $tokenText
 
+    # replace commas inside quoted strings with pipe character
+    # this will be reverted after ConvertFrom-String
+    $replacementDelimiter = "|"
+    $content = $content -replace "\s*,\s*(?!(?:[^`"]*`"[^`"]*`")*[^`"]*$)", $replacementDelimiter
+
     # content is a string; convert to an array
     $content = $content -split '\r?\n'
 
@@ -688,6 +698,15 @@ function global:Import-AzProjectFile {
     $_object = $content[1..$content.Length] | 
         ConvertFrom-String -Delimiter "," -PropertyNames $propertyNames |
             Select-Object -Property $propertyNames
+
+    # restore comma-separated strings
+    foreach ($_row in $_object) {
+        foreach ($propertyName in $propertyNames) {
+            if ($_row.$propertyName -match "\$replacementDelimiter(?!(?:[^`"]*`"[^`"]*`")*[^`"]*$)") {
+                $_row.$propertyName = $_row.$propertyName -replace "\$replacementDelimiter(?!(?:[^`"]*`"[^`"]*`")*[^`"]*$)", ","
+            }
+        }
+    }
 
     return $_object
 
@@ -868,8 +887,10 @@ function global:Grant-AzProjectRole {
         $UserImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
         $GroupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
         $ResourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-        $RoleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
-        $RoleAssignmentExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-export.csv"
+        # $RoleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
+        # $RoleAssignmentExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-export.csv"
+        $SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-import.csv"
+        $SecurityExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-export.csv"
 
         if (!(Test-Path $UserImportFile)) {
             Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $UserImportFile -Leaf) not found." -ForegroundColor DarkRed
@@ -878,7 +899,8 @@ function global:Grant-AzProjectRole {
         }
 
         if (!(Test-Path $GroupImportFile)) {
-            $groupsInUse = Select-String -Path $RoleAssignmentImportFile -Pattern "group" -Quiet
+            $groupsInUse = Select-String -Path $SecurityImportFile -Pattern "group" -Quiet
+            # $groupsInUse = Select-String -Path $RoleAssignmentImportFile -Pattern "group" -Quiet
             if ($groupsInUse) {
                 Write-Host+ -NoTrace "    ($groupsInUse ? 'ERROR' : 'WARNING'): $(Split-Path -Path $GroupImportFile -Leaf) not found." -ForegroundColor ($groupsInUse ? "DarkRed" : "DarkYellow")
                 Write-Host+
@@ -892,11 +914,16 @@ function global:Grant-AzProjectRole {
             return
         }
 
-        if (!(Test-Path $RoleAssignmentImportFile)) {
-            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $RoleAssignmentImportFile -Leaf) not found." -ForegroundColor DarkRed
+        if (!(Test-Path $SecurityImportFile)) {
+            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $SecurityImportFile -Leaf) not found." -ForegroundColor DarkRed
             Write-Host+
             return
         }
+        # if (!(Test-Path $RoleAssignmentImportFile)) {
+        #     Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $RoleAssignmentImportFile -Leaf) not found." -ForegroundColor DarkRed
+        #     Write-Host+
+        #     return
+        # }
 
         #region USER IMPORT
 
@@ -954,12 +981,18 @@ function global:Grant-AzProjectRole {
         #endregion RESOURCE IMPORT
         #region ROLE ASSIGNMENTS IMPORT
 
-            Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImportFile" -ForegroundColor DarkGray
-            $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImportFile
+            Write-Host+ -NoTrace -NoSeparator "    $SecurityImportFile" -ForegroundColor DarkGray
+            $roleAssignmentsFromFile = Import-AzProjectFile -Path $SecurityImportFile
             if ($User) {
                 # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
                 $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
             }
+            # Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImportFile" -ForegroundColor DarkGray
+            # $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImportFile
+            # if ($User) {
+            #     # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
+            #     $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
+            # }
 
         #endregion ROLE ASSIGNMENTS IMPORT
 
@@ -1411,8 +1444,11 @@ function global:Grant-AzProjectRole {
         # export $roleAssignments
         # if $User has been specified, skip this step
         if (!$User) {
-            $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExportFile -UseQuotes Always -NoTypeInformation  
+            $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation  
         }
+        # if (!$User) {
+        #     $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExportFile -UseQuotes Always -NoTypeInformation  
+        # }
 
         $uniqueResourcesFromRoleAssignments = $roleAssignments | Select-Object -Property resourceId, resourceType,resourceName,role | Sort-Object -Property resourceId, resourceType,resourceName,role -Unique
 
