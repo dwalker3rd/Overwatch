@@ -704,6 +704,9 @@ function global:Import-AzProjectFile {
         foreach ($propertyName in $propertyNames) {
             if ($_row.$propertyName -match "\$replacementDelimiter(?!(?:[^`"]*`"[^`"]*`")*[^`"]*$)") {
                 $_row.$propertyName = $_row.$propertyName -replace "\$replacementDelimiter(?!(?:[^`"]*`"[^`"]*`")*[^`"]*$)", ","
+                if ($_row.$propertyName -match "^`"(.*)`"$") {
+                    $_row.$propertyName = $matches[1]
+                }
             }
         }
     }
@@ -720,7 +723,7 @@ function global:Grant-AzProjectRole {
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
         [switch]$ReferencedResourcesOnly,
-        [switch]$RemoveUnauthorizedSecurityAssignments,
+        [switch]$RemoveUnauthorizedAssignments,
         [switch]$RemoveExpiredInvitations,
         [switch]$WhatIf
     )
@@ -799,7 +802,7 @@ function global:Grant-AzProjectRole {
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     $message = "<  -ReferencedResourcesOnly < >40> Improves performance, but cannot remove obsolete/invalid role assignments."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
-    $message = "<  -RemoveUnauthorizedSecurityAssignments < >40> Removes role assignments not explicity specified in the import files."
+    $message = "<  -RemoveUnauthorizedAssignments < >40> Removes role assignments not explicity specified in the import files."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     $message = "<  -RemoveExpiredInvitations < >40> Removes accounts with invitations pending more than 30 days."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
@@ -807,8 +810,8 @@ function global:Grant-AzProjectRole {
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     Write-Host+
 
-    if ($User -and $RemoveUnauthorizedSecurityAssignments) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveUnauthorizedSecurityAssignments switch cannot be used with the `$User parameter." -ForegroundColor Red
+    if ($User -and $RemoveUnauthorizedAssignments) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveUnauthorizedAssignments switch cannot be used with the `$User parameter." -ForegroundColor Red
         Write-Host+
         return
     }
@@ -818,14 +821,14 @@ function global:Grant-AzProjectRole {
         return
     }
 
-    if ($ReferencedResourcesOnly -and $RemoveUnauthorizedSecurityAssignments) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$ReferencedResourcesOnly and `$RemoveUnauthorizedSecurityAssignments switches cannot be used together." -ForegroundColor Red
+    if ($ReferencedResourcesOnly -and $RemoveUnauthorizedAssignments) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$ReferencedResourcesOnly and `$RemoveUnauthorizedAssignments switches cannot be used together." -ForegroundColor Red
         Write-Host+
         return
     }
 
-    if ($RemoveUnauthorizedSecurityAssignments) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveUnauthorizedSecurityAssignments`" switch has been specified." -ForegroundColor Gray
+    if ($RemoveUnauthorizedAssignments) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveUnauthorizedAssignments`" switch has been specified." -ForegroundColor Gray
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Role assignments not specified in `"$ProjectName-securityAssignments-import.csv`" will be removed." -ForegroundColor Gray
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  EXCEPTIONS: OWNER role assignments and role assignments inherited from the subscription will NOT be removed." -ForegroundColor Gray
         Write-Host+
@@ -1292,12 +1295,12 @@ function global:Grant-AzProjectRole {
 
             if (!$User) {
 
-                $resourcesWithUnauthorizedAccessPolicies += $resources | 
-                    Where-Object {$_.resourceObject.accessPolicies -and $_.resourceObject.accessPolicies.objectId -notin $authorizedProjectUsers.Id}
+                $resourcesWithUnauthorizedAccessPolicies += $resources.resourceObject.accessPolicies | 
+                    Where-Object {$_.objectId -notin $authorizedProjectUsers.Id}
                             
 
                 foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                    $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -Id $resourceWithUnauthorizedAccessPolicy.resourceObject.accessPolicies.objectId
+                    $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -Id $resourceWithUnauthorizedAccessPolicy.objectId
                     $unauthorizedAzureADUser | Add-Member -NotePropertyName authorized -NotePropertyValue $false
                     $unauthorizedAzureADUserReason = !$unauthorizedAzureADUser.accountEnabled ? "ACCOUNT DISABLED" : "UNAUTHORIZED"
                     $unauthorizedAzureADUser | Add-Member -NotePropertyName reason -NotePropertyValue $unauthorizedAzureADUserReason
@@ -1481,6 +1484,8 @@ function global:Grant-AzProjectRole {
             #     $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExportFile -UseQuotes Always -NoTypeInformation  
             # }
 
+            $uniqueResourcesFromRoleAssignments = $roleAssignments | Select-Object -Property resourceId, resourceType,resourceName,role | Sort-Object -Property resourceId, resourceType,resourceName,role -Unique
+
         #endregion ROLE ASSIGNMENTS
 
         #region ACCESS POLICIES
@@ -1525,20 +1530,26 @@ function global:Grant-AzProjectRole {
             }
 
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                $accessPolicies = $resourceWithUnauthorizedAccessPolicy.accessPolicies
-                $accessPolicyPermissionPropertyNames = $accessPolicies |
-                    Get-Member -MemberType Property | Select-Object -Property Name | Where-Object {$_.Name -match "PermissionsTo(.*)(?<!Str)$"}
-                foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames) {
-                    $accessPolicyAssignments += [PsCustomObject]@{
-                        resourceId = $resourceWithUnauthorizedAccessPolicy.resourceId
-                        resourceType = $resourceWithUnauthorizedAccessPolicy.resourceType
-                        resourceName = $resourceWithUnauthorizedAccessPolicy.resourceName
-                        accessPolicy = [PSCustomObject]@{
-                            accessPolicyPermissionPropertyName = $accessPolicies.$accessPolicyPermissionPropertyName
+                $accessPolicies = $resourceWithUnauthorizedAccessPolicy.resourceObject.accessPolicies
+                $accessPolicyPermissionPropertyNames = @()
+                $accessPolicies[0] | Get-Member -MemberType Property | Foreach-Object {
+                    if ($_.Name -match "PermissionsTo(.*)(?<!Str)$") {
+                        $accessPolicyPermissionPropertyNames += $_.Name
+                    }
+                }
+                foreach ($accessPolicy in $accessPolicies) {
+                    foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$accessPolicy.$_}) {
+                        $accessPolicyAssignments += [PsCustomObject]@{
+                            resourceId = $resourceWithUnauthorizedAccessPolicy.resourceId
+                            resourceType = $resourceWithUnauthorizedAccessPolicy.resourceType
+                            resourceName = $resourceWithUnauthorizedAccessPolicy.resourceName
+                            accessPolicy = @{
+                                "$accessPolicyPermissionPropertyName" = ($accessPolicy.$accessPolicyPermissionPropertyName | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                            }
+                            signInName = (Get-AzureADUser -Tenant $tenantKey -Id $accessPolicy.objectId).mail
+                            resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                            authorized = $false
                         }
-                        signInName = Get-AzureADUser -Tenant $tenantKey -Id $accessPolicies.objectId
-                        resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
-                        authorized = $false
                     }
                 }
             }
@@ -1561,8 +1572,6 @@ function global:Grant-AzProjectRole {
             # }
 
         #endregion ACCESS POLICIES
-
-        $uniqueResourcesFromRoleAssignments = $roleAssignments | Select-Object -Property resourceId, resourceType,resourceName,role | Sort-Object -Property resourceId, resourceType,resourceName,role -Unique
 
         Write-Host+
         $message = "<  Role assignment <.>60> PENDING"
@@ -1735,6 +1744,57 @@ function global:Grant-AzProjectRole {
                 }
 
                 $roleAssignmentCount += $rolesWrittenCount
+
+                # access policy assignment (for now)
+
+                if ($resource.resourceObject.accessPolicies) {
+                    $accessPolicy = $resource.resourceObject.accessPolicies | Where-Object {(Get-AzureADUser -Tenant $tenantKey -Id $_.objectId).mail -eq $signInName}
+                    $accessPolicyPermissionPropertyNames = @()
+                    $accessPolicy | Get-Member -MemberType Property | Foreach-Object {
+                        if ($_.Name -match "PermissionsTo(.*)(?<!Str)$") {
+                            $accessPolicyPermissionPropertyNames += $_.Name
+                        }
+                    }
+                    foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$accessPolicy.$_}) {
+                        $accessPolicyKey = $accessPolicyPermissionPropertyName
+                        $accessPolicyValue = ($accessPolicy.$accessPolicyPermissionPropertyName | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                        $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($accessPolicyKey) <.>61> $($accessPolicyValue)" 
+                        Write-Host+ -NoTrace $message -Parse -ForegroundColor DarkGray
+                    }
+                }
+
+                $resourceAccessPolicyAssignments = $accessPolicyAssignments | 
+                    Where-Object {$_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId} |
+                        Where-Object {$_.signInName -eq $signInName}
+
+                if ($resourceAccessPolicyAssignments) {
+                    switch ($resourceType) {
+                        "KeyVault" {
+                            $accessPolicyParams = @{
+                                ResourceGroupName = $resourceGroupName
+                                VaultName = $resource.resourceName
+                                EmailAddress = $signInName
+                            }
+                            foreach ($resourceAccessPolicyAssignment in $resourceAccessPolicyAssignments) {
+                                $accessPolicyKey = $resourceAccessPolicyAssignment.accessPolicy.Keys[0]
+                                $accessPolicyValue = $resourceAccessPolicyAssignment.AccessPolicy.Values[0] -split ","
+                                $accessPolicyParams += @{
+                                    "$accessPolicyKey" = $accessPolicyValue
+                                }
+                            }
+                            if (!$WhatIf) {
+                                $result = Set-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
+                                $result | Out-Null
+                            }
+                            foreach ($resourceAccessPolicyAssignment in $resourceAccessPolicyAssignments) {
+                                $accessPolicyKey = $resourceAccessPolicyAssignment.accessPolicy.Keys[0]
+                                $accessPolicyValue = $resourceAccessPolicyAssignment.AccessPolicy.Values[0] -replace ",",", "
+                                $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($accessPolicyKey) <.>61> $($accessPolicyValue)" 
+                                Write-Host+ -NoTrace $message -Parse -ForegroundColor DarkGreen
+                            }
+                        }
+                    }
+                }
             
             }
 
