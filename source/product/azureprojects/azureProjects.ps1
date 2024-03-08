@@ -459,7 +459,7 @@ function New-AzProjectResourceFiles {
         Set-Content -Path $ResourceImportFile -Value "`"resourceType`",`"resourceName`",`"resourceId`",`"resourceParent`""
     }
 
-    $SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
+    $SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-securityAssignments-import.csv"
     if (!(Test-Path $SecurityImportFile)) {
         Set-Content -Path $SecurityImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
     }
@@ -720,7 +720,7 @@ function global:Grant-AzProjectRole {
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
         [switch]$ReferencedResourcesOnly,
-        [switch]$RemoveUnauthorizedRoleAssignments,
+        [switch]$RemoveUnauthorizedSecurityAssignments,
         [switch]$RemoveExpiredInvitations,
         [switch]$WhatIf
     )
@@ -799,7 +799,7 @@ function global:Grant-AzProjectRole {
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     $message = "<  -ReferencedResourcesOnly < >40> Improves performance, but cannot remove obsolete/invalid role assignments."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
-    $message = "<  -RemoveUnauthorizedRoleAssignments < >40> Removes role assignments not explicity specified in the import files."
+    $message = "<  -RemoveUnauthorizedSecurityAssignments < >40> Removes role assignments not explicity specified in the import files."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     $message = "<  -RemoveExpiredInvitations < >40> Removes accounts with invitations pending more than 30 days."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
@@ -807,8 +807,8 @@ function global:Grant-AzProjectRole {
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     Write-Host+
 
-    if ($User -and $RemoveUnauthorizedRoleAssignments) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveUnauthorizedRoleAssignments switch cannot be used with the `$User parameter." -ForegroundColor Red
+    if ($User -and $RemoveUnauthorizedSecurityAssignments) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveUnauthorizedSecurityAssignments switch cannot be used with the `$User parameter." -ForegroundColor Red
         Write-Host+
         return
     }
@@ -818,15 +818,15 @@ function global:Grant-AzProjectRole {
         return
     }
 
-    if ($ReferencedResourcesOnly -and $RemoveUnauthorizedRoleAssignments) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$ReferencedResourcesOnly and `$RemoveUnauthorizedRoleAssignments switches cannot be used together." -ForegroundColor Red
+    if ($ReferencedResourcesOnly -and $RemoveUnauthorizedSecurityAssignments) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$ReferencedResourcesOnly and `$RemoveUnauthorizedSecurityAssignments switches cannot be used together." -ForegroundColor Red
         Write-Host+
         return
     }
 
-    if ($RemoveUnauthorizedRoleAssignments) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveUnauthorizedRoleAssignments`" switch has been specified." -ForegroundColor Gray
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Role assignments not specified in `"$ProjectName-roleAssignments-import.csv`" will be removed." -ForegroundColor Gray
+    if ($RemoveUnauthorizedSecurityAssignments) {
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveUnauthorizedSecurityAssignments`" switch has been specified." -ForegroundColor Gray
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Role assignments not specified in `"$ProjectName-securityAssignments-import.csv`" will be removed." -ForegroundColor Gray
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  EXCEPTIONS: OWNER role assignments and role assignments inherited from the subscription will NOT be removed." -ForegroundColor Gray
         Write-Host+
         Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
@@ -979,13 +979,13 @@ function global:Grant-AzProjectRole {
             }
 
         #endregion RESOURCE IMPORT
-        #region ROLE ASSIGNMENTS IMPORT
+        #region SECURITY ASSIGNMENTS IMPORT
 
             Write-Host+ -NoTrace -NoSeparator "    $SecurityImportFile" -ForegroundColor DarkGray
-            $roleAssignmentsFromFile = Import-AzProjectFile -Path $SecurityImportFile
+            $securityAssignmentsFromFile = Import-AzProjectFile -Path $SecurityImportFile
             if ($User) {
-                # if $User has been specified, filter $roleAssignmentsFromFile to those relevent to $User
-                $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
+                # if $User has been specified, filter $securityAssignmentsFromFile to those relevant to $User
+                $securityAssignmentsFromFile = $securityAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
             }
             # Write-Host+ -NoTrace -NoSeparator "    $RoleAssignmentImportFile" -ForegroundColor DarkGray
             # $roleAssignmentsFromFile = Import-AzProjectFile -Path $RoleAssignmentImportFile
@@ -994,18 +994,18 @@ function global:Grant-AzProjectRole {
             #     $roleAssignmentsFromFile = $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -eq $User -or ($_.assigneeType -eq "group" -and $_.assignee -in $groups.group)}
             # }
 
-        #endregion ROLE ASSIGNMENTS IMPORT
+        #endregion SECURITY ASSIGNMENTS IMPORT
 
         # if the $ReferencedResourcesOnly switch has been specified, then filter $resources to only those relevant to $users
         # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
         if ($ReferencedResourcesOnly) {
-          $resources = $resources | Where-Object {$_.resourceId -in $roleAssignmentsFromFile.resourceId}
+          $resources = $resources | Where-Object {$_.resourceId -in $securityAssignmentsFromFile.resourceId}
         }
 
         $missingUsers = @()
         # if (!$User) {
             $missingUsers += $groups | Where-Object {$_.user -notin $users.signInName} | Select-Object -Property @{Name="signInName"; Expression={$_.user}}, @{Name="source"; Expression={"Groups"}}
-            $missingUsers += $roleAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -notin $users.signInName} | Select-Object -Property @{Name="signInName"; Expression={$_.assignee}}, @{Name="source"; Expression={"Role Assignments"}}
+            $missingUsers += $securityAssignmentsFromFile | Where-Object {$_.assigneeType -eq "user" -and $_.assignee -notin $users.signInName} | Select-Object -Property @{Name="signInName"; Expression={$_.assignee}}, @{Name="source"; Expression={"Role Assignments"}}
         # }
 
         if ($missingUsers.Count -gt 0) {
@@ -1160,13 +1160,18 @@ function global:Grant-AzProjectRole {
                         }
 
                         $nicRole = "Reader"
-                        foreach ($resourceRoleAssignment in ($roleAssignmentsFromFile | Where-Object {$_.resourceId -eq $nicResource.resourceParent} | Sort-Object -Property assigneeType,assignee -Unique)) {
-                            $roleAssignmentsFromFile += [PSCustomObject]@{
-                                resourceId = $nicResource.resourceId
-                                role = $nicRole
-                                assigneeType = $resourceRoleAssignment.assigneeType
-                                assignee = $resourceRoleAssignment.assignee
-                            }
+                        foreach ($resourceSecurityAssignment in ($securityAssignmentsFromFile | 
+                            Where-Object {$_.resourceId -eq $nicResource.resourceParent -and $_.securityType -eq "RoleAssignment"} | 
+                                Sort-Object -Property assigneeType,assignee -Unique)) {
+                                    $securityAssignmentsFromFile += [PSCustomObject]@{
+                                        resourceType = $nicResource.resourceType
+                                        resourceId = $nicResource.resourceId
+                                        securityType = "RoleAssignment"
+                                        securityKey = $nicRole
+                                        securityValue = "Grant"
+                                        assigneeType = $resourceSecurityAssignment.assigneeType
+                                        assignee = $resourceSecurityAssignment.assignee
+                                    }
                         }
 
                     }
@@ -1282,6 +1287,28 @@ function global:Grant-AzProjectRole {
                 $signInNames = $signInNames | Sort-Object -Unique
 
             }
+
+            $resourcesWithUnauthorizedAccessPolicies = @()
+
+            if (!$User) {
+
+                $resourcesWithUnauthorizedAccessPolicies += $resources | 
+                    Where-Object {$_.resourceObject.accessPolicies -and $_.resourceObject.accessPolicies.objectId -notin $authorizedProjectUsers.Id}
+                            
+
+                foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
+                    $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -Id $resourceWithUnauthorizedAccessPolicy.resourceObject.accessPolicies.objectId
+                    $unauthorizedAzureADUser | Add-Member -NotePropertyName authorized -NotePropertyValue $false
+                    $unauthorizedAzureADUserReason = !$unauthorizedAzureADUser.accountEnabled ? "ACCOUNT DISABLED" : "UNAUTHORIZED"
+                    $unauthorizedAzureADUser | Add-Member -NotePropertyName reason -NotePropertyValue $unauthorizedAzureADUserReason
+                    if ($unauthorizedAzureADUser.mail -notin $unAuthorizedProjectUsers.mail) {
+                        $unauthorizedProjectUsers += $unauthorizedAzureADUser
+                        $signInNames += $unauthorizedAzureADUser.mail
+                    }
+                }
+                $signInNames = $signInNames | Sort-Object -Unique
+
+            }
         
         #endregion UNAUTHORIZED
 
@@ -1369,86 +1396,171 @@ function global:Grant-AzProjectRole {
 
     #endregion VERIFY USERS
 
-    #region ROLEASSIGNMENT
+    #region SECURITYASSIGNMENTS
 
-        $roleAssignments = [PsCustomObject]@()
+        #region ROLE ASSIGNMENTS
 
-        $resourceGroup = $resources | Where-Object {$_.resourceType -eq "ResourceGroup"}
-        $resourceGroupDefaultRole = "Reader"
-        foreach ($authorizedProjectUser in $authorizedProjectUsers) {
-            $roleAssignments += [PsCustomObject]@{
-                resourceId = $resourceGroup.resourceId
-                resourceType = $resourceGroup.resourceType
-                resourceName = $resourceGroup.resourceName
-                role = $resourceGroupDefaultRole
-                signInName = $authorizedProjectUser.mail
-                resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
-                authorized = $true
+            $roleAssignments = [PsCustomObject]@()
+
+            $resourceGroup = $resources | Where-Object {$_.resourceType -eq "ResourceGroup"}
+            $resourceGroupDefaultRole = "Reader"
+            foreach ($authorizedProjectUser in $authorizedProjectUsers) {
+                $roleAssignments += [PsCustomObject]@{
+                    resourceId = $resourceGroup.resourceId
+                    resourceType = $resourceGroup.resourceType
+                    resourceName = $resourceGroup.resourceName
+                    role = $resourceGroupDefaultRole
+                    signInName = $authorizedProjectUser.mail
+                    resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                    authorized = $true
+                }
             }
-        }
 
-        foreach ($roleAssignment in $roleAssignmentsFromFile) {
+            foreach ($securityAssignment in $securityAssignmentsFromFile | Where-Object {$_.securityType -eq "RoleAssignment"}) {
 
-            if ($roleAssignment.assigneeType -eq "group") {
-                $members = $groups | Where-Object {$_.group -eq $roleAssignment.assignee}
-                foreach ($member in $members) {
-                    foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $roleAssignment.resourceId})) {
+                if ($securityAssignment.assigneeType -eq "group") {
+                    $members = $groups | Where-Object {$_.group -eq $securityAssignment.assignee}
+                    foreach ($member in $members) {
+                        foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $securityAssignment.resourceId})) {
+                            $roleAssignments += [PsCustomObject]@{
+                                resourceId = $securityAssignment.resourceId
+                                resourceType = $resource.resourceType
+                                resourceName = $resource.resourceName
+                                role = $securityAssignment.securityKey
+                                signInName = $member.user
+                                resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                                authorized = $true
+                            }
+                        }
+                    }
+                }
+                elseif ($securityAssignment.assigneeType -eq "user") {
+                    foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $securityAssignment.resourceId})) {
                         $roleAssignments += [PsCustomObject]@{
-                            resourceId = $roleAssignment.resourceId
+                            resourceId = $securityAssignment.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
-                            role = $roleAssignment.role
-                            # assigneeType = "user"
-                            signInName = $member.user
+                            role = $securityAssignment.securityKey
+                            signInName = $securityAssignment.assignee
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                             authorized = $true
                         }
                     }
                 }
+
             }
-            elseif ($roleAssignment.assigneeType -eq "user") {
-                foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $roleAssignment.resourceId})) {
+
+            foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
+                foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $unauthorizedProjectRoleAssignment.resourceId})) {
                     $roleAssignments += [PsCustomObject]@{
-                        resourceId = $roleAssignment.resourceId
+                        resourceId = $unauthorizedProjectRoleAssignment.resourceId
                         resourceType = $resource.resourceType
                         resourceName = $resource.resourceName
-                        role = $roleAssignment.role
-                        signInName = $roleAssignment.assignee
+                        role = $securityAssignment.securityKey
+                        signInName = $unauthorizedProjectRoleAssignment.assignee
                         resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
-                        authorized = $true
+                        authorized = $false
                     }
                 }
             }
 
-        }
+            $roleAssignments = $roleAssignments | Sort-Object -Property resourceTypeSortOrder, resourceType, resourceName
+            if ($User) {
+                # if $User has been specified, filter $roleAssignments to those relevant to $User
+                $roleAssignments = $roleAssignments | Where-Object {$_.signInName -eq $User}
+            }
+            # export $roleAssignments
+            # if $User has been specified, skip this step
+            if (!$User) {
+                $roleAssignments | 
+                    Select-Object -Property resourceType,resourceId,resourceName,
+                    @{Name="securityType";Expression={"RoleAssignment"}},@{Name="securityKey";Expression={$_.role}},@{Name="securityValue";Expression={"Grant"}},@{Name="assigneeType";Expression={"user"}},@{Name="assignee";Expression={$_.signInName}} | 
+                        Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation  
+            }
+            # if (!$User) {
+            #     $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExportFile -UseQuotes Always -NoTypeInformation  
+            # }
 
-        foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-            foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $unauthorizedProjectRoleAssignment.resourceId})) {
-                $roleAssignments += [PsCustomObject]@{
-                    resourceId = $unauthorizedProjectRoleAssignment.resourceId
-                    resourceType = $resource.resourceType
-                    resourceName = $resource.resourceName
-                    role = $roleAssignment.role
-                    signInName = $unauthorizedProjectRoleAssignment.assignee
-                    resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
-                    authorized = $false
+        #endregion ROLE ASSIGNMENTS
+
+        #region ACCESS POLICIES
+
+            $accessPolicyAssignments = [PsCustomObject]@()
+
+            foreach ($resource in ($resources | Where-Object {$_.resourceObject.accessPolicies})) {  
+
+                $accessPolicies = $securityAssignmentsFromFile | Where-Object {$_.securityType -eq "AccessPolicy" -and $_.resourceType -eq $resource.resourceType -and $_.resourceId -eq $resource.resourceId}
+                foreach ($accessPolicy in $accessPolicies) {                             
+                    if ($accessPolicy.assigneeType -eq "group") {
+                        $members = $groups | Where-Object {$_.group -eq $accessPolicy.assignee}
+                        foreach ($member in $members) {
+                            $accessPolicyAssignments += [PsCustomObject]@{
+                                resourceId = $resource.resourceId
+                                resourceType = $resource.resourceType
+                                resourceName = $resource.resourceName
+                                accessPolicy = @{
+                                    $accessPolicy.securityKey = $accessPolicy.securityValue
+                                }
+                                signInName = $member.user
+                                resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                                authorized = $true
+                            }
+                        }
+                    }
+                    elseif ($accessPolicy.assigneeType -eq "user") {
+                        $accessPolicyAssignments += [PsCustomObject]@{
+                            resourceId = $resource.resourceId
+                            resourceType = $resource.resourceType
+                            resourceName = $resource.resourceName
+                            accessPolicy = @{
+                                $accessPolicy.securityKey = $accessPolicy.securityValue
+                            }
+                            signInName =  $accessPolicy.assignee
+                            resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                            authorized = $true
+                        }
+                    }
+                }
+               
+            }
+
+            foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
+                $accessPolicies = $resourceWithUnauthorizedAccessPolicy.accessPolicies
+                $accessPolicyPermissionPropertyNames = $accessPolicies |
+                    Get-Member -MemberType Property | Select-Object -Property Name | Where-Object {$_.Name -match "PermissionsTo(.*)(?<!Str)$"}
+                foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames) {
+                    $accessPolicyAssignments += [PsCustomObject]@{
+                        resourceId = $resourceWithUnauthorizedAccessPolicy.resourceId
+                        resourceType = $resourceWithUnauthorizedAccessPolicy.resourceType
+                        resourceName = $resourceWithUnauthorizedAccessPolicy.resourceName
+                        accessPolicy = [PSCustomObject]@{
+                            accessPolicyPermissionPropertyName = $accessPolicies.$accessPolicyPermissionPropertyName
+                        }
+                        signInName = Get-AzureADUser -Tenant $tenantKey -Id $accessPolicies.objectId
+                        resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                        authorized = $false
+                    }
                 }
             }
-        }
 
-        $roleAssignments = $roleAssignments | Sort-Object -Property resourceTypeSortOrder, resourceType, resourceName
-        if ($User) {
-            # if $User has been specified, filter $roleAssignments to those relevant to $User
-            $roleAssignments = $roleAssignments | Where-Object {$_.signInName -eq $User}
-        }
-        # export $roleAssignments
-        # if $User has been specified, skip this step
-        if (!$User) {
-            $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation  
-        }
-        # if (!$User) {
-        #     $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExportFile -UseQuotes Always -NoTypeInformation  
-        # }
+            $accessPolicyAssignments = $accessPolicyAssignments | Sort-Object -Property resourceTypeSortOrder, resourceType, resourceName
+            if ($User) {
+                # if $User has been specified, filter $accessPolicies to those relevant to $User
+                $accessPolicyAssignments = $accessPolicyAssignments | Where-Object {$_.signInName -eq $User}
+            }
+            # export $accessPolicies
+            # if $User has been specified, skip this step
+            if (!$User) {
+                $accessPolicyAssignments | 
+                    Select-Object -Property resourceType,resourceId,resourceName,
+                        @{Name="securityType";Expression={"AccessPolicy"}},@{Name="securityKey";Expression={$_.accessPolicy.Keys[0]}},@{Name="securityValue";Expression={$_.accessPolicy.Values[0]}},@{Name="assigneeType";Expression={"user"}},@{Name="assignee";Expression={$_.signInName}} | 
+                            Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation -Append 
+            }
+            # if (!$User) {
+            #     $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExportFile -UseQuotes Always -NoTypeInformation  
+            # }
+
+        #endregion ACCESS POLICIES
 
         $uniqueResourcesFromRoleAssignments = $roleAssignments | Select-Object -Property resourceId, resourceType,resourceName,role | Sort-Object -Property resourceId, resourceType,resourceName,role -Unique
 
