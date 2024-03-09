@@ -1255,7 +1255,7 @@ function global:Grant-AzProjectRole {
         $unauthorizedProjectUsers | Add-Member -NotePropertyName authorized -NotePropertyValue $false
         $unauthorizedProjectUsers | Add-Member -NotePropertyName reason -NotePropertyValue "ACCOUNT DISABLED"
 
-        #region UNAUTHORIZED
+        #region UNAUTHORIZED ROLE ASSIGNMENTS
 
             # identify unauthorized project users and role assignments
             # if $User has been specified, skip this step
@@ -1275,7 +1275,7 @@ function global:Grant-AzProjectRole {
                 # $unauthorizedProjectRoleAssignments = ($projectRoleAssignments | Where-Object {$_.SignInName -notin $authorizedProjectUsers.userPrincipalName})
 
                 $unauthorizedProjectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $resourceGroupName | 
-                    Where-Object {$_.Scope -in $resources.resourceScope -and $_.SignInName -notin $authorizedProjectUsers.userPrincipalName}
+                    Where-Object {$_.Scope -in $resources.resourceScope -and ![string]::IsNullOrEmpty($_.SignInName) -and $_.SignInName -notin $authorizedProjectUsers.userPrincipalName}
 
                 foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
                     $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
@@ -1291,13 +1291,15 @@ function global:Grant-AzProjectRole {
 
             }
 
+        #endregion UNAUTHORIZED ROLE ASSIGNMENTS
+        #region UNAUTHORIZED ACCESS POLICIES
+
             $resourcesWithUnauthorizedAccessPolicies = @()
 
             if (!$User) {
 
-                $resourcesWithUnauthorizedAccessPolicies += $resources.resourceObject.accessPolicies | 
-                    Where-Object {$_.objectId -notin $authorizedProjectUsers.Id}
-                            
+                $resourcesWithUnauthorizedAccessPolicies += $resources.resourceObject | 
+                    Where-Object {$_.accessPolicies -and $_.accessPolicies.objectId -and $_.accessPolicies.objectId -notin $authorizedProjectUsers.Id}
 
                 foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
                     $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -Id $resourceWithUnauthorizedAccessPolicy.objectId
@@ -1313,7 +1315,7 @@ function global:Grant-AzProjectRole {
 
             }
         
-        #endregion UNAUTHORIZED
+        #endregion UNAUTHORIZED ACCESS POLICIES
 
         $members = @()
         $members += $authorizedProjectUsers | Where-Object {$_.userType -eq "Member"} 
@@ -1398,13 +1400,13 @@ function global:Grant-AzProjectRole {
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion VERIFY USERS
+    #region SECURITY ASSIGNMENTS
 
-    #region SECURITYASSIGNMENTS
-
-        #region ROLE ASSIGNMENTS
+        #region GET ROLE ASSIGNMENTS
 
             $roleAssignments = [PsCustomObject]@()
 
+            # resource group
             $resourceGroup = $resources | Where-Object {$_.resourceType -eq "ResourceGroup"}
             $resourceGroupDefaultRole = "Reader"
             foreach ($authorizedProjectUser in $authorizedProjectUsers) {
@@ -1420,6 +1422,21 @@ function global:Grant-AzProjectRole {
             }
 
             foreach ($securityAssignment in $securityAssignmentsFromFile | Where-Object {$_.securityType -eq "RoleAssignment"}) {
+
+                if ($securityAssignment.assigneeType -eq "identity") {
+                    $systemAssignedIdentity = Get-AzSystemAssignedIdentity -Scope ($resources | Where-Object {$_.resourceId -eq $securityAssignment.assignee}).resourceScope
+                    foreach ($resource in ($resources | Where-Object {$_.resourceId -eq $securityAssignment.resourceId})) {
+                        $roleAssignments += [PsCustomObject]@{
+                            resourceId = $resource.resourceId
+                            resourceType = $resource.resourceType
+                            resourceName = $resource.resourceName
+                            objectId = $systemAssignedIdentity.PrincipalId
+                            objectType = "Service Principal"
+                            resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                            authorized = $true
+                        }
+                    }
+                }
 
                 if ($securityAssignment.assigneeType -eq "group") {
                     $members = $groups | Where-Object {$_.group -eq $securityAssignment.assignee}
@@ -1486,9 +1503,8 @@ function global:Grant-AzProjectRole {
 
             $uniqueResourcesFromRoleAssignments = $roleAssignments | Select-Object -Property resourceId, resourceType,resourceName,role | Sort-Object -Property resourceId, resourceType,resourceName,role -Unique
 
-        #endregion ROLE ASSIGNMENTS
-
-        #region ACCESS POLICIES
+        #endregion GET ROLE ASSIGNMENTS
+        #region GET ACCESS POLICIES
 
             $accessPolicyAssignments = [PsCustomObject]@()
 
@@ -1504,7 +1520,7 @@ function global:Grant-AzProjectRole {
                                 resourceType = $resource.resourceType
                                 resourceName = $resource.resourceName
                                 accessPolicy = @{
-                                    $accessPolicy.securityKey = $accessPolicy.securityValue
+                                    $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                                 }
                                 signInName = $member.user
                                 resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
@@ -1518,7 +1534,7 @@ function global:Grant-AzProjectRole {
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
                             accessPolicy = @{
-                                $accessPolicy.securityKey = $accessPolicy.securityValue
+                                $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                             }
                             signInName =  $accessPolicy.assignee
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
@@ -1544,7 +1560,7 @@ function global:Grant-AzProjectRole {
                             resourceType = $resourceWithUnauthorizedAccessPolicy.resourceType
                             resourceName = $resourceWithUnauthorizedAccessPolicy.resourceName
                             accessPolicy = @{
-                                "$accessPolicyPermissionPropertyName" = ($accessPolicy.$accessPolicyPermissionPropertyName | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                                "$accessPolicyPermissionPropertyName" = $accessPolicy.$accessPolicyPermissionPropertyName -join ","
                             }
                             signInName = (Get-AzureADUser -Tenant $tenantKey -Id $accessPolicy.objectId).mail
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
@@ -1571,245 +1587,296 @@ function global:Grant-AzProjectRole {
             #     $roleAssignments | Select-Object -Property resourceType,resourceName,role,signInName | Export-Csv -Path $RoleAssignmentExportFile -UseQuotes Always -NoTypeInformation  
             # }
 
-        #endregion ACCESS POLICIES
-
-        Write-Host+
-        $message = "<  Role assignment <.>60> PENDING"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
-        # Write-Host+
-
-        Write-Host+
-        $message = "<    Example < >40> Status"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "<    ------- < >40> ------"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "<    Reader <.>40> Current"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "<    ^Reader <.>40> Inherited"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
-        $message = "<    +Reader <.>40> Added"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGreen, DarkGray, DarkGray
-        $message = "<    -Reader <.>40> Removed"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkRed, DarkGray, DarkGray
-        Write-Host+
-
-        foreach ($signInName in $signInNames) {
-            
-            Write-Host+ -NoTrace -NoNewLine "    $signInName" -ForegroundColor Gray
-
-            $assignee = Get-AzureADUser -Tenant $tenantKey -User $signInName
-            if (!$assignee) {
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (NotFound)" -ForegroundColor DarkGray,DarkRed,DarkGray
-                Write-Host+
-                continue
-            }
-
-            $externalUserState = $assignee.externalUserState -eq "PendingAcceptance" ? "Pending" : $assignee.externalUserState
-            $externalUserStateColor = $assignee.externalUserState -eq "Pending" ? "DarkYellow" : "DarkGray"
-            if ($externalUserState -eq "Pending") {
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (",$externalUserState,")" -ForegroundColor DarkGray,DarkYellow,DarkGray
-            }
-
-            if ($WhatIf) {
-                Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (","WhatIf",")" -ForegroundColor DarkGray,DarkYellow,DarkGray
-            }
+        #endregion GET ACCESS POLICIES
+        #region SECURITY ASSIGNMENTS
 
             Write-Host+
+            $message = "<  Security assignments <.>60> PENDING"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray 
+            # Write-Host+
 
-            Write-Host+ -NoTrace "    $($emptyString.PadLeft($signInName.Length,"-"))" -ForegroundColor Gray
+            Write-Host+
+            $message = "<    Example < >40> Status"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+            $message = "<    ------- < >40> ------"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+            $message = "<    Reader <.>40> Current"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+            $message = "<    ^Reader <.>40> Inherited"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray, DarkGray, DarkGray
+            $message = "<    +Reader <.>40> Added"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGreen, DarkGray, DarkGray
+            $message = "<    -Reader <.>40> Removed"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkRed, DarkGray, DarkGray
+            Write-Host+
 
-            $identity = $assignee.identities | Where-Object {$_.issuer -eq $global:Azure.$tenantKey.Tenant.Domain}
-            $signInType = $identity.signInType
-            $signIn = $signInType -eq "userPrincipalName" ? $assignee.userPrincipalName : $signInName
-            
-            $resourceTypes = @()
-            $resourceTypes += ($roleAssignments | Where-Object {$_.signInName -eq $signInName} | Sort-Object -Property resourceTypeSortOrder,resourceType -Unique ).resourceType 
-            if (!$ReferencedResourcesOnly) {
-                $resourceTypes += $global:AzureProject.ResourceType.Keys | Where-Object {$_ -notin $resourceTypes -and $global:AzureProject.ResourceType.$_.Object}
-                # $resourceTypes += $global:AzureProject.ResourceType.Keys | Where-Object {$_ -notin $resourceTypes -and $_ -ne "ResourceGroup" -and $global:AzureProject.ResourceType.$_.Object}
-            }
+            foreach ($signInName in $signInNames) {
+                
+                Write-Host+ -NoTrace -NoNewLine "    $signInName" -ForegroundColor Gray
 
-            # sort by resourceScope to ensure children are after parents
-            $resourcesToCheck = $resources | Sort-Object -Property resourcePath
-            $resourcesToCheck = $resourcesToCheck | Where-Object {$_.resourceScope -eq "ResourceGroup" -or $_.resourceId -in ($uniqueResourcesFromRoleAssignments.resourceId)}
-
-            # if the $UserResourcesOnly switch has been specified, then filter $resources to only those relevant to the current assignee
-            # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
-            if ($ReferencedResourcesOnly) {
-                $resourcesToCheck = $resources | Where-Object {$_.resourceId -in (($roleAssignments | Where-Object {$_.signInName -eq $signInName}).resourceId)}
-            }
-
-            $roleAssignmentCount = 0
-            foreach ($resource in $resourcesToCheck) { #| Where-Object {$_.resourceType -eq $resourceType}) {
-
-                $unauthorizedRoleAssignment = $false
-
-                $resourceType = $resource.resourceType
-                $resourceId = $resource.resourceId
-                $resourceName = $resource.resourceName
-                $resourceScope = $resource.resourceScope
-
-                $resourceParent = $resources | Where-Object {$_.resourceId -eq $resource.resourceParent}
-                $message = "    " + (![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : "") + "$($resourceType)/$($resourceName)"
-                $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "    
-
-                $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Sort-Object -Property Scope
-
-                $currentRoleAssignments = $currentRoleAssignments | Where-Object {($resourceScope -eq $_.Scope -or $resourceScope.StartsWith($_.Scope)) -and $_.Scope.Length -le $resourceScope.Length}
-                $currentRoleAssignments = $currentRoleAssignments | Where-Object {$resourceType -eq "ResourceGroup" -or $_.Scope -ne $resourceGroup.resourceScope}
-                if ($currentRoleAssignments) {
-                    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
-                    foreach ($currentRoleAssignment in $currentRoleAssignments) {
-                        $message = $currentRoleAssignment.RoleDefinitionName
-                        if ($currentRoleAssignment.Scope -ne $resourceScope -and $resourceScope -like "$($currentRoleAssignment.Scope)*") {
-                            $message = "^" + $message
-                        }
-                        if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
-                            $message += ", "
-                        }
-                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
-                    }
+                $assignee = Get-AzureADUser -Tenant $tenantKey -User $signInName
+                if (!$assignee) {
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (NotFound)" -ForegroundColor DarkGray,DarkRed,DarkGray
+                    Write-Host+
+                    continue
                 }
-                $rolesWrittenCount = $currentRoleAssignments.Count
 
-                # $requiredRoleAssignments = @()
-                # $requiredRoleAssignments += 
-                $requiredRoleAssignments = $roleAssignments | Where-Object {$_.signInName -eq $signInName -and $_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId -and $_.resourceName -eq $resourceName}
-                if (![string]::IsNullOrEmpty($resourceName)) {
-                    $requiredRoleAssignments =  $requiredRoleAssignments | Where-Object {$_.resourceName -eq $resourceName}
+                $externalUserState = $assignee.externalUserState -eq "PendingAcceptance" ? "Pending" : $assignee.externalUserState
+                $externalUserStateColor = $assignee.externalUserState -eq "Pending" ? "DarkYellow" : "DarkGray"
+                if ($externalUserState -eq "Pending") {
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (",$externalUserState,")" -ForegroundColor DarkGray,DarkYellow,DarkGray
                 }
-                if ($requiredRoleAssignments) {
-                    if (!$currentRoleAssignments) {
-                        Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
-                    }
-                    foreach ($roleAssignment in $requiredRoleAssignments) {
-                        $currentRoleAssignment = @()
-                        $inheritedRoleAssignment = @()
-                        switch ($resourceType) {
-                            default {
-                                $currentRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role | Where-Object {$_.Scope -eq $resourceScope}
-                                $inheritedRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Where-Object {$_.Scope -ne $resourceScope}  
+
+                if ($WhatIf) {
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (","WhatIf",")" -ForegroundColor DarkGray,DarkYellow,DarkGray
+                }
+
+                Write-Host+
+
+                Write-Host+ -NoTrace "    $($emptyString.PadLeft($signInName.Length,"-"))" -ForegroundColor Gray
+
+                $identity = $assignee.identities | Where-Object {$_.issuer -eq $global:Azure.$tenantKey.Tenant.Domain}
+                $signInType = $identity.signInType
+                $signIn = $signInType -eq "userPrincipalName" ? $assignee.userPrincipalName : $signInName
+                
+                $resourceTypes = @()
+                $resourceTypes += ($roleAssignments | Where-Object {$_.signInName -eq $signInName} | Sort-Object -Property resourceTypeSortOrder,resourceType -Unique ).resourceType 
+                if (!$ReferencedResourcesOnly) {
+                    $resourceTypes += $global:AzureProject.ResourceType.Keys | Where-Object {$_ -notin $resourceTypes -and $global:AzureProject.ResourceType.$_.Object}
+                    # $resourceTypes += $global:AzureProject.ResourceType.Keys | Where-Object {$_ -notin $resourceTypes -and $_ -ne "ResourceGroup" -and $global:AzureProject.ResourceType.$_.Object}
+                }
+
+                # sort by resourceScope to ensure children are after parents
+                $resourcesToCheck = $resources | Sort-Object -Property resourcePath
+                $resourcesToCheck = $resourcesToCheck | Where-Object {$_.resourceScope -eq "ResourceGroup" -or $_.resourceId -in ($uniqueResourcesFromRoleAssignments.resourceId)}
+
+                # if the $UserResourcesOnly switch has been specified, then filter $resources to only those relevant to the current assignee
+                # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
+                if ($ReferencedResourcesOnly) {
+                    $resourcesToCheck = $resources | Where-Object {$_.resourceId -in (($roleAssignments | Where-Object {$_.signInName -eq $signInName}).resourceId)}
+                }
+
+                $roleAssignmentCount = 0
+                foreach ($resource in $resourcesToCheck) { 
+
+                    $unauthorizedRoleAssignment = $false
+
+                    $resourceType = $resource.resourceType
+                    $resourceId = $resource.resourceId
+                    $resourceName = $resource.resourceName
+                    $resourceScope = $resource.resourceScope
+
+                    $resourceParent = $resources | Where-Object {$_.resourceId -eq $resource.resourceParent}
+                    $message = "    " + (![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : "") + "$($resourceType)/$($resourceName)"
+                    $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "    
+
+                    #region SET ROLE ASSIGNMENTS
+
+                        $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Sort-Object -Property Scope
+
+                        $currentRoleAssignments = $currentRoleAssignments | Where-Object {($resourceScope -eq $_.Scope -or $resourceScope.StartsWith($_.Scope)) -and $_.Scope.Length -le $resourceScope.Length}
+                        $currentRoleAssignments = $currentRoleAssignments | Where-Object {$resourceType -eq "ResourceGroup" -or $_.Scope -ne $resourceGroup.resourceScope}
+                        if ($currentRoleAssignments) {
+                            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
+                            foreach ($currentRoleAssignment in $currentRoleAssignments) {
+                                $message = $currentRoleAssignment.RoleDefinitionName
+                                if ($currentRoleAssignment.Scope -ne $resourceScope -and $resourceScope -like "$($currentRoleAssignment.Scope)*") {
+                                    $message = "^" + $message
+                                }
+                                if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
+                                    $message += ", "
+                                }
+                                Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
                             }
-                            "ResourceGroup" {
-                                $currentRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role | Where-Object {$_.Scope -eq $resourceScope}
+                        }
+                        $rolesWrittenCount = $currentRoleAssignments.Count
+
+                        $requiredRoleAssignments = $roleAssignments | Where-Object {$_.signInName -eq $signInName -and $_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId -and $_.resourceName -eq $resourceName}
+                        if (![string]::IsNullOrEmpty($resourceName)) {
+                            $requiredRoleAssignments =  $requiredRoleAssignments | Where-Object {$_.resourceName -eq $resourceName}
+                        }
+                        if ($requiredRoleAssignments) {
+                            if (!$currentRoleAssignments) {
+                                Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
                             }
-                        }
-                        if (!$currentRoleAssignment -and ($roleAssignment.role -notin $currentRoleAssignment.RoleDefinitionName -and $roleAssignment.role -notin $inheritedRoleAssignment.RoleDefinitionName)) {
+                            foreach ($roleAssignment in $requiredRoleAssignments) {
+                                $currentRoleAssignment = @()
+                                $inheritedRoleAssignment = @()
+                                switch ($resourceType) {
+                                    default {
+                                        $currentRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role | Where-Object {$_.Scope -eq $resourceScope}
+                                        $inheritedRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn | Where-Object {$_.Scope -ne $resourceScope}  
+                                    }
+                                    "ResourceGroup" {
+                                        $currentRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -SignInName $signIn -RoleDefinitionName $roleAssignment.role | Where-Object {$_.Scope -eq $resourceScope}
+                                    }
+                                }
+                                if (!$currentRoleAssignment -and ($roleAssignment.role -notin $currentRoleAssignment.RoleDefinitionName -and $roleAssignment.role -notin $inheritedRoleAssignment.RoleDefinitionName)) {
 
-                            if (!$WhatIf) {
-                                New-AzRoleAssignment+ -Scope $resourceScope -RoleDefinitionName $roleAssignment.role -SignInNames $signIn -ErrorAction SilentlyContinue | Out-Null
-                            }
+                                    if (!$WhatIf) {
+                                        New-AzRoleAssignment+ -Scope $resourceScope -RoleDefinitionName $roleAssignment.role -SignInNames $signIn -ErrorAction SilentlyContinue | Out-Null
+                                    }
 
-                            $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
-                            Write-Host+ -Iff $(![string]::IsNullOrEmpty($message)) -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
-                            $message = "+$($roleAssignment.role)"
-                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGreen 
-                            $rolesWrittenCount++   
-                        }
-                        if ($unauthorizedProjectRoleAssignments | Where-Object {$_.SignInName -eq $currentRoleAssignment.SignInName -and $_.RoleDefinitionId -eq $currentRoleAssignment.RoleDefinitionId}) {
-                            $unauthorizedRoleAssignment = $true
-                        }
-                    }
-                }
-
-                $currentRoleAssignmentsThisResourceScope = $currentRoleAssignments | Where-Object {$_.Scope -eq $resourceScope}
-                if ($currentRoleAssignmentsThisResourceScope) {
-                    foreach ($currentRoleAssignment in $currentRoleAssignmentsThisResourceScope) {
-                        if ($currentRoleAssignment.RoleDefinitionName -notin $requiredRoleAssignments.role -or ($RemoveUnauthorizedRoleAssignments -and $unauthorizedRoleAssignment)) {
-
-                            $resourceLocksCanNotDelete = Get-AzResourceLock -Scope $resourceScope | Where-Object {$_.Properties.level -eq "CanNotDelete"}
-                            $resourceLocksCanNotDelete | Foreach-Object {Remove-AzResourceLock -Scope $resourceScope -LockName $_.Name -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null}
-
-                            if (!$WhatIf) {
-                                Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -SignInName $signIn -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
-                            }
-
-                            $resourceLocksCanNotDelete | Foreach-Object {Set-AzResourceLock -Scope $resourceScope -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force} | Out-Null
-
-                            $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
-                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
-                            $message = "-$($currentRoleAssignment.RoleDefinitionName)"
-                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkRed  
-                            $rolesWrittenCount++
-                        }
-                    }
-                }
-
-                if ($unauthorizedRoleAssignment) {
-                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** UNAUTHORIZED ***" -ForegroundColor DarkRed 
-                }
-
-                if ($currentRoleAssignments -or $requiredRoleAssignments) {
-                    Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8," "))"
-                }
-
-                $roleAssignmentCount += $rolesWrittenCount
-
-                # access policy assignment (for now)
-
-                if ($resource.resourceObject.accessPolicies) {
-                    $accessPolicy = $resource.resourceObject.accessPolicies | Where-Object {(Get-AzureADUser -Tenant $tenantKey -Id $_.objectId).mail -eq $signInName}
-                    $accessPolicyPermissionPropertyNames = @()
-                    $accessPolicy | Get-Member -MemberType Property | Foreach-Object {
-                        if ($_.Name -match "PermissionsTo(.*)(?<!Str)$") {
-                            $accessPolicyPermissionPropertyNames += $_.Name
-                        }
-                    }
-                    foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$accessPolicy.$_}) {
-                        $accessPolicyKey = $accessPolicyPermissionPropertyName
-                        $accessPolicyValue = ($accessPolicy.$accessPolicyPermissionPropertyName | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
-                        $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($accessPolicyKey) <.>61> $($accessPolicyValue)" 
-                        Write-Host+ -NoTrace $message -Parse -ForegroundColor DarkGray
-                    }
-                }
-
-                $resourceAccessPolicyAssignments = $accessPolicyAssignments | 
-                    Where-Object {$_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId} |
-                        Where-Object {$_.signInName -eq $signInName}
-
-                if ($resourceAccessPolicyAssignments) {
-                    switch ($resourceType) {
-                        "KeyVault" {
-                            $accessPolicyParams = @{
-                                ResourceGroupName = $resourceGroupName
-                                VaultName = $resource.resourceName
-                                EmailAddress = $signInName
-                            }
-                            foreach ($resourceAccessPolicyAssignment in $resourceAccessPolicyAssignments) {
-                                $accessPolicyKey = $resourceAccessPolicyAssignment.accessPolicy.Keys[0]
-                                $accessPolicyValue = $resourceAccessPolicyAssignment.AccessPolicy.Values[0] -split ","
-                                $accessPolicyParams += @{
-                                    "$accessPolicyKey" = $accessPolicyValue
+                                    $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
+                                    Write-Host+ -Iff $(![string]::IsNullOrEmpty($message)) -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                                    $message = "+$($roleAssignment.role)"
+                                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGreen 
+                                    $rolesWrittenCount++   
+                                }
+                                if ($unauthorizedProjectRoleAssignments | Where-Object {$_.SignInName -eq $currentRoleAssignment.SignInName -and $_.RoleDefinitionId -eq $currentRoleAssignment.RoleDefinitionId}) {
+                                    $unauthorizedRoleAssignment = $true
                                 }
                             }
-                            if (!$WhatIf) {
-                                $result = Set-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
-                                $result | Out-Null
-                            }
-                            foreach ($resourceAccessPolicyAssignment in $resourceAccessPolicyAssignments) {
-                                $accessPolicyKey = $resourceAccessPolicyAssignment.accessPolicy.Keys[0]
-                                $accessPolicyValue = $resourceAccessPolicyAssignment.AccessPolicy.Values[0] -replace ",",", "
-                                $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($accessPolicyKey) <.>61> $($accessPolicyValue)" 
-                                Write-Host+ -NoTrace $message -Parse -ForegroundColor DarkGreen
+                        }
+
+                        $currentRoleAssignmentsThisResourceScope = $currentRoleAssignments | Where-Object {$_.Scope -eq $resourceScope}
+                        if ($currentRoleAssignmentsThisResourceScope) {
+                            foreach ($currentRoleAssignment in $currentRoleAssignmentsThisResourceScope) {
+                                if ($currentRoleAssignment.RoleDefinitionName -notin $requiredRoleAssignments.role -or ($RemoveUnauthorizedRoleAssignments -and $unauthorizedRoleAssignment)) {
+
+                                    $resourceLocksCanNotDelete = Get-AzResourceLock -Scope $resourceScope | Where-Object {$_.Properties.level -eq "CanNotDelete"}
+                                    $resourceLocksCanNotDelete | Foreach-Object {Remove-AzResourceLock -Scope $resourceScope -LockName $_.Name -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null}
+
+                                    if (!$WhatIf) {
+                                        Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -SignInName $signIn -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
+                                    }
+
+                                    $resourceLocksCanNotDelete | Foreach-Object {Set-AzResourceLock -Scope $resourceScope -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force} | Out-Null
+
+                                    $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
+                                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                                    $message = "-$($currentRoleAssignment.RoleDefinitionName)"
+                                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkRed  
+                                    $rolesWrittenCount++
+                                }
                             }
                         }
-                    }
-                }
-            
-            }
 
-            if ($roleAssignmentCount -eq 0) {
-                Write-Host+ -NoTrace "    none" -ForegroundColor DarkGray
+                        if ($unauthorizedRoleAssignment) {
+                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** UNAUTHORIZED ***" -ForegroundColor DarkRed 
+                        }
+
+                        if ($currentRoleAssignments -or $requiredRoleAssignments) {
+                            Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8," "))"
+                        }
+
+                        $roleAssignmentCount += $rolesWrittenCount
+
+                        if ($roleAssignmentCount -eq 0) {
+                            Write-Host+ -NoTrace "    none" -ForegroundColor DarkGray
+                        }                    
+
+                    #endregion SET ROLE ASSIGNMENTS
+                    #region SET ACCESS POLICIES
+
+                        switch ($resourceType) {
+                            "KeyVault" {
+
+                                $accessPolicyPermissionPropertyNames = @("PermissionsToKeys","PermissionsToSecrets","PermissionsToCertificates","PermissionsToStorage")
+                                foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames) {
+
+                                    $accessPolicyPermissionWritten = $false
+
+                                    $currentAccessPolicy = $resource.resourceObject.accessPolicies | 
+                                        Where-Object {(Get-AzureADUser -Tenant $tenantKey -Id $_.objectId).mail -eq $signInName}
+                                    $currentAccessPolicyKey = $null
+                                    $currentAccessPolicyValue = $null
+                                    if ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName) {
+                                        $currentAccessPolicyKey = $accessPolicyPermissionPropertyName
+                                        $currentAccessPolicyValue = $currentAccessPolicy.$accessPolicyPermissionPropertyName
+                                        $currentAccessPolicyValueStr = ($currentAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                                        $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($currentAccessPolicyKey) <.>61> $($currentAccessPolicyValueStr)" 
+                                        Write-Host+ -NoTrace -NoNewline $message -Parse -ForegroundColor DarkGray
+                                        $accessPolicyPermissionWritten = $true
+                                    }
+
+                                    $requiredAccessPolicy = ($accessPolicyAssignments | 
+                                        Where-Object {$_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId} |
+                                            Where-Object {$_.signInName -eq $signInName}).accessPolicy
+            
+                                    if (!($requiredAccessPolicy -and $requiredAccessPolicy.$accessPolicyPermissionPropertyName) -and ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName)) {
+
+                                        $accessPolicyParams = @{
+                                            ResourceGroupName = $resourceGroupName
+                                            VaultName = $resource.resourceName
+                                            EmailAddress = $signInName
+                                        }
+                                        $accessPolicyParams += @{ "$currentAccessPolicyKey" = @() }
+
+                                        foreach ($_currentAccessPolicyValue in $currentAccessPolicyValue) {
+                                            Write-Host+ -Iff $($accessPolicyPermissionWritten) -NoTrace -NoTimestamp -NoNewLine ", " -ForegroundColor DarkGray
+                                            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "-$((Get-Culture).TextInfo.ToTitleCase($_currentAccessPolicyValue))" -ForegroundColor DarkRed
+                                            $accessPolicyPermissionWritten = $true
+                                        }
+
+                                        if (!$WhatIf) {
+                                            $result = Set-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
+                                            $result | Out-Null
+                                        }
+
+                                        Write-Host+ -Iff $($accessPolicyPermissionWritten)
+
+                                    }
+
+                                    if (($requiredAccessPolicy -and $requiredAccessPolicy.$accessPolicyPermissionPropertyName)) {
+
+                                        $accessPolicyParams = @{
+                                            ResourceGroupName = $resourceGroupName
+                                            VaultName = $resource.resourceName
+                                            EmailAddress = $signInName
+                                        }
+                                        $requiredAccessPolicyKey = $accessPolicyPermissionPropertyName
+                                        $requiredAccessPolicyValue = $requiredAccessPolicy.$requiredAccessPolicyKey
+                                        # $requiredAccessPolicyValueStr = ($requiredAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                                        $accessPolicyParams += @{ "$requiredAccessPolicyKey" = $requiredAccessPolicyValue }
+
+                                        if (![string]::IsNullOrEmpty($currentAccessPolicyKey) -and $currentAccessPolicyKey -eq $requiredAccessPolicyKey) {
+                                            foreach ($_currentAccessPolicyValue in $currentAccessPolicyValue) {
+                                                if ($_currentAccessPolicyValue -notin $requiredAccessPolicyValue) {
+                                                    Write-Host+ -Iff $($accessPolicyPermissionWritten) -NoTrace -NoTimestamp -NoNewLine ", " -ForegroundColor DarkGray
+                                                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine "-$((Get-Culture).TextInfo.ToTitleCase($_currentAccessPolicyValue))" -ForegroundColor DarkRed
+                                                    $accessPolicyPermissionWritten = $true
+                                                }
+                                            }
+                                        }
+
+                                        if (!$WhatIf) {
+                                            $result = Set-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
+                                            $result | Out-Null
+                                        }
+
+                                        $_requiredAccessPolicyValueToAdd = @()
+                                        foreach ($_requiredAccessPolicyValue in $requiredAccessPolicyValue) {
+                                            if ($_requiredAccessPolicyValue -notin $currentAccessPolicyValue) {
+                                                $_requiredAccessPolicyValueToAdd += "+$_requiredAccessPolicyValue"
+                                            }
+                                        }
+                                        if ($_requiredAccessPolicyValueToAdd) {
+                                            $message = $_requiredAccessPolicyValueToAdd ? "," : ""
+                                            $message += ($_requiredAccessPolicyValueToAdd | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                                            Write-Host+ -NoTrace -NoTimestamp -NoNewLine $message -ForegroundColor DarkGreen
+                                            $accessPolicyPermissionWritten = $true
+                                        }
+
+                                        Write-Host+ -Iff $($accessPolicyPermissionWritten)
+
+                                    }
+                                }
+                            }
+                        }
+
+                    #endregion SET ACCESS POLICIES
+            
             }
 
             Write-Host+
 
         }
 
-        $message = "<  Role assignment <.>60> SUCCESS"
+        $message = "<  Security assignment <.>60> SUCCESS"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
-    #endregion ROLEASSIGNMENT
+    #endregion SECURITY ASSIGNMENTS
 
     Write-Host+
 
