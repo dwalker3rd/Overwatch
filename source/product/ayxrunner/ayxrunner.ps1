@@ -59,16 +59,23 @@ $currentStatus = @()
 $data = Read-OdbcData -Connection $connection -Query $query
 foreach ($dataRow in $data) {
     $now = [datetime]::Now
+
+    # assumption: this computer_name is no longer in the heartbeat table 
     if ([string]::IsNullOrEmpty($dataRow.timestamp)) {
-        $dataRow.timestamp = [datetime]::MinValue
-        $dataRow.status = "Error"
+        $queryMaxLogEntry = "select max(actual_end_date_time) as max_actual_end_data_time from alteryx_runner_log where computer_name = `'$($dataRow.computer_name)`'"
+        $dataMaxLogEntry = Read-OdbcData -Connection $connection -Query $queryMaxLogEntry
+        $dataRow.timestamp = ![string]::IsNullOrEmpty($dataMaxLogEntry.max_actual_end_data_time) ? $dataMaxLogEntry.max_actual_end_data_time : [datetime]::MinValue
+        $queryUpdateHeartbeat = "insert into alteryx_runner_heartbeat (computer_name, timestamp) values (`'$($dataRow.computer_name)`', `'$($dataRow.timestamp)`')"
+        Update-OdbcData -Connection $connection -Query $queryUpdateHeartbeat
+        $dataRow.status = "Not Running"
     }
+    
     $diff = $now - $dataRow.timestamp
     if ($dataRow.status -eq "Running") {
         $3stddev = [string]::IsNullOrEmpty($dataRow.stddev_execution_time) ? 0 : 3*(New-TimeSpan -Seconds $dataRow.stddev_execution_time)
         $diff = $diff - ((New-TimeSpan -Seconds $dataRow.avg_execution_time) + $3stddev)
     }
-    $notRunning = $dataRow.Status -in ("Waiting","Error") -and $diff -ge $global:Product.Config.NotRunningThreshold
+    $notRunning = $dataRow.Status -in ("Waiting","Not Running") -and $diff -ge $global:Product.Config.NotRunningThreshold
     $messageType = $notRunning ? $global:PlatformMessageType.Intervention : $global:PlatformMessageType.Information
     $_currentStatus = [PSCustomObject]@{
         ComputerName = $dataRow.computer_name
@@ -103,5 +110,7 @@ foreach ($dataRow in $data) {
     }
     $currentStatus += $_currentStatus
 }
+
+$connection.Close()
 
 $currentStatus | Select-Object -ExcludeProperty AvgExecutionTime, StdDevExecutionTime, MessageType | Sort-Object -Property ComputerName | Format-Table
