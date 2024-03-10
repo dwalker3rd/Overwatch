@@ -46,29 +46,36 @@ if (Test-Path $ayxRunnerLogPath) {
 $connectionString = Get-ConnectionString healthinsightplatform | ConvertTo-OdbcConnectionString
 $connection = Connect-OdbcData $connectionString
 $query = @"
-select hb.computer_name,hb.`"timestamp`",log.id,log.workflow,log.status,plan.avg_execution_time,plan.stddev_execution_time from alteryx_runner_heartbeat as hb 
-inner join alteryx_runner_log as log on hb.computer_name = log.computer_name 
-inner join alteryx_runner_execution_plan as plan on log.id = plan.id and log.start_date_time = plan.start_date_time
-where log.status in ('Waiting', 'Running')
+select cn.computer_name,hb.`"timestamp`",log.id,log.workflow,log.status,plan.avg_execution_time,plan.stddev_execution_time from
+(select distinct plancn.computer_name from alteryx_runner_execution_plan as plancn
+left join alteryx_runner_heartbeat as hbcn on hbcn.computer_name = plancn.computer_name) cn
+left join alteryx_runner_heartbeat hb on cn.computer_name = hb.computer_name
+left join alteryx_runner_log as log on hb.computer_name = log.computer_name 
+left join alteryx_runner_execution_plan as plan on log.id = plan.id and log.start_date_time = plan.start_date_time
+where log.status in ('Waiting', 'Running') or log.status is null
 "@
 
 $currentStatus = @()
 $data = Read-OdbcData -Connection $connection -Query $query
 foreach ($dataRow in $data) {
     $now = [datetime]::Now
+    if ([string]::IsNullOrEmpty($dataRow.timestamp)) {
+        $dataRow.timestamp = [datetime]::MinValue
+        $dataRow.status = "Error"
+    }
     $diff = $now - $dataRow.timestamp
     if ($dataRow.status -eq "Running") {
         $3stddev = [string]::IsNullOrEmpty($dataRow.stddev_execution_time) ? 0 : 3*(New-TimeSpan -Seconds $dataRow.stddev_execution_time)
         $diff = $diff - ((New-TimeSpan -Seconds $dataRow.avg_execution_time) + $3stddev)
     }
-    $notRunning = $dataRow.Status -eq "Waiting" -and $diff -ge $global:Product.Config.NotRunningThreshold
+    $notRunning = $dataRow.Status -in ("Waiting","Error") -and $diff -ge $global:Product.Config.NotRunningThreshold
     $messageType = $notRunning ? $global:PlatformMessageType.Intervention : $global:PlatformMessageType.Information
     $_currentStatus = [PSCustomObject]@{
         ComputerName = $dataRow.computer_name
         Timestamp = $dataRow.timestamp
         Now = $now
-        Diff = [int]([math]::Ceiling($diff.TotalSeconds))
-        NotRunningThreshold = [int]([math]::Ceiling($global:Product.Config.NotRunningThreshold.TotalSeconds))
+        Diff = [int64]([math]::Ceiling($diff.TotalSeconds))
+        NotRunningThreshold = [int64]([math]::Ceiling($global:Product.Config.NotRunningThreshold.TotalSeconds))
         NotRunning = $notRunning
         Id = $dataRow.Id
         Workflow = $dataRow.workflow
