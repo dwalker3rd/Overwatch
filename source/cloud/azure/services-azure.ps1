@@ -313,7 +313,7 @@ function global:New-AzStorageContainer+ {
         # [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][object]$Context,
         [Parameter(Mandatory=$true)][string]$Name,
-        [Parameter(Mandatory=$true)][ValidateSet("Container","Blob","Off")][string]$Permission
+        [Parameter(Mandatory=$false)][ValidateSet("Container","Blob","Off")][string]$Permission = "Off"
     )
 
     # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant

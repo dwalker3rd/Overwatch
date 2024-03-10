@@ -41,6 +41,8 @@
                 SqlVM = @{ Name = @{ Pattern = "<0><1>sqlvm<2>" } }
                 KeyVault = @{ Name = @{ Pattern = "<0><1>-kv" } }
                 DataFactory = @{ Name = @{ Pattern = "<0><1>-adf" } }
+                ApplicationInsights = @{ Name = @{ Pattern = "<0><1>-appInsights"}}
+                NetworkInterface = @{ Name = @{ Pattern = "<0><1>-nic" } }
             }
         }
 
