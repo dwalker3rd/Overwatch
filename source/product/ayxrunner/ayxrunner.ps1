@@ -45,30 +45,55 @@ if (Test-Path $ayxRunnerLogPath) {
 
 $connectionString = Get-ConnectionString healthinsightplatform | ConvertTo-OdbcConnectionString
 $connection = Connect-OdbcData $connectionString
+$hbComputerNames = (Read-OdbcData -Connection $connection -Query "select computer_name from alteryx_runner_heartbeat").computer_name
 $query = @"
-select hb.computer_name,hb.`"timestamp`",log.id,log.workflow,log.status,plan.avg_execution_time,plan.stddev_execution_time from alteryx_runner_heartbeat as hb 
-inner join alteryx_runner_log as log on hb.computer_name = log.computer_name 
-inner join alteryx_runner_execution_plan as plan on log.id = plan.id and log.start_date_time = plan.start_date_time
-where log.status in ('Waiting', 'Running')
+select 
+	cn.computer_name,
+	coalesce(hb.`"timestamp`",cn.max_actual_start_date_time) as timestamp, 
+	(case when hb.`"timestamp`" is not null then log.id else null end) as id,
+	(case when hb.`"timestamp`" is not null then log.workflow else null end) as workflow,
+	(case when hb.`"timestamp`" is not null then log.status else 'Stopped' end) as status,
+    log.schedule_id,
+    plan.avg_execution_time,
+    plan.stddev_execution_time
+from
+	(select computer_name, max(actual_start_date_time) as max_actual_start_date_time from alteryx_runner_log group by computer_name) cn
+	left join alteryx_runner_heartbeat hb on cn.computer_name = hb.computer_name
+	left join alteryx_runner_log as log on cn.computer_name = log.computer_name and log.actual_start_date_time = cn.max_actual_start_date_time 
+    left join alteryx_runner_execution_plan as plan on log.id = plan.id and log.start_date_time = plan.start_date_time
 "@
 
 $currentStatus = @()
 $data = Read-OdbcData -Connection $connection -Query $query
 foreach ($dataRow in $data) {
     $now = [datetime]::Now
+
+    # computer_name is not in heartbeat table; insert
+    if ($dataRow.computer_name -notin $hbComputerNames) {
+        $fakeTimestamp = Get-Date($dataRow.timestamp).AddSeconds(1)
+        $queryUpdateHeartbeat = "insert into alteryx_runner_heartbeat (computer_name, timestamp) values (`'$($dataRow.computer_name)`', `'$fakeTimestamp`')"
+        Update-OdbcData -Connection $connection -Query $queryUpdateHeartbeat
+        $queryFakeLogEntry = "select * from alteryx_runner_log where computer_name = `'$($dataRow.computer_name)`' and instance_id = 'ERROR'"
+        $dataFakeLogEntry = Read-OdbcData -Connection $connection -Query $queryFakeLogEntry
+        if (!$dataFakeLogEntry) {
+            $queryFakeLogEntryInsert = "insert into alteryx_runner_log (instance_id, scheduled_start_date_time, computer_name, schedule_id, actual_start_date_time, status) values (`'ERROR`',`'$fakeTimestamp`',`'$($dataRow.computer_name)`',$($dataRow.schedule_id),`'$fakeTimestamp`',`'Stopped`')"
+            Update-OdbcData -Connection $connection -Query $queryFakeLogEntryInsert
+        }
+    }
+    
     $diff = $now - $dataRow.timestamp
     if ($dataRow.status -eq "Running") {
         $3stddev = [string]::IsNullOrEmpty($dataRow.stddev_execution_time) ? 0 : 3*(New-TimeSpan -Seconds $dataRow.stddev_execution_time)
         $diff = $diff - ((New-TimeSpan -Seconds $dataRow.avg_execution_time) + $3stddev)
     }
-    $notRunning = $dataRow.Status -eq "Waiting" -and $diff -ge $global:Product.Config.NotRunningThreshold
+    $notRunning = $dataRow.Status -in ("Waiting","Stopped") -and $diff -ge $global:Product.Config.NotRunningThreshold
     $messageType = $notRunning ? $global:PlatformMessageType.Intervention : $global:PlatformMessageType.Information
     $_currentStatus = [PSCustomObject]@{
         ComputerName = $dataRow.computer_name
         Timestamp = $dataRow.timestamp
         Now = $now
-        Diff = [int]([math]::Ceiling($diff.TotalSeconds))
-        NotRunningThreshold = [int]([math]::Ceiling($global:Product.Config.NotRunningThreshold.TotalSeconds))
+        Diff = [int64]([math]::Ceiling($diff.TotalSeconds))
+        NotRunningThreshold = [int64]([math]::Ceiling($global:Product.Config.NotRunningThreshold.TotalSeconds))
         NotRunning = $notRunning
         Id = $dataRow.Id
         Workflow = $dataRow.workflow
@@ -78,7 +103,7 @@ foreach ($dataRow in $data) {
         MessageType = $messageType
     }
     if ($notRunning) {
-        $response = Send-AyxRunnerMessage -MessageType $messageType -Status "NOT RUNNING" -ComputerName $dataRow.computer_name -NoThrottle
+        $response = Send-AyxRunnerMessage -MessageType $messageType -Status "STOPPED" -ComputerName $dataRow.computer_name -NoThrottle
         $response | Out-Null
         $_currentStatus | Export-CSV -Path $ayxRunnerLogPath -Append
     }
@@ -96,5 +121,7 @@ foreach ($dataRow in $data) {
     }
     $currentStatus += $_currentStatus
 }
+
+$connection.Close()
 
 $currentStatus | Select-Object -ExcludeProperty AvgExecutionTime, StdDevExecutionTime, MessageType | Sort-Object -Property ComputerName | Format-Table
