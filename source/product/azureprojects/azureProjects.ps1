@@ -884,8 +884,6 @@ function global:Grant-AzProjectRole {
         $UserImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
         $GroupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
         $ResourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-        # $RoleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
-        # $RoleAssignmentExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-export.csv"
         $SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-import.csv"
         $SecurityExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-export.csv"
 
@@ -921,7 +919,7 @@ function global:Grant-AzProjectRole {
 
             Write-Host+ -NoTrace -NoSeparator "    $UserImportFile" -ForegroundColor DarkGray
             $users = @()
-            $users += Import-AzProjectFile $UserImportFile
+            $users += Import-AzProjectFile $UserImportFile | Sort-Object -Property * -Unique
             if ($User) { $users = $users | Where-Object {$_.signInName -eq $User} }
 
         #endregion USER IMPORT
@@ -929,7 +927,7 @@ function global:Grant-AzProjectRole {
 
             Write-Host+ -NoTrace -NoSeparator "    $GroupImportFile" -ForegroundColor DarkGray
             $groups = @()
-            $groups += Import-AzProjectFile $GroupImportFile
+            $groups += Import-AzProjectFile $GroupImportFile | Sort-Object -Property * -Unique
             if ($User) { $groups = $groups | Where-Object {$_.user -eq $User} } 
 
         #endregion GROUP IMPORT
@@ -937,7 +935,15 @@ function global:Grant-AzProjectRole {
 
             Write-Host+ -NoTrace -NoSeparator "    $ResourceImportFile" -ForegroundColor DarkGray
             $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
-            $resources += Import-AzProjectFile -Path $ResourceImportFile | Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent | Sort-Object -Property resourceType, resourceName, resourceId   
+            $resources += Import-AzProjectFile -Path $ResourceImportFile | 
+                Select-Object -Property resourceType, resourceName, resourceId, 
+                    @{Name="resourceScope"; Expression={$null}}, 
+                    @{Name="resourcePath"; Expression={$null}}, 
+                    @{Name="resourceObject"; Expression={$null}}, 
+                    @{Name="resourceContext"; Expression={$null}}, 
+                    resourceParent | 
+                Sort-Object -Property * -Unique |
+                Sort-Object -Property resourceType, resourceName, resourceId   
 
             $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
             if ($duplicateResourceIds) {
@@ -954,7 +960,7 @@ function global:Grant-AzProjectRole {
         #region SECURITY ASSIGNMENTS IMPORT
 
             Write-Host+ -NoTrace -NoSeparator "    $SecurityImportFile" -ForegroundColor DarkGray
-            $securityAssignmentsFromFile = Import-AzProjectFile -Path $SecurityImportFile           
+            $securityAssignmentsFromFile = Import-AzProjectFile -Path $SecurityImportFile | Sort-Object -Property * -Unique
             if ($User) {
                 $securityAssignmentsFromFile = $securityAssignmentsFromFile | Where-Object {($_.assigneeType -in ("User","SystemAssignedIdentity") -and $_.assignee -eq $User) -or ($_.assigneeType -eq "Group" -and $_.assignee -in ($groups | Where-Object {$_.user -eq $User}).group)}
             }
@@ -1165,12 +1171,7 @@ function global:Grant-AzProjectRole {
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion VERIFY RESOURCES
-    #region VERIFY USERS AND SERVICE PRINCIPALS
-
-        Write-Host+
-        $message = "<  User verification <.>60> PENDING"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray   
-        Write-Host+ 
+    #region PROJECT IDENTITIES
 
         $projectIdentities = @()
         foreach ($signInName in ($users.signInName | Sort-Object -Unique)) {
@@ -1216,7 +1217,7 @@ function global:Grant-AzProjectRole {
             return
         }
 
-    #endregion VERIFY USERS AND SERVICE PRINCIPALS        
+    #endregion PROJECT IDENTITIES       
     #region UNAUTHORIZED ROLE ASSIGNMENTS
 
         # identify unauthorized project users and role assignments
@@ -1256,11 +1257,12 @@ function global:Grant-AzProjectRole {
 
         if (!$User) {
 
-            $resourcesWithUnauthorizedAccessPolicies += $resources.resourceObject | 
-                Where-Object {$_.accessPolicies -and $_.accessPolicies.objectId -and $_.accessPolicies.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).Id}
+            $resourcesWithUnauthorizedAccessPolicies += ($resources.resourceObject | 
+                Where-Object {$_.PSObject.Properties.Name -eq "AccessPolicies"}).accessPolicies | 
+                    Where-Object {$_.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
 
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $resourceWithUnauthorizedAccessPolicy.objectId } 
+                $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $resourceWithUnauthorizedAccessPolicy.accessPolicies.objectId } 
                 if (!$projectIdentity) {
                     $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
                     $projectIdentities += [PSCustomObject]@{
@@ -1279,91 +1281,104 @@ function global:Grant-AzProjectRole {
         }
     
     #endregion UNAUTHORIZED ACCESS POLICIES
+    #region VERIFY USERS  
 
-        $members = @()
-        $members += $projectIdentities | Where-Object {$_.objectType -eq "User" -and $_.object.userType -eq "Member"} 
-        if ($members) {
-
-            $message = "<    Member < >40> Status"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
-            $message = "<    ------ < >40> ------"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
-
-            foreach ($member in $members) {
-                $message = $member.authorized ? "<    $($member.id) < >40> Verified" : "<    $($member.id) < >40> *** $($member.reason) ***"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor ($member.authorized ? "DarkGray" : "DarkRed")
-            }
-            
-            Write-Host+
-
+        if ($User -and ($projectIdentities | Where-Object {$_.displayName -eq $User}).objectType -eq "SystemAssignedIdentity") {
+            # skip
         }
+        else {
 
-        $guests = @()
-        $guests += $projectIdentities | Where-Object {$_.objectType -eq "User" -and $_.object.userType -ne "Member"} 
-        if ($guests) {
+            Write-Host+
+            $message = "<  User verification <.>60> PENDING"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray   
+            Write-Host+   
 
-            $message = "<    Guest < >40> Status   Date"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
-            $message = "<    ----- < >40> ------   ----"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
+            $members = @()
+            $members += $projectIdentities | Where-Object {$_.objectType -eq "User" -and $_.object.userType -eq "Member"} 
+            if ($members) {
 
-            foreach ($guest in $guests) {
+                $message = "<    Member < >40> Status"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
+                $message = "<    ------ < >40> ------"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
 
-                $message = "<    $($guest.id) < >40> "
-                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray
-            
-                if (!$guest) {
-                    $fullName = ($users | Where-Object {$_.signInName -eq $guest})[0].fullName
-
-                    if (!$WhatIf) {
-                        $invitation = Send-AzureADInvitation -Tenant $tenantKey -Email $guest -DisplayName $fullName -Message $global:AzureProject.Invitation.Message
-                        $invitation | Out-Null
-                    }
-
-                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Invitation sent" -ForegroundColor DarkGreen
-                    Write-Host+ -Iff $($WhatIf) -NoTrace -NoTimestamp " (","WhatIf",")" -ForegroundColor Gray, DarkYellow, Gray
+                foreach ($member in $members) {
+                    $message = $member.authorized ? "<    $($member.id) < >40> Verified" : "<    $($member.id) < >40> *** $($member.reason) ***"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor ($member.authorized ? "DarkGray" : "DarkRed")
                 }
-                else {
-                    $externalUserState = $guest.object.externalUserState -eq "PendingAcceptance" ? "Pending " : $guest.object.externalUserState
-                    $externalUserStateChangeDateTime = $guest.object.externalUserStateChangeDateTime
+                
+                Write-Host+
 
-                    if ($guest.object.externalUserState -eq "PendingAcceptance") {
-                        if (([datetime]::Now - $externalUserStateChangeDateTime).TotalDays -gt 30) {
-                            if ($RemoveExpiredInvitations) {
-                                if (!$WhatIf) {
-                                    Disable-AzureADUser -Tenant $tenantKey -User $guest
+            }
+
+            $guests = @()
+            $guests += $projectIdentities | Where-Object {$_.objectType -eq "User" -and $_.object.userType -ne "Member"} 
+            if ($guests) {
+
+                $message = "<    Guest < >40> Status   Date"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
+                $message = "<    ----- < >40> ------   ----"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
+
+                foreach ($guest in $guests) {
+
+                    $message = "<    $($guest.id) < >40> "
+                    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray
+                
+                    if (!$guest) {
+                        $fullName = ($users | Where-Object {$_.signInName -eq $guest})[0].fullName
+
+                        if (!$WhatIf) {
+                            $invitation = Send-AzureADInvitation -Tenant $tenantKey -Email $guest -DisplayName $fullName -Message $global:AzureProject.Invitation.Message
+                            $invitation | Out-Null
+                        }
+
+                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Invitation sent" -ForegroundColor DarkGreen
+                        Write-Host+ -Iff $($WhatIf) -NoTrace -NoTimestamp " (","WhatIf",")" -ForegroundColor Gray, DarkYellow, Gray
+                    }
+                    else {
+                        $externalUserState = $guest.object.externalUserState -eq "PendingAcceptance" ? "Pending " : $guest.object.externalUserState
+                        $externalUserStateChangeDateTime = $guest.object.externalUserStateChangeDateTime
+
+                        if ($guest.object.externalUserState -eq "PendingAcceptance") {
+                            if (([datetime]::Now - $externalUserStateChangeDateTime).TotalDays -gt 30) {
+                                if ($RemoveExpiredInvitations) {
+                                    if (!$WhatIf) {
+                                        Disable-AzureADUser -Tenant $tenantKey -User $guest
+                                    }
+                                    $guest.authorized = $false
+                                    $guest.reason = "ACCOUNT DISABLED"
                                 }
-                                $guest.authorized = $false
-                                $guest.reason = "ACCOUNT DISABLED"
-                            }
-                            else {
-                                $guest.reason = "INVITATION EXPIRED"
+                                else {
+                                    $guest.reason = "INVITATION EXPIRED"
+                                }
                             }
                         }
+
+                        $externalUserStateChangeDateString = $externalUserStateChangeDateTime.ToString("u").Substring(0,10)
+                        $externalUserStateColor = $externalUserState -eq "Pending " ? "DarkYellow" : "DarkGray"
+                        $message = "$externalUserState $externalUserStateChangeDateString"
+                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor $externalUserStateColor
+
+                        if (!$guest.authorized) {
+                            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
+                        }
+
+                        Write-Host+
                     }
 
-                    $externalUserStateChangeDateString = $externalUserStateChangeDateTime.ToString("u").Substring(0,10)
-                    $externalUserStateColor = $externalUserState -eq "Pending " ? "DarkYellow" : "DarkGray"
-                    $message = "$externalUserState $externalUserStateChangeDateString"
-                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor $externalUserStateColor
-
-                    if (!$guest.authorized) {
-                        Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
-                    }
-
-                    Write-Host+
                 }
-
             }
-        }
 
-        Write-Host+
-        $message = "    * Use -RemoveExpiredInvitiations to remove accounts with expired invitations"
-        Write-Host+ -NoTrace $message -ForegroundColor DarkGray
-        
-        Write-Host+
-        $message = "<  User verification <.>60> SUCCESS"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+            Write-Host+
+            $message = "    * Use -RemoveExpiredInvitiations to remove accounts with expired invitations"
+            Write-Host+ -NoTrace $message -ForegroundColor DarkGray
+            
+            Write-Host+
+            $message = "<  User verification <.>60> SUCCESS"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+        }
 
     #endregion VERIFY USERS
     #region SECURITY ASSIGNMENTS
@@ -1506,11 +1521,26 @@ function global:Grant-AzProjectRole {
 
             $accessPolicyAssignments = [PsCustomObject]@()
 
-            foreach ($resource in (($resources | Where-Object {$_.resourceId -eq "pathaarti-kv" -and $_.resourceObject.PSObject.Properties.Name -eq "AccessPolicies"}))) {  
+            foreach ($resource in ($resources | Where-Object {$_.resourceObject.PSObject.Properties.Name -eq "AccessPolicies"})) {  
 
                 $accessPolicies = $securityAssignmentsFromFile | Where-Object {$_.securityType -eq "AccessPolicy" -and $_.resourceType -eq $resource.resourceType -and $_.resourceId -eq $resource.resourceId}
-                foreach ($accessPolicy in $accessPolicies) {                             
-                    if ($accessPolicy.assigneeType -eq "Group") {
+                foreach ($accessPolicy in $accessPolicies) {  
+                    if ($accessPolicy.assigneeType -eq "SystemAssignedIdentity") {
+                        $systemAssignedIdentity = Get-AzSystemAssignedIdentity -Scope ($resources | Where-Object {$_.resourceId -eq $accessPolicy.assignee}).resourceScope
+                        $accessPolicyAssignments += [PsCustomObject]@{
+                            resourceId = $resource.resourceId
+                            resourceType = $resource.resourceType
+                            resourceName = $resource.resourceName
+                            accessPolicy = @{
+                                $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
+                            }
+                            objectType = "SystemAssignedIdentity"
+                            objectId = $systemAssignedIdentity.PrincipalId
+                            resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                            authorized = $true
+                        }
+                    }                     
+                    elseif ($accessPolicy.assigneeType -eq "Group") {
                         $groupMembers = $groups | Where-Object {$_.group -eq $accessPolicy.assignee}
                         foreach ($groupMember in $groupMembers) {
                             $projectIdentity = $projectIdentities | Where-Object {$_.id -eq $groupMember.user -and $_.authorized}
@@ -1594,7 +1624,7 @@ function global:Grant-AzProjectRole {
             Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation -Append             
 
         #endregion GET ACCESS POLICIES
-        #region SECURITY ASSIGNMENTS
+
 
             Write-Host+
             $message = "<  Security assignments <.>60> PENDING"
@@ -1792,7 +1822,7 @@ function global:Grant-AzProjectRole {
                                         $accessPolicyParams = @{
                                             ResourceGroupName = $resourceGroupName
                                             VaultName = $resource.resourceName
-                                            EmailAddress = $projectIdentity.id
+                                            ObjectId = $projectIdentity.objectId
                                         }
                                         $accessPolicyParams += @{ "$currentAccessPolicyKey" = @() }
 
@@ -1816,7 +1846,7 @@ function global:Grant-AzProjectRole {
                                         $accessPolicyParams = @{
                                             ResourceGroupName = $resourceGroupName
                                             VaultName = $resource.resourceName
-                                            EmailAddress = $projectIdentity.id
+                                            ObjectId = $projectIdentity.objectId
                                         }
                                         $requiredAccessPolicyKey = $accessPolicyPermissionPropertyName
                                         $requiredAccessPolicyValue = $requiredAccessPolicy.$requiredAccessPolicyKey
@@ -1864,21 +1894,21 @@ function global:Grant-AzProjectRole {
                         }
 
                     #endregion SET ACCESS POLICIES
+                
+                }
 
                 if ($roleAssignmentCount -eq 0 -and !$accessPolicyPermissionWritten) {
                     Write-Host+ -NoTrace "    none" -ForegroundColor DarkGray
-                }  
-            
+                } 
+
+                Write-Host+ 
+
             }
 
-            Write-Host+
+            $message = "<  Security assignment <.>60> SUCCESS"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
-        }
-
-        $message = "<  Security assignment <.>60> SUCCESS"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-
-    #endregion SECURITY ASSIGNMENTS
+        #endregion SECURITY ASSIGNMENTS
 
     Write-Host+
 
