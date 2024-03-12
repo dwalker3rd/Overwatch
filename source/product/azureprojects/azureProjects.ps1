@@ -14,6 +14,21 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="AzureProjects"}
 . $PSScriptRoot\definitions.ps1
 
+$resourceTypeMap = @{
+    "Microsoft.Storage/storageAccounts" = "StorageAccount"
+    "Microsoft.Storage/storageAccounts/*/blobServices/default/containers" = "StorageContainer"
+    "Microsoft.Compute/virtualMachines" = "VM"
+    "Microsoft.KeyVault/vaults" = "KeyVault"
+    "Microsoft.DataFactory/factories" = "DataFactory"
+    "Microsoft.Insights/components" = "ApplicationInsights"
+    "Microsoft.Network/networkInterfaces" = "NetworkInterface"
+    "Microsoft.Network/bastionHosts" = "Bastion"
+    "Microsoft.MachineLearningServices/workspaces" = "MLWorkspace"
+    "Microsoft.DocumentDB/databaseAccounts" = "CosmosDBAccount"
+    "Microsoft.SqlVirtualMachine/SqlVirtualMachines" = "SqlVM"
+    "Microsoft.Batch/BatchAccounts" = "BatchAccount"
+}
+
 #region SERVER CHECK
 
     # Do NOT continue if ...
@@ -53,7 +68,7 @@ function script:Request-AzProjectVariable {
     }
 
     if ($Suggestions.Count -gt 1) {
-        Write-Host+ -NoTrace "Suggestions: $($Suggestions -join ", ")" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace "Suggestions: $($Suggestions | Join-String -Separator ", " )" -ForegroundColor DarkGray
     }
     if ($AllowNone) {
         Write-Host+ -NoTrace "Enter 'None' to deselect $Name" -ForegroundColor DarkGray
@@ -533,21 +548,6 @@ function global:Export-AzProjectResourceFile {
         $resourcesImported += Import-AzProjectFile $resourceImportFile
     }
 
-    $resourceTypeMap = @{
-        "Microsoft.Storage/storageAccounts" = "StorageAccount"
-        "Microsoft.Storage/storageAccounts/*/blobServices/default/containers" = "StorageContainer"
-        "Microsoft.Compute/virtualMachines" = "VM"
-        "Microsoft.KeyVault/vaults" = "KeyVault"
-        "Microsoft.DataFactory/factories" = "DataFactory"
-        "Microsoft.Insights/components" = "ApplicationInsights"
-        "Microsoft.Network/networkInterfaces" = "NetworkInterface"
-        "Microsoft.Network/bastionHosts" = "Bastion"
-        "Microsoft.MachineLearningServices/workspaces" = "MLWorkspace"
-        "Microsoft.DocumentDB/databaseAccounts" = "CosmosDBAccount"
-        "Microsoft.SqlVirtualMachine/SqlVirtualMachines" = "SqlVM"
-        "Microsoft.Batch/BatchAccounts" = "BatchAccount"
-    }
-
     $resources = @()
     foreach ($resource in (Get-AzResource -ResourceGroupName $ResourceGroupName)) {
 
@@ -941,9 +941,10 @@ function global:Grant-AzProjectRole {
                     @{Name="resourcePath"; Expression={$null}}, 
                     @{Name="resourceObject"; Expression={$null}}, 
                     @{Name="resourceContext"; Expression={$null}}, 
-                    resourceParent | 
+                    resourceParent,
+                    @{Name="resourceTypeSortOrder"; Expression={$resourceTypeOrderedList.($_.resourceType) ?? $resourceTypeSortOrder.default}} | 
                 Sort-Object -Property * -Unique |
-                Sort-Object -Property resourceType, resourceName, resourceId   
+                Sort-Object -Property resourceTypeSortOrder, resourceId
 
             $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
             if ($duplicateResourceIds) {
@@ -1086,12 +1087,13 @@ function global:Grant-AzProjectRole {
                     foreach ($nic in $vm.networkProfile.NetworkInterfaces) {
 
                         $nicType = "NetworkInterface"
-                        $nicName = $nic.Id.split("/")[-1]
                         $nicScope = $nic.Id
+                        $nicId = $nic.Id.split("/")[-1]
+                        $nicName = $nicId
 
                         Write-Host+ -NoTrace -NoSeparator "    $($nic.Id.split("/resourceGroups/")[1])" -ForegroundColor DarkGray
 
-                        $nicResource = $resources | Where-Object {$_.resourceType -eq $nicType -and $_.resourceScope -eq $nicScope}
+                        $nicResource = $resources | Where-Object {$_.resourceType -eq $nicType -and $_.resourceId -eq $nicId}
                         if ($nicResource) {
 
                             $nicResource.resourceId = $nicName
@@ -1231,20 +1233,31 @@ function global:Grant-AzProjectRole {
                 Where-Object {$_.Scope -in $resources.resourceScope -and $_.ObjectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
 
             foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-                $projectIdentity = $projectIdentities | Where-Object { $_.id -eq $unauthorizedProjectRoleAssignment.SignInName } 
+                $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $unauthorizedProjectRoleAssignment.objectId } 
                 if (!$projectIdentity) {
-                    $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
-                    $projectIdentities += [PSCustomObject]@{
-                        objectType = "User"
-                        objectId = $azureADUser.id
-                        signInName = $azureADUser.mail
-                        id = $azureADUser.mail
-                        displayName = $azureADUser.mail
-                        # userPrincipalName = $azureADUser.userPrincipalName
-                        authorized = $false
-                        reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                        object = $azureADUser
-                    }   
+                    try {
+                        $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
+                        $projectIdentities += [PSCustomObject]@{
+                            objectType = "User"
+                            objectId = $azureADUser.id
+                            signInName = $azureADUser.mail
+                            id = $azureADUser.mail
+                            displayName = $azureADUser.mail
+                            authorized = $false
+                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
+                            object = $azureADUser
+                        }   
+                    }
+                    catch {
+                        $projectIdentities += [PSCustomObject]@{
+                            objectType = $unauthorizedProjectRoleAssignment.objectType
+                            objectId = $unauthorizedProjectRoleAssignment.objectId
+                            id = $unauthorizedProjectRoleAssignment.objectId
+                            displayName = $unauthorizedProjectRoleAssignment.objectId
+                            authorized = $false
+                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
+                        } 
+                    }
                 }
             }
 
@@ -1264,18 +1277,29 @@ function global:Grant-AzProjectRole {
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
                 $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $resourceWithUnauthorizedAccessPolicy.accessPolicies.objectId } 
                 if (!$projectIdentity) {
-                    $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
-                    $projectIdentities += [PSCustomObject]@{
-                        objectType = "User"
-                        objectId = $azureADUser.id
-                        signInName = $azureADUser.mail
-                        id = $azureADUser.mail
-                        displayName = $azureADUser.mail
-                        # userPrincipalName = $azureADUser.userPrincipalName
-                        authorized = $false
-                        reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                        object = $azureADUser
-                    }   
+                    try {
+                        $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $resourceWithUnauthorizedAccessPolicy.SignInName
+                        $projectIdentities += [PSCustomObject]@{
+                            objectType = "User"
+                            objectId = $azureADUser.id
+                            signInName = $azureADUser.mail
+                            id = $azureADUser.mail
+                            displayName = $azureADUser.mail
+                            authorized = $false
+                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
+                            object = $azureADUser
+                        }   
+                    }
+                    catch {
+                        $projectIdentities += [PSCustomObject]@{
+                            objectType = $resourceWithUnauthorizedAccessPolicy.objectType
+                            objectId = $resourceWithUnauthorizedAccessPolicy.objectId
+                            id = $resourceWithUnauthorizedAccessPolicy.objectId
+                            displayName = $resourceWithUnauthorizedAccessPolicy.objectId
+                            authorized = $false
+                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
+                        } 
+                    }
                 }
             }
         }
@@ -1398,6 +1422,7 @@ function global:Grant-AzProjectRole {
                         resourceId = $resourceGroup.resourceId
                         resourceType = $resourceGroup.resourceType
                         resourceName = $resourceGroup.resourceName
+                        resourceScope = $resourceGroup.resourceScope
                         role = $resourceGroupDefaultRole
                         groupMember = $true
                         groupId = $groupMember.group
@@ -1406,6 +1431,7 @@ function global:Grant-AzProjectRole {
                         signInName = $projectIdentity.id
                         resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                         authorized = $true
+                        options = @()
                     }
                 }
                 foreach ($projectIdentity in $projectIdentities | Where-Object {$_.objectType -eq "User" -and $_.objectId -notin $resourceGroupRoleAssignments.objectId -and $_.authorized}) {
@@ -1413,12 +1439,14 @@ function global:Grant-AzProjectRole {
                         resourceId = $resourceGroup.resourceId
                         resourceType = $resourceGroup.resourceType
                         resourceName = $resourceGroup.resourceName
+                        resourceScope = $resourceGroup.resourceScope
                         role = $resourceGroupDefaultRole
                         objectType = "User"
                         objectId = $projectIdentity.objectId
                         signInName = $projectIdentity.id
                         resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                         authorized = $true
+                        options = @()
                     }
                 }
                 $roleAssignments += $resourceGroupRoleAssignments
@@ -1434,11 +1462,13 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
+                            resourceScope = $resourceGroup.resourceScope
                             role = $securityAssignment.securityKey
                             objectId = $systemAssignedIdentity.PrincipalId
                             objectType = $securityAssignment.assigneeType
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                             authorized = $true
+                            options = $securityAssignment.options -split "\s*,\s*"
                         }
                     }
                 }
@@ -1452,6 +1482,7 @@ function global:Grant-AzProjectRole {
                                 resourceId = $resource.resourceId
                                 resourceType = $resource.resourceType
                                 resourceName = $resource.resourceName
+                                resourceScope = $resourceGroup.resourceScope
                                 role = $securityAssignment.securityKey
                                 groupMember = $true
                                 groupId = $groupMember.group
@@ -1460,6 +1491,7 @@ function global:Grant-AzProjectRole {
                                 signInName = $projectIdentity.id
                                 resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                                 authorized = $true
+                                options = $securityAssignment.options -split "\s*,\s*"
                             }
                         }
                     }
@@ -1471,12 +1503,14 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
+                            resourceScope = $resourceGroup.resourceScope
                             role = $securityAssignment.securityKey
                             objectType = "User"
                             objectId = $projectIdentity.objectId
                             signInName = $projectIdentity.id
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                             authorized = $true
+                            options = $securityAssignment.options -split "\s*,\s*"
                         }
                     }
                 }
@@ -1490,31 +1524,37 @@ function global:Grant-AzProjectRole {
                         resourceId = $resource.resourceId
                         resourceType = $resource.resourceType
                         resourceName = $resource.resourceName
+                        resourceScope = $resourceGroup.resourceScope
                         role = $securityAssignment.securityKey
                         objectType = "User"
                         objectId = $projectIdentity.objectId
                         signInName = $projectIdentity.id
                         resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                         authorized = $false
+                        options = $securityAssignment.options -split "\s*,\s*"
                     }
                 }
             }
 
             $roleAssignments = $roleAssignments | Sort-Object -Property resourceTypeSortOrder, resourceType, resourceName
 
-            # export $roleAssignments
-            $roleAssignments | 
-                Where-Object {$_.resourceType -in $resourceTypeMap.Values} |
-                Select-Object -Property resourceType,resourceId,resourceName,
-                    @{Name="securityType";Expression={"RoleAssignment"}},
-                    @{Name="securityKey";Expression={$_.role}},
-                    @{Name="securityValue";Expression={"Grant"}},
-                    @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
-                    @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}} | 
-                Sort-Object -Property assigneeType, assignee, resourceType, resourceId -Unique |
-                    Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation 
+            $uniqueResourcesFromSecurityAssignments = @()
+            $uniqueResourcesFromSecurityAssignments += $roleAssignments | Select-Object -Property resourceId, resourceType, objectId, signInName | Sort-Object -Property * -Unique
 
-            $uniqueResourcesFromRoleAssignments = $roleAssignments | Select-Object -Property resourceId, resourceType,resourceName,role | Sort-Object -Property resourceId, resourceType,resourceName,role -Unique
+            # export $roleAssignments
+            if ($User) {
+                $roleAssignments | 
+                    Where-Object {$_.resourceType -in $resourceTypeMap.Values} |
+                    Select-Object -Property resourceType,resourceId,resourceName,
+                        @{Name="securityType";Expression={"RoleAssignment"}},
+                        @{Name="securityKey";Expression={$_.role}},
+                        @{Name="securityValue";Expression={"Grant"}},
+                        @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
+                        @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}},
+                        @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
+                    Sort-Object -Property assigneeType, assignee, resourceType, resourceId -Unique |
+                        Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation 
+            }
 
         #endregion GET ROLE ASSIGNMENTS
         #region GET ACCESS POLICIES
@@ -1531,6 +1571,7 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
+                            resourceScope = $resourceGroup.resourceScope
                             accessPolicy = @{
                                 $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                             }
@@ -1538,6 +1579,7 @@ function global:Grant-AzProjectRole {
                             objectId = $systemAssignedIdentity.PrincipalId
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                             authorized = $true
+                            options = $securityAssignment.options -split "\s*,\s*"
                         }
                     }                     
                     elseif ($accessPolicy.assigneeType -eq "Group") {
@@ -1548,6 +1590,7 @@ function global:Grant-AzProjectRole {
                                 resourceId = $resource.resourceId
                                 resourceType = $resource.resourceType
                                 resourceName = $resource.resourceName
+                                resourceScope = $resourceGroup.resourceScope
                                 accessPolicy = @{
                                     $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                                 }
@@ -1558,6 +1601,7 @@ function global:Grant-AzProjectRole {
                                 signInName = $projectIdentity.id
                                 resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                                 authorized = $true
+                                options = $securityAssignment.options -split "\s*,\s*"
                             }
                         }
                     }
@@ -1567,6 +1611,7 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
+                            resourceScope = $resourceGroup.resourceScope
                             accessPolicy = @{
                                 $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                             }
@@ -1575,6 +1620,7 @@ function global:Grant-AzProjectRole {
                             signInName = $projectIdentity.id
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                             authorized = $true
+                            options = $securityAssignment.options -split "\s*,\s*"
                         }
                     }
                 }
@@ -1582,9 +1628,8 @@ function global:Grant-AzProjectRole {
             }
 
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                $accessPolicies = $resourceWithUnauthorizedAccessPolicy.resourceObject.accessPolicies
                 $accessPolicyPermissionPropertyNames = @()
-                $accessPolicies[0] | Get-Member -MemberType Property | Foreach-Object {
+                $resourceWithUnauthorizedAccessPolicy[0] | Get-Member -MemberType Property | Foreach-Object {
                     if ($_.Name -match "PermissionsTo(.*)(?<!Str)$") {
                         $accessPolicyPermissionPropertyNames += $_.Name
                     }
@@ -1596,32 +1641,38 @@ function global:Grant-AzProjectRole {
                             resourceId = $resourceWithUnauthorizedAccessPolicy.resourceId
                             resourceType = $resourceWithUnauthorizedAccessPolicy.resourceType
                             resourceName = $resourceWithUnauthorizedAccessPolicy.resourceName
+                            resourceScope = $resourceGroup.resourceScope
                             accessPolicy = @{
-                                "$accessPolicyPermissionPropertyName" = $accessPolicy.$accessPolicyPermissionPropertyName -join ","
+                                "$accessPolicyPermissionPropertyName" = $accessPolicy.$accessPolicyPermissionPropertyName | Join-String -Separator ","
                             }
                             objectType = "User"
                             objectId = $projectIdentity.objectId
                             signInName = $projectIdentity.id
                             resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
                             authorized = $false
+                            options = $securityAssignment.options -split "\s*,\s*"
                         }
                     }
                 }
             }
 
             $accessPolicyAssignments = $accessPolicyAssignments | Sort-Object -Property resourceTypeSortOrder, resourceType, resourceName
+            $uniqueResourcesFromSecurityAssignments += $accessPolicyAssignments | Select-Object -Property resourceId, resourceType, objectId, signInName | Sort-Object -Property * -Unique
 
             # export $accessPolicies
-            $accessPolicyAssignments | 
-                Where-Object {$_.resourceType -in $resourceTypeMap.Values} |
-                Select-Object -Property resourceType,resourceId,resourceName,
-                    @{Name="securityType";Expression={"AccessPolicy"}},
-                    @{Name="securityKey";Expression={$_.accessPolicy.Keys[0]}},
-                    @{Name="securityValue";Expression={($_.accessPolicy.Values[0] | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "}},
-                    @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
-                    @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}} | 
-                Sort-Object -Property assigneeType, assignee, resourceType, resourceId -Unique |
-            Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation -Append             
+            if (!$User) {
+                $accessPolicyAssignments | 
+                    Where-Object {$_.resourceType -in $resourceTypeMap.Values} |
+                    Select-Object -Property resourceType,resourceId,resourceName,
+                        @{Name="securityType";Expression={"AccessPolicy"}},
+                        @{Name="securityKey";Expression={$_.accessPolicy.Keys[0]}},
+                        @{Name="securityValue";Expression={$_.accessPolicy.Values[0] | Join-String -Separator ", " }},  
+                        @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
+                        @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}},
+                        @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
+                    Sort-Object -Property * -Unique | Sort-Object -Property assigneeType, assignee, resourceType, resourceId |
+                Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation -Append
+            }   
 
         #endregion GET ACCESS POLICIES
 
@@ -1674,7 +1725,10 @@ function global:Grant-AzProjectRole {
 
                 # sort by resourceScope to ensure children are after parents
                 $resourcesToCheck = $resources | Sort-Object -Property resourcePath
-                $resourcesToCheck = $resourcesToCheck | Where-Object {$_.resourceScope -eq "ResourceGroup" -or $_.resourceId -in ($uniqueResourcesFromRoleAssignments.resourceId)}
+
+                # # restrict resource check to only those specified in the security assignment import file for the current projectIdentity
+                # # this won't exclude child resources such as NICs (parent = VM) and StorageContainers (parent = StorageAccount)
+                # $resourcesToCheck = $resourcesToCheck | Where-Object {$_.resourceScope -eq "ResourceGroup" -or $_.resourceId -in ($uniqueResourcesFromSecurityAssignments | Where-Object {$_.objectId -eq $projectIdentity.objectId}).resourceId}
 
                 # if the $UserResourcesOnly switch has been specified, then filter $resources to only those relevant to the current assignee
                 # NOTE: this is faster, but it prevents the function from finding/removing roleAssignments from other resources
@@ -1698,24 +1752,51 @@ function global:Grant-AzProjectRole {
 
                     #region SET ROLE ASSIGNMENTS
 
-                        $currentRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -ObjectId $projectIdentity.objectId | Sort-Object -Property Scope
-                        $currentRoleAssignments = $currentRoleAssignments | Where-Object {($resourceScope -eq $_.Scope -or $resourceScope.StartsWith($_.Scope)) -and $_.Scope.Length -le $resourceScope.Length}
-                        $currentRoleAssignments = $currentRoleAssignments | Where-Object {$resourceType -eq "ResourceGroup" -or $_.Scope -ne $resourceGroup.resourceScope}
+                        $currentRoleAssignments = @()
+                        $inheritedRoleAssignments = @()
+
+                        $_allRoleAssignments = Get-AzRoleAssignment -Scope $resourceScope -ObjectId $projectIdentity.objectId | 
+                            Where-Object {($resourceScope -eq $_.Scope -or $resourceScope.StartsWith($_.Scope)) -and $_.Scope.Length -le $resourceScope.Length}
+                        
+                            # get role assignments set at this scope
+                        $currentRoleAssignments += $_allRoleAssignments | Where-Object {$_.Scope -eq $resourceScope}
+                        
+                        # get inherited role assignments which are not already set at this scope
+                        # only show inherited role assignments if they are referenced in the security assignment import file
+                        $_inheritedRoleAssignments = $_allRoleAssignments | 
+                            Where-Object {$_.Scope -ne $resourceScope -and $_.RoleDefinitionName -notin $currentRoleAssignments.RoleDefinitionName} | 
+                            Where-Object {$_.Scope -eq ($roleAssignments | Where-Object {$_.objectId -eq $projectIdentity.objectId -and $_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId}).resourceScope}
+
+                        foreach ($_inheritedRoleAssignment in $_inheritedRoleAssignments) {
+                            $_delegationRoleAssignment = $roleAssignments | 
+                                Where-Object {$_inheritedRoleAssignment.objectId -eq $_.objectId -and $_inheritedRoleAssignment.Scope -eq $_.resourceScope -and $_inheritedRoleAssignment.RoleDefinitionName -eq $_.role}
+                            # ignore inherited role assignments which were flagged (in $roleAssignments) with "hideDelegation"
+                            if ($_delegationRoleAssignment.options -notcontains "hideDelegation") {
+                                $inheritedRoleAssignments += $_inheritedRoleAssignment
+                            }
+                            
+                        }
+
+                        # merge the filtered assignments together
+                        $currentRoleAssignments += $inheritedRoleAssignments 
+                        $currentRoleAssignments = $currentRoleAssignments | Sort-Object -Property Scope
+
+                        # if ($currentRoleAssignments.Count -gt 1) {
+                        #     $currentRoleAssignments = $currentRoleAssignments | Where-Object {$resourceType -eq "ResourceGroup" -or $_.Scope -ne $resourceGroup.resourceScope}
+                        # }
+
+                        $rolesWrittenCount = 0
                         if ($currentRoleAssignments) {
                             Write-Host+ -NoTrace -NoSeparator -NoNewLine $message.Split(":")[0],(Format-Leader -Length 60 -Adjust (($message.Split(":")[0]).Length)),$message.Split(":")[1] -ForegroundColor DarkGray 
-                            $inheritedRoleAssignment = @()
                             foreach ($currentRoleAssignment in $currentRoleAssignments) {
-                                if ($currentRoleAssignment.RoleDefinitionName -notin $inheritedRoleAssignment.RoleDefinitionName) {
-                                    $message = $currentRoleAssignment.RoleDefinitionName
-                                    if ($currentRoleAssignment.Scope -ne $resourceScope -and $resourceScope -like "$($currentRoleAssignment.Scope)*") {
-                                        $inheritedRoleAssignment += $currentRoleAssignment
-                                        $message = "^" + $message
-                                    }
-                                    if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
-                                        $message += ", "
-                                    }
-                                    Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
+                                $message = $currentRoleAssignment.RoleDefinitionName
+                                if ($currentRoleAssignment.RoleDefinitionName -in $inheritedRoleAssignments.RoleDefinitionName) {
+                                    $message = "^" + $message
                                 }
+                                if ($currentRoleAssignments.Count -gt 1 -and $foreach.Current -ne $currentRoleAssignments[-1]) {
+                                    $message += ", "
+                                }
+                                Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor DarkGray
                             }
                         }
                         $rolesWrittenCount = $currentRoleAssignments.Count
@@ -1807,7 +1888,7 @@ function global:Grant-AzProjectRole {
                                     if ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName) {
                                         $currentAccessPolicyKey = $accessPolicyPermissionPropertyName
                                         $currentAccessPolicyValue = $currentAccessPolicy.$accessPolicyPermissionPropertyName
-                                        $currentAccessPolicyValueStr = ($currentAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                                        $currentAccessPolicyValueStr = ($currentAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) | Join-String -Separator ", "
                                         $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($currentAccessPolicyKey) <.>61> $($currentAccessPolicyValueStr)" 
                                         Write-Host+ -NoTrace -NoNewline $message -Parse -ForegroundColor DarkGray
                                         $accessPolicyPermissionWritten = $true
@@ -1850,7 +1931,7 @@ function global:Grant-AzProjectRole {
                                         }
                                         $requiredAccessPolicyKey = $accessPolicyPermissionPropertyName
                                         $requiredAccessPolicyValue = $requiredAccessPolicy.$requiredAccessPolicyKey
-                                        # $requiredAccessPolicyValueStr = ($requiredAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                                        # $requiredAccessPolicyValueStr = ($requiredAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) | Join-String -Separator ", "
                                         $accessPolicyParams += @{ "$requiredAccessPolicyKey" = $requiredAccessPolicyValue }
 
                                         if (!$accessPolicyPermissionWritten) {
@@ -1881,7 +1962,7 @@ function global:Grant-AzProjectRole {
                                         }
                                         if ($_requiredAccessPolicyValueToAdd) {
                                             Write-Host+ -Iff $($accessPolicyPermissionWritten) -NoTrace -NoTimestamp -NoNewLine ", " -ForegroundColor DarkGray
-                                            $_requiredAccessPolicyValueToAddStr = ($_requiredAccessPolicyValueToAdd | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) -join ", "
+                                            $_requiredAccessPolicyValueToAddStr = ($_requiredAccessPolicyValueToAdd | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) | Join-String -Separator ", "
                                             Write-Host+ -NoTrace -NoTimestamp -NoNewLine $_requiredAccessPolicyValueToAddStr -ForegroundColor DarkGreen
                                             $accessPolicyPermissionWritten = $true
                                         }
