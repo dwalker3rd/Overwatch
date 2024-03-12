@@ -861,20 +861,6 @@ function global:Grant-AzProjectRole {
 
     $resourceGroupName = $global:AzureProject.ResourceType.ResourceGroup.Name
 
-    if ($User) {
-
-        $isUserId = $User -match $global:RegexPattern.Guid
-        $isGuestUserPrincipalName = $User -match $global:RegexPattern.UserNameFormat.AzureAD -and $User -like "*#EXT#*"
-        $isEmail = $User -match $global:RegexPattern.Mail
-        $isMemberUserPrincipalName = $User -match $global:RegexPattern.UserNameFormat.AzureAD
-
-        $isValidUser = $isUserId -or $isEmail -or $isMemberUserPrincipalName -or $isGuestUserPrincipalName
-        if (!$isValidUser) {
-            throw "'$User' is not a valid object id, userPrincipalName or email address."
-        }
-        
-    }
-
     #region DATAFILES
 
         $message = "<  Data validation <.>60> PENDING"
@@ -920,7 +906,7 @@ function global:Grant-AzProjectRole {
             Write-Host+ -NoTrace -NoSeparator "    $UserImportFile" -ForegroundColor DarkGray
             $users = @()
             $users += Import-AzProjectFile $UserImportFile | Sort-Object -Property * -Unique
-            if ($User) { $users = $users | Where-Object {$_.signInName -eq $User} }
+            # if ($User) { $users = $users | Where-Object {$_.signInName -eq $User} }
 
         #endregion USER IMPORT
         #region GROUP IMPORT
@@ -928,7 +914,7 @@ function global:Grant-AzProjectRole {
             Write-Host+ -NoTrace -NoSeparator "    $GroupImportFile" -ForegroundColor DarkGray
             $groups = @()
             $groups += Import-AzProjectFile $GroupImportFile | Sort-Object -Property * -Unique
-            if ($User) { $groups = $groups | Where-Object {$_.user -eq $User} } 
+            # if ($User) { $groups = $groups | Where-Object {$_.user -eq $User} } 
 
         #endregion GROUP IMPORT
         #region RESOURCE IMPORT
@@ -962,9 +948,9 @@ function global:Grant-AzProjectRole {
 
             Write-Host+ -NoTrace -NoSeparator "    $SecurityImportFile" -ForegroundColor DarkGray
             $securityAssignmentsFromFile = Import-AzProjectFile -Path $SecurityImportFile | Sort-Object -Property * -Unique
-            if ($User) {
-                $securityAssignmentsFromFile = $securityAssignmentsFromFile | Where-Object {($_.assigneeType -in ("User","SystemAssignedIdentity") -and $_.assignee -eq $User) -or ($_.assigneeType -eq "Group" -and $_.assignee -in ($groups | Where-Object {$_.user -eq $User}).group)}
-            }
+            # if ($User) {
+            #     $securityAssignmentsFromFile = $securityAssignmentsFromFile | Where-Object {($_.assigneeType -in ("User","SystemAssignedIdentity") -and $_.assignee -eq $User) -or ($_.assigneeType -eq "Group" -and $_.assignee -in ($groups | Where-Object {$_.user -eq $User}).group)}
+            # }
 
         #endregion SECURITY ASSIGNMENTS IMPORT
 
@@ -1192,7 +1178,7 @@ function global:Grant-AzProjectRole {
                 }
             }
             else {
-                Write-Host+ -NoTrace -NoSeparator  "      ERROR: $User not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
+                Write-Host+ -NoTrace -NoSeparator  "      ERROR: User `"$signInName`" not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
                 Write-Host+
                 return
             }
@@ -1212,99 +1198,120 @@ function global:Grant-AzProjectRole {
                 object = $systemAssignedIdentity
             }
         }
+   
+        #region UNAUTHORIZED PROJECT IDENTITIES
 
-        if ($projectIdentities.Count -eq 0) {
-            Write-Host+ -NoTrace -NoSeparator  "      ERROR: User $User not referenced in project `"$($ProjectName)`"'s import files." -ForegroundColor DarkRed
-            Write-Host+
-            return
-        }
+            # identify unauthorized project users and role assignments
+            # if $User has been specified, skip this step
 
-    #endregion PROJECT IDENTITIES       
-    #region UNAUTHORIZED ROLE ASSIGNMENTS
+            $unauthorizedProjectRoleAssignments = @()
 
-        # identify unauthorized project users and role assignments
-        # if $User has been specified, skip this step
+            # if (!$User) {
 
-        $unauthorizedProjectRoleAssignments = @()
+                $unauthorizedProjectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $resourceGroupName | 
+                    Where-Object {$_.Scope -in $resources.resourceScope -and $_.ObjectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
 
-        if (!$User) {
-
-            $unauthorizedProjectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $resourceGroupName | 
-                Where-Object {$_.Scope -in $resources.resourceScope -and $_.ObjectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
-
-            foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-                $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $unauthorizedProjectRoleAssignment.objectId } 
-                if (!$projectIdentity) {
-                    try {
-                        $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
-                        $projectIdentities += [PSCustomObject]@{
-                            objectType = "User"
-                            objectId = $azureADUser.id
-                            signInName = $azureADUser.mail
-                            id = $azureADUser.mail
-                            displayName = $azureADUser.mail
-                            authorized = $false
-                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                            object = $azureADUser
-                        }   
-                    }
-                    catch {
-                        $projectIdentities += [PSCustomObject]@{
-                            objectType = $unauthorizedProjectRoleAssignment.objectType
-                            objectId = $unauthorizedProjectRoleAssignment.objectId
-                            id = $unauthorizedProjectRoleAssignment.objectId
-                            displayName = $unauthorizedProjectRoleAssignment.objectId
-                            authorized = $false
-                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                        } 
+                foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
+                    $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $unauthorizedProjectRoleAssignment.objectId } 
+                    if (!$projectIdentity) {
+                        try {
+                            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
+                            $projectIdentities += [PSCustomObject]@{
+                                objectType = "User"
+                                objectId = $azureADUser.id
+                                signInName = $azureADUser.mail
+                                id = $azureADUser.mail
+                                displayName = $azureADUser.mail
+                                authorized = $false
+                                reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
+                                object = $azureADUser
+                            }   
+                        }
+                        catch {
+                            $projectIdentities += [PSCustomObject]@{
+                                objectType = "Unknown"
+                                objectId = $unauthorizedProjectRoleAssignment.objectId
+                                id = $unauthorizedProjectRoleAssignment.objectId
+                                displayName = $unauthorizedProjectRoleAssignment.objectId
+                                authorized = $false
+                                removeAllRoleAssignments = $true
+                                reason = "NOTFOUND"
+                            } 
+                        }
                     }
                 }
-            }
 
-        }
+            # }
 
-    #endregion UNAUTHORIZED ROLE ASSIGNMENTS
-    #region UNAUTHORIZED ACCESS POLICIES
+            $resourcesWithUnauthorizedAccessPolicies = @()
 
-        $resourcesWithUnauthorizedAccessPolicies = @()
+            # if (!$User) {
 
-        if (!$User) {
+                $resourcesWithUnauthorizedAccessPolicies += ($resources.resourceObject | 
+                    Where-Object {$_.PSObject.Properties.Name -eq "AccessPolicies"}).accessPolicies | 
+                        Where-Object {$_.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
 
-            $resourcesWithUnauthorizedAccessPolicies += ($resources.resourceObject | 
-                Where-Object {$_.PSObject.Properties.Name -eq "AccessPolicies"}).accessPolicies | 
-                    Where-Object {$_.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
-
-            foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $resourceWithUnauthorizedAccessPolicy.accessPolicies.objectId } 
-                if (!$projectIdentity) {
-                    try {
-                        $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $resourceWithUnauthorizedAccessPolicy.SignInName
-                        $projectIdentities += [PSCustomObject]@{
-                            objectType = "User"
-                            objectId = $azureADUser.id
-                            signInName = $azureADUser.mail
-                            id = $azureADUser.mail
-                            displayName = $azureADUser.mail
-                            authorized = $false
-                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                            object = $azureADUser
-                        }   
-                    }
-                    catch {
-                        $projectIdentities += [PSCustomObject]@{
-                            objectType = $resourceWithUnauthorizedAccessPolicy.objectType
-                            objectId = $resourceWithUnauthorizedAccessPolicy.objectId
-                            id = $resourceWithUnauthorizedAccessPolicy.objectId
-                            displayName = $resourceWithUnauthorizedAccessPolicy.objectId
-                            authorized = $false
-                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                        } 
+                foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
+                    $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $resourceWithUnauthorizedAccessPolicy.accessPolicies.objectId } 
+                    if (!$projectIdentity) {
+                        try {
+                            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $resourceWithUnauthorizedAccessPolicy.SignInName
+                            $projectIdentities += [PSCustomObject]@{
+                                objectType = "User"
+                                objectId = $azureADUser.id
+                                signInName = $azureADUser.mail
+                                id = $azureADUser.mail
+                                displayName = $azureADUser.mail
+                                authorized = $false
+                                reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
+                                object = $azureADUser
+                            }   
+                        }
+                        catch {
+                            $projectIdentities += [PSCustomObject]@{
+                                objectType = "Unknown"
+                                objectId = $resourceWithUnauthorizedAccessPolicy.objectId
+                                id = $resourceWithUnauthorizedAccessPolicy.objectId
+                                displayName = $resourceWithUnauthorizedAccessPolicy.objectId
+                                authorized = $false
+                                removeAllAccessPolicies = $true
+                                reason = "NOTFOUND"
+                            } 
+                        }
                     }
                 }
-            }
-        }
+            # }
+        
+        #endregion UNAUTHORIZED PROJECT IDENTITIES
+
+        if ($User) {
+
+            $isUserId = $User -match $global:RegexPattern.Guid
+            $isGuestUserPrincipalName = $User -match $global:RegexPattern.UserName.AzureAD -and $User -like "*#EXT#*"
+            $isEmail = $User -match $global:RegexPattern.Mail
+            $isMemberUserPrincipalName = $User -match $global:RegexPattern.UserName.AzureAD
+            $isObjectId = $User -match $global:RegexPattern.Guid
     
-    #endregion UNAUTHORIZED ACCESS POLICIES
+            $isValidUser = $isUserId -or $isEmail -or $isMemberUserPrincipalName -or $isGuestUserPrincipalName -or $isObjectId
+            if (!$isValidUser) {
+                throw "'$User' is not a valid object id, userPrincipalName or email address."
+            }
+
+            $projectIdentities = $projectIdentities | Where-Object {$_.id -eq $User}
+            if ($projectIdentities.Count -eq 0) {
+                Write-Host+ -NoTrace -NoSeparator  "      ERROR: User `"$User`" not found." -ForegroundColor DarkRed
+                Write-Host+
+                return
+            }
+            else {
+                $users = $users | Where-Object {$_.signInName -eq $User}
+                $groups = $groups | Where-Object {$_.user -eq $User} 
+                $securityAssignmentsFromFile = $securityAssignmentsFromFile | Where-Object {($_.assigneeType -in ("User","SystemAssignedIdentity") -and $_.assignee -eq $User) -or ($_.assigneeType -eq "Group" -and $_.assignee -in ($groups | Where-Object {$_.user -eq $User}).group)}
+            }
+
+        }
+
+    #endregion PROJECT IDENTITIES    
     #region VERIFY USERS  
 
         if ($User -and ($projectIdentities | Where-Object {$_.displayName -eq $User}).objectType -eq "SystemAssignedIdentity") {
@@ -1876,13 +1883,30 @@ function global:Grant-AzProjectRole {
                         switch ($resourceType) {
                             "KeyVault" {
 
+                                $currentAccessPolicy = $resource.resourceObject.accessPolicies | 
+                                Where-Object {$_.objectId -eq $projectIdentity.objectId}
+
+                                # remove all access policies and break
+                                if ($projectIdentity.removeAllAccessPolicies) {
+                                    $accessPolicyParams = @{
+                                        ResourceGroupName = $resourceGroupName
+                                        VaultName = $resource.resourceName
+                                        ObjectId = $projectIdentity.objectId
+                                    }
+                                    $result = Remove-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
+                                    $result | Out-Null
+                                    break
+                                }
+
+                                $requiredAccessPolicy = ($accessPolicyAssignments | 
+                                Where-Object {$_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId} |
+                                    Where-Object {$_.objectId -eq $projectIdentity.objectId}).accessPolicy
+
                                 $accessPolicyPermissionPropertyNames = @("PermissionsToKeys","PermissionsToSecrets","PermissionsToCertificates","PermissionsToStorage")
                                 foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames) {
 
                                     $accessPolicyPermissionWritten = $false
 
-                                    $currentAccessPolicy = $resource.resourceObject.accessPolicies | 
-                                        Where-Object {$_.objectId -eq $projectIdentity.objectId}
                                     $currentAccessPolicyKey = $null
                                     $currentAccessPolicyValue = $null
                                     if ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName) {
@@ -1893,10 +1917,6 @@ function global:Grant-AzProjectRole {
                                         Write-Host+ -NoTrace -NoNewline $message -Parse -ForegroundColor DarkGray
                                         $accessPolicyPermissionWritten = $true
                                     }
-
-                                    $requiredAccessPolicy = ($accessPolicyAssignments | 
-                                        Where-Object {$_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId} |
-                                            Where-Object {$_.objectId -eq $projectIdentity.objectId}).accessPolicy
             
                                     if (!($requiredAccessPolicy -and $requiredAccessPolicy.$accessPolicyPermissionPropertyName) -and ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName)) {
 
