@@ -9,4 +9,4 @@ source/providers/1password/*.json
 source/cloud/azure/deployment/vmimages/microsoft-dsvm/Linux/configuration-files/.DS_Store
 source/cloud/azure/deployment/vmimages/microsoft-dsvm/Linux/.DS_Store
 source/cloud/azure/deployment/vmimages/microsoft-dsvm/Linux/tf-post-deploy-output.sh
-source/product/ayxrunner/replacements.txt
+replacements.txt
