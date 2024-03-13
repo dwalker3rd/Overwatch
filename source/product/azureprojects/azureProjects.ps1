@@ -49,7 +49,7 @@ $resourceTypeMap = @{
 
 #endregion SERVER CHECK
 
-function script:Request-AzProjectVariable {
+function Request-AzProjectVariable {
 
     [CmdletBinding()]
     param(
@@ -116,14 +116,14 @@ function script:Request-AzProjectVariable {
 
 }
 
-function script:Read-AzProjectVariable {
+function Read-AzProjectVariable {
     
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Name
     )
     
-    $iniContent = Get-Content $global:AzureProjectIniFile
+    $iniContent = Get-Content $script:AzureProjectIniFile
 
     $value = $iniContent | Where-Object {$_ -like "$Name*"}
     if (![string]::IsNullOrEmpty($value)) {
@@ -134,7 +134,7 @@ function script:Read-AzProjectVariable {
 
 }
 
-function script:Write-AzProjectVariable {
+function Write-AzProjectVariable {
     
     [CmdletBinding()]
     param(
@@ -148,7 +148,7 @@ function script:Write-AzProjectVariable {
         return
     }
     
-    $iniContent = Get-Content $global:AzureProjectIniFile -Raw
+    $iniContent = Get-Content $script:AzureProjectIniFile -Raw
 
     $valueUpdated = $false
     if (![string]::IsNullOrEmpty($iniContent)) {
@@ -162,12 +162,12 @@ function script:Write-AzProjectVariable {
             else {
                 $iniContent = $iniContent -replace $targetDefinition, "$Name = $Value"
             }
-            Set-Content -Path $global:AzureProjectIniFile -Value $iniContent.Trim()
+            Set-Content -Path $script:AzureProjectIniFile -Value $iniContent.Trim()
             $valueUpdated = $true
         }
     }
     if (!$valueUpdated -and !$Delete) {
-        Add-Content -Path $global:AzureProjectIniFile -Value "$Name = $Value"
+        Add-Content -Path $script:AzureProjectIniFile -Value "$Name = $Value"
     }
 
     return
@@ -283,9 +283,9 @@ function global:Initialize-AzProject {
     # copy resource file templates to new directory if files don't already exist
     New-AzProjectResourceFiles -Project $ProjectName
 
-    $global:AzureProjectIniFile = "$($global:Azure.Group.$GroupName.Project.$ProjectName.Location.Data)\$ProjectName.ini"
-    if (!(Test-Path $global:AzureProjectIniFile)) {
-        New-Item -Path $global:AzureProjectIniFile -ItemType File | Out-Null
+    $script:AzureProjectIniFile = "$($global:Azure.Group.$GroupName.Project.$ProjectName.Location.Data)\$ProjectName.ini"
+    if (!(Test-Path $script:AzureProjectIniFile)) {
+        New-Item -Path $script:AzureProjectIniFile -ItemType File | Out-Null
     }
 
     Write-AzProjectVariable -Name Tenant -Value $Tenant
@@ -332,7 +332,7 @@ function global:Initialize-AzProject {
     $global:Azure.Group.$groupName.Project.$projectName += @{
         ConnectedAccount = $_connectedAccount
         DeploymentType = $null
-        IniFile = $global:AzureProjectIniFile
+        IniFile = $script:AzureProjectIniFile
         Invitation = @{
             Message = "You have been invited by $($global:Azure.$tenantKey.DisplayName) to collaborate on project $projectNameUpperCase."
         }
@@ -425,8 +425,8 @@ function global:Initialize-AzProject {
         $DeploymentType = $deploymentTypeDefault
     }
     if ([string]::IsNullOrEmpty($DeploymentType)) {
-        $deploymentTypeDefault = "Standard"
-        $deploymentTypeSelections = @("Basic","Standard")
+        $deploymentTypeDefault = "Overwatch"
+        $deploymentTypeSelections = @("Overwatch","DSVM")
         $DeploymentType = Request-AzProjectVariable -Name "DeploymentType" --Selections $deploymentTypeSelections -Default $deploymentTypeDefault
     }
     Write-AzProjectVariable -Name DeploymentType -Value $DeploymentType
@@ -435,10 +435,10 @@ function global:Initialize-AzProject {
     $global:AzureProject.ResourceType.StorageAccount.Parameters = Get-AzProjectStorageAccountParameters
     $global:AzureProject.ResourceType.StorageContainer.Parameters = Get-AzProjectStorageContainerParameters
     switch ($DeploymentType) {
-        "Basic" {
+        "Overwatch" {
             Remove-AzProjectVmParameters
         }
-        "Standard" {
+        "DSVM" {
             $global:AzureProject.ResourceType.Vm.Parameters = Get-AzProjectVmParameters
         }
     }
@@ -455,6 +455,7 @@ Set-Alias -Name azProjInit -Value Initialize-AzProject -Scope Global
 
 function New-AzProjectResourceFiles {
 
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
@@ -478,15 +479,12 @@ function New-AzProjectResourceFiles {
     if (!(Test-Path $SecurityImportFile)) {
         Set-Content -Path $SecurityImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
     }
-    # $RoleAssignmentImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-roleAssignments-import.csv"
-    # if (!(Test-Path $RoleAssignmentImportFile)) {
-    #     Set-Content -Path $RoleAssignmentImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
-    # }
 
 }
 
-function global:Set-AzProjectDefaultResourceScopes {
+function Set-AzProjectDefaultResourceScopes {
 
+    [CmdletBinding()]
     param()
 
     $global:AzureProject.ResourceType.BatchAccount.Scope = "$($global:AzureProject.ScopeBase)/Microsoft.Batch/BatchAccounts/$($global:AzureProject.ResourceType.BatchAccount.Name)"
@@ -506,7 +504,10 @@ function global:Set-AzProjectDefaultResourceScopes {
 
 }
 
-function global:Get-AzProjectDeployedResources {
+function Get-AzProjectDeployedResources {
+
+    [CmdletBinding()]
+    param()
 
     $resourceGroups = Get-AzResourceGroup
     if ($resourceGroups | Where-Object {$_.ResourceGroupName -eq $global:AzureProject.ResourceType.ResourceGroup.Name}) {
@@ -538,9 +539,13 @@ function global:Export-AzProjectResourceFile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$true)][Alias("ResourceGroup")][string]$ResourceGroupName,
+        # [Parameter(Mandatory=$true)][Alias("ResourceGroup")][string]$ResourceGroupName,
         [switch]$Overwrite
     )
+
+    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+
+    $resourceGroupName = $global:AzureProject.ResourceType.ResourceGroup.Name
 
     $resourcesImported = @()
     $resourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
@@ -549,7 +554,7 @@ function global:Export-AzProjectResourceFile {
     }
 
     $resources = @()
-    foreach ($resource in (Get-AzResource -ResourceGroupName $ResourceGroupName)) {
+    foreach ($resource in (Get-AzResource -ResourceGroupName $resourceGroupName)) {
 
         $resourceType = $resourceTypeMap.$($resource.resourceType)
         
@@ -620,7 +625,7 @@ function global:Export-AzProjectResourceFile {
         Write-Host+ -NoTrace -NoNewLine "Update the resource import file (Y/N)? " -ForegroundColor Gray
         $response = Read-Host
         if ($response -eq "Y") {
-            $resourcesImported += $resourcesDifferences
+            $resourcesImported += $resourcesDifferences | Select-Object -ExcludeProperty SideIndicator
             $resourcesImported | Export-Csv -Path $resourceImportFile -UseQuotes Always -NoTypeInformation
         }        
     }
@@ -722,52 +727,52 @@ function global:Grant-AzProjectRole {
         [switch]$WhatIf
     )
 
-    function Get-AzProjectResourceFromScope {
+    # function Get-AzProjectResourceFromScope {
 
-        param(
-            [Parameter(Mandatory=$true,Position=0)][string]$Scope
-        )
+    #     param(
+    #         [Parameter(Mandatory=$true,Position=0)][string]$Scope
+    #     )
 
-        $resourceName = $Scope.Split("/")[-1]
-        $provider = $Scope.Replace($global:AzureProject.ScopeBase,"")
-        $provider = $provider.Substring(1,$provider.LastIndexOf("/")-1)
+    #     $resourceName = $Scope.Split("/")[-1]
+    #     $provider = $Scope.Replace($global:AzureProject.ScopeBase,"")
+    #     $provider = $provider.Substring(1,$provider.LastIndexOf("/")-1)
     
-        $resourceType = switch ($provider) {
-            "Microsoft.Storage/storageAccounts" {"StorageAccount"}
-            {$_ -like "Microsoft.Storage/storageAccounts/*/blobServices/default/containers"} {"StorageContainer"}
-            "Microsoft.Network/bastionHosts" {"Bastion"}
-            "Microsoft.Network/networkInterfaces" { "NetworkInterface" }
-            "Microsoft.Compute/virtualMachines" {"VM"}
-            "Microsoft.MachineLearningServices/workspaces" {"MLWorkspace"}
-            "Microsoft.DocumentDB/databaseAccounts" {"CosmosDBAccount "}
-            "Microsoft.SqlVirtualMachine/SqlVirtualMachines" {"SqlVM"}
-            "Microsoft.KeyVault/vaults" {"KeyVault"}
-            "Microsoft.DataFactory/factories" {"DataFactory"}
-            "Microsoft.Batch/BatchAccounts" {"BatchAccount"}
-            "Microsoft.Insights/components/" {"ApplicationInsights"}
-        }
+    #     $resourceType = switch ($provider) {
+    #         "Microsoft.Storage/storageAccounts" {"StorageAccount"}
+    #         {$_ -like "Microsoft.Storage/storageAccounts/*/blobServices/default/containers"} {"StorageContainer"}
+    #         "Microsoft.Network/bastionHosts" {"Bastion"}
+    #         "Microsoft.Network/networkInterfaces" { "NetworkInterface" }
+    #         "Microsoft.Compute/virtualMachines" {"VM"}
+    #         "Microsoft.MachineLearningServices/workspaces" {"MLWorkspace"}
+    #         "Microsoft.DocumentDB/databaseAccounts" {"CosmosDBAccount "}
+    #         "Microsoft.SqlVirtualMachine/SqlVirtualMachines" {"SqlVM"}
+    #         "Microsoft.KeyVault/vaults" {"KeyVault"}
+    #         "Microsoft.DataFactory/factories" {"DataFactory"}
+    #         "Microsoft.Batch/BatchAccounts" {"BatchAccount"}
+    #         "Microsoft.Insights/components/" {"ApplicationInsights"}
+    #     }
     
-        return [PSCustomObject]@{
-            resourceType = $resourceType
-            resourceName = $resourceName
-            resourceId = $resourceType + "-" + $resourceName
-        }
+    #     return [PSCustomObject]@{
+    #         resourceType = $resourceType
+    #         resourceName = $resourceName
+    #         resourceId = $resourceType + "-" + $resourceName
+    #     }
     
-    } 
+    # } 
     
-    function Get-AzProjectResourceScope {
+    # function Get-AzProjectResourceScope {
 
-        param(
-            [Parameter(Mandatory=$true,Position=0)][string]$ResourceType,
-            [Parameter(Mandatory=$true,Position=1)][string]$ResourceName
-        )
+    #     param(
+    #         [Parameter(Mandatory=$true,Position=0)][string]$ResourceType,
+    #         [Parameter(Mandatory=$true,Position=1)][string]$ResourceName
+    #     )
     
-        $scope = $global:AzureProject.ResourceType.$ResourceType.Scope
-        $scope = ![string]::IsNullOrEmpty($ResourceName) ? ($scope -replace "$($global:AzureProject.ResourceType.$ResourceType.Name)`$", $ResourceName) : $scope
+    #     $scope = $global:AzureProject.ResourceType.$ResourceType.Scope
+    #     $scope = ![string]::IsNullOrEmpty($ResourceName) ? ($scope -replace "$($global:AzureProject.ResourceType.$ResourceType.Name)`$", $ResourceName) : $scope
     
-        return $scope
+    #     return $scope
     
-    }
+    # }
 
     Set-CursorInvisible
 
@@ -1177,11 +1182,11 @@ function global:Grant-AzProjectRole {
                     object = $azureADUser
                 }
             }
-            else {
-                Write-Host+ -NoTrace -NoSeparator  "      ERROR: User `"$signInName`" not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
-                Write-Host+
-                return
-            }
+            # else {
+            #     Write-Host+ -NoTrace -NoSeparator  "      ERROR: User `"$signInName`" not found in Azure tenant `"$Tenant`"" -ForegroundColor Red
+            #     Write-Host+
+            #     return
+            # }
         }
 
         # add service principals (system assigned identities) to $projectIdentities
@@ -1206,65 +1211,60 @@ function global:Grant-AzProjectRole {
 
             $unauthorizedProjectRoleAssignments = @()
 
-            # if (!$User) {
+            $unauthorizedProjectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $resourceGroupName | 
+                Where-Object {$_.Scope -in $resources.resourceScope -and $_.ObjectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
 
-                $unauthorizedProjectRoleAssignments = Get-AzRoleAssignment -ResourceGroupName $resourceGroupName | 
-                    Where-Object {$_.Scope -in $resources.resourceScope -and $_.ObjectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
-
-                foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
-                    $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $unauthorizedProjectRoleAssignment.objectId } 
-                    if (!$projectIdentity) {
-                        try {
-                            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
-                            $projectIdentities += [PSCustomObject]@{
-                                objectType = "User"
-                                objectId = $azureADUser.id
-                                signInName = $azureADUser.mail
-                                id = $azureADUser.mail
-                                displayName = $azureADUser.mail
-                                authorized = $false
-                                reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                                object = $azureADUser
-                            }   
-                        }
-                        catch {
-                            $projectIdentities += [PSCustomObject]@{
-                                objectType = "Unknown"
-                                objectId = $unauthorizedProjectRoleAssignment.objectId
-                                id = $unauthorizedProjectRoleAssignment.objectId
-                                displayName = $unauthorizedProjectRoleAssignment.objectId
-                                authorized = $false
-                                removeAllRoleAssignments = $true
-                                reason = "NOTFOUND"
-                            } 
-                        }
+            foreach ($unauthorizedProjectRoleAssignment in $unauthorizedProjectRoleAssignments) {
+                $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $unauthorizedProjectRoleAssignment.objectId } 
+                if (!$projectIdentity) {
+                    try {
+                        $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedProjectRoleAssignment.SignInName
+                        $projectIdentities += [PSCustomObject]@{
+                            objectType = "User"
+                            objectId = $azureADUser.id
+                            signInName = $azureADUser.mail
+                            id = $azureADUser.mail
+                            displayName = $azureADUser.mail
+                            authorized = $false
+                            reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
+                            object = $azureADUser
+                        }   
+                    }
+                    catch {
+                        $projectIdentities += [PSCustomObject]@{
+                            objectType = "Unknown"
+                            objectId = $unauthorizedProjectRoleAssignment.objectId
+                            id = $unauthorizedProjectRoleAssignment.objectId
+                            displayName = $unauthorizedProjectRoleAssignment.objectId
+                            authorized = $false
+                            removeAllRoleAssignments = $true
+                            reason = "NOTFOUND"
+                        } 
                     }
                 }
-
-            # }
+            }
 
             $resourcesWithUnauthorizedAccessPolicies = @()
 
-            # if (!$User) {
+            $resourcesWithUnauthorizedAccessPolicies += $resources.resourceObject | 
+                Where-Object {$_.PSObject.Properties.Name -eq "AccessPolicies"} | 
+                    Where-Object {$_.accessPolicies.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
 
-                $resourcesWithUnauthorizedAccessPolicies += ($resources.resourceObject | 
-                    Where-Object {$_.PSObject.Properties.Name -eq "AccessPolicies"}).accessPolicies | 
-                        Where-Object {$_.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
-
-                foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                    $projectIdentity = $projectIdentities | Where-Object { $_.objectId -eq $resourceWithUnauthorizedAccessPolicy.accessPolicies.objectId } 
+            foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
+                foreach ($accessPolicy in $resourceWithUnauthorizedAccessPolicy.accessPolicies) {
+                    $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $accessPolicy.objectId} 
                     if (!$projectIdentity) {
                         try {
-                            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $resourceWithUnauthorizedAccessPolicy.SignInName
+                            $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -User $accessPolicy.ObjectId
                             $projectIdentities += [PSCustomObject]@{
                                 objectType = "User"
-                                objectId = $azureADUser.id
-                                signInName = $azureADUser.mail
-                                id = $azureADUser.mail
-                                displayName = $azureADUser.mail
+                                objectId = $unauthorizedAzureADUser.id
+                                signInName = $unauthorizedAzureADUser.mail
+                                id = $unauthorizedAzureADUser.mail
+                                displayName = $unauthorizedAzureADUser.mail
                                 authorized = $false
                                 reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
-                                object = $azureADUser
+                                object = $unauthorizedAzureADUser
                             }   
                         }
                         catch {
@@ -1280,7 +1280,7 @@ function global:Grant-AzProjectRole {
                         }
                     }
                 }
-            # }
+            }
         
         #endregion UNAUTHORIZED PROJECT IDENTITIES
 
@@ -1469,7 +1469,7 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
-                            resourceScope = $resourceGroup.resourceScope
+                            resourceScope = $resource.resourceScope
                             role = $securityAssignment.securityKey
                             objectId = $systemAssignedIdentity.PrincipalId
                             objectType = $securityAssignment.assigneeType
@@ -1489,7 +1489,7 @@ function global:Grant-AzProjectRole {
                                 resourceId = $resource.resourceId
                                 resourceType = $resource.resourceType
                                 resourceName = $resource.resourceName
-                                resourceScope = $resourceGroup.resourceScope
+                                resourceScope = $resource.resourceScope
                                 role = $securityAssignment.securityKey
                                 groupMember = $true
                                 groupId = $groupMember.group
@@ -1510,7 +1510,7 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
-                            resourceScope = $resourceGroup.resourceScope
+                            resourceScope = $resource.resourceScope
                             role = $securityAssignment.securityKey
                             objectType = "User"
                             objectId = $projectIdentity.objectId
@@ -1531,7 +1531,7 @@ function global:Grant-AzProjectRole {
                         resourceId = $resource.resourceId
                         resourceType = $resource.resourceType
                         resourceName = $resource.resourceName
-                        resourceScope = $resourceGroup.resourceScope
+                        resourceScope = $resource.resourceScope
                         role = $securityAssignment.securityKey
                         objectType = "User"
                         objectId = $projectIdentity.objectId
@@ -1549,7 +1549,7 @@ function global:Grant-AzProjectRole {
             $uniqueResourcesFromSecurityAssignments += $roleAssignments | Select-Object -Property resourceId, resourceType, objectId, signInName | Sort-Object -Property * -Unique
 
             # export $roleAssignments
-            if ($User) {
+            if (!$User) {
                 $roleAssignments | 
                     Where-Object {$_.resourceType -in $resourceTypeMap.Values} |
                     Select-Object -Property resourceType,resourceId,resourceName,
@@ -1578,7 +1578,7 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
-                            resourceScope = $resourceGroup.resourceScope
+                            resourceScope = $resource.resourceScope
                             accessPolicy = @{
                                 $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                             }
@@ -1597,7 +1597,7 @@ function global:Grant-AzProjectRole {
                                 resourceId = $resource.resourceId
                                 resourceType = $resource.resourceType
                                 resourceName = $resource.resourceName
-                                resourceScope = $resourceGroup.resourceScope
+                                resourceScope = $resource.resourceScope
                                 accessPolicy = @{
                                     $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                                 }
@@ -1618,7 +1618,7 @@ function global:Grant-AzProjectRole {
                             resourceId = $resource.resourceId
                             resourceType = $resource.resourceType
                             resourceName = $resource.resourceName
-                            resourceScope = $resourceGroup.resourceScope
+                            resourceScope = $resource.resourceScope
                             accessPolicy = @{
                                 $accessPolicy.securityKey = $accessPolicy.securityValue -split ","
                             }
@@ -1635,30 +1635,25 @@ function global:Grant-AzProjectRole {
             }
 
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                $accessPolicyPermissionPropertyNames = @()
-                $resourceWithUnauthorizedAccessPolicy[0] | Get-Member -MemberType Property | Foreach-Object {
-                    if ($_.Name -match "PermissionsTo(.*)(?<!Str)$") {
-                        $accessPolicyPermissionPropertyNames += $_.Name
-                    }
-                }
-                foreach ($accessPolicy in $accessPolicies) {
-                    $projectIdentity = $projectIdentities | Where-Object {$_.id -eq $accessPolicy.assignee -and !$_.authorized}
-                    foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$accessPolicy.$_}) {
-                        $accessPolicyAssignments += [PsCustomObject]@{
-                            resourceId = $resourceWithUnauthorizedAccessPolicy.resourceId
-                            resourceType = $resourceWithUnauthorizedAccessPolicy.resourceType
-                            resourceName = $resourceWithUnauthorizedAccessPolicy.resourceName
-                            resourceScope = $resourceGroup.resourceScope
-                            accessPolicy = @{
-                                "$accessPolicyPermissionPropertyName" = $accessPolicy.$accessPolicyPermissionPropertyName | Join-String -Separator ","
-                            }
-                            objectType = "User"
-                            objectId = $projectIdentity.objectId
-                            signInName = $projectIdentity.id
-                            resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
-                            authorized = $false
-                            options = $securityAssignment.options -split "\s*,\s*"
+                $unauthorizedAccessPolicies = $resourceWithUnauthorizedAccessPolicy.accessPolicies
+                $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $unauthorizedAccessPolicies.objectId -and !$_.authorized}
+                $resource = $resources | Where-Object {$_.resourceScope -eq $resourceWithUnauthorizedAccessPolicy.ResourceId}
+                $accessPolicyPermissionPropertyNames = @("PermissionsToKeys","PermissionsToSecrets","PermissionsToCertificates","PermissionsToStorage")
+                foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$unauthorizedAccessPolicies.$_}) {
+                    $accessPolicyAssignments += [PsCustomObject]@{
+                        resourceId = $resource.resourceId
+                        resourceType = $resource.resourceType
+                        resourceName = $resource.resourceName
+                        resourceScope = $resource.resourceScope
+                        accessPolicy = @{
+                            "$accessPolicyPermissionPropertyName" = $unauthorizedAccessPolicies.$accessPolicyPermissionPropertyName | Join-String -Separator ","
                         }
+                        objectType = "User"
+                        objectId = $projectIdentity.objectId
+                        signInName = $projectIdentity.id
+                        resourceTypeSortOrder = $resourceTypeOrderedList.($resource.resourceType) ?? $resourceTypeSortOrder.default
+                        authorized = $false
+                        options = $securityAssignment.options -split "\s*,\s*"
                     }
                 }
             }
@@ -1718,6 +1713,10 @@ function global:Grant-AzProjectRole {
 
                 if ($WhatIf) {
                     Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (","WhatIf",")" -ForegroundColor DarkGray,DarkYellow,DarkGray
+                }
+
+                if (!$projectIdentity.authorized) {
+                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** UNAUTHORIZED *** " -ForegroundColor DarkRed
                 }
 
                 Write-Host+
@@ -1828,7 +1827,7 @@ function global:Grant-AzProjectRole {
                                         $currentRoleAssignment += Get-AzRoleAssignment -Scope $resourceScope -ObjectId $projectIdentity.objectId | Where-Object {$_.Scope -eq $resourceScope -and $_.RoleDefinitionName -eq $roleAssignment.role}
                                     }
                                 }
-                                if (!$currentRoleAssignment -and ($roleAssignment.role -notin $currentRoleAssignment.RoleDefinitionName -and $roleAssignment.role -notin $inheritedRoleAssignment.RoleDefinitionName)) {
+                                if (!$currentRoleAssignment) {
 
                                     if (!$WhatIf) {
                                         New-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $roleAssignment.role -ObjectId $projectIdentity.objectId -ErrorAction SilentlyContinue | Out-Null
@@ -1880,27 +1879,17 @@ function global:Grant-AzProjectRole {
                     #endregion SET ROLE ASSIGNMENTS
                     #region SET ACCESS POLICIES
 
+                        $accessPolicyWrittenCount = 0
+
                         switch ($resourceType) {
                             "KeyVault" {
 
                                 $currentAccessPolicy = $resource.resourceObject.accessPolicies | 
                                 Where-Object {$_.objectId -eq $projectIdentity.objectId}
 
-                                # remove all access policies and break
-                                if ($projectIdentity.removeAllAccessPolicies) {
-                                    $accessPolicyParams = @{
-                                        ResourceGroupName = $resourceGroupName
-                                        VaultName = $resource.resourceName
-                                        ObjectId = $projectIdentity.objectId
-                                    }
-                                    $result = Remove-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
-                                    $result | Out-Null
-                                    break
-                                }
-
                                 $requiredAccessPolicy = ($accessPolicyAssignments | 
-                                Where-Object {$_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId} |
-                                    Where-Object {$_.objectId -eq $projectIdentity.objectId}).accessPolicy
+                                    Where-Object {$_.resourceType -eq $resourceType -and $_.resourceId -eq $resourceId} |
+                                        Where-Object {$_.objectId -eq $projectIdentity.objectId -and $projectIdentity.authorized}).accessPolicy
 
                                 $accessPolicyPermissionPropertyNames = @("PermissionsToKeys","PermissionsToSecrets","PermissionsToCertificates","PermissionsToStorage")
                                 foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames) {
@@ -1910,15 +1899,25 @@ function global:Grant-AzProjectRole {
                                     $currentAccessPolicyKey = $null
                                     $currentAccessPolicyValue = $null
                                     if ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName) {
+                                        
                                         $currentAccessPolicyKey = $accessPolicyPermissionPropertyName
                                         $currentAccessPolicyValue = $currentAccessPolicy.$accessPolicyPermissionPropertyName
                                         $currentAccessPolicyValueStr = ($currentAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) | Join-String -Separator ", "
                                         $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($currentAccessPolicyKey) <.>61> $($currentAccessPolicyValueStr)" 
-                                        Write-Host+ -NoTrace -NoNewline $message -Parse -ForegroundColor DarkGray
+                                        Write-Host+ -NoTrace -NoNewline $message -Parse -ForegroundColor DarkGray,DarkGray,$($projectIdentity.authorized ? "DarkGray" : "DarkRed")
                                         $accessPolicyPermissionWritten = $true
+
+                                        if (!$projectIdentity.authorized) {
+                                            Write-Host+
+                                        }
+
+                                        $accessPolicyWrittenCount++
+
                                     }
             
-                                    if (!($requiredAccessPolicy -and $requiredAccessPolicy.$accessPolicyPermissionPropertyName) -and ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName)) {
+                                    if (!($requiredAccessPolicy -and $requiredAccessPolicy.$accessPolicyPermissionPropertyName) -and 
+                                         ($currentAccessPolicy -and $currentAccessPolicy.$accessPolicyPermissionPropertyName) -and
+                                          $projectIdentity.authorized) {
 
                                         $accessPolicyParams = @{
                                             ResourceGroupName = $resourceGroupName
@@ -1942,7 +1941,8 @@ function global:Grant-AzProjectRole {
 
                                     }
 
-                                    if (($requiredAccessPolicy -and $requiredAccessPolicy.$accessPolicyPermissionPropertyName)) {
+                                    if ($requiredAccessPolicy -and $requiredAccessPolicy.$accessPolicyPermissionPropertyName -and
+                                        $projectIdentity.authorized) {
 
                                         $accessPolicyParams = @{
                                             ResourceGroupName = $resourceGroupName
@@ -1989,8 +1989,28 @@ function global:Grant-AzProjectRole {
 
                                         Write-Host+ -Iff $($accessPolicyPermissionWritten)
 
+                                        $accessPolicyWrittenCount++
+
                                     }
                                 }
+
+
+                                # # remove all access policies and break
+                                # if (!$projectIdentity.authorized -and $projectIdentity.removeAllAccessPolicies) {
+                                #     $accessPolicyParams = @{
+                                #         ResourceGroupName = $resourceGroupName
+                                #         VaultName = $resource.resourceName
+                                #         ObjectId = $projectIdentity.objectId
+                                #     }
+                                    
+                                #     if (!$WhatIf) {
+                                #         $result = Remove-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
+                                #         $result | Out-Null
+                                #         break
+                                #     }
+                                # }
+
+                                
                             }
                         }
 
@@ -1998,7 +2018,7 @@ function global:Grant-AzProjectRole {
                 
                 }
 
-                if ($roleAssignmentCount -eq 0 -and !$accessPolicyPermissionWritten) {
+                if ($roleAssignmentCount -eq 0 -and !$accessPolicyWrittenCount -eq 0) {
                     Write-Host+ -NoTrace "    none" -ForegroundColor DarkGray
                 } 
 
@@ -2143,10 +2163,6 @@ function Remove-AzProjectVmParameters {
 
 function Get-AzProjectVmParameters {
 
-    param(
-        [switch]$AllowNone
-    )
-
     $ResourceLocation = $global:AzureProject.ResourceLocation
     $Prefix = $global:AzureProject.Prefix
 
@@ -2233,11 +2249,11 @@ function global:Deploy-AzProject {
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     switch ($global:AzureProject.DeploymentType) {
-        "Basic" {  
-            Deploy-AzProjectBasic -Tenant $tenantKey -Project $ProjectName
+        "Overwatch" {  
+            Deploy-AzProjectWithOverwatch -Tenant $tenantKey -Project $ProjectName
         }
-        "Standard" {
-            Deploy-AzProjectStandard -Tenant $tenantKey -Project $ProjectName
+        "DSVM" {
+            Deploy-AzProjectWithDSVM -Tenant $tenantKey -Project $ProjectName
         }
     }
     
@@ -2249,7 +2265,7 @@ function global:Deploy-AzProject {
 }
 Set-Alias -Name azProjDeploy -Value Deploy-AzProject -Scope Global
 
-function global:Deploy-AzProjectBasic {
+function global:Deploy-AzProjectWithOverwatch {
 
     [CmdletBinding()]
     param(
@@ -2459,13 +2475,12 @@ function global:Deploy-AzProjectBasic {
 
     if ($deploymentSuccess) {
         # scan resource group and create resource import file
-        Export-AzProjectResourceFile -ResourceGroupName $resourceGroupName -Project $ProjectName
+        Export-AzProjectResourceFile -Project $ProjectName
     }
     
 }
-Set-Alias -Name azProjNew -Value New-AzProject -Scope Global
 
-function global:Deploy-AzProjectStandard {
+function global:Deploy-AzProjectWithDSVM {
 
     [CmdletBinding()]
     param(
@@ -2477,7 +2492,7 @@ function global:Deploy-AzProjectStandard {
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     if ($azProjectVmParameters.VmSize -eq "None") {
-        Write-Host+ -NoTrace "VmSize cannot be null for a Microsoft DSVM project." -ForegroundColor DarkRed
+        Write-Host+ -NoTrace "VmSize cannot be null for a DSVM deployment." -ForegroundColor DarkRed
         return
     }
 
@@ -2488,23 +2503,46 @@ function global:Deploy-AzProjectStandard {
     $env:SUBSCRIPTION_ID = $global:Azure.$tenantKey.Subscription.Id
     $env:TENANT_ID = $global:Azure.$tenantKey.Tenant.Id
     $env:RESOURCE_LOCATION = $global:AzureProject.ResourceLocation
-    $env:RESOURCE_PREFIX = $global:AzureProject.Prefix
+    $env:RESOURCE_PREFIX = "$($global:AzureProject.Prefix)$($global:AzureProject.Name)"
     $env:RESOURCE_GROUP_NAME = $global:AzureProject.ResourceType.ResourceGroup.Name
+    $env:PROJECT_GROUP = $global:AzureProject.GroupName
+    $env:PROJECT_NAME = $global:AzureProject.Name
     $env:VM_SIZE = $azProjectVmParameters.VmSize
     $env:RESOURCE_ADMIN_USERNAME = $azProjectVmParameters.ResourceAdminUserName
-    $env:STORAGE_ACCOUNT_TIER = $azProjectStorageAccountParameters.StorageAccountSku 
+    $env:STORAGE_ACCOUNT_TIER = $azProjectStorageAccountParameters.StorageAccountPerformanceTier 
+    $env:STORAGE_ACCOUNT_KIND = $azProjectStorageAccountParameters.StorageAccountKind
+    $env:STORAGE_ACCOUNT_REPLICATION_TYPE = $azProjectStorageAccountParameters.StorageAccountRedundancyConfiguration 
     $env:AUTHORIZED_IP = $azProjectVmParameters.AuthorizedIp
     $env:USER_ID = $azProjectVmParameters.CurrentAzureUserId
     $env:USER_EMAIL = $azProjectVmParameters.CurrentAzureUserEmail
 
-    Set-Location "$($Location.Data)\azure\deployment\vmImages\$VmImagePublisher\$VmImageOffer"
+    Set-Location "$($Location.Data)\azure\deployment\vmImages\$($azProjectVmParameters.VmImagePublisher)\$($azProjectVmParameters.VmImageOffer)"
 
-    bash .\echoEnvVars.sh
-    
-    Set-Location $global:Location.Root
+    Write-Host+
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "Ready to deploy DSVM with Terraform via bash" -ForegroundColor Gray
+    # Write-Host+
+    # bash .\echoEnvVars.sh
+    Write-Host+
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "Continue (Y/N)? " -ForegroundColor Gray
+    $response = Read-Host
+    if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
+        Set-Location $global:Location.Root
+        Write-Host+
+        return
+    }
+    Write-Host+
 
-    # scan resource group and create resource import file
-    Export-AzProjectResourceFile -ResourceGroupName $global:AzureProject.ResourceType.ResourceGroup.Name -Project $ProjectName
+    try {
+        bash .\deploy.sh
+        Set-Location $global:Location.Root
+        Export-AzProjectResourceFile -Project $ProjectName
+    }
+    catch {
+        throw $_
+    }
+    finally {
+        Set-Location $global:Location.Root
+    }
 
     return
 
