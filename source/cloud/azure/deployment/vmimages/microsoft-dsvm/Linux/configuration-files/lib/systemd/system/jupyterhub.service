@@ -1,0 +1,12 @@
+[Unit]
+Description=Jupyterhub
+After=network-online.target sshd.service
+
+[Service]
+User=root
+ExecStart=/anaconda/bin/jupyterhub --log-file=/var/log/jupyterhub.log
+WorkingDirectory=/etc/jupyterhub
+Environment="AAD_TENANT_ID={tenant_id}"
+
+[Install]
+WantedBy=multi-user.target

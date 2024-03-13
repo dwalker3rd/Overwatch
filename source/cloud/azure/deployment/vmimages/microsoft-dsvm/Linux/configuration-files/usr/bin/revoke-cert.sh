@@ -1,0 +1,1 @@
+sudo certbot revoke --cert-path /etc/letsencrypt/live/{vm_fqdn}/fullchain.pem --key-path /etc/letsencrypt/live/{vm_fqdn}/privkey.pem

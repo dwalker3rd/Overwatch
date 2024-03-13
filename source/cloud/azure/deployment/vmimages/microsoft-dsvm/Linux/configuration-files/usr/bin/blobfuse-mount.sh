@@ -1,0 +1,2 @@
+#!/bin/bash
+/usr/bin/blobfuse $1 --tmp-path=/datadrive/blobfusetmp -o attr_timeout=240 -o entry_timeout=240 -o negative_timeout=120 -o uid=0 -o gid=4000 -o allow_other --config-file=/etc/blobfuse/configuration.cfg
