@@ -20,10 +20,10 @@ $global:Product = @{Id = "ayxrunner"}
 
     $global:MicrosoftTeamsConfig = @{
         Connector = @{
-            AllClear = @("***REMOVED***")
-            Alert = @("***REMOVED***")
-            Intervention = @("***REMOVED***")                
-            Information = @("***REMOVED***")
+            AllClear = @("<Microsoft Teams AllClear Webhook>")
+            Alert = @("<Microsoft Teams AllClear Webhook>")
+            Intervention = @("<Microsoft Teams AllClear Webhook>")               
+            Information = @("<Microsoft Teams AllClear Webhook>")
         }
     }
     $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
