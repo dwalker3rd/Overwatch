@@ -1279,11 +1279,12 @@ function global:Grant-AzProjectRole {
                     Where-Object {$_.accessPolicies.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
 
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                foreach ($accessPolicy in $resourceWithUnauthorizedAccessPolicy.accessPolicies) {
-                    $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $accessPolicy.objectId} 
+                $unauthorizedAccessPolicies =  $resourceWithUnauthorizedAccessPolicy.accessPolicies | Where-Object {$_.objectId -notin ($projectIdentities | Where-Object {$_.authorized}).objectId}
+                foreach ($unauthorizedAcessPolicy in $unauthorizedAccessPolicies) {
+                    $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $unauthorizedAcessPolicy.objectId} 
                     if (!$projectIdentity) {
                         try {
-                            $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -User $accessPolicy.ObjectId
+                            $unauthorizedAzureADUser = Get-AzureADUser -Tenant $tenantKey -User $unauthorizedAcessPolicy.ObjectId
                             $projectIdentities += [PSCustomObject]@{
                                 objectType = "User"
                                 objectId = $unauthorizedAzureADUser.id
@@ -1323,10 +1324,6 @@ function global:Grant-AzProjectRole {
             # eventually, it should be moved into the $global:Azure config
             $privilegedAdministratorRoles = @()
             $privilegedAdministratorRoles += @("Owner","Contributor","User Access Administrator","Role Based Access Control Administrator")
-            $privilegedAdministratorRoles += 
-                switch ($resource.objectType) {
-                    "ResourceGroup" {}
-                }
 
             # these are project identities found with security assignments that aren't in the project security assignments file
             # if any of those security assignments are privileged administrative roles, then mark them as authorized
