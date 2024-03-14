@@ -1695,25 +1695,27 @@ function global:Grant-AzProjectRole {
             }
 
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                $unauthorizedAccessPolicies = $resourceWithUnauthorizedAccessPolicy.accessPolicies
-                $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $unauthorizedAccessPolicies.objectId -and !$_.authorized}
-                $resource = $resources | Where-Object {$_.resourceScope -eq $resourceWithUnauthorizedAccessPolicy.ResourceId}
-                $accessPolicyPermissionPropertyNames = @("PermissionsToKeys","PermissionsToSecrets","PermissionsToCertificates","PermissionsToStorage")
-                foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$unauthorizedAccessPolicies.$_}) {
-                    $accessPolicyAssignments += [PsCustomObject]@{
-                        resourceId = $resource.resourceId
-                        resourceType = $resource.resourceType
-                        resourceName = $resource.resourceName
-                        resourceScope = $resource.resourceScope
-                        accessPolicy = @{
-                            "$accessPolicyPermissionPropertyName" = $unauthorizedAccessPolicies.$accessPolicyPermissionPropertyName | Join-String -Separator ","
+                $unauthorizedAccessPolicies = $resourceWithUnauthorizedAccessPolicy.accessPolicies | Where-Object {$_.objectId -in ($projectIdentities | Where-Object {!$_.authorized -or $_.external}).objectId}
+                foreach ($unauthorizedAccessPolicy in $unauthorizedAccessPolicies) {
+                    $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $unauthorizedAccessPolicies.objectId -and (!$_.authorized -or $_.external)}
+                    $resource = $resources | Where-Object {$_.resourceScope -eq $resourceWithUnauthorizedAccessPolicy.ResourceId}
+                    $accessPolicyPermissionPropertyNames = @("PermissionsToKeys","PermissionsToSecrets","PermissionsToCertificates","PermissionsToStorage")
+                    foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$unauthorizedAccessPolicies.$_}) {
+                        $accessPolicyAssignments += [PsCustomObject]@{
+                            resourceId = $resource.resourceId
+                            resourceType = $resource.resourceType
+                            resourceName = $resource.resourceName
+                            resourceScope = $resource.resourceScope
+                            accessPolicy = @{
+                                "$accessPolicyPermissionPropertyName" = $unauthorizedAccessPolicy.$accessPolicyPermissionPropertyName | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}
+                            }
+                            objectType = "User"
+                            objectId = $projectIdentity.objectId
+                            # signInName = $projectIdentity.id
+                            resourcePath = $resource.resourcePath
+                            authorized = $false
+                            options = $securityAssignment.options -split "\s*,\s*"
                         }
-                        objectType = "User"
-                        objectId = $projectIdentity.objectId
-                        # signInName = $projectIdentity.id
-                        resourcePath = $resource.resourcePath
-                        authorized = $false
-                        options = $securityAssignment.options -split "\s*,\s*"
                     }
                 }
             }
