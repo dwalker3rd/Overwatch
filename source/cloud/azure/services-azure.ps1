@@ -5,6 +5,55 @@
 # if Reset-AzureADUserPassword is called first, then Connect-AzAccount+ will fail
 # 
 
+function global:Get-AzureTenantKeys {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false,Position=0)][string]$Tenant,
+        [switch]$All,
+        [switch]$AzureAD,
+        [switch]$AzureADB2C
+    )
+
+    $tenantKey = $null
+    if (![string]::IsNullOrEmpty($Tenant)) {
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { 
+            foreach ($azureTenantKey in (Get-AzureTenantKeys)) {
+                if ($Tenant -eq $global:Azure.$azureTenantKey.Tenant.Id) { 
+                    $tenantKey = $azureTenantKey
+                }
+            }
+        }
+        if ([string]::IsNullOrEmpty($tenantKey)) {
+            throw "$tenantKey is not a name/id for a valid/configured Azure tenant."
+        }
+        return $tenantKey
+    }
+
+    if ($All -and $AzureAD) {
+        throw "The `"All`" switch cannot be used with the `"AzureAD`" switch"
+    }
+    if ($All -and $AzureADB2C) {
+        throw "The `"All`" switch cannot be used with the `"AzureADB2C`" switch"
+    }
+    if ($AzureAD -and $AzureADB2C) {
+        throw "The `"AzureAD`" and `"AzureADB2C`" switches cannot be used together"
+    }
+    if (!$AzureAD -and !$AzureADB2C) { $All = $true }
+
+    $tenantKeys = @()
+    $tenantKeys = foreach ($key in ($global:Azure.Keys)) {
+        if (![string]::IsNullOrEmpty($global:Azure.$key.Tenant.Type)) {
+            if ($AzureAD -and $global:Azure.$key.Tenant.Type -eq "Azure AD") { $key }
+            if ($AzureADB2C -and $global:Azure.$key.Tenant.Type -eq "Azure AD B2C") { $key }
+            if ($All) { $key }
+        }
+    }
+    return $tenantKeys
+
+}
+
 function global:Connect-AzAccount+ {
 
     [CmdletBinding()]
@@ -417,6 +466,48 @@ function global:Get-AzMlWorkspace {
 
 }
 
+function Get-AzVmAvailableSizes {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][Alias("Location")][string]$ResourceLocation,
+        [Parameter(Mandatory=$false)][string]$VmSize,
+        [switch]$HasSufficientQuota
+    )
+
+    # Get the list of VM SKUs for the given location
+    $vmSKU = Get-AzComputeResourceSku -Location $ResourceLocation | Where-Object ResourceType -eq "virtualMachines" | Select-Object Name, Family
+    $vmUsage = Get-AzVMUsage -Location $ResourceLocation
+
+    $vmSizes = Get-AzVmSize -Location $ResourceLocation | Where-Object {$_.Name -notlike "%Promo%"}
+    if (![string]::IsNullOrEmpty($VmSize)) {
+        $vmSizes = $vmSizes | Where-Object {$_.Name -eq $VmSize}
+    }
+
+    $availableVmSizes = @()
+    $vmSizes | Foreach-Object {
+        $_vmSizeName = $_.Name
+        $_vmNumberOfCores = $_.NumberOfCores
+        $_vmFamilyKey = ($vmSKU | Where-Object {$_.Name -eq $_vmSizeName}).Family
+        $_vmUsage = $vmUsage | Where-Object {$_.Name.Value -eq $_vmFamilyKey} 
+        $_vmFamilyName = $_vmUsage.Name.LocalizedValue 
+        $_availableVmSize = [PSCustomObject]@{
+            Name = $_vmSizeName
+            Family = $_vmFamilyName
+            NumberOfCores = $_vmNumberOfCores
+            Usage = $_vmUsage.CurrentValue
+            Quota = $_vmUsage.Limit
+            HasSufficientQuota = $null
+        }
+        $_availableVmSize.HasSufficientQuota = $_availableVmSize.Quota - $_availableVmSize.Usage - $_availableVmSize.NumberOfCores -ge 0
+        $availableVmSizes += $_availableVmSize
+
+    }
+
+    return $HasSufficientQuota ? ($availableVmSizes | Where-Object {$_.HasSufficientQuota}) : $availableVmSizes
+
+}
+
 function global:Get-AzVmContext {
 
     [CmdletBinding()]
@@ -496,56 +587,6 @@ function global:Install-AzVmExtension {
 
     }
 }
-
-function global:Get-AzureTenantKeys {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false,Position=0)][string]$Tenant,
-        [switch]$All,
-        [switch]$AzureAD,
-        [switch]$AzureADB2C
-    )
-
-    $tenantKey = $null
-    if (![string]::IsNullOrEmpty($Tenant)) {
-        $tenantKey = $Tenant.split(".")[0].ToLower()
-        if (!$global:Azure.$tenantKey) { 
-            foreach ($azureTenantKey in (Get-AzureTenantKeys)) {
-                if ($Tenant -eq $global:Azure.$azureTenantKey.Tenant.Id) { 
-                    $tenantKey = $azureTenantKey
-                }
-            }
-        }
-        if ([string]::IsNullOrEmpty($tenantKey)) {
-            throw "$tenantKey is not a name/id for a valid/configured Azure tenant."
-        }
-        return $tenantKey
-    }
-
-    if ($All -and $AzureAD) {
-        throw "The `"All`" switch cannot be used with the `"AzureAD`" switch"
-    }
-    if ($All -and $AzureADB2C) {
-        throw "The `"All`" switch cannot be used with the `"AzureADB2C`" switch"
-    }
-    if ($AzureAD -and $AzureADB2C) {
-        throw "The `"AzureAD`" and `"AzureADB2C`" switches cannot be used together"
-    }
-    if (!$AzureAD -and !$AzureADB2C) { $All = $true }
-
-    $tenantKeys = @()
-    $tenantKeys = foreach ($key in ($global:Azure.Keys)) {
-        if (![string]::IsNullOrEmpty($global:Azure.$key.Tenant.Type)) {
-            if ($AzureAD -and $global:Azure.$key.Tenant.Type -eq "Azure AD") { $key }
-            if ($AzureADB2C -and $global:Azure.$key.Tenant.Type -eq "Azure AD B2C") { $key }
-            if ($All) { $key }
-        }
-    }
-    return $tenantKeys
-
-}
-
 
 function global:Enable-AzVMExtensionAutomaticUpdate {
 
