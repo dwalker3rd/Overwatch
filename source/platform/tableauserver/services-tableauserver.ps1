@@ -70,15 +70,17 @@ function global:Show-PlatformStatus {
         # Write-Host+
 
         $nodes = (Get-TableauServerStatus).Nodes | 
-        Select-Object -Property @{Name='node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, nodeId, rollupStatus | 
-            Sort-Object -Property node
+            Select-Object -Property @{Name='node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, nodeId, @{Name='rollupStatus';Expression={![string]::IsNullOrEmpty($_.rollupStatus) ? $_.rollupStatus : "Unknown"}} | 
+                Sort-Object -Property node
 
         foreach ($node in $nodes) {
             $message = "<  $($node.node) ($($node.nodeId))$($node.node -eq (pt InitialNode) ? "*" : $null) <.>42> $($node.RollupStatus.ToUpper())"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($node.RollupStatus) ? "DarkGray" : $global:PlatformStatusColor.($node.RollupStatus))
+            $nodeRollupStatusColor = $node.RollupStatus -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.($node.RollupStatus) : "DarkRed"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($node.RollupStatus) ? "DarkGray" : $nodeRollupStatusColor)
         }
 
-        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>42> $($_platformStatusRollupStatus.ToUpper())" -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.RollupStatus) ? "DarkGray" : $global:PlatformStatusColor.($platformStatus.RollupStatus))
+        $platformRollupStatusColor = $platformStatus.RollupStatus -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.($platformStatus.RollupStatus) : "DarkRed"
+        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>42> $($_platformStatusRollupStatus.ToUpper())" -ForegroundColor Gray,DarkGray, $platformRollupStatusColor
 
     #endregion STATUS      
     #region EVENTS    
@@ -124,7 +126,7 @@ function global:Show-PlatformStatus {
 
     # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
 
-    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.RollupStatus) ? "DarkGray" : $global:PlatformStatusColor.($platformStatus.RollupStatus))
+    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray, $platformRollupStatusColor
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
