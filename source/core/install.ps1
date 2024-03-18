@@ -109,7 +109,7 @@ Write-Host+ -ResetAll
 #endregion POST INSTALL SHORTCUT
 
 $global:DebugPreference = "SilentlyContinue"
-$global:InformationPreference = "Continue"
+$global:InformationPreference = "SilentlyContinue"
 $global:VerbosePreference = "SilentlyContinue"
 $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"
@@ -1342,7 +1342,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                         if (!$module.IsImported -or $installedModule) {
                                             $global:InformationPreference = "SilentlyContinue"
                                             Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                                            $global:InformationPreference = "Continue"
+                                            $global:InformationPreference = "SilentlyContinue"
                                             $noop = $noop -and $false
                                         }
 

@@ -24,11 +24,17 @@ if ($Quiet) { $global:WriteHostPlusPreference = "SilentlyContinue" }
 if ( $SkipPreflight ) { $global:PreflightPreference = "SilentlyContinue" }
 
 function Close-Definitions {
+
     $global:PreflightPreference = $_preflightPreference
     $global:WriteHostPlusPreference = $_writeHostPluspreference
+
+    Set-CursorVisible
+    
 }
 
 #region LOAD START
+
+    Set-CursorInvisible
 
     if (!$Quiet) {
         Write-Host

@@ -440,7 +440,7 @@ function global:Get-PSBoundParameters {
                 $params.RequiredVersion = $_.Version
                 $global:InformationPreference = "SilentlyContinue"
                 Install-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                $global:InformationPreference = "Continue"
+                $global:InformationPreference = "SilentlyContinue"
                 $installedModule += Get-InstalledPSResource -Name $_.Name -Version $_.Version
             }
 
@@ -475,7 +475,7 @@ function global:Get-PSBoundParameters {
                 $params.RequiredVersion = $_.Version
                 $global:InformationPreference = "SilentlyContinue"
                 Uninstall-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                $global:InformationPreference = "Continue"
+                $global:InformationPreference = "SilentlyContinue"
                 $uninstalledModule += Get-InstalledPSResource -Name $_.Name -Version $_.Version
             }
 

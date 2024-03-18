@@ -10,7 +10,7 @@ param(
 )
 
 $global:DebugPreference = "SilentlyContinue"
-$global:InformationPreference = "Continue"
+$global:InformationPreference = "SilentlyContinue"
 $global:VerbosePreference = "SilentlyContinue"
 $global:WarningPreference = "Continue"
 $global:ProgressPreference = "SilentlyContinue"

@@ -577,7 +577,7 @@ function script:Copy-File {
                                         }
                                         $global:InformationPreference = "SilentlyContinue"
                                         Import-Module -Name $moduleToImport.Name -RequiredVersion $moduleToImport.$($moduleToImport.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                                        $global:InformationPreference = "Continue"
+                                        $global:InformationPreference = "SilentlyContinue"
                                     }
                                 }
                             }
