@@ -29,12 +29,13 @@ function Close-Definitions {
     $global:WriteHostPlusPreference = $_writeHostPluspreference
 
     Set-CursorVisible
-    
+
 }
 
 #region LOAD START
 
-    Set-CursorInvisible
+    # Set-CursorInvisible isn't defined yet
+    try { [console]::CursorVisible = $false } catch {}
 
     if (!$Quiet) {
         Write-Host
