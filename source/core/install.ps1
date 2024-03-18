@@ -1340,9 +1340,7 @@ $global:Location.Definitions = $tempLocationDefinitions
                                         # the module has not been imported
                                         # or, if it was just reinstalled, then reimport
                                         if (!$module.IsImported -or $installedModule) {
-                                            $global:InformationPreference = "SilentlyContinue"
                                             Import-Module -Name $module.Name -RequiredVersion $module.$($module.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                                            $global:InformationPreference = "SilentlyContinue"
                                             $noop = $noop -and $false
                                         }
 

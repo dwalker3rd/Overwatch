@@ -575,9 +575,7 @@ function script:Copy-File {
                                             $installedModule = Install-PSResource -Name $moduleToImport.Name -Version $moduleToImport.$($moduleToImport.VersionToInstall)  -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
                                             $installedModule | Out-Null
                                         }
-                                        $global:InformationPreference = "SilentlyContinue"
                                         Import-Module -Name $moduleToImport.Name -RequiredVersion $moduleToImport.$($moduleToImport.VersionToInstall) -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                                        $global:InformationPreference = "SilentlyContinue"
                                     }
                                 }
                             }

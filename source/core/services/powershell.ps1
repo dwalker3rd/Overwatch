@@ -438,9 +438,7 @@ function global:Get-PSBoundParameters {
             $repositoryModule = Find-PSResource -Name $Name -Repository $Repository -Version $Version
             $repositoryModule | Foreach-Object {
                 $params.RequiredVersion = $_.Version
-                $global:InformationPreference = "SilentlyContinue"
                 Install-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                $global:InformationPreference = "SilentlyContinue"
                 $installedModule += Get-InstalledPSResource -Name $_.Name -Version $_.Version
             }
 
@@ -473,9 +471,7 @@ function global:Get-PSBoundParameters {
 
             $installedModule | Foreach-Object {
                 $params.RequiredVersion = $_.Version
-                $global:InformationPreference = "SilentlyContinue"
                 Uninstall-Module @params -WarningAction SilentlyContinue -ErrorAction SilentlyContinue 2>$null | Out-Null
-                $global:InformationPreference = "SilentlyContinue"
                 $uninstalledModule += Get-InstalledPSResource -Name $_.Name -Version $_.Version
             }
 
