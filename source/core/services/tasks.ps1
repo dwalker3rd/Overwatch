@@ -120,7 +120,7 @@ function global:Register-PlatformTask {
         -Action $action -RunLevel $RunLevel -Trigger $triggers -Settings $settings `
         -Description $Description
     if ($Start) {
-        $isStarted = Start-PlatformTask -TaskName $TaskName
+        $isStarted = Start-PlatformTask -TaskName $TaskName -OutputType IsTargetState
         $isStarted | Out-Null
     }
 
@@ -460,7 +460,7 @@ function global:Start-PlatformTask {
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "IsTargetState",
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "null",
         [switch]$Force
     )
 

@@ -9,8 +9,7 @@
         Get-PlatformInfo
      
         if ((Get-PlatformTask -Id SSOMonitor).Status -ne "Running") {
-            $result = Start-PlatformTask -Id SSOMonitor
-            $result | Out-Null
+            Start-PlatformTask -Id SSOMonitor -OutputType null
         }
 
     }
