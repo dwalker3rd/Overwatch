@@ -13,6 +13,47 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
 
     $global:PlatformStatusBooleanColor = @{ $true = "DarkGreen"; $false = "DarkRed" }
 
+    $global:PlatformStatusColor = @{}
+    $global:PlatformStatusColor += @{
+        Active = "DarkGreen"
+        ActiveSyncing = "DarkGreen"
+        Busy = "Green"
+        Connected = "DarkGreen"
+        Connecting = "DarkGreen"
+        DecommisioningReadOnly = "DarkYellow"
+        DecommisionedReadOnly = "DarkYellow"
+        DecommissionFailedReadOnly = "DarkYellow"
+        DecommissionedReadOnly = "DarkYellow"
+        DecommissioningReadOnly = "DarkYellow"
+        Degraded = "DarkRed"
+        Disabled = "DarkRed"
+        Disconnected = "DarkRed"
+        Disconnecting = "DarkRed"
+        Down = "DarkRed"
+        Inactive = "DarkYellow"
+        "InActive (IsNotOK)" = "DarkRed"
+        "Inactive (IsOK)" = "DarkGray"        
+        NotAvailable = "DarkYellow"
+        Offline = "DarkGray"
+        Online = "DarkGreen"
+        Passive = "DarkGreen"
+        Queued = "DarkGreen"
+        ReadOnly = "DarkGreen"
+        Ready = "DarkGreen"
+        Responding = "DarkGreen"
+        Restarting = "DarkYellow"
+        Running = "DarkGreen"
+        Shutdown = "DarkGray"
+        Starting = "DarkYellow"
+        StatusNotAvailable = "DarkYellow"
+        StatusNotAvailableSyncing = "DarkYellow"
+        StatusUnAvailable = "DarkYellow"
+        Stopped = "DarkRed"
+        Stopping = "DarkYellow"
+        Unknown = "DarkGray"
+        Unlicensed = "DarkRed"
+    }    
+
 #endregion STATUS
 #region EVENTS
 
