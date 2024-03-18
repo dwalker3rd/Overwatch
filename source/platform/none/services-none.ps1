@@ -105,12 +105,20 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="Summary")][switch]$Summary,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$All,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
-        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$ResetCache,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly
     )
 
     if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
+    if ($ResetCache -and $CacheOnly) {
+        throw "The -ResetCache and -CacheOnly switches cannot be used together."
+    }
+    if (!$ResetCache -and !$CacheOnly) { $CacheOnly = $true }
+    if ($ResetCache) { $CacheOnly = $false }
+    if ($CacheOnly) { $ResetCache = $false }
 
-    $platformStatus = Get-PlatformStatus -ResetCache
+    $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
     if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         $_platformStatusRollupStatus = switch ($platformStatus.Event) {
@@ -125,9 +133,9 @@ function global:Show-PlatformStatus {
 
     #region STATUS
 
-        Write-Host+
+        # Write-Host+
 
-        $message = "<  $($env:COMPUTERNAME) <.>38> $($platformStatus.RollupStatus)"
+        $message = "<  $($env:COMPUTERNAME.ToLower()) <.>38> $($platformStatus.RollupStatus)"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
         Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>38> $($_platformStatusRollupStatus)" -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
@@ -144,7 +152,7 @@ function global:Show-PlatformStatus {
 
     #endregion ISSUES
 
-    Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
+    # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
 
     $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
