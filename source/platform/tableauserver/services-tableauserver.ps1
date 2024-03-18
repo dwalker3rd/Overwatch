@@ -48,12 +48,20 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="Summary")][switch]$Summary,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$All,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
-        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$ResetCache,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly
     )
 
     if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
+    if ($ResetCache -and $CacheOnly) {
+        throw "The -ResetCache and -CacheOnly switches cannot be used together."
+    }
+    if (!$ResetCache -and !$CacheOnly) { $CacheOnly = $true }
+    if ($ResetCache) { $CacheOnly = $false }
+    if ($CacheOnly) { $ResetCache = $false }
 
-    $platformStatus = Get-PlatformStatus -ResetCache
+    $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
     if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         $_platformStatusRollupStatus = switch ($platformStatus.Event) {
@@ -62,14 +70,14 @@ function global:Show-PlatformStatus {
         }
     }
 
-    # Write-Host+
+    Write-Host+
     Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
     #region STATUS
 
         # Write-Host+
 
-        $nodes = (Get-TableauServerStatus).Nodes | 
+        $nodes = $platformStatus.StatusObject.nodes | 
             Select-Object -Property @{Name='node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, nodeId, @{Name='rollupStatus';Expression={![string]::IsNullOrEmpty($_.rollupStatus) ? $_.rollupStatus : "Unknown"}} | 
                 Sort-Object -Property node
 
@@ -127,6 +135,8 @@ function global:Show-PlatformStatus {
     # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
 
     Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray, $platformRollupStatusColor
+
+    Write-Host+
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
@@ -230,7 +240,7 @@ if ($(Get-Cache platformservices).Exists -and !$ResetCache) {
 
 $platformTopology = Get-PlatformTopology
 $platformStatus = Read-Cache platformstatus
-$tableauServerStatus = Get-TableauServerStatus
+# $tableauServerStatus = Get-TableauServerStatus
 
 $eventVerb = $null
 $serviceStatusOK = @("Active","Running")
@@ -249,11 +259,11 @@ if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
 }
 
 Write-Host+ -IfDebug "Processing PlatformServices" -ForegroundColor DarkYellow
-if ($tableauServerStatus) {
+if ($platformStatus.StatusObject) {
     $platformServices = @()
-        foreach ($nodeId in $tableauServerStatus.nodes.nodeId) {
+        foreach ($nodeId in $platformStatus.StatusObject.nodes.nodeId) {
             $node = $platformTopology.Alias.$nodeId                   
-            $services = ($tableauServerStatus.nodes | Where-Object {$_.nodeid -eq $nodeId}).services
+            $services = ($platformStatus.StatusObject.nodes | Where-Object {$_.nodeid -eq $nodeId}).services
             $services | Foreach-Object {
                 $service = $_
                 $platformService = @(
