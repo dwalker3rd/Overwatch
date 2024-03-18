@@ -233,7 +233,7 @@ function global:Show-PlatformStatus {
     #     }
     # }
 
-    Write-Host+
+    # Write-Host+
     $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 

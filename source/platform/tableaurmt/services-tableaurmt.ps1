@@ -1056,7 +1056,7 @@ function global:Show-PlatformStatus {
         }
     }
 
-    Write-Host+
+    # Write-Host+
     Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
     #region STATUS  
@@ -1152,7 +1152,7 @@ function global:Show-PlatformStatus {
     
     Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
-    Write-Host+
+    # Write-Host+
 
 }
 

@@ -127,7 +127,7 @@ function global:Show-PlatformStatus {
         }
     }
 
-    Write-Host+
+    # Write-Host+
     $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
@@ -157,7 +157,7 @@ function global:Show-PlatformStatus {
     $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
-    Write-Host+
+    # Write-Host+
 
 }
 Set-Alias -Name platformStatus -Value Show-PlatformStatus -Scope Global
