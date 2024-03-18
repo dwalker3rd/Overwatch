@@ -107,7 +107,8 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$ResetCache,
-        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][string]$ComputerName = $env:COMPUTERNAME
     )
 
     if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
@@ -118,7 +119,12 @@ function global:Show-PlatformStatus {
     if ($ResetCache) { $CacheOnly = $false }
     if ($CacheOnly) { $ResetCache = $false }
 
-    $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
+    if ($ComputerName -eq $env:COMPUTERNAME) {
+        $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
+    }
+    else {
+        $platformStatus = Read-Cache platformstatus -ComputerName $Computername
+    }
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
     if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         $_platformStatusRollupStatus = switch ($platformStatus.Event) {
@@ -127,26 +133,48 @@ function global:Show-PlatformStatus {
         }
     }
 
+    $_environ = Get-EnvironConfig -Key Environ -Scope Global -ComputerName $ComputerName
+    $_platformInstance = $_environ.Instance
+    $_platformTopology = Get-PlatformTopology -ComputerName $ComputerName
+
     # Write-Host+
-    $message = "<$($global:Platform.Instance) Status <.>48> PENDING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    Write-Host+ -NoTrace $_platformInstance, "Status", (Format-Leader -Length 39 -Adjust $_platformInstance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
     #region STATUS
 
         # Write-Host+
 
-        $message = "<  $($env:COMPUTERNAME.ToLower()) <.>38> $($platformStatus.RollupStatus)"
+        $message = "<  $($ComputerName.ToLower()) <.>38> $($platformStatus.RollupStatus)"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
-        Write-Host+ -NoTrace -Parse "<  $($global:Platform.Instance) <.>38> $($_platformStatusRollupStatus)" -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+        Write-Host+ -NoTrace -Parse "<  $($_platformInstance) <.>38> $($_platformStatusRollupStatus)" -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
-    #endregion STATUS         
+    #endregion STATUS   
+    #region EVENTS    
+
+        if ($platformStatus.IsStopped -or (![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
+
+            Write-Host+
+
+            Write-Host+ -NoTrace -Parse "<  Event <.>42> $($platformStatus.Event)" -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.Event) ? "DarkGray" : $global:PlatformEventColor.($platformStatus.Event))
+            Write-Host+ -NoTrace -Parse "<  EventStatus <.>42> $($global:PlatformEventStatus.($platformStatus.EventStatus))" -ForegroundColor Gray,DarkGray, ([string]::IsNullOrEmpty($platformStatus.EventStatus) ? "DarkGray" : $global:PlatformEventStatusColor.($platformStatus.EventStatus))
+            Write-Host+ -NoTrace -Parse "<  EventCreatedBy <.>42> $($platformStatus.EventCreatedBy)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -NoTrace -Parse "<  EventCreatedAt <.>42> $($platformStatus.EventCreatedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -Iff $(!$platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventUpdatedAt <.>42> $($platformStatus.EventUpdatedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -Iff $($platformStatus.EventHasCompleted) -NoTrace -Parse "<  EventCompletedAt <.>42> $($platformStatus.EventCompletedAt)" -ForegroundColor Gray,DarkGray, Gray
+            Write-Host+ -NoTrace -Parse "<  EventHasCompleted <.>42> $($platformStatus.EventHasCompleted)" -ForegroundColor Gray,DarkGray, "$($global:PlatformStatusBooleanColor.($platformStatus.EventHasCompleted))"
+
+            # Show-PlatformEvent -PlatformStatus $platformStatus
+
+        }
+
+    #endregion EVENTS           
     #region ISSUES
 
         $platformIssues = $platformStatus.platformIssues
         if ($All -or ($Issues -and $platformIssues)) {
             $platformIssues = $platformIssues | 
-                Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId}}, @{Name='Service';Expression={"$($_.name)_$($_.instanceId)"}}, @{Name='Status';Expression={$_.processStatus}}, @{Name='Message';Expression={$_.message}}
+                Select-Object -Property @{Name='Node';Expression={Get-PlatformTopologyAlias -Alias $_.nodeId -PlatformTopology $_platformTopology}}, @{Name='Service';Expression={"$($_.name)_$($_.instanceId)"}}, @{Name='Status';Expression={$_.processStatus}}, @{Name='Message';Expression={$_.message}}
             $platformIssues | Format-Table -Property Node, Service, Status, Message
         }
 
@@ -154,8 +182,7 @@ function global:Show-PlatformStatus {
 
     # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
 
-    $message = "<$($global:Platform.Instance) Status <.>48> $($_platformStatusRollupStatus.ToUpper())"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+    Write-Host+ -NoTrace $_platformInstance, "Status", (Format-Leader -Length 39 -Adjust $_platformInstance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray, $global:PlatformStatusColor.($platformStatus.RollupStatus)
 
     # Write-Host+
 

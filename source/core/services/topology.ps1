@@ -156,10 +156,12 @@ function global:Get-PlatformTopologyAlias {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false,Position=0)][string]$Alias
+        [Parameter(Mandatory=$false,Position=0)][string]$Alias,
+        [Parameter(Mandatory=$false)][string]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(Mandatory=$false)][object]$PlatformTopology = (Get-PlatformTopology -ComputerName $ComputerName)
     )
-    $platformTopology = Get-PlatformTopology
-    return $Alias ? $platformTopology.Alias.$Alias : $platformTopology.Alias
+
+    return $Alias ? $PlatformTopology.Alias.$Alias : $PlatformTopology.Alias
 
 }
 Set-Alias -Name ptGetAlias -Value Get-PlatformTopologyAlias -Scope Global
