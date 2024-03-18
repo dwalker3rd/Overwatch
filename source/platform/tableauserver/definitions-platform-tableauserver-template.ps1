@@ -34,30 +34,7 @@ $global:PlatformStatusOK = @(
     'ReadOnly'
 )
 
-$global:PlatformStatusColor = @{
-    Unlicensed = "DarkRed"
-    Down = "DarkRed"
-    StatusNotAvailable = "DarkYellow"
-    StatusUnAvailable = "DarkYellow"
-    StatusNotAvailableSyncing = "DarkYellow"
-    NotAvailable = "DarkYellow"
-    DecommissionedReadOnly = "DarkYellow"
-    DecommisionedReadOnly = "DarkYellow"
-    DecommissioningReadOnly = "DarkYellow"
-    DecomisioningReadOnly = "DarkYellow"
-    DecommissionFailedReadOnly = "DarkYellow"
-    Degraded = "DarkRed"
-    Stopping = "DarkYellow"
-    Stopped = "DarkRed"
-    Starting = "DarkYellow"
-    Restarting = "DarkYellow"
-    Active = "DarkGreen"
-    ActiveSyncing = "DarkGreen"
-    Busy = "Green"
-    Running = "DarkGreen"
-    Passive = "DarkGreen"
-    ReadOnly = "DarkGreen"
-}
+# $global:PlatformStatusColor += @{}
 
 $global:TSSiteRoles = @(
     "Creator",

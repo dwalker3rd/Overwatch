@@ -150,7 +150,8 @@ function global:Get-PlatformTask {
         [Parameter(Mandatory=$false)][string]$ExcludeTaskName,
         [Parameter(Mandatory=$false)][string]$View,
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $env:COMPUTERNAME,
-        [switch]$Disabled
+        [switch]$Disabled,
+        [switch]$HasError
     )
 
     $taskState = @("Unknown","Disabled","Queued","Ready","Running")
@@ -213,6 +214,8 @@ function global:Get-PlatformTask {
 
     if ($ExcludeId) {$platformTasks = $platformTasks | Where-Object {$_.TaskName -ne $(Get-Product $ExcludeId).Name}}
     if ($ExcludeTaskName) {$platformTasks = $platformTasks | Where-Object {$_.TaskName -ne $ExcludeTaskName}}
+    if ($HasError) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Unknown -or 
+        $_.Status -in $global:PlatformTaskState.Disabled -or $_.ScheduledTaskInfo.LastTaskResult -eq 2147946720 }}
     if ($Disabled) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled}}
 
     $dynamicView = @()
@@ -566,8 +569,10 @@ function global:Show-PlatformTasks {
         [Parameter(ValueFromPipeline,Position=0)][Object]$InputObject,
         [Parameter(Mandatory=$false)][string[]]$ComputerName,
         [switch]$Disabled,
+        [switch]$HasError,
         [switch]$Refresh,
         [switch]$Clear,
+        [switch]$NoGroupBy,
 
         [ValidateRange(1,300)]
         [Parameter(Mandatory=$false)]
@@ -616,6 +621,8 @@ function global:Show-PlatformTasks {
 
         if (!$platformTasks) { return }
         
+        if ($HasError) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Unknown -or 
+                $_.Status -in $global:PlatformTaskState.Disabled -or $_.ScheduledTaskInfo.LastTaskResult -eq 2147946720 }}
         if ($Disabled) { $platformTasks = $platformTasks | Where-Object {$_.Status -in $global:PlatformTaskState.Disabled} }
         if (!$platformTasks) { return }
 
@@ -739,9 +746,11 @@ function global:Show-PlatformTasks {
                 $platformTasksFormattedByNode = $platformTasksFormatted | Where-Object {$_.Node -eq $node}
                 if ($platformTasksFormattedByNode) {
         
-                    Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " -ForegroundColor DarkGray
-                    Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Gray
-                    Write-Host+
+                    if (!$NoGroupBy) {
+                        Write-Host+ -NoTrace -NoTimestamp -NoNewLine "   ComputerName: " -ForegroundColor DarkGray
+                        Write-Host+ -NoTrace -NoTimestamp $node.ToLower() -ForegroundColor Gray
+                        Write-Host+
+                    }
 
                     # write column labels
                     foreach ($key in $formatData.Keys) {
@@ -785,7 +794,7 @@ function global:Show-PlatformTasks {
 
         } until (!$Refresh)
 
-        Write-Host+
+        if ($Refresh) { Write-Host+ }
         Set-CtrlCAsInterrupt
         Set-CursorVisible
 

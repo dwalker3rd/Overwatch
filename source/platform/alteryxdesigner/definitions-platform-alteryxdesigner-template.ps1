@@ -59,23 +59,7 @@ $global:PlatformProcessConfig = @(
 }
 )
 
-$global:PlatformStatusColor = @{
-Stopping = "DarkYellow"
-Stopped = "DarkRed"
-Starting = "DarkYellow"
-Restarting = "DarkYellow"
-Running = "DarkGreen"
-Responding = "DarkGreen"
-Online = "DarkGreen"
-Offline = "DarkGray"
-Degraded = "DarkRed"
-Shutdown = "DarkGray"
-Unknown = "DarkGray"
-Active = "DarkGreen"
-Inactive = "DarkYellow"
-"Inactive (IsOK)" = "DarkGray"
-"InActive (IsNotOK)" = "DarkRed"
-}     
+# $global:PlatformStatusColor += @{}     
 
 $global:Location += @{
 RuntimeSettings = "C:\ProgramData\Alteryx\RuntimeSettings.xml"

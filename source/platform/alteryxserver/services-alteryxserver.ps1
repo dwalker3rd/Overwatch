@@ -213,7 +213,8 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$ResetCache,
-        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][string]$ComputerName = $env:COMPUTERNAME
     )
 
     if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
@@ -224,7 +225,12 @@ function global:Show-PlatformStatus {
     if ($ResetCache) { $CacheOnly = $false }
     if ($CacheOnly) { $ResetCache = $false }
 
-    $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
+    if ($ComputerName -eq $env:COMPUTERNAME) {
+        $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
+    }
+    else {
+        $platformStatus = Read-Cache platformstatus -ComputerName $Computername
+    }
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
     if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         $_platformStatusRollupStatus = switch ($platformStatus.Event) {
@@ -233,32 +239,38 @@ function global:Show-PlatformStatus {
         }
     }
 
-    # Write-Host+
-    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
+    $_environ = Get-EnvironConfig -Key Environ -Scope Global -ComputerName $ComputerName
+    $_platformInstance = $_environ.Instance
+    $_platformTopology = Get-PlatformTopology -ComputerName $ComputerName
 
-    #region STATUS    
-    
+    # Write-Host+
+    Write-Host+ -NoTrace $_platformInstance, "Status", (Format-Leader -Length 39 -Adjust $_platformInstance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
+
+    #region STATUS
+
         # Write-Host+
 
         # check platform status and for any active events
-        $platformStatus = Get-PlatformStatus -ResetCache -Quiet
+        # $platformStatus = Get-PlatformStatus -ResetCache -Quiet
 
-        $nodeStatusHashTable = (Get-AlteryxServerStatus).Nodes
+        $nodeStatusHashTable = $_platformStatus.StatusObject.Nodes
 
         $nodeStatus = @()
-        foreach ($node in (Get-PlatformTopology nodes -offline -keys)) {
+        $_offlineNodes = $_platformTopology.nodes.keys | Where-Object {$_platformTopology.nodes.$_.offline}
+        foreach ($node in ($_offlineNodes)) {
             $ptNode = pt nodes.$node
             $nodeStatus += [PsCustomObject]@{
-                Role = pt nodes.$node.components -k
-                Alias = ptBuildAlias $node
+                Role = $_platformTopology.nodes.$node.components.Keys
+                Alias = Get-PlatformTopologyAlias -Alias $node -PlatformTopology $_platformTopology
                 Node = $node
                 Status = !$ptNode.Shutdown ? "Offline" : "Shutdown"
             }
         }
-        foreach ($node in (Get-PlatformTopology nodes -online -keys)) {
+        $_onlineNodes = $_platformTopology.nodes.keys | Where-Object {$_platformTopology.nodes.$_.online}
+        foreach ($node in ($_onlineNodes)) {
             $nodeStatus += [PsCustomObject]@{
-                Role = pt nodes.$node.components -k
-                Alias = ptBuildAlias $node
+                Role = $_platformTopology.nodes.$node.components.Keys
+                Alias = Get-PlatformTopologyAlias -Alias $node -PlatformTopology $_platformTopology
                 Node = $node
                 Status = $nodeStatusHashTable[$node]
             }
@@ -267,7 +279,7 @@ function global:Show-PlatformStatus {
         $nodeStatus = $nodeStatus | Sort-Object -Property Role, Node
         
         foreach ($_nodeStatus in $nodeStatus) {
-            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>42> $($_nodeStatus.Status.ToUpper())"
+            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq ($_platformTopology.components.Controller.nodes.Keys) ? "*" : $null) <.>42> $($_nodeStatus.Status.ToUpper())"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($_nodeStatus.Status)
         }
         # $nodeStatus | Sort-Object -Property Node | Format-Table -Property Node, Alias, Status
@@ -308,10 +320,10 @@ function global:Show-PlatformStatus {
 
         if ($global:WriteHostPlusPreference -eq "Continue") {
             if ($All -or ($Issues -and $platformIssues)) {
-                $_components = Get-PlatformCimInstance | Where-Object {$_.Class -in ("Service","Process")}
+                $_components = $_platformStatus.ByCimInstance | Where-Object {$_.Class -in ("Service","Process")}
                 if ($Required) { $_components = $_components | Where-Object {$_.Required} }
                 if ($Issues) { $_components = $_components | Where-Object {!$_.IsOK} }
-                $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={ptBuildAlias $_.Node}}, Class, Name, Status, Required, Transient, IsOK, Component
+                $_components | Sort-Object -Property Node, Name | Format-Table -GroupBy Node -Property Node, @{Name='Alias';Expression={Get-PlatformTopologyAlias -Alias $_.Node -PlatformTopology $_platformTopology}}, Class, Name, Status, Required, Transient, IsOK, Component
             }
         }
 
@@ -319,7 +331,7 @@ function global:Show-PlatformStatus {
     
     # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
     
-    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)  
+    Write-Host+ -NoTrace $_platformInstance, "Status", (Format-Leader -Length 39 -Adjust $_platformInstance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)  
     
     # Write-Host+
 
