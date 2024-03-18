@@ -33,15 +33,6 @@ $global:Product = @{Id="AzureProjects"}
     }
 
 #endregion SERVER CHECK
-#region LOCAL DEFINITIONS
-
-    $script:UserImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
-    $script:GroupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
-    $script:ResourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-    $script:SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-import.csv"
-    $script:SecurityExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-export.csv"
-
-#endregion LOCAL DEFINITIONS
 #region LOCAL FUNCTIONS
 
     function Request-AzProjectVariable {
@@ -597,6 +588,12 @@ function global:Initialize-AzProject {
         $ProjectName = Request-AzProjectVariable -Name "ProjectName" -Lowercase
     }
 
+    $script:UserImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
+    $script:GroupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
+    $script:ResourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
+    $script:SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-import.csv"
+    $script:SecurityExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-export.csv"
+
     # resource group name
     $resourceGroupName = "$($GroupName)-$($ProjectName)-rg".ToLower()   
 
@@ -733,7 +730,7 @@ function global:Initialize-AzProject {
         ResourceType = @{
             ResourceGroup = @{
                 Name = $resourceGroupName
-                Scope = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups"
+                Scope = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$resourceGroupName"
             }
             StorageAccount = @{
                 Parameters = @{}
@@ -747,7 +744,7 @@ function global:Initialize-AzProject {
         }
     }
     $global:Azure.Group.$groupName.Project.$projectName += @{
-        ScopeBase = "$($global:Azure.Group.$groupName.Project.$projectName.ResourceType.ResourceGroup.Scope)"
+        ScopeBase = "$($global:Azure.Group.$groupName.Project.$projectName.ResourceType.ResourceGroup.Scope)/providers"
     }
 
     $global:AzureProject = $global:Azure.Group.$groupName.Project.$projectName
@@ -894,7 +891,7 @@ function global:Grant-AzProjectRole {
                 resourceType = "ResourceGroup"
                 resourceName = $resourceGroupName
                 resourceId = $resourceGroupName
-                resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope
+                resourceScope = "$($global:AzureProject.ResourceType.ResourceGroup.Scope)"
                 resourcePath = "/$resourceGroupName"
                 resourceObject = $null
                 resourceContext = $null
