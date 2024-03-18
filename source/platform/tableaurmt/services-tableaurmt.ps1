@@ -1034,12 +1034,20 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="Summary")][switch]$Summary,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$All,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
-        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$ResetCache,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly
     )
 
     if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
+    if ($ResetCache -and $CacheOnly) {
+        throw "The -ResetCache and -CacheOnly switches cannot be used together."
+    }
+    if (!$ResetCache -and !$CacheOnly) { $CacheOnly = $true }
+    if ($ResetCache) { $CacheOnly = $false }
+    if ($CacheOnly) { $ResetCache = $false }
 
-    $platformStatus = Get-PlatformStatus -Quiet
+    $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
     if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         $_platformStatusRollupStatus = switch ($platformStatus.Event) {
@@ -1055,7 +1063,8 @@ function global:Show-PlatformStatus {
 
         # Write-Host+
 
-        $rmtStatus = Get-RMTStatus -ResetCache -Quiet
+        # $rmtStatus = Get-RMTStatus -ResetCache -Quiet
+        $rmtStatus = $platformStatus.StatusObject
         $controller = $rmtStatus.ControllerStatus
         $agents = $rmtStatus.AgentStatus
         # $environments = $rmtStatus.EnvironmentStatus
@@ -1075,7 +1084,7 @@ function global:Show-PlatformStatus {
             NodeId = $_nodeId
             Node = $controller.Name
             Status = $controller.RollupStatus
-            Role = Get-RMTRole $controller.Name
+            Role = "Controller" # Get-RMTRole $controller.Name
             Version = $controller.Controller.ProductVersion
         }
         # Agents
@@ -1085,7 +1094,7 @@ function global:Show-PlatformStatus {
                 NodeId = $_nodeId
                 Node = $agent.Name
                 Status = $agent.RollupStatus
-                Role = Get-RMTRole $agent.Name
+                Role = "Agent" # Get-RMTRole $agent.Name
                 Version = $agent.Agent.ProductVersion
             }
         }
@@ -1142,6 +1151,8 @@ function global:Show-PlatformStatus {
     # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
     
     Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+
+    Write-Host+
 
 }
 
