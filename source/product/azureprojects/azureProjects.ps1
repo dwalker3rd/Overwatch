@@ -33,6 +33,11 @@ $global:Product = @{Id="AzureProjects"}
     }
 
 #endregion SERVER CHECK
+#region LOCAL DEFINITIONS
+
+    $resourcesWithSpecialHandling = @("ResourceGroup","DataFactory","NetworkInterface","StorageContainer")
+
+#region LOCAL DEFINITIONS
 #region LOCAL FUNCTIONS
 
     function Request-AzProjectVariable {
@@ -162,10 +167,6 @@ $global:Product = @{Id="AzureProjects"}
 
     #create new project files
     function New-AzProjectFiles {
-
-        param(
-            [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
-        )
     
         if (!(Test-Path $script:UserImportFile)) {
             Set-Content -Path $script:UserImportFile -Value "`"signInName`",`"fullName`""
@@ -208,15 +209,15 @@ $global:Product = @{Id="AzureProjects"}
     
         $_resourceProvider = $script:ResourceProviders | Where-Object {$_.ProviderNamespace -eq $_resourceProviderNamespace -and $_.Locations -contains $_resourceLocation}
         if (!$_resourceProvider) {
-            throw "Resource provider '$_resourceProviderNamespace' not found in location '$_resourceLocation'."
+            throw "Resource provider '$_resourceProviderNamespace' not found in location '$_resourceLocation'"
         }
         $_resourceType = $_resourceProvider.ResourceTypes | Where-Object {$_.ResourceTypeName -eq $_resourceTypeName}
         if (!$_resourceType) {
-            throw "Resource type '$_resourceType' not found for resource provider '$_resourceProviderNamespace' in location '$_resourceLocation'."
+            throw "Resource type '$_resourceType' not found for resource provider '$_resourceProviderNamespace' in location '$_resourceLocation'"
         }
         $_resource = Get-AzResource -ResourceGroupName $global:AzureProject.ResourceGroupName -ResourceType $ResourceType -Name $ResourceName
         if (!$_resource) {
-            throw "Resource '$_resourceProviderNamespace/$_resourceType' not found in location '$_resourceLocation'."
+            throw "Resource '$_resourceProviderNamespace/$_resourceType' not found in location '$_resourceLocation'"
         }
     
         return $_resource.resourceId
@@ -307,78 +308,33 @@ $global:Product = @{Id="AzureProjects"}
 
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-            # [Parameter(Mandatory=$true)][Alias("ResourceGroup")][string]$ResourceGroupName,
+            [Parameter(Mandatory=$true,ParameterSetName="ByProjectName")]
+            [Alias("Project")][string]$ProjectName,
+            
+            [Parameter(Mandatory=$true,ParameterSetName="ByResourceGroupName")]
+            [Alias("ResourceGroup")][string]$ResourceGroupName,
+            
+            [Parameter(ParameterSetName="ByProjectName")]
+            [Parameter(ParameterSetName="ByResourceGroupName")]
             [switch]$Overwrite
         )
     
-        if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
-    
-        $resourceGroupName = $global:AzureProject.ResourceGroupName
+        if (![string]::IsNullOrEmpty($ProjectName)) {
+            if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+            $ResourceGroupName = $global:AzureProject.ResourceGroupName
+        }
+        if (![string]::IsNullOrEmpty($ResourceGroupName)) {
+            if ($ResourceGroupName -ne $global:AzureProject.ResourceGroupName) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+        }
     
         $resourcesImported = @()
         if (Test-Path $script:ResourceImportFile) {
             $resourcesImported += Import-AzProjectFile $script:ResourceImportFile
         }
     
-        $resources = @()
-        foreach ($resource in (Get-AzResource -ResourceGroupName $resourceGroupName)) {
+        $deployedResources = Get-AzResource -ResourceGroupName $ResourceGroupName | Select-Object -Property @{Name="resourceType";Expression={$_.ResourceType}}, @{Name="resourceName";Expression={$_.Name}}
     
-            $resourceType = $global:ResourceTypeAlias.$($resource.resourceType)
-            
-            if (![string]::IsNullOrEmpty($resourceType)) {
-    
-                $resourceName = $resource.resourceName
-                $resourceObject = $null
-                $resourceParent = $null
-    
-                $resourceChildren = @()
-    
-                switch ($resourceType) {
-                    {$_ -notin ("DataFactory")} {
-                        $resourceName = $resource.resourceName
-                        $resourceObject = Invoke-Expression "Get-Az$resourceType -ResourceGroupName $resourceGroupName -Name $resourceName"
-                    }
-                    "DataFactory" {
-                        $resourceName = $resource.resourceName
-                        $resourceObject = Get-AzDataFactory -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
-                        if (!$resourceObject) {
-                            $resourceObject = Get-AzDataFactoryV2 -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
-                            if (!$resourceObject) {
-                                throw "The resource type could not be found in the provider namespace 'Microsoft.DataFactory'"
-                            }
-                        }
-                    }
-                    "NetworkInterface" {
-                        $resourceParent = ($resourceObject.VirtualMachine.Id -split "/")[-1]
-                    }
-                    "StorageAccount" {
-                        $storageAccountContext = New-AzStorageContext -StorageAccountName $resource.resourceName -UseConnectedAccount
-                        foreach ($storageContainer in Get-AzStorageContainer -Context $storageAccountContext) {
-                            if (($storageContainer.Name -split "-")[0] -notin ("bootdiagnostics","insights")) {
-                                $resourceChildren += [PSCustomObject]@{
-                                    resourceType = "StorageContainer"
-                                    resourceName = $storageContainer.Name
-                                    resourceId = $storageContainer.Name
-                                    resourceParent = $resourceName
-                                }
-                            }
-                        }
-                    }
-                }
-    
-                $resources += [PSCustomObject]@{
-                    resourceType = $resourceType
-                    resourceName = $resourceName
-                    resourceId = $resourceName
-                    resourceParent = $resourceParent
-                }
-                $resources += $resourceChildren
-    
-            }
-        }
-    
-        $resourcesDifferences = Compare-Object $resourcesImported $resources -Property resourceType, resourceName -PassThru
+        $resourcesDifferences = Compare-Object $resourcesImported $deployedResources -Property resourceType, resourceName -PassThru
         $resourcesDifferences | Format-Table
     
         if ($resourcesDifferences.SideIndicator -contains "<=") {
@@ -553,6 +509,83 @@ $global:Product = @{Id="AzureProjects"}
         Write-AzProjectVariable -Name CurrentAzureUserEmail -Delete
     
     }
+
+    # function Get-AzDeployedResources {
+
+    #     [CmdletBinding()]
+    #     param(
+    #         [Parameter(Mandatory=$true,ParameterSetName="ByProjectName")][Alias("Project")][string]$ProjectName,
+    #         [Parameter(Mandatory=$true,ParameterSetName="ByResourceGroupName")][Alias("ResourceGroup")][string]$ResourceGroupName
+    #     )
+    
+    #     if (![string]::IsNullOrEmpty($ProjectName)) {
+    #         if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    #         $ResourceGroupName = $global:AzureProject.ResourceGroupName
+    #     }
+    #     if (![string]::IsNullOrEmpty($ResourceGroupName)) {
+    #         if ($ResourceGroupName -ne $global:AzureProject.ResourceGroupName) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    #     }
+    
+    #     $_resources = @()
+    #     foreach ($_resource in (Get-AzResource -ResourceGroupName $ResourceGroupName)) {
+    
+    #         $_resourceType = $global:ResourceTypeAlias.$($_resource.resourceType)
+            
+    #         if (![string]::IsNullOrEmpty($_resourceType)) {
+    
+    #             $_resourceName = $_resource.resourceName
+    #             $_resourceObject = $null
+    #             $_resourceParent = $null
+    
+    #             $_resourceChildren = @()
+    
+    #             switch ($_resourceType) {
+    #                 {$_ -notin ("DataFactory")} {
+    #                     $_resourceName = $_resource.resourceName
+    #                     $_resourceObject = Invoke-Expression "Get-Az$_resourceType -ResourceGroupName $ResourceGroupName -Name $_resourceName"
+    #                 }
+    #                 "DataFactory" {
+    #                     $_resourceName = $_resource.resourceName
+    #                     $_resourceObject = Get-AzDataFactory -ResourceGroupName $ResourceGroupName -Name $_resourceName -ErrorAction SilentlyContinue
+    #                     if (!$_resourceObject) {
+    #                         $_resourceObject = Get-AzDataFactoryV2 -ResourceGroupName $ResourceGroupName -Name $_resourceName -ErrorAction SilentlyContinue
+    #                         if (!$_resourceObject) {
+    #                             throw "The resource type could not be found in the provider namespace 'Microsoft.DataFactory'"
+    #                         }
+    #                     }
+    #                 }
+    #                 "NetworkInterface" {
+    #                     $_resourceParent = ($_resourceObject.VirtualMachine.Id -split "/")[-1]
+    #                 }
+    #                 "StorageAccount" {
+    #                     $storageAccountContext = New-AzStorageContext -StorageAccountName $_resource.resourceName -UseConnectedAccount
+    #                     foreach ($storageContainer in Get-AzStorageContainer -Context $storageAccountContext) {
+    #                         if (($storageContainer.Name -split "-")[0] -notin ("bootdiagnostics","insights")) {
+    #                             $_resourceChildren += [PSCustomObject]@{
+    #                                 resourceType = "StorageContainer"
+    #                                 resourceName = $storageContainer.Name
+    #                                 resourceId = $storageContainer.Name
+    #                                 resourceParent = $_resourceName
+    #                             }
+    #                         }
+    #                     }
+    #                 }
+    #             }
+    
+    #             $_resources += [PSCustomObject]@{
+    #                 resourceType = $_resourceType
+    #                 resourceName = $_resourceName
+    #                 resourceId = $_resourceName
+    #                 resourceParent = $_resourceParent
+    #             }
+    #             $_resources += $_resourceChildren
+    
+    #         }
+    #     }
+
+    #     return $_resources
+
+    # }
 
 #endregion LOCAL FUNCTIONS
 
@@ -942,12 +975,70 @@ function global:Grant-AzProjectRole {
             Write-Host+ -NoTrace -NoSeparator "    $script:SecurityImportFile" -ForegroundColor DarkGray
             $securityAssignmentsFromFile = Import-AzProjectFile -Path $script:SecurityImportFile | Sort-Object -Property * -Unique
 
+            $resourceDifferences = Compare-Object -ReferenceObject ($securityAssignmentsFromFile | Select-Object -Property resourceType, resourceId | Sort-Object -Property resourceType, resourceId -Unique) `
+                -DifferenceObject ($resources | Select-Object -Property resourceType, resourceId | Sort-Object -Property resourceType, resourceId -Unique) -property resourceType, resourceId
+            
+            $undefinedResources = $resourceDifferences | Where-Object {$_.SideIndicator -eq "<="}
+            if ($undefinedResources) {
+                $errorMessage = "<    ERROR: < >0> Undefined resource[s] in $(Split-Path -Path $script:SecurityImportFile -Leaf)"
+                Write-Host+ -NoTrace -Parse $errorMessage -ForegroundColor Red, DarkRed
+                $errorMessageLength = ([regex]::Match($errorMessage,"^<\s*(.*)<.*>\d+>\s*(.*)$").Groups[1..2].Value | Join-String).Length
+                Write-Host+ -NoTrace "    $($emptyString.PadLeft($errorMessageLength,"-"))" -ForegroundColor DarkGray
+                foreach ($undefinedResource in $undefinedResources) {
+                    $hasUndefinedResourceType = $undefinedResource.resourceType -notin $resources.resourceType
+                    $hasUndefinedResourceId = $undefinedResource.resourceId -notin $resources.resourceId
+                    $undefinedResourceType = $undefinedResource.resourceType | Where-Object { $_ -notin $resources.resourceType }
+                    $undefinedResourceId = $undefinedResource.resourceId | Where-Object { $_ -notin $resources.resourceId }
+                    foreach ($securityAssignment in $securityAssignmentsFromFile | Where-Object { $_.resourceType -eq $undefinedResource.resourceType -and $_.resourceId -eq $undefinedResource.resourceId }) {
+                        $contentRow = Get-Content -Path $script:SecurityImportFile | Where-Object {$_ -match  "`"$($undefinedResource.resourceType)`"\s*,\s*`"$($undefinedResource.resourceId)`""}
+                        $contentRowColumns = $contentRow -split "\s*,\s*"
+                        Write-Host+ -NoTrace -NoNewLine "    "
+                        Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[0])",", " -ForegroundColor ($hasUndefinedResourceType ? "DarkRed" : "DarkGray"), DarkGray
+                        Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[1])",", " -ForegroundColor ($hasUndefinedResourceId ? "DarkRed" : "DarkGray"), DarkGray
+                        Write-Host+ -NoTrace -NoSeparator -NoTimestamp ($contentRowColumns[2..-1] | Join-String -Separator ", ") -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUndefinedResourceType -and $hasUndefinedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource '$undefinedResourceType/$undefinedResourceId' is undefined." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUndefinedResourceType -and $hasUndefinedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource type '$undefinedResourceType' is undefined." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUndefinedResourceId -and !$hasUndefinedResourceType) -NoTrace "    $($emptyString.PadLeft(3 + $contentRowColumns[0].Length," "))$($global:asciiCodes.RightArrowWithHook)  The resource id '$undefinedResourceId' is undefined." -ForegroundColor DarkGray
+                        Write-Host+
+                    }
+                }
+                return
+            }
+
+            $unassignedResources = $resourceDifferences | Where-Object {$_.SideIndicator -eq "=>"} | Where-Object {$_.resourceType -notin $resourcesWithSpecialHandling}
+            if ($unassignedResources) {
+                $errorMessage = "<    WARNING: < >0> Unassigned resource[s] in $(Split-Path -Path $script:ResourceImportfile -Leaf)"
+                Write-Host+ -NoTrace -Parse $errorMessage -ForegroundColor Yellow, DarkYellow
+                $errorMessageLength = ([regex]::Match($errorMessage,"^<\s*(.*)<.*>\d+>\s*(.*)$").Groups[1..2].Value | Join-String).Length
+                Write-Host+ -NoTrace "    $($emptyString.PadLeft($errorMessageLength,"-"))" -ForegroundColor DarkGray
+                foreach ($unassignedResource in $unassignedResources) {
+                    $hasunassignedResourceType = $unassignedResource.resourceType -notin $securityAssignmentsFromFile.resourceType
+                    $hasunassignedResourceId = $unassignedResource.resourceId -notin $securityAssignmentsFromFile.resourceId
+                    $unassignedResourceType = $unassignedResource.resourceType | Where-Object { $_ -notin $securityAssignmentsFromFile.resourceType }
+                    $unassignedResourceId = $unassignedResource.resourceId | Where-Object { $_ -notin $securityAssignmentsFromFile.resourceId }
+                    foreach ($resource in $resources | Where-Object { $_.resourceType -eq $unassignedResource.resourceType -and $_.resourceId -eq $unassignedResource.resourceId }) {
+                        $contentRow = Get-Content -Path $script:ResourceImportfile | Where-Object {$_ -match  "`"$($unassignedResource.resourceType)`"\s*,\s*`"$($unassignedResource.resourceId)`""}
+                        $contentRowColumns = $contentRow -split "\s*,\s*"
+                        Write-Host+ -NoTrace -NoNewLine "    "
+                        Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[0])",", " -ForegroundColor ($hasunassignedResourceType ? "DarkYellow" : "DarkGray"), DarkGray
+                        Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[1])",", " -ForegroundColor ($hasunassignedResourceId ? "DarkYellow" : "DarkGray"), DarkGray
+                        Write-Host+ -NoTrace -NoSeparator -NoTimestamp ($contentRowColumns[2..-1] | Join-String -Separator ", ") -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUnassignedResourceType -and $hasUnassignedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource '$unassignedResourceType/$unassignedResourceId' is unassigned." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUnassignedResourceType -and !$hasUnassignedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource type '$unassignedResourceType' is unassigned." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUnassignedResourceId -and !$hasUnassignedResourceType) -NoTrace "    $($emptyString.PadLeft(3 + $contentRowColumns[0].Length," "))$($global:asciiCodes.RightArrowWithHook)  The resource id '$unassignedResourceId' is unassigned." -ForegroundColor DarkGray
+                    }
+                }
+                Write-Host+
+            }
+
             $invalidAssignees = @()
             $invalidAssignees += ($securityAssignmentsFromFile | Where-Object {$_.assigneeType -eq "SystemAssignedIdentity" -and $_.assignee -notin $resources.resourceId}).assignee | Sort-Object -Unique
             $invalidAssignees += ($securityAssignmentsFromFile | Where-Object {$_.assigneeType -eq "User" -and $_.assignee -notin $users.signInName}).assignee | Sort-Object -Unique
             if ($invalidAssignees) {
-                $errorMessage = "ERROR: Invalid assignee[s] found in $(Split-Path -Path $script:SecurityImportFile -Leaf)"
-                Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
+                $errorMessage = "<    ERROR: < >0> Invalid assignee[s] in $(Split-Path -Path $script:SecurityImportFile -Leaf)"
+                Write-Host+ -NoTrace -Parse $errorMessage -ForegroundColor Red, DarkRed
+                $errorMessageLength = ([regex]::Match($errorMessage,"^<\s*(.*)<.*>\d+>\s*(.*)$").Groups[1..2].Value | Join-String).Length
+                Write-Host+ -NoTrace "    $($emptyString.PadLeft($errorMessageLength,"-"))" -ForegroundColor DarkGray
                 foreach ($invalidAssignee in $invalidAssignees) {
                     foreach ($securityAssignment in $securityAssignmentsFromFile | Where-Object {$_.assignee -eq $invalidAssignee}) {
                         $contentRow = Get-Content -Path $script:SecurityImportFile | Where-Object {$_ -like  "*$invalidAssignee*"}
@@ -955,7 +1046,7 @@ function global:Grant-AzProjectRole {
                         $contentRowPart1 = $contentRowColumns[0..-1] | Join-String -Separator ","
                         $contentRowPart2 = $contentRowColumns[-1]
                         Write-Host+ -NoTrace -NoSeparator "    $contentRowPart1,", $contentRowPart2 -ForegroundColor DarkGray, DarkRed
-                        Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Assignee '$invalidAssignee' is invalid." -ForegroundColor DarkRed
+                        Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Assignee '$invalidAssignee' is invalid." -ForegroundColor DarkGray
                         Write-Host+
                     }
                 }
@@ -995,13 +1086,14 @@ function global:Grant-AzProjectRole {
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion DATAFILES
-    
     #region VERIFY RESOURCES
 
         Write-Host+
         $message = "<  Resource verification <.>60> PENDING"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
+
+        $hasResourceErrors = $false
 
         foreach ($resource in $resources) {
 
@@ -1016,9 +1108,6 @@ function global:Grant-AzProjectRole {
             $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : $global:AzureProject.ResourceType.$resourceType.Name
             $resourcePath = $resourceGroupName -eq $resourceName ? "/$resourceGroupName" : "/$resourceGroupName/$resourceType/$resourceName"
 
-            $message = "    $($resourcePath)"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor DarkGray
-
             # switch ($resourceType) {
             #     "StorageContainer" {
             #         $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
@@ -1026,13 +1115,43 @@ function global:Grant-AzProjectRole {
             #     }
             # }
 
+            # get object
+            $object = $null
+            switch ($resourceType) {
+                default {
+                    $getAzExpression = "Get-Az$resourceType -ResourceGroupName $resourceGroupName"
+                    $getAzExpression += $resourceType -ne "ResourceGroup" ? " -Name $resourceName" : $null
+                    $object = Invoke-Expression $getAzExpression -ErrorAction SilentlyContinue 2>&1
+                }
+                "DataFactory" {
+                    $object = Get-AzDataFactory -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+                    if (!$object) {
+                        $object = Get-AzDataFactoryV2 -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+                    }
+                }
+                # "StorageContainer" {
+                #     $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
+                #     $object = Get-AzStorageContainer -Context $_storageAccount.resourceContext -Name $resourceName
+                #     if (!$object) {
+                #         throw "$resourcePath does not exist."
+                #     }
+                # }
+            }
+
+            $message = "    $($resourcePath)$(!$object ? "  *** NOT FOUND ***" : $null)"
+            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor ($object ? "DarkGray" : "DarkRed")
+
+            if (!$object) { 
+                $hasResourceErrors = $true
+                continue
+            }
+
             # set scope
             $scope = $null
             switch ($resourceType) {
                 default {
                     if ([string]::IsNullOrEmpty($resource.resourceScope)) {
                         $scope = Get-AzResourceScope -ResourceType $resourceType -ResourceName $resourceName
-                        # $scope = $scope.Substring(0,$scope.LastIndexOf("/")+1) + $ResourceName
                     }
                     else {
                         $scope = $resource.resourceScope
@@ -1051,37 +1170,7 @@ function global:Grant-AzProjectRole {
                 #     $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
                 #     $scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($_storageAccount.resourceName)/blobServices/default/containers/$($resourceName)"
                 # }
-            }
-
-            # get object
-            $object = $null
-            switch ($resourceType) {
-                default {
-                    $getAzExpression = "Get-Az$resourceType -ResourceGroupName $resourceGroupName"
-                    $getAzExpression += $resourceType -ne "ResourceGroup" ? " -Name $resourceName" : $null
-                    $object = Invoke-Expression $getAzExpression
-                    if (!$object) {
-                        throw "$resourcePath does not exist."
-                    }
-                    # $scope = $object.Id ?? $object.ResourceId
-                }
-                "DataFactory" {
-                    $object = Get-AzDataFactory -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
-                    if (!$object) {
-                        $object = Get-AzDataFactoryV2 -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
-                        if (!$object) {
-                            throw "$resourcePath does not exist."
-                        }
-                    }
-                }
-                # "StorageContainer" {
-                #     $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
-                #     $object = Get-AzStorageContainer -Context $_storageAccount.resourceContext -Name $resourceName
-                #     if (!$object) {
-                #         throw "$resourcePath does not exist."
-                #     }
-                # }
-            }
+            }            
 
             $resource.resourceName = [string]::IsNullOrEmpty($resource.resourceName) ? $scope.Substring($scope.LastIndexOf("/")+1, $scope.Length-($scope.LastIndexOf("/")+1)) : $resource.resourceName
             $resource.resourceScope = $scope
@@ -1199,7 +1288,7 @@ function global:Grant-AzProjectRole {
                 Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  $($duplicateResourceScope.resourceScope)" -ForegroundColor DarkGray
             }
             Write-Host+
-            return
+            $hasResourceErrors = $true
         }
 
         $duplicateResourceNames = $resources | Group-Object -Property resourceType, resourceName | Where-Object {$_.Count -gt 1}
@@ -1211,9 +1300,23 @@ function global:Grant-AzProjectRole {
             }
         }
 
+        $deployedResources = Get-AzResource -ResourceGroupName $resourceGroupName | 
+            Select-Object -Property @{Name="resourceType";Expression={$global:ResourceTypeAlias.($_.ResourceType)}}, @{Name="resourceName";Expression={$_.Name}} | 
+            Where-Object {![string]::IsNullOrEmpty($_.resourceType)} # | Sort-Object -Property resourceType, resourceName -Unique
+
+        $resourcesDifferences = Compare-Object $resources $deployedResources -Property resourceType, resourceName -PassThru 
+        $undefinedResources = $resourcesDifferences | Where-Object {$_.resourceType -notin $resourcesWithSpecialHandling -and $_.SideIndicator -contains "=>"}
+        if ($undefinedResources) {
+            foreach ($undefinedResource in ($undefinedResources | Where-Object {$_.SideIndicator -contains "=>"})) {
+                Write-Host+ -NoTrace -NoSeparator "    /$resourceGroupName/$($undefinedResource.resourceType)/$($undefinedResource.resourceName)" -ForegroundColor DarkYellow
+            }
+        }
+
         Write-Host+
-        $message = "<  Resource verification <.>60> SUCCESS"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<  Resource verification <.>60> $(!$hasResourceErrors ? "SUCCESS" : "FAIL")"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,(!$hasResourceErrors ? "DarkGreen" : "DarkRed")
+
+        if ($hasResourceErrors) { return }
 
     #endregion VERIFY RESOURCES
     #region PROJECT IDENTITIES
