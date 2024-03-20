@@ -911,7 +911,7 @@ function global:Grant-AzProjectRole {
     $message = "<  ------- < >40> -----------"
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
 
-    $message = "<  -User < >40> Processes only the specified user (object id, upn or email)."
+    $message = "<  -User (signInName | objectId) < >40> Processes only the specified user (object id, upn or email)."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     $message = "<  -RemoveExpiredInvitations < >40> Removes accounts with invitations pending more than 30 days."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
@@ -1192,7 +1192,7 @@ function global:Grant-AzProjectRole {
             $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : $global:AzureProject.ResourceType.$resourceType.Name
             $resourcePath = $resourceGroupName -eq $resourceName ? "/$resourceGroupName" : "/$resourceGroupName/$resourceType/$resourceName"
 
-            Write-Host+ -NoTrace -NoNewLine "    $($resourceType)/$($resourceName)" -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoNewLine "    $($resourcePath)" -ForegroundColor DarkGray
             # Write-Host+ -Iff $($resource.resourceUnmanaged) -NoTrace -NoTimestamp -NoNewLine " (Unmanaged)" -ForegroundColor DarkYellow
 
             # if the resource already has a resourceObject, 
@@ -1371,7 +1371,7 @@ function global:Grant-AzProjectRole {
                 Write-Host+ -NoTrace "    $message" -ForegroundColor DarkGray
                 Write-Host+ -NoTrace "    $($emptyString.PadLeft($message.Length,"-"))" -ForegroundColor DarkGray
                 foreach ($unmanagedResource in $unmanagedResources) {
-                    Write-Host+ -NoTrace "    $($unmanagedResource.resourceType)/$($unmanagedResource.resourceName)" -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace "    $($unmanagedResource.resourcePath)" -ForegroundColor DarkGray
                 }
             }
 
@@ -1400,10 +1400,9 @@ function global:Grant-AzProjectRole {
                     accountEnabled = $unauthorizedAzureADUser.accountEnabled
                     reason = $azureADUser.accountEnabled ? $null : "ACCOUNT DISABLED"
                     object = $azureADUser
-                    external = $false
-                    administrator = $false
-                    owner = $false
+                    managed = $true
                     doNotModify = $false
+                    adminRole = $null
                 }
             }
         }
@@ -1420,6 +1419,8 @@ function global:Grant-AzProjectRole {
                 authorized = $true
                 reason = $null
                 object = $systemAssignedIdentity
+                adminRole = $null
+                managed = $true
             }
         }
    
@@ -1448,10 +1449,9 @@ function global:Grant-AzProjectRole {
                             accountEnabled = $unauthorizedAzureADUser.accountEnabled
                             reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
                             object = $unauthorizedAzureADUser
-                            external = $true
-                            administrator = $false
-                            owner = $false
+                            managed = $false
                             doNotModify = $false
+                            adminRole = $null
                         }   
                     }
                     catch {
@@ -1463,10 +1463,9 @@ function global:Grant-AzProjectRole {
                             authorized = $false
                             removeAllRoleAssignments = $true
                             reason = "NOTFOUND"
-                            external = $true
-                            administrator = $false
-                            owner = $false
+                            managed = $false
                             doNotModify = $false
+                            adminRole = $null
                         } 
                     }
                 }
@@ -1495,10 +1494,9 @@ function global:Grant-AzProjectRole {
                                 accountEnabled = $unauthorizedAzureADUser.accountEnabled
                                 reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
                                 object = $unauthorizedAzureADUser
-                                external = $true
-                                administrator = $false
-                                owner = $false
+                                managed = $false
                                 doNotModify = $false
+                                adminRole = $null
                             }   
                         }
                         catch {
@@ -1510,10 +1508,9 @@ function global:Grant-AzProjectRole {
                                 authorized = $false
                                 removeAllAccessPolicies = $true
                                 reason = "NOTFOUND"
-                                external = $true
-                                administrator = $false
-                                owner = $false
+                                managed = $false
                                 doNotModify = $false
+                                adminRole = $null
                             } 
                         }
                     }
@@ -1528,20 +1525,22 @@ function global:Grant-AzProjectRole {
             # these are project identities found with security assignments that aren't in the project security assignments file
             # if any of those security assignments are privileged administrative roles, then mark them as authorized
             # otherwise, unauthorized users and identities will be removed in the security assignments section
-            foreach ($projectIdentity in $projectIdentities | Where-Object {$_.external -and !$_.authorized -and $_.accountEnabled}) {
+            foreach ($projectIdentity in $projectIdentities | Where-Object {!$_.managed -and !$_.authorized -and $_.accountEnabled}) {
                 $resourceGroupSecurityAssignments = Get-AzRoleAssignment -ResourceGroupName $resourceGroupName -ObjectId $projectIdentity.objectId
                 foreach ($resourceGroupSecurityAssignment in $resourceGroupSecurityAssignments) {
                     if ($resourceGroupSecurityAssignment.RoleDefinitionName -in $privilegedAdministratorRoles) {
                         $projectIdentity.authorized = $true
-                        $projectIdentity.administrator = $true
                         $projectIdentity.doNotModify = $true
                         if ($resourceGroupSecurityAssignment.RoleDefinitionName -eq "Owner") {
-                            $projectIdentity.owner = $true
+                            $projectIdentity.adminRole = "Owner"
+                        }
+                        elseif ($projectIdentity.role -ne "Owner") {
+                            $projectIdentity.adminRole = "Administrator"
                         }
                     }
                 }
-                $_reason = @(); $_reason += "EXTERNAL"
-                $_reason += $projectIdentity.owner ? "OWNER" : ($projectIdentity.administrator ? "ADMINISTRATOR" : $null)
+                $_reason = @(); $_reason += "UNMANAGED"
+                $_reason += $projectIdentity.adminRole.ToUpper()
                 $projectIdentity.reason = $_reason | Join-String -Separator "/"
             }
         
@@ -1653,7 +1652,7 @@ function global:Grant-AzProjectRole {
                         Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor $externalUserStateColor
 
                         Write-Host+ -Iff $(!$guest.authorized) -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
-                        Write-Host+ -Iff $($guest.external -and $guest.administrator) -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
+                        Write-Host+ -Iff $(!$guest.managed -and ![string]::IsNullOrEmpty($guest.adminRole)) -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
 
                         Write-Host+
                     }
@@ -1811,7 +1810,7 @@ function global:Grant-AzProjectRole {
             # export $roleAssignments
             if (!$User) {
                 $roleAssignments | 
-                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values -and $_.authorized} |
+                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
                     Select-Object -Property resourceType,resourceId,resourceName,
                         @{Name="securityType";Expression={"RoleAssignment"}},
                         @{Name="securityKey";Expression={$_.role}},
@@ -1895,9 +1894,9 @@ function global:Grant-AzProjectRole {
             }
 
             foreach ($resourceWithUnauthorizedAccessPolicy in $resourcesWithUnauthorizedAccessPolicies) {
-                $unauthorizedAccessPolicies = $resourceWithUnauthorizedAccessPolicy.accessPolicies | Where-Object {$_.objectId -in ($projectIdentities | Where-Object {!$_.authorized -or $_.external}).objectId}
+                $unauthorizedAccessPolicies = $resourceWithUnauthorizedAccessPolicy.accessPolicies | Where-Object {$_.objectId -in ($projectIdentities | Where-Object {!$_.authorized -or !$_.managed}).objectId}
                 foreach ($unauthorizedAccessPolicy in $unauthorizedAccessPolicies) {
-                    $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $unauthorizedAccessPolicies.objectId -and (!$_.authorized -or $_.external)}
+                    $projectIdentity = $projectIdentities | Where-Object {$_.objectId -eq $unauthorizedAccessPolicies.objectId -and (!$_.authorized -or !$_.managed)}
                     $resource = $resources | Where-Object {$_.resourceScope -eq $resourceWithUnauthorizedAccessPolicy.ResourceId}
                     $accessPolicyPermissionPropertyNames = @("PermissionsToKeys","PermissionsToSecrets","PermissionsToCertificates","PermissionsToStorage")
                     foreach ($accessPolicyPermissionPropertyName in $accessPolicyPermissionPropertyNames | Where-Object {$unauthorizedAccessPolicies.$_}) {
@@ -1926,7 +1925,7 @@ function global:Grant-AzProjectRole {
             # export $accessPolicies
             if (!$User) {
                 $accessPolicyAssignments | 
-                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values -and $_.authorized} |
+                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
                     Select-Object -Property resourceType,resourceId,resourceName,
                         @{Name="securityType";Expression={"AccessPolicy"}},
                         @{Name="securityKey";Expression={$_.accessPolicy.Keys[0]}},
@@ -1975,7 +1974,7 @@ function global:Grant-AzProjectRole {
 
                 Write-Host+ -Iff $($WhatIf) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (","WhatIf",")" -ForegroundColor DarkGray,DarkYellow,DarkGray
                 Write-Host+ -Iff $(!$projectIdentity.authorized) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** $($projectIdentity.reason) *** " -ForegroundColor DarkRed
-                Write-Host+ -Iff $($projectIdentity.external -and $projectIdentity.administrator) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** $($projectIdentity.reason) *** " -ForegroundColor DarkRed
+                Write-Host+ -Iff $(!$projectIdentity.managed -and ![string]::IsNullOrEmpty($guest.adminRole)) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** $($projectIdentity.reason) *** " -ForegroundColor DarkRed
 
                 Write-Host+
                 Write-Host+ -NoTrace "    $($emptyString.PadLeft($projectIdentity.displayName.Length,"-"))" -ForegroundColor Gray
@@ -2054,7 +2053,7 @@ function global:Grant-AzProjectRole {
 
                         Write-Host+ -Iff $($projectIdentity.doNotModify -and $rolesWrittenCount -gt 0) 
 
-                        # don't update users with the doNotModify flag 
+                        # don't update security assignmnets for users with the doNotModify flag 
                         # these users should be owner/admins at the subscription scope
                         if (!$projectIdentity.doNotModify) {
 
