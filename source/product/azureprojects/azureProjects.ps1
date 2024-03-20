@@ -168,20 +168,20 @@ $global:Product = @{Id="AzureProjects"}
     #create new project files
     function New-AzProjectFiles {
     
-        if (!(Test-Path $script:UserImportFile)) {
-            Set-Content -Path $script:UserImportFile -Value "`"signInName`",`"fullName`""
+        if (!(Test-Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.UserImportFile)) {
+            Set-Content -Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.UserImportFile -Value "`"signInName`",`"fullName`""
         }
 
-        if (!(Test-Path $script:GroupImportFile)) {
-            Set-Content -Path $script:GroupImportFile -Value "`"group`",`"user`""
+        if (!(Test-Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.GroupImportFile)) {
+            Set-Content -Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.GroupImportFile -Value "`"group`",`"user`""
         }
 
-        if (!(Test-Path $script:ResourceImportFile)) {
-            Set-Content -Path $script:ResourceImportFile -Value "`"resourceType`",`"resourceName`",`"resourceId`",`"resourceParent`""
+        if (!(Test-Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.ResourceImportFile)) {
+            Set-Content -Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.ResourceImportFile -Value "`"resourceType`",`"resourceName`",`"resourceId`",`"resourceParent`""
         }
 
-        if (!(Test-Path $script:SecurityImportFile)) {
-            Set-Content -Path $script:SecurityImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
+        if (!(Test-Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.SecurityImportFile)) {
+            Set-Content -Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.SecurityImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
         }
     
     }
@@ -328,8 +328,8 @@ $global:Product = @{Id="AzureProjects"}
         }
     
         $resourcesImported = @()
-        if (Test-Path $script:ResourceImportFile) {
-            $resourcesImported += Import-AzProjectFile $script:ResourceImportFile
+        if (Test-Path $global:AzureProject.Files.ResourceImportFile) {
+            $resourcesImported += Import-AzProjectFile $global:AzureProject.Files.ResourceImportFile
         }
     
         $deployedResources = Get-AzDeployedResources -ResourceGroupName $ResourceGroupName
@@ -347,7 +347,7 @@ $global:Product = @{Id="AzureProjects"}
             $response = Read-Host
             if ($response -eq "Y") {
                 $resourcesImported += $resourcesDifferences | Select-Object -ExcludeProperty SideIndicator
-                $resourcesImported | Export-Csv -Path $script:ResourceImportFile -UseQuotes Always -NoTypeInformation
+                $resourcesImported | Export-Csv -Path $global:AzureProject.Files.ResourceImportFile -UseQuotes Always -NoTypeInformation
             }        
         }
     
@@ -510,12 +510,21 @@ $global:Product = @{Id="AzureProjects"}
     
     }
 
-    function Get-AzDeployedResources {
+    function global:Get-AzDeployedResources {
 
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true,ParameterSetName="ByProjectName")][Alias("Project")][string]$ProjectName,
-            [Parameter(Mandatory=$true,ParameterSetName="ByResourceGroupName")][Alias("ResourceGroup")][string]$ResourceGroupName
+            [Parameter(Mandatory=$true,ParameterSetName="ByProjectName")]
+            [Alias("Project")][string]$ProjectName,
+
+            [Parameter(Mandatory=$true,ParameterSetName="ByResourceGroupName")]
+            [Alias("ResourceGroup")][string]$ResourceGroupName,
+            
+            [Parameter(Mandatory=$false,ParameterSetName="ByProjectName")]
+            [Parameter(Mandatory=$false,ParameterSetName="ByResourceGroupName")][switch]$Simple,
+
+            [Parameter(Mandatory=$false,ParameterSetName="ByProjectName")]
+            [Parameter(Mandatory=$false,ParameterSetName="ByResourceGroupName")][switch]$Quiet
         )
     
         if (![string]::IsNullOrEmpty($ProjectName)) {
@@ -527,90 +536,128 @@ $global:Product = @{Id="AzureProjects"}
         }
     
         $_resources = @()
-        $_resources += [PSCustomObject]@{
-            resourceType = "ResourceGroup"
-            resourceName = $ResourceGroupName
-            resourceId = $ResourceGroupName
-            resourceScope = Get-AzResourceScope -ResourceType "ResourceGroup" -ResourceName $ResourceGroupName
-            resourcePath = "/$ResourceGroupName"
-            resourceObject = Get-AzResourceGroup -ResourceGroupName $ResourceGroupName
-            resourceContext = $null
-            resourceParent = $null
-            resourceUnmanaged = $false
+
+        if ($Simple) {
+            $_resources += [PSCustomObject]@{
+                resourceType = "ResourceGroup"
+                resourceName = $ResourceGroupName
+                resourcePath = "/$ResourceGroupName"
+            }
         }
-        Write-Host+ -NoTrace "    /$ResourceGroupName" -ForegroundColor DarkGray
+        else {
+            $_resources += [PSCustomObject]@{
+                resourceType = "ResourceGroup"
+                resourceName = $ResourceGroupName
+                resourcePath = "/$ResourceGroupName"
+                resourceId = $ResourceGroupName
+                resourceScope = Get-AzResourceScope -ResourceType "ResourceGroup" -ResourceName $ResourceGroupName
+                resourceObject = Get-AzResourceGroup -ResourceGroupName $ResourceGroupName
+                resourceContext = $null
+                resourceParent = $null
+                # resourceUnmanaged = $false
+            }
+        }
 
         foreach ($_resource in (Get-AzResource -ResourceGroupName $ResourceGroupName)) {
     
             $_resourceType = $global:ResourceTypeAlias.$($_resource.resourceType)
+            $_resourceName = $_resource.resourceName
+            $_resourcePath = "/$ResourceGroupName/$_resourceType/$_resourceName"
             
             if (![string]::IsNullOrEmpty($_resourceType)) {
-    
-                $_resourceName = $_resource.resourceName
-                $_resourceObject = $null
-                $_resourceParent = $null
-    
-                $_resourceChildren = @()
-    
-                switch ($_resourceType) {
-                    {$_ -notin ("DataFactory")} {
-                        $_resourceName = $_resource.resourceName
-                        $_resourceObject = Invoke-Expression "Get-Az$_resourceType -ResourceGroupName $ResourceGroupName -Name $_resourceName"
-                    }
-                    "DataFactory" {
-                        $_resourceName = $_resource.resourceName
-                        $_resourceObject = Get-AzDataFactory -ResourceGroupName $ResourceGroupName -Name $_resourceName -ErrorAction SilentlyContinue
-                        if (!$_resourceObject) {
-                            $_resourceObject = Get-AzDataFactoryV2 -ResourceGroupName $ResourceGroupName -Name $_resourceName -ErrorAction SilentlyContinue
-                            if (!$_resourceObject) {
-                                throw "The resource type could not be found in the provider namespace 'Microsoft.DataFactory'"
-                            }
+
+                Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "    $_resourcePath" -ForegroundColor DarkGray
+
+                if ($Simple) {
+
+                    # sor some resources, we gotta get that object
+                    switch ($_resourceType) {
+                        {$_ -in ("NetworkInterface")} {
+                            $_resourceObject = Invoke-Expression "Get-Az$_resourceType -ResourceGroupName $ResourceGroupName -Name $_resourceName"
+                        }
+                        "NetworkInterface" {
+                            $_resourceParentSplit = $_resourceObject.VirtualMachine.Id -split "/"
+                            $_resourceParentType = $global:ResourceTypeAlias.("$($_resourceParentSplit[-3])/$($_resourceParentSplit[-2])")
+                            $_resourceParent = $_resourceParentSplit[-1]
+                            $_resourcePath = "/$ResourceGroupName/$_resourceParentType/$_resourceParent/$_resourceType/$_resourceName"
                         }
                     }
-                    "NetworkInterface" {
-                        $_resourceParent = ($_resourceObject.VirtualMachine.Id -split "/")[-1]
+
+                    $_resources += [PSCustomObject]@{
+                        resourceType = $_resourceType
+                        resourceName = $_resourceName
+                        resourcePath = $_resourcePath
                     }
-                    "StorageAccount" {
-                        $_storageAccountContext = New-AzStorageContext -StorageAccountName $_resource.resourceName -UseConnectedAccount
-                        $_storageContainers = Get-AzStorageContainer -Context $_storageAccountContext
-                        foreach ($_storageContainer in $_storageContainers) {
-                            # if (($_storageContainer.Name -split "-")[0] -notin ("bootdiagnostics","insights")) {
-                                $_resourceChildren += [PSCustomObject]@{
+
+                }
+                else {
+
+                    $_resourceObject = $null
+                    $_resourceParent = $null
+        
+                    # get add'l resource attributes
+                    switch ($_resourceType) {
+                        {$_ -notin ("DataFactory","VmExtension")} {
+                            $_resourceObject = Invoke-Expression "Get-Az$_resourceType -ResourceGroupName $ResourceGroupName -Name $_resourceName"
+                        }
+                        "DataFactory" {
+                            $_resourceObject = Get-AzDataFactory -ResourceGroupName $ResourceGroupName -Name $_resourceName -ErrorAction SilentlyContinue
+                            if (!$_resourceObject) {
+                                $_resourceObject = Get-AzDataFactoryV2 -ResourceGroupName $ResourceGroupName -Name $_resourceName -ErrorAction SilentlyContinue
+                                if (!$_resourceObject) {
+                                    throw "The resource type could not be found in the provider namespace 'Microsoft.DataFactory'"
+                                }
+                            }
+                        }
+                        "VmExtension" {
+                            $_resourceNameSplit = $_resource.resourceName -split "\/"
+                            $_resourceName = $_resourceNameSplit[1]
+                            $_resourceParent = $_resourceNameSplit[0]
+                            $_resourceObject = Invoke-Expression "Get-Az$_resourceType -ResourceGroupName $ResourceGroupName -VmName $_resourceParent -Name $_resourceName"
+                        }
+                        "NetworkInterface" {
+                            $_resourceParent = ($_resourceObject.VirtualMachine.Id -split "/")[-1]
+                        }
+                    }
+            
+                    $_resources += [PSCustomObject]@{
+                        resourceType = $_resourceType
+                        resourceName = $_resourceName
+                        resourcePath = $_resourcePath
+                        resourceId = $_resourceName
+                        resourceScope = Get-AzResourceScope -ResourceType $_resourceType -ResourceName $_resourceName
+                        resourceObject = $_resourceObject
+                        resourceContext = $null
+                        resourceParent = $_resourceParent
+                        # resourceUnmanaged = $false
+                    }
+
+                    # get child objects
+                    switch ($_resourceType) {
+                        "StorageAccount" {
+                            $_storageAccountContext = New-AzStorageContext -StorageAccountName $_resource.resourceName -UseConnectedAccount
+                            $_storageContainers = Get-AzStorageContainer -Context $_storageAccountContext
+                            foreach ($_storageContainer in $_storageContainers) {
+
+                                $_resourcePath = "/$ResourceGroupName/$_resourceName/$($_storageContainer.Name)"
+                                Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "    $_resourcePath" -ForegroundColor DarkGray
+
+                                $_resources += [PSCustomObject]@{
                                     resourceType = "StorageContainer"
                                     resourceName = $_storageContainer.Name
                                     resourceId = $_storageContainer.Name
                                     resourceScope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($_resourceName)/blobServices/default/containers/$($_storageContainer.Name)"
-                                    resourcePath = "/$ResourceGroupName/$_resourceName/$($_storageContainer.Name)"
+                                    resourcePath = $_resourcePath
                                     resourceObject = $_storageContainer
                                     resourceContext = $_storageAccountContext
                                     resourceParent = $_resourceName
-                                    resourceUnmanaged = $false
+                                    # resourceUnmanaged = $false
                                 }
-                            # }
+
+                            }
                         }
                     }
                 }
-
-                $_resourcePath = "/$ResourceGroupName/$(![string]::IsNullOrEmpty($_resourceParent) ? "$($_resourceParent)/" : $null)$($_resourceName)"
-                Write-Host+ -NoTrace "    $_resourcePath" -ForegroundColor DarkGray
-
-                foreach ($_resourceChild in $_resourceChildren) {
-                    Write-Host+ -NoTrace "    $($_resourceChild.resourcePath)" -ForegroundColor DarkGray
-                }
-    
-                $_resources += [PSCustomObject]@{
-                    resourceType = $_resourceType
-                    resourceName = $_resourceName
-                    resourceId = $_resourceName
-                    resourceScope = Get-AzResourceScope -ResourceType $_resourceType -ResourceName $_resourceName
-                    resourcePath = $_resourcePath
-                    resourceObject = $_resourceObject
-                    resourceContext = $null
-                    resourceParent = $_resourceParent
-                    resourceUnmanaged = $false
-                }
-                $_resources += $_resourceChildren
-    
             }
         }
 
@@ -652,12 +699,6 @@ function global:Initialize-AzProject {
         $ProjectName = Request-AzProjectVariable -Name "ProjectName" -Lowercase
     }
 
-    $script:UserImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-users-import.csv"
-    $script:GroupImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-groups-import.csv"
-    $script:ResourceImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-resources-import.csv"
-    $script:SecurityImportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-import.csv"
-    $script:SecurityExportFile = "$($global:AzureProject.Location.Data)\$ProjectName-security-export.csv"
-
     # resource group name
     $resourceGroupName = "$($GroupName)-$($ProjectName)-rg".ToLower()   
 
@@ -666,13 +707,13 @@ function global:Initialize-AzProject {
     }
 
     # add new group to Azure
-    if (!$global:Azure.Group.$groupName) {
+    if (!$global:Azure.Group.$GroupName) {
         $global:Azure.Group += @{
-            $groupName = @{
-                Name = $groupName
+            $GroupName = @{
+                Name = $GroupName
                 DisplayName = $GroupName
                 Location = @{
-                    Data = "$($global:Azure.Location.Data)\$groupName"
+                    Data = "$($global:Azure.Location.Data)\$GroupName"
                 }
                 Project = @{}
             }
@@ -680,62 +721,70 @@ function global:Initialize-AzProject {
     }
 
     # create group directory
-    if (!(Test-Path -Path $global:Azure.Group.$groupName.Location.Data)) {
-        New-Item -Path $global:Azure.Location.Data -Name $groupName -ItemType "directory" | Out-Null
+    if (!(Test-Path -Path $global:Azure.Group.$GroupName.Location.Data)) {
+        New-Item -Path $global:Azure.Location.Data -Name $GroupName -ItemType "directory" | Out-Null
     }
 
-    if ($global:Azure.Group.$groupName.Project.$projectName.Initialized) {
-        Write-Host+ -NoTrace "WARN: Project `"$projectName`" has already been initialized." -ForegroundColor DarkYellow
+    if ($global:Azure.Group.$GroupName.Project.$ProjectName.Initialized) {
+        Write-Host+ -NoTrace "WARN: Project `"$ProjectName`" has already been initialized." -ForegroundColor DarkYellow
         if (!($Reinitialize.IsPresent)) {
-            Write-Host+ -NoTrace "INFO: To reinitialize project `"$projectName`", add the -Reinitialize switch."
+            Write-Host+ -NoTrace "INFO: To reinitialize project `"$ProjectName`", add the -Reinitialize switch."
             return
         }
-        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "WARN: Reinitializing project `"$projectName`"." -ForegroundColor DarkYellow
+        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "WARN: Reinitializing project `"$ProjectName`"." -ForegroundColor DarkYellow
     }
 
     # Connect-AzAccount+
     # if the project's ConnectedAccount contains an AzureProfile, save it for reuse
     # otherwise, connect with Connect-AzAccount+ which returns an AzureProfile
-    if ($global:Azure.Group.$groupName.Project.$projectName.ConnectedAccount) {
-        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "INFO: Reusing ConnectedAccount from project `"$projectName`"`."
-        $_connectedAccount = $global:Azure.Group.$groupName.Project.$projectName.ConnectedAccount
+    if ($global:Azure.Group.$GroupName.Project.$ProjectName.ConnectedAccount) {
+        Write-Host+ -Iff $($Reinitialize.IsPresent) -NoTrace "INFO: Reusing ConnectedAccount from project `"$ProjectName`"`."
+        $_connectedAccount = $global:Azure.Group.$GroupName.Project.$ProjectName.ConnectedAccount
     }
     else {
         $_connectedAccount = Connect-AzAccount+ -Tenant $tenantKey
     }
 
     # reinitializing the project, so remove the project from $global:Azure
-    if ($global:Azure.Group.$groupName.Project.$projectName) {
-        $global:Azure.Group.$groupName.Project.Remove($projectName)
+    if ($global:Azure.Group.$GroupName.Project.$ProjectName) {
+        $global:Azure.Group.$GroupName.Project.Remove($ProjectName)
     }
 
     # clear the global scope variable AzureProject as it points to the last initialized project
     Remove-Variable AzureProject -Scope Global -ErrorAction SilentlyContinue 
 
     #add new project to Azure
-    $global:Azure.Group.$groupName.Project += @{
-        $projectName = @{
-            Name = $projectName
+    $global:Azure.Group.$GroupName.Project += @{
+        $ProjectName = @{
+            Name = $ProjectName
             DisplayName = $ProjectName
-            GroupName = $groupName
+            GroupName = $GroupName
             Location = @{
-                Data = "$($global:Azure.Group.$groupName.Location.Data)\$projectName"
-                Credentials = "$($global:Azure.Group.$groupName.Location.Data)\$projectName"
+                Data = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName"
+                Credentials = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName"
             }
             Initialized = $false
             Tenant = $Tenant
+            Files = @{
+                IniFile = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName\$ProjectName.ini"
+                UserImportFile = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName\$ProjectName-users-import.csv"
+                GroupImportFile = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName\$ProjectName-groups-import.csv"
+                ResourceImportFile = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName\$ProjectName-resources-import.csv"
+                SecurityImportFile = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName\$ProjectName-security-import.csv"
+                SecurityExportFile = "$($global:Azure.Group.$GroupName.Location.Data)\$ProjectName\$ProjectName-security-export.csv"
+            }
         }
     }
     
     #create project directory 
-    if (!(Test-Path -Path $global:Azure.Group.$groupName.Project.$projectName.Location.Data)) {
-        New-Item -Path $global:Azure.Group.$groupName.Location.Data -Name $projectName -ItemType "directory" | Out-Null
+    if (!(Test-Path -Path $global:Azure.Group.$GroupName.Project.$ProjectName.Location.Data)) {
+        New-Item -Path $global:Azure.Group.$GroupName.Location.Data -Name $ProjectName -ItemType "directory" | Out-Null
     }
 
     # copy resource file templates to new directory if files don't already exist
     New-AzProjectFiles -Project $ProjectName
 
-    $script:AzureProjectIniFile = "$($global:Azure.Group.$GroupName.Project.$ProjectName.Location.Data)\$ProjectName.ini"
+    $script:AzureProjectIniFile = $global:Azure.Group.$GroupName.Project.$ProjectName.Files.IniFile
     if (!(Test-Path $script:AzureProjectIniFile)) {
         New-Item -Path $script:AzureProjectIniFile -ItemType File | Out-Null
     }
@@ -781,10 +830,9 @@ function global:Initialize-AzProject {
     }
     Write-AzProjectVariable -Name ResourceLocation -Value $ResourceLocation 
 
-    $global:Azure.Group.$groupName.Project.$projectName += @{
+    $global:Azure.Group.$GroupName.Project.$ProjectName += @{
         ConnectedAccount = $_connectedAccount
         DeploymentType = $null
-        IniFile = $script:AzureProjectIniFile
         Invitation = @{
             Message = "You have been invited by $($global:Azure.$tenantKey.DisplayName) to collaborate on project $projectNameUpperCase."
         }
@@ -807,11 +855,11 @@ function global:Initialize-AzProject {
             }
         }
     }
-    $global:Azure.Group.$groupName.Project.$projectName += @{
-        ScopeBase = "$($global:Azure.Group.$groupName.Project.$projectName.ResourceType.ResourceGroup.Scope)/providers"
+    $global:Azure.Group.$GroupName.Project.$ProjectName += @{
+        ScopeBase = "$($global:Azure.Group.$GroupName.Project.$ProjectName.ResourceType.ResourceGroup.Scope)/providers"
     }
 
-    $global:AzureProject = $global:Azure.Group.$groupName.Project.$projectName
+    $global:AzureProject = $global:Azure.Group.$GroupName.Project.$ProjectName
 
     $deploymentTypeDefault = Read-AzProjectVariable -Name DeploymentType
     if ([string]::IsNullOrEmpty($DeploymentType) -and ![string]::IsNullOrEmpty($deploymentTypeDefault)) {
@@ -903,53 +951,53 @@ function global:Grant-AzProjectRole {
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
 
-        if (!(Test-Path $script:UserImportFile)) {
-            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $script:UserImportFile -Leaf) not found." -ForegroundColor DarkRed
+        if (!(Test-Path $global:AzureProject.Files.UserImportFile)) {
+            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $global:AzureProject.Files.UserImportFile -Leaf) not found." -ForegroundColor DarkRed
             Write-Host+
             return
         }
 
-        if (!(Test-Path $script:GroupImportFile)) {
-            $groupsInUse = Select-String -Path $script:SecurityImportFile -Pattern "Group" -Quiet
+        if (!(Test-Path $global:AzureProject.Files.GroupImportFile)) {
+            $groupsInUse = Select-String -Path $global:AzureProject.Files.SecurityImportFile -Pattern "Group" -Quiet
             # $groupsInUse = Select-String -Path $RoleAssignmentImportFile -Pattern "Group" -Quiet
             if ($groupsInUse) {
-                Write-Host+ -NoTrace "    ($groupsInUse ? 'ERROR' : 'WARNING'): $(Split-Path -Path $script:GroupImportFile -Leaf) not found." -ForegroundColor ($groupsInUse ? "DarkRed" : "DarkYellow")
+                Write-Host+ -NoTrace "    ($groupsInUse ? 'ERROR' : 'WARNING'): $(Split-Path -Path $global:AzureProject.Files.GroupImportFile -Leaf) not found." -ForegroundColor ($groupsInUse ? "DarkRed" : "DarkYellow")
                 Write-Host+
                 return
             }
         }
 
-        if (!(Test-Path $script:ResourceImportFile)) {
-            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $script:ResourceImportFile -Leaf) not found." -ForegroundColor DarkRed
+        if (!(Test-Path $global:AzureProject.Files.ResourceImportFile)) {
+            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf) not found." -ForegroundColor DarkRed
             Write-Host+
             return
         }
 
-        if (!(Test-Path $script:SecurityImportFile)) {
-            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $script:SecurityImportFile -Leaf) not found." -ForegroundColor DarkRed
+        if (!(Test-Path $global:AzureProject.Files.SecurityImportFile)) {
+            Write-Host+ -NoTrace "    ERROR: $(Split-Path -Path $global:AzureProject.Files.SecurityImportFile -Leaf) not found." -ForegroundColor DarkRed
             Write-Host+
             return
         }
 
         #region USER IMPORT
 
-            Write-Host+ -NoTrace -NoSeparator "    $script:UserImportFile" -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoSeparator "    $($global:AzureProject.Files.UserImportFile)" -ForegroundColor DarkGray
             $users = @()
-            $users += Import-AzProjectFile $script:UserImportFile | Sort-Object -Property * -Unique
+            $users += Import-AzProjectFile $global:AzureProject.Files.UserImportFile | Sort-Object -Property * -Unique
             # if ($User) { $users = $users | Where-Object {$_.signInName -eq $User} }
 
         #endregion USER IMPORT
         #region GROUP IMPORT
 
-            Write-Host+ -NoTrace -NoSeparator "    $script:GroupImportFile" -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoSeparator "    $($global:AzureProject.Files.GroupImportFile)" -ForegroundColor DarkGray
             $groups = @()
-            $groups += Import-AzProjectFile $script:GroupImportFile | Sort-Object -Property * -Unique
+            $groups += Import-AzProjectFile $global:AzureProject.Files.GroupImportFile | Sort-Object -Property * -Unique
             # if ($User) { $groups = $groups | Where-Object {$_.user -eq $User} } 
 
         #endregion GROUP IMPORT
         #region RESOURCE IMPORT
 
-            Write-Host+ -NoTrace -NoSeparator "    $script:ResourceImportFile" -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoSeparator "    $($global:AzureProject.Files.ResourceImportFile)" -ForegroundColor DarkGray
             $resources = @()
             $resources += [PSCustomObject]@{
                 resourceType = "ResourceGroup"
@@ -960,22 +1008,22 @@ function global:Grant-AzProjectRole {
                 resourceObject = Get-AzResourceGroup -ResourceGroupName $ResourceGroupName
                 resourceContext = $null
                 resourceParent = $null
-                resourceUnmanaged = $false
+                # resourceUnmanaged = $false
             }
-            $resources += Import-AzProjectFile -Path $script:ResourceImportFile | 
+            $resources += Import-AzProjectFile -Path $global:AzureProject.Files.ResourceImportFile | 
                 Select-Object -Property resourceType, resourceName, resourceId, 
                     @{Name="resourceScope"; Expression={$null}}, 
                     @{Name="resourcePath"; Expression={"/$resourceGroupName/$(![string]::IsNullOrEmpty($_.resourceParent) ? "$($_.resourceParent)/" : $null)$($_.resourceId)"}}, 
                     @{Name="resourceObject"; Expression={$null}}, 
                     @{Name="resourceContext"; Expression={$null}}, 
-                    resourceParent,
-                    @{Name="resourceUnmanaged"; Expression={$false}} | 
+                    resourceParent <# , 
+                    @{Name="resourceUnmanaged"; Expression={$false}} #> | 
                 Sort-Object -Property * -Unique |
                 Sort-Object -Property resourcePath
 
             $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
             if ($duplicateResourceIds) {
-                $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $script:ResourceImportFile -Leaf)."
+                $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)."
                 Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
                 foreach ($duplicateResourceId in $duplicateResourceIds) {
                     Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Resource id '$($duplicateResourceId.resourceId)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
@@ -986,11 +1034,11 @@ function global:Grant-AzProjectRole {
 
             $invalidParentIds = $resources.resourceParent | Where-Object {![string]::IsNullOrEmpty($_) -and $_ -notin $resources.resourceId} | Sort-Object -Unique
             if ($invalidParentIds) {
-                $errorMessage = "ERROR: Invalid parent id[s] found in $(Split-Path -Path $script:ResourceImportFile -Leaf)"
+                $errorMessage = "ERROR: Invalid parent id[s] found in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)"
                 Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
                 foreach ($invalidParentId in $invalidParentIds) {
                     foreach ($resource in $resources | Where-Object {$_.resourceParent -eq $invalidParentId}) {
-                        $contentRow = Get-Content -Path $script:ResourceImportFile | Where-Object {$_ -like  "*$invalidParentId*"}
+                        $contentRow = Get-Content -Path $global:AzureProject.Files.ResourceImportFile | Where-Object {$_ -like  "*$invalidParentId*"}
                         $contentRowColumns = $contentRow -split ","
                         $contentRowPart1 = $contentRowColumns[0..-1] | Join-String -Separator ","
                         $contentRowPart2 = $contentRowColumns[-1]
@@ -1005,15 +1053,15 @@ function global:Grant-AzProjectRole {
         #endregion RESOURCE IMPORT
         #region SECURITY ASSIGNMENTS IMPORT
 
-            Write-Host+ -NoTrace -NoSeparator "    $script:SecurityImportFile" -ForegroundColor DarkGray
-            $securityAssignmentsFromFile = Import-AzProjectFile -Path $script:SecurityImportFile | Sort-Object -Property * -Unique
+            Write-Host+ -NoTrace -NoSeparator "    $($global:AzureProject.Files.SecurityImportFile)" -ForegroundColor DarkGray
+            $securityAssignmentsFromFile = Import-AzProjectFile -Path $global:AzureProject.Files.SecurityImportFile | Sort-Object -Property * -Unique
 
             $resourceDifferences = Compare-Object -ReferenceObject ($securityAssignmentsFromFile | Select-Object -Property resourceType, resourceId | Sort-Object -Property resourceType, resourceId -Unique) `
-                -DifferenceObject ($resources | Where-Object {!$_.resourceUnmanaged} | Select-Object -Property resourceType, resourceId | Sort-Object -Property resourceType, resourceId -Unique) -property resourceType, resourceId
+                -DifferenceObject ($resources | <# Where-Object {!$_.resourceUnmanaged} | #> Select-Object -Property resourceType, resourceId | Sort-Object -Property resourceType, resourceId -Unique) -property resourceType, resourceId
             
             $undefinedResources = $resourceDifferences | Where-Object {$_.SideIndicator -eq "<="}
             if ($undefinedResources) {
-                $errorMessage = "<    ERROR: < >0> Undefined resource[s] in $(Split-Path -Path $script:SecurityImportFile -Leaf)"
+                $errorMessage = "<    ERROR: < >0> Undefined resource[s] in $(Split-Path -Path $global:AzureProject.Files.SecurityImportFile -Leaf)"
                 Write-Host+ -NoTrace -Parse $errorMessage -ForegroundColor Red, DarkRed
                 $errorMessageLength = ([regex]::Match($errorMessage,"^<\s*(.*)<.*>\d+>\s*(.*)$").Groups[1..2].Value | Join-String).Length
                 Write-Host+ -NoTrace "    $($emptyString.PadLeft($errorMessageLength,"-"))" -ForegroundColor DarkGray
@@ -1023,7 +1071,7 @@ function global:Grant-AzProjectRole {
                     $undefinedResourceType = $undefinedResource.resourceType | Where-Object { $_ -notin $resources.resourceType }
                     $undefinedResourceId = $undefinedResource.resourceId | Where-Object { $_ -notin $resources.resourceId }
                     foreach ($securityAssignment in $securityAssignmentsFromFile | Where-Object { $_.resourceType -eq $undefinedResource.resourceType -and $_.resourceId -eq $undefinedResource.resourceId }) {
-                        $contentRow = Get-Content -Path $script:SecurityImportFile | Where-Object {$_ -match  "`"$($undefinedResource.resourceType)`"\s*,\s*`"$($undefinedResource.resourceId)`""}
+                        $contentRow = Get-Content -Path $global:AzureProject.Files.SecurityImportFile | Where-Object {$_ -match  "`"$($undefinedResource.resourceType)`"\s*,\s*`"$($undefinedResource.resourceId)`""}
                         $contentRowColumns = $contentRow -split "\s*,\s*"
                         Write-Host+ -NoTrace -NoNewLine "    "
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[0])",", " -ForegroundColor ($hasUndefinedResourceType ? "DarkRed" : "DarkGray"), DarkGray
@@ -1040,7 +1088,7 @@ function global:Grant-AzProjectRole {
 
             $unassignedResources = $resourceDifferences | Where-Object {$_.SideIndicator -eq "=>"} | Where-Object {$_.resourceType -notin $resourcesWithSpecialHandling}
             if ($unassignedResources) {
-                $errorMessage = "<    WARNING: < >0> Unassigned resource[s] in $(Split-Path -Path $script:ResourceImportfile -Leaf)"
+                $errorMessage = "<    WARNING: < >0> Unassigned resource[s] in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)"
                 Write-Host+ -NoTrace -Parse $errorMessage -ForegroundColor Yellow, DarkYellow
                 $errorMessageLength = ([regex]::Match($errorMessage,"^<\s*(.*)<.*>\d+>\s*(.*)$").Groups[1..2].Value | Join-String).Length
                 Write-Host+ -NoTrace "    $($emptyString.PadLeft($errorMessageLength,"-"))" -ForegroundColor DarkGray
@@ -1050,7 +1098,7 @@ function global:Grant-AzProjectRole {
                     $unassignedResourceType = $unassignedResource.resourceType | Where-Object { $_ -notin $securityAssignmentsFromFile.resourceType }
                     $unassignedResourceId = $unassignedResource.resourceId | Where-Object { $_ -notin $securityAssignmentsFromFile.resourceId }
                     foreach ($resource in $resources | Where-Object { $_.resourceType -eq $unassignedResource.resourceType -and $_.resourceId -eq $unassignedResource.resourceId }) {
-                        $contentRow = Get-Content -Path $script:ResourceImportfile | Where-Object {$_ -match  "`"$($unassignedResource.resourceType)`"\s*,\s*`"$($unassignedResource.resourceId)`""}
+                        $contentRow = Get-Content -Path $global:AzureProject.Files.ResourceImportFile | Where-Object {$_ -match  "`"$($unassignedResource.resourceType)`"\s*,\s*`"$($unassignedResource.resourceId)`""}
                         $contentRowColumns = $contentRow -split "\s*,\s*"
                         Write-Host+ -NoTrace -NoNewLine "    "
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[0])",", " -ForegroundColor ($hasunassignedResourceType ? "DarkYellow" : "DarkGray"), DarkGray
@@ -1068,20 +1116,26 @@ function global:Grant-AzProjectRole {
             $invalidAssignees += ($securityAssignmentsFromFile | Where-Object {$_.assigneeType -eq "SystemAssignedIdentity" -and $_.assignee -notin $resources.resourceId}).assignee | Sort-Object -Unique
             $invalidAssignees += ($securityAssignmentsFromFile | Where-Object {$_.assigneeType -eq "User" -and $_.assignee -notin $users.signInName}).assignee | Sort-Object -Unique
             if ($invalidAssignees) {
-                $errorMessage = "<    ERROR: < >0> Invalid assignee[s] in $(Split-Path -Path $script:SecurityImportFile -Leaf)"
+                Write-Host+
+                $errorMessage = "<    ERROR: < >0> Invalid assignee[s] in $(Split-Path -Path $global:AzureProject.Files.SecurityImportFile -Leaf)"
                 Write-Host+ -NoTrace -Parse $errorMessage -ForegroundColor Red, DarkRed
                 $errorMessageLength = ([regex]::Match($errorMessage,"^<\s*(.*)<.*>\d+>\s*(.*)$").Groups[1..2].Value | Join-String).Length
                 Write-Host+ -NoTrace "    $($emptyString.PadLeft($errorMessageLength,"-"))" -ForegroundColor DarkGray
                 foreach ($invalidAssignee in $invalidAssignees) {
-                    foreach ($securityAssignment in $securityAssignmentsFromFile | Where-Object {$_.assignee -eq $invalidAssignee}) {
-                        $contentRow = Get-Content -Path $script:SecurityImportFile | Where-Object {$_ -like  "*$invalidAssignee*"}
-                        $contentRowColumns = $contentRow -split ","
-                        $contentRowPart1 = $contentRowColumns[0..-1] | Join-String -Separator ","
-                        $contentRowPart2 = $contentRowColumns[-1]
-                        Write-Host+ -NoTrace -NoSeparator "    $contentRowPart1,", $contentRowPart2 -ForegroundColor DarkGray, DarkRed
-                        Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Assignee '$invalidAssignee' is invalid." -ForegroundColor DarkGray
+                    # foreach ($securityAssignment in ($securityAssignmentsFromFile | Where-Object {$_.assignee -eq $invalidAssignee}) {
+                        $contentRows = Get-Content -Path $global:AzureProject.Files.SecurityImportFile | Where-Object {$_ -like  "*$invalidAssignee*"}
+                        foreach ($contentRow in $contentRows) {
+                            # some fields are comma-separated, so replace unquoted commas with the pipe for splitting
+                            $contentRowColumns = $($contentRow -replace "`",`"","`"|`"") -split "\|"
+                            $invalidAssigneeIndexOf = [array]::IndexOf($contentRowColumns,"`"$invalidAssignee`"")
+                            $contentRowPart1 = $contentRowColumns[0..($invalidAssigneeIndexOf-1)] | Join-String -Separator ","
+                            $contentRowPart2 = $contentRowColumns[$invalidAssigneeIndexOf]
+                            $contentRowPart3 = $contentRowColumns[($invalidAssigneeIndexOf+1)..($contentRowColumns.Count-1)] | Join-String -Separator ","
+                            Write-Host+ -NoTrace -NoSeparator "    $contentRowPart1,", $contentRowPart2, ",", $contentRowPart3 -ForegroundColor DarkGray, DarkRed, DarkGray, DarkGray
+                        }
+                        # Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Assignee '$invalidAssignee' is invalid." -ForegroundColor DarkGray
                         Write-Host+
-                    }
+                    # }
                 }
                 return
             }
@@ -1119,34 +1173,16 @@ function global:Grant-AzProjectRole {
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
 
     #endregion DATAFILES
-    #region DEPLOYED RESOURCES
-
-        Write-Host+
-        $message = "<  Deployed resources <.>60> PENDING"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-        Write-Host+
-
-        $deployedResources = Get-AzDeployedResources -ResourceGroupName $resourceGroupName
-        $resourceDifferences = Compare-Object $resources $deployedResources -Property resourceType, resourceName -PassThru 
-        $unmanagedResources = $resourceDifferences | Where-Object {$_.SideIndicator -eq "=>"}
-        if ($unmanagedResources) {
-            foreach ($unmanagedResource in ($unmanagedResources | Where-Object {$_.SideIndicator -contains "=>"})) {
-                $unmanagedResource.resourceUnmanaged = $true
-                $resources += $unmanagedResource | Select-Object -ExcludeProperty SideIndicator
-            }
-        }    
-        
-        Write-Host+
-        $message = "<  Deployed resources <.>60> SUCCESS"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-
-    #endregion DEPLOYED RESOURCES
     #region VERIFY RESOURCES
 
         Write-Host+
         $message = "<  Resource verification <.>60> PENDING"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Write-Host+
+
+        $message = "Managed Resources"
+        Write-Host+ -NoTrace "    $message" -ForegroundColor DarkGray
+        Write-Host+ -NoTrace "    $($emptyString.PadLeft($message.Length,"-"))" -ForegroundColor DarkGray
 
         $hasResourceErrors = $false
 
@@ -1156,8 +1192,8 @@ function global:Grant-AzProjectRole {
             $resourceName = ![string]::IsNullOrEmpty($resource.resourceName) ? $resource.resourceName : $global:AzureProject.ResourceType.$resourceType.Name
             $resourcePath = $resourceGroupName -eq $resourceName ? "/$resourceGroupName" : "/$resourceGroupName/$resourceType/$resourceName"
 
-            Write-Host+ -NoTrace -NoNewLine "    $($resourcePath)" -ForegroundColor DarkGray
-            Write-Host+ -Iff $($resource.resourceUnmanaged) -NoTrace -NoTimestamp -NoNewLine " (Unmanaged)" -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace -NoNewLine "    $($resourceType)/$($resourceName)" -ForegroundColor DarkGray
+            # Write-Host+ -Iff $($resource.resourceUnmanaged) -NoTrace -NoTimestamp -NoNewLine " (Unmanaged)" -ForegroundColor DarkYellow
 
             # if the resource already has a resourceObject, 
             # it's already been updated, so skip it (b/c we don't want to overwrite it)
@@ -1323,6 +1359,23 @@ function global:Grant-AzProjectRole {
                 Write-Host+ -NoTrace "    $($duplicateResourceName.resourceScope)" -ForegroundColor DarkGray
             }
         }
+
+        #region UNMANAGED RESOURCES
+
+            $deployedResources = Get-AzDeployedResources -ResourceGroupName $resourceGroupName -Simple -Quiet
+            $resourceDifferences = Compare-Object $resources $deployedResources -Property resourceType, resourceName, resourcePath -PassThru 
+            $unmanagedResources = $resourceDifferences | Where-Object {$_.SideIndicator -eq "=>"} 
+            if ($unmanagedResources) {
+                Write-Host+
+                $message = "Unmanaged Resources"
+                Write-Host+ -NoTrace "    $message" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace "    $($emptyString.PadLeft($message.Length,"-"))" -ForegroundColor DarkGray
+                foreach ($unmanagedResource in $unmanagedResources) {
+                    Write-Host+ -NoTrace "    $($unmanagedResource.resourceType)/$($unmanagedResource.resourceName)" -ForegroundColor DarkGray
+                }
+            }
+
+        #endregion UNMANAGED RESOURCES        
 
         Write-Host+
         $message = "<  Resource verification <.>60> $(!$hasResourceErrors ? "SUCCESS" : "FAIL")"
@@ -1758,7 +1811,7 @@ function global:Grant-AzProjectRole {
             # export $roleAssignments
             if (!$User) {
                 $roleAssignments | 
-                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
+                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values -and $_.authorized} |
                     Select-Object -Property resourceType,resourceId,resourceName,
                         @{Name="securityType";Expression={"RoleAssignment"}},
                         @{Name="securityKey";Expression={$_.role}},
@@ -1767,7 +1820,7 @@ function global:Grant-AzProjectRole {
                         @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}},
                         @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
                     Sort-Object -Property assigneeType, assignee, resourceType, resourceId -Unique |
-                        Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation 
+                        Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation 
             }
 
         #endregion GET ROLE ASSIGNMENTS
@@ -1873,7 +1926,7 @@ function global:Grant-AzProjectRole {
             # export $accessPolicies
             if (!$User) {
                 $accessPolicyAssignments | 
-                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
+                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values -and $_.authorized} |
                     Select-Object -Property resourceType,resourceId,resourceName,
                         @{Name="securityType";Expression={"AccessPolicy"}},
                         @{Name="securityKey";Expression={$_.accessPolicy.Keys[0]}},
@@ -1882,7 +1935,7 @@ function global:Grant-AzProjectRole {
                         @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}},
                         @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
                     Sort-Object -Property * -Unique | Sort-Object -Property assigneeType, assignee, resourceType, resourceId |
-                Export-Csv -Path $SecurityExportFile -UseQuotes Always -NoTypeInformation -Append
+                Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation -Append
             }   
 
         #endregion GET ACCESS POLICIES
@@ -2326,15 +2379,13 @@ function global:Deploy-AzProjectWithOverwatch {
     #endregion RESOURCE GROUP
     #region RESOURCE IMPORT
 
-        # Write-Host+ -NoTrace -NoSeparator "    $script:ResourceImportFile" -ForegroundColor DarkGray
-        # $resources = @(); $resources += [PSCustomObject]@{resourceType = "ResourceGroup"; resourceName = $resourceGroupName; resourceId = "ResourceGroup-$resourceGroupName"; resourceScope = $global:AzureProject.ResourceType.ResourceGroup.Scope; resourceObject = $null; resourcePath = $null}
-        $resources += Import-AzProjectFile -Path $script:ResourceImportFile | 
+        $resources += Import-AzProjectFile -Path $global:AzureProject.Files.ResourceImportFile | 
             Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent
-                # Sort-Object -Property resourceType, resourceName, resourceId   
+ 
 
         $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
         if ($duplicateResourceIds) {
-            $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $script:ResourceImportFile -Leaf)."
+            $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)."
             Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
             foreach ($duplicateResourceId in $duplicateResourceIds) {
                 Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Resource id '$($duplicateResourceId.Name)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
