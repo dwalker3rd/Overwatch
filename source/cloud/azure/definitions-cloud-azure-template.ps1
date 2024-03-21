@@ -77,6 +77,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
         "NetworkInterface" = "Microsoft.Network/networkInterfaces"
         "NetworkSecurityGroup" = "Microsoft.Network/networkSecurityGroups"
         "PublicIpAddress" = "Microsoft.Network/publicIPAddresses"
+        "ResourceGroup" = "Microsoft.Resources/subscriptions/resourceGroups"
         "SqlVM" = "Microsoft.SqlVirtualMachine/SqlVirtualMachines"
         "StorageAccount" = "Microsoft.Storage/storageAccounts"
         "StorageContainer" = "Microsoft.Storage/storageAccounts/(.*)/blobServices/default/containers"
@@ -105,7 +106,8 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
         "Microsoft.SqlVirtualMachine/SqlVirtualMachines" = "SqlVM"
         "Microsoft.Storage/storageAccounts" = "StorageAccount"
         "Microsoft.Storage/storageAccounts/(.*)/blobServices/default/containers" = "StorageContainer"
-    }     
+        "Microsoft.Resources/subscriptions/resourceGroups" = "ResourceGroup"
+    }    
 
     # resource location map
     $global:ResourceLocations = Get-AzLocation
@@ -114,6 +116,6 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
     $global:ResourceLocations | Where-Object {!$global:ResourceLocationMap.$($_.DisplayName)} | Foreach-Object {$global:ResourceLocationMap += @{"$($_.DisplayName)" = $_.Location}}
 
     # available providers
-    $script:ResourceProviders = Get-AzResourceProvider -ListAvailable
+    $global:ResourceProviders = Get-AzResourceProvider -ListAvailable
 
 #endregion GLOBAL DEFINITIONS

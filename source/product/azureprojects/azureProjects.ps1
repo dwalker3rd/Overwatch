@@ -908,16 +908,16 @@ function global:Grant-AzProjectRole {
 
     Write-Host+
 
-    $message = "<  Options < >40> Description"
+    $message = "<  Options < >35> Description"
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
-    $message = "<  ------- < >40> -----------"
+    $message = "<  ------- < >35> -----------"
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
 
-    $message = "<  -User <signInName|objectId> < >40> Processes only the specified user (object id, upn or email)."
+    $message = "<  -User <signInName|objectId> < >35> Processes only the specified user (object id, upn or email)."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
-    # $message = "<  -RemoveExpiredInvitations < >40> Removes accounts with invitations pending more than 30 days."
+    # $message = "<  -RemoveExpiredInvitations < >35> Removes accounts with invitations pending more than 30 days."
     # Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
-    $message = "<  -WhatIf < >40> Simulates operations to allow for testing (Grant-AzProjectRole only)."
+    $message = "<  -WhatIf < >35> Simulates operations to allow for testing (Grant-AzProjectRole only)."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     Write-Host+
 
@@ -1472,13 +1472,13 @@ function global:Grant-AzProjectRole {
                     }
                     catch {
                         $projectIdentities += [PSCustomObject]@{
-                            objectType = "Unknown"
+                            objectType = $User ? "User" : "Unknown"
                             objectId = $unauthorizedProjectRoleAssignment.objectId
                             id = $unauthorizedProjectRoleAssignment.objectId
                             displayName = $unauthorizedProjectRoleAssignment.objectId
                             authorized = $false
                             removeAllRoleAssignments = $true
-                            reason = "NOTFOUND"
+                            reason = $User ? $null : "NOTFOUND"
                             managed = $false
                             doNotModify = $false
                             adminRole = $null
@@ -1517,13 +1517,13 @@ function global:Grant-AzProjectRole {
                         }
                         catch {
                             $projectIdentities += [PSCustomObject]@{
-                                objectType = "Unknown"
+                                objectType = $User ? "User" : "Unknown"
                                 objectId = $resourceWithUnauthorizedAccessPolicy.objectId
                                 id = $resourceWithUnauthorizedAccessPolicy.objectId
                                 displayName = $resourceWithUnauthorizedAccessPolicy.objectId
                                 authorized = $false
                                 removeAllAccessPolicies = $true
-                                reason = "NOTFOUND"
+                                reason = $User ? $null : "NOTFOUND"
                                 managed = $false
                                 doNotModify = $false
                                 adminRole = $null
@@ -1562,48 +1562,60 @@ function global:Grant-AzProjectRole {
         
         #endregion UNAUTHORIZED PROJECT IDENTITIES
 
-        if ($User) {
-
-            $isObjectId = $User -match $global:RegexPattern.Guid
-            # Write-Host+ -Iff $($isObjectId) "$User is an object id"
-            # $isSignName = $User -match $global:RegexPattern.Mail -or $User -match $global:RegexPattern.UserName.AzureAD
-            # Write-Host+ -Iff $($isSignName) "$User is a signInName (email or upn)"
-
-            if ($isObjectId) {
-                $projectIdentities = $projectIdentities | Where-Object {$_.objectId -eq $User}
-            }
-            else {
-                $projectIdentities = $projectIdentities | Where-Object {$_.id -eq $User}
-            }
-
-            if ($projectIdentities.Count -ne 1) {
-                Write-Host+ -Iff $($projectIdentities.Count -eq 0) -NoTrace -NoSeparator  "      ERROR: User `"$User`" not found." -ForegroundColor DarkRed
-                Write-Host+ -Iff $($projectIdentities.Count -gt 1) -NoTrace -NoSeparator  "      ERROR: User `"$User`" found $($projectIdentities.Count) times." -ForegroundColor DarkRed
-                Write-Host+
-                return
-            }
-
-            $users = $users | Where-Object {$_.signInName -eq $User}
-            $groups = $groups | Where-Object {$_.user -eq $User} 
-            $securityAssignmentsFromFile = $securityAssignmentsFromFile | 
-                Where-Object {($_.assigneeType -in ("User","SystemAssignedIdentity") -and $_.assignee -eq $User) -or ($_.assigneeType -eq "Group" -and $_.assignee -in ($groups | Where-Object {$_.user -eq $User}).group)}
-
-        }
-
     #endregion PROJECT IDENTITIES    
     #region VERIFY USERS  
 
         if (<# !$User -and  #>($projectIdentities[0].objectType -eq "User")) {
 
+            $userVerificationWritten = $false
+
             Write-Host+
             $message = "<  User verification <.>60> PENDING"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray   
-            Write-Host+   
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray    
+
+            if ($User) {
+
+                $isObjectId = $User -match $global:RegexPattern.Guid
+                # Write-Host+ -Iff $($isObjectId) "$User is an object id"
+                # $isSignName = $User -match $global:RegexPattern.Mail -or $User -match $global:RegexPattern.UserName.AzureAD
+                # Write-Host+ -Iff $($isSignName) "$User is a signInName (email or upn)"
+    
+                if ($isObjectId) {
+                    $projectIdentities = $projectIdentities | Where-Object {$_.objectId -eq $User}
+                }
+                else {
+                    $projectIdentities = $projectIdentities | Where-Object {$_.id -eq $User}
+                }
+    
+                if ($projectIdentities.Count -ne 1) {
+
+                    Write-Host+  
+                    Write-Host+ -Iff $($projectIdentities.Count -eq 0) -NoTrace -NoSeparator  "    ERROR: User `"$User`" not found." -ForegroundColor DarkRed
+                    Write-Host+ -Iff $($projectIdentities.Count -gt 1) -NoTrace -NoSeparator  "    ERROR: User `"$User`" found $($projectIdentities.Count) times." -ForegroundColor DarkRed
+
+                    Write-Host+
+                    $message = "<  User verification <.>60> FAIL"
+                    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkRed
+                    Write-Host+  
+
+                    $userVerificationWritten = $true
+
+                    return
+
+                }
+    
+                $users = $users | Where-Object {$_.signInName -eq $User}
+                $groups = $groups | Where-Object {$_.user -eq $User} 
+                $securityAssignmentsFromFile = $securityAssignmentsFromFile | 
+                    Where-Object {($_.assigneeType -in ("User","SystemAssignedIdentity") -and $_.assignee -eq $User) -or ($_.assigneeType -eq "Group" -and $_.assignee -in ($groups | Where-Object {$_.user -eq $User}).group)}
+    
+            }            
 
             $members = @()
             $members += $projectIdentities | Where-Object {$_.objectType -eq "User" -and $_.object.userType -eq "Member"} 
             if ($members) {
 
+                Write-Host+
                 $message = "<    Member < >40> Status"
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
                 $message = "<    ------ < >40> ------"
@@ -1613,14 +1625,16 @@ function global:Grant-AzProjectRole {
                     $message = $member.authorized ? "<    $($member.id) < >40> Verified" : "<    $($member.id) < >40> *** $($member.reason) ***"
                     Write-Host+ -NoTrace -Parse $message -ForegroundColor ($member.authorized ? "DarkGray" : "DarkRed")
                 }
-                
-                Write-Host+
+
+                $userVerificationWritten = $true
 
             }
 
             $guests = @()
             $guests += $projectIdentities | Where-Object {$_.objectType -eq "User" -and $_.object.userType -ne "Member"} 
             if ($guests) {
+
+                Write-Host+  
 
                 $message = "<    Guest < >40> Status   Date"
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray
@@ -1644,7 +1658,8 @@ function global:Grant-AzProjectRole {
                         }
 
                         Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Invitation sent" -ForegroundColor DarkGreen
-                        Write-Host+ -Iff $($WhatIf) -NoTrace -NoTimestamp " (","WhatIf",")" -ForegroundColor Gray, DarkYellow, Gray
+                        Write-Host+ -Iff $($WhatIf) -NoTrace -NoTimestamp -NoNewLine " (","WhatIf",")" -ForegroundColor Gray, DarkYellow, Gray
+                        Write-Host+ # closes -NoNewLine
                     }
                     else {
                         $externalUserState = $guest.object.externalUserState -eq "PendingAcceptance" ? "Pending " : $guest.object.externalUserState
@@ -1663,17 +1678,22 @@ function global:Grant-AzProjectRole {
 
                         Write-Host+ -Iff $(!$guest.authorized) -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
                         Write-Host+ -Iff $(!$guest.managed -and ![string]::IsNullOrEmpty($guest.adminRole)) -NoTrace -NoTimeStamp -NoNewLine " *** $($guest.Reason) ***" -ForegroundColor DarkRed
-
-                        Write-Host+
+                        Write-Host+ # closes -NoNewLine
                     }
 
                 }
+
+                $userVerificationWritten = $true
+
             }
 
             # Write-Host+
             # $message = "    * Use -RemoveExpiredInvitiations to remove accounts with expired invitations"
             # Write-Host+ -NoTrace $message -ForegroundColor DarkGray
             
+            if (!$userVerificationWritten) {
+                Write-Host+ -ReverseLineFeed 3
+            }
             Write-Host+
             $message = "<  User verification <.>60> SUCCESS"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
@@ -1817,20 +1837,26 @@ function global:Grant-AzProjectRole {
             $uniqueResourcesFromSecurityAssignments = @()
             $uniqueResourcesFromSecurityAssignments += $roleAssignments | Select-Object -Property resourceId, resourceType, objectId<# , signInName #> | Sort-Object -Property * -Unique
 
-            # export $roleAssignments
-            if (!$User) {
-                $roleAssignments | 
-                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
+            # import previously exported security assignments to use with role and policy assignments below
+            $securityAssignmentsPreviouslyExported =  Import-AzProjectFile -Path $global:AzureProject.Files.SecurityExportFile
+
+            # export role assignments
+            $roleAssignmentsExport = @()
+            $roleAssignmentsExport += $roleAssignments | 
+                Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
                     Select-Object -Property resourceType,resourceId,resourceName,
                         @{Name="securityType";Expression={"RoleAssignment"}},
                         @{Name="securityKey";Expression={$_.role}},
                         @{Name="securityValue";Expression={"Grant"}},
                         @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
                         @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).id}},
-                        @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
-                    Sort-Object -Property assigneeType, assignee, resourceType, resourceId -Unique |
-                        Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation 
+                        @{Name="options";Expression={$_.options | Join-String -Separator ","}}
+            if ($User) {
+                $roleAssignmentsExport += $securityAssignmentsPreviouslyExported | Where-Object {$_.securityType -eq "RoleAssignment"}
             }
+            $roleAssignmentsExport | 
+                Sort-Object -Property * -Unique | Sort-Object -Property assigneeType, assignee, resourceType, resourceId |
+                    Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation 
 
         #endregion GET ROLE ASSIGNMENTS
         #region GET ACCESS POLICIES
@@ -1932,20 +1958,23 @@ function global:Grant-AzProjectRole {
             $accessPolicyAssignments = $accessPolicyAssignments | Sort-Object -Property resourcePath
             $uniqueResourcesFromSecurityAssignments += $accessPolicyAssignments | Select-Object -Property resourceId, resourceType, objectId<# , signInName #> | Sort-Object -Property * -Unique
 
-            # export $accessPolicies
-            if (!$User) {
-                $accessPolicyAssignments | 
-                    Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
+            # export access policies
+            $accessPolicyAssignmentsExport = @()
+            $accessPolicyAssignmentsExport += $accessPolicyAssignments | 
+                Where-Object {$_.resourceType -in $global:ResourceTypeAlias.Values} |
                     Select-Object -Property resourceType,resourceId,resourceName,
                         @{Name="securityType";Expression={"AccessPolicy"}},
                         @{Name="securityKey";Expression={$_.accessPolicy.Keys[0]}},
                         @{Name="securityValue";Expression={$_.accessPolicy.Values[0] | Join-String -Separator ", " }},  
                         @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
                         @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).id}},
-                        @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
-                    Sort-Object -Property * -Unique | Sort-Object -Property assigneeType, assignee, resourceType, resourceId |
-                Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation -Append
-            }   
+                        @{Name="options";Expression={$_.options | Join-String -Separator ","}}
+            if ($User) {
+                $accessPolicyAssignmentsExport += $securityAssignmentsPreviouslyExported | Where-Object {$_.securityType -eq "AccessPolicy"}
+            }
+            $accessPolicyAssignmentsExport  | 
+                Sort-Object -Property * -Unique | Sort-Object -Property assigneeType, assignee, resourceType, resourceId |
+                    Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation -Append 
 
         #endregion GET ACCESS POLICIES
 
@@ -1984,7 +2013,7 @@ function global:Grant-AzProjectRole {
 
                 Write-Host+ -Iff $($WhatIf) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " (","WhatIf",")" -ForegroundColor DarkGray,DarkYellow,DarkGray
                 Write-Host+ -Iff $(!$projectIdentity.authorized) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** $($projectIdentity.reason) *** " -ForegroundColor DarkRed
-                Write-Host+ -Iff $(!$projectIdentity.managed -and ![string]::IsNullOrEmpty($guest.adminRole)) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** $($projectIdentity.reason) *** " -ForegroundColor DarkRed
+                Write-Host+ -Iff $(!$projectIdentity.managed -and ![string]::IsNullOrEmpty($projectIdentity.adminRole)) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** $($projectIdentity.reason) *** " -ForegroundColor DarkRed
 
                 Write-Host+
                 Write-Host+ -NoTrace "    $($emptyString.PadLeft($projectIdentity.id.Length,"-"))" -ForegroundColor Gray
@@ -2317,11 +2346,13 @@ function global:Revoke-AzureADInvitation {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$true)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     $isUserId = $User -match $global:RegexPattern.Guid
     $isGuestUserPrincipalName = $User -match $global:RegexPattern.Username.AzureAD -and $User -like "*#EXT#*"
@@ -2336,11 +2367,30 @@ function global:Revoke-AzureADInvitation {
         return
     }
 
+    # get azureADUser object
     $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $User
-    if ($azureADUser.externalUserState -eq "PendingAcceptance") {
+    $_userId = $azureADUser ? $azureADUser.mail : $User
+
+    Write-Host+
+    Write-Host+ -NoTrace "  Tenant:  ", $tenantKey -ForegroundColor DarkGray,DarkBlue
+    Write-Host+ -NoTrace "  Project: ", $ProjectName -ForegroundColor DarkGray,DarkBlue
+    Write-Host+ -NoTrace "  User:    ", $_userId -ForegroundColor DarkGray,DarkBlue
+    Write-Host+
+
+    if (!$azureADUser) {
+        throw "User '$_userId' not found in $($global:Azure.$tenantKey.Tenant.Type) tenant '$tenantKey'"
+    }
+
+    $externalUserState = $azureADUser.externalUserState -eq "PendingAcceptance" ? "Pending" : $azureADUser.externalUserState
+    $externalUserStateChangeDateTime = $azureADUser.externalUserStateChangeDateTime.ToString("u").Substring(0,10)
+    $message = "<  Invitation ($externalUserStateChangeDateTime) <.>40> $($externalUserState.ToUpper())"
+    Write-Host+ -NoTrace -Parse  $message -ForegroundColor DarkGray,DarkGray,$($externalUserState -eq "Pending" ? "DarkYellow" : "DarkGray")
+
+    if ($azureADUser.externalUserState -eq "PendingAcceptance") { 
 
         # delete user
         Remove-AzureADUser -Tenant $tenantKey -Id $azureADUser.id
+        Write-Host+ -NoTrace -Parse "<  $($global:Azure.$tenantKey.Tenant.Type) account <.>40> DELETED" -ForegroundColor DarkGray,DarkGray,DarkRed
 
         # comment out all import file entries which reference the user
         foreach ($importFileType in @("User","Group","Security")) {
@@ -2349,15 +2399,47 @@ function global:Revoke-AzureADInvitation {
                 $updatedContent += $_ -like "*$($azureADUser.mail)*" ? "# $_" : $_
             }
             Set-Content -Path $global:AzureProject.Files."$($importFileType)ImportFile" -Value $updatedContent
+            Write-Host+ -NoTrace -Parse "<  $($importFileType)ImportFile <.>40> UPDATED" -ForegroundColor DarkGray,DarkGray,DarkGray
+        }
+
+        # get lastest export of security assignments
+        # user's security assignments should be listed here
+        $securityAssignments = Import-AzProjectFile -Path $global:AzureProject.Files.SecurityExportFile | Where-object {$_.assignee -eq $azureADUser.mail}
+        $securityAssignments | Format-Table
+
+        # remove role assignments
+        $roleAssignments = $securityAssignments | Where-Object {$_.securityType -eq "RoleAssignment"}
+        foreach ($roleAssignment in $roleAssignments) {
+            $resourceScope = Get-AzResourceScope -ResourceType $roleAssignment.resourceType -ResourceName $roleAssignment.resourceName
+            Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $roleAssignment.securityKey -ObjectId $azureADUser.id -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
+        }
+        Write-Host+ -Iff $($roleAssignments.Count -gt 0) -NoTrace -Parse "<  All role assignments <.>40> REMOVED" -ForegroundColor DarkGray,DarkGray,DarkRed
+
+        #remove access policies
+        $accessPolicies = $securityAssignments | Where-Object {$_.securityType -eq "AccessPolicy"}
+        foreach ($accessPolicy in $accessPolicies) {
+            $resourceScope = Get-AzResourceScope -ResourceType $accessPolicy.resourceType -ResourceName $accessPolicy.resourceName
+            Remove-AzKeyVaultAccessPolicy -VaultName $accessPolicy.resourceName -ResourceGroupName $global:AzureProject.ResourceGroupName -ObjectId $azureADUser.id | Out
+        }
+        Write-Host+ -Iff $($accessPolicies.Count -gt 0) -NoTrace -Parse "<  All access policies <.>40> REMOVED" -ForegroundColor DarkGray,DarkGray,DarkRed
+
+        # remove all export file entries which reference the user
+        foreach ($exportFileType in @("Security")) {
+            $updatedContent = @()
+            $updatedContent += Get-Content -Path $global:AzureProject.Files."$($exportFileType)ExportFile" | 
+                Where-Object { $_ -notlike "*$($azureADUser.mail)*" }
+            Set-Content -Path $global:AzureProject.Files."$($exportFileType)ExportFile" -Value $updatedContent
+            Write-Host+ -NoTrace -Parse "<  $($exportFileType)ExportFile <.>40> UPDATED" -ForegroundColor DarkGray,DarkGray,DarkGray
         }
         
     }
-    else {
-        if ($global:ErrorActionPreference -eq 'Continue') {
-            throw "'$User' does not have a pending invitation."
-        }
-        return
+    elseif ($azureADUser.externalUserState -eq "Accepted") {
+        Write-Host+ -NoTrace "  Accepted invitations cannot be revoked" -ForegroundColor DarkRed
     }
+
+    Write-Host+
+    return
+
 }
 
 function global:Deploy-AzProject {
