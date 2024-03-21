@@ -859,6 +859,8 @@ function global:Initialize-AzProject {
         ScopeBase = "$($global:Azure.Group.$GroupName.Project.$ProjectName.ResourceType.ResourceGroup.Scope)/providers"
     }
 
+    # do NOT change anything using $global:AzureProject
+    # as soon as you do, it's no longer a reference but a new copy (why?)
     $global:AzureProject = $global:Azure.Group.$GroupName.Project.$ProjectName
 
     $deploymentTypeDefault = Read-AzProjectVariable -Name DeploymentType
@@ -898,7 +900,7 @@ function global:Grant-AzProjectRole {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
-        [switch]$RemoveExpiredInvitations,
+        # [switch]$RemoveExpiredInvitations,
         [switch]$WhatIf
     )
 
@@ -911,32 +913,32 @@ function global:Grant-AzProjectRole {
     $message = "<  ------- < >40> -----------"
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
 
-    $message = "<  -User (signInName | objectId) < >40> Processes only the specified user (object id, upn or email)."
+    $message = "<  -User <signInName|objectId> < >40> Processes only the specified user (object id, upn or email)."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
-    $message = "<  -RemoveExpiredInvitations < >40> Removes accounts with invitations pending more than 30 days."
-    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+    # $message = "<  -RemoveExpiredInvitations < >40> Removes accounts with invitations pending more than 30 days."
+    # Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     $message = "<  -WhatIf < >40> Simulates operations to allow for testing (Grant-AzProjectRole only)."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
     Write-Host+
 
-    if ($User -and $RemoveExpiredInvitations) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveExpiredInvitations switch cannot be used with the `$User parameter." -ForegroundColor Red
-        Write-Host+
-        return
-    }
+    # if ($User -and $RemoveExpiredInvitations) {
+    #     Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveExpiredInvitations switch cannot be used with the `$User parameter." -ForegroundColor Red
+    #     Write-Host+
+    #     return
+    # }
 
-    if ($RemoveExpiredInvitations) {
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveExpiredInvitations`" switch has been specified." -ForegroundColor Gray
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Accounts with invitations pending more than 30 days will be deleted." -ForegroundColor Gray
-        Write-Host+
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
-        $response = Read-Host
-        if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
-            Write-Host+
-            return
-        }
-        Write-Host+
-    }
+    # if ($RemoveExpiredInvitations) {
+    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveExpiredInvitations`" switch has been specified." -ForegroundColor Gray
+    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Accounts with invitations pending more than 30 days will be deleted." -ForegroundColor Gray
+    #     Write-Host+
+    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
+    #     $response = Read-Host
+    #     if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
+    #         Write-Host+
+    #         return
+    #     }
+    #     Write-Host+
+    # }
 
     # validate $global:AzureProject
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
@@ -1387,19 +1389,33 @@ function global:Grant-AzProjectRole {
     #region PROJECT IDENTITIES
 
         $projectIdentities = @()
-        foreach ($signInName in ($users.signInName | Sort-Object -Unique)) {
-            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $signInName
+        foreach ($_user in $users) {
+            $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $_user.signInName -ErrorAction SilentlyContinue
             if ($azureADUser) {
                 $projectIdentities += [PSCustomObject]@{
                     objectType = "User"
                     objectId = $azureADUser.id
-                    # signInName = $azureADUser.mail
                     id = $azureADUser.mail
-                    displayName = $azureADUser.mail
+                    displayName = $_user.fullName
                     authorized = $azureADUser.accountEnabled
-                    accountEnabled = $unauthorizedAzureADUser.accountEnabled
+                    accountEnabled = $azureADUser.accountEnabled
                     reason = $azureADUser.accountEnabled ? $null : "ACCOUNT DISABLED"
                     object = $azureADUser
+                    managed = $true
+                    doNotModify = $false
+                    adminRole = $null
+                }
+            }
+            else {
+                $projectIdentities += [PSCustomObject]@{
+                    objectType = "User"
+                    objectId = $null
+                    id = $_user.signInName
+                    displayName = $_user.fullName
+                    authorized = $false
+                    accountEnabled = $false
+                    reason = $null
+                    object = $null
                     managed = $true
                     doNotModify = $false
                     adminRole = $null
@@ -1444,7 +1460,7 @@ function global:Grant-AzProjectRole {
                             objectId = $unauthorizedAzureADUser.id
                             # signInName = $unauthorizedAzureADUser.mail
                             id = $unauthorizedAzureADUser.mail
-                            displayName = $unauthorizedAzureADUser.mail
+                            displayName = $unauthorizedAzureADUser.displayName
                             authorized = $false
                             accountEnabled = $unauthorizedAzureADUser.accountEnabled
                             reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
@@ -1489,7 +1505,7 @@ function global:Grant-AzProjectRole {
                                 objectId = $unauthorizedAzureADUser.id
                                 # signInName = $unauthorizedAzureADUser.mail
                                 id = $unauthorizedAzureADUser.mail
-                                displayName = $unauthorizedAzureADUser.mail
+                                displayName = $unauthorizedAzureADUser.displayName
                                 authorized = $false
                                 accountEnabled = $unauthorizedAzureADUser.accountEnabled
                                 reason = $unauthorizedAzureADUser.accountEnabled ? "UNAUTHORIZED" : "ACCOUNT DISABLED"
@@ -1537,11 +1553,11 @@ function global:Grant-AzProjectRole {
                         elseif ($projectIdentity.role -ne "Owner") {
                             $projectIdentity.adminRole = "Administrator"
                         }
+                        $_reason = @(); $_reason += "UNMANAGED"
+                        $_reason += $projectIdentity.adminRole.ToUpper()
+                        $projectIdentity.reason = $_reason | Join-String -Separator "/"
                     }
                 }
-                $_reason = @(); $_reason += "UNMANAGED"
-                $_reason += $projectIdentity.adminRole.ToUpper()
-                $projectIdentity.reason = $_reason | Join-String -Separator "/"
             }
         
         #endregion UNAUTHORIZED PROJECT IDENTITIES
@@ -1616,12 +1632,15 @@ function global:Grant-AzProjectRole {
                     $message = "<    $($guest.id) < >40> "
                     Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray
                 
-                    if (!$guest) {
-                        $fullName = ($users | Where-Object {$_.signInName -eq $guest})[0].fullName
+                    if (!$guest.object) {
+                        # $fullName = ($users | Where-Object {$_.signInName -eq $guest})[0].fullName
 
                         if (!$WhatIf) {
-                            $invitation = Send-AzureADInvitation -Tenant $tenantKey -Email $guest -DisplayName $fullName -Message $global:AzureProject.Invitation.Message
-                            $invitation | Out-Null
+                            $invitation = Send-AzureADInvitation -Tenant $tenantKey -Email $guest.id -DisplayName $guest.displayName -Message $global:AzureProject.Invitation.Message
+                            $guest.objectId = $invitation.invitedUser.id
+                            $guest.object = Get-AzureADUser -Tenant $tenantKey -User $invitation.invitedUser.id
+                            $guest.accountEnabled = $guest.object.accountEnabled
+                            $guest.authorized = $true
                         }
 
                         Write-Host+ -NoTrace -NoTimeStamp -NoNewLine "Invitation sent" -ForegroundColor DarkGreen
@@ -1632,17 +1651,8 @@ function global:Grant-AzProjectRole {
                         $externalUserStateChangeDateTime = $guest.object.externalUserStateChangeDateTime
 
                         if ($guest.object.externalUserState -eq "PendingAcceptance") {
-                            if (([datetime]::Now - $externalUserStateChangeDateTime).TotalDays -gt 30) {
-                                if ($RemoveExpiredInvitations) {
-                                    if (!$WhatIf) {
-                                        Disable-AzureADUser -Tenant $tenantKey -User $guest
-                                    }
-                                    $guest.authorized = $false
-                                    $guest.reason = "ACCOUNT DISABLED"
-                                }
-                                else {
-                                    $guest.reason = "INVITATION EXPIRED"
-                                }
+                            if (([datetime]::Now - $externalUserStateChangeDateTime).TotalDays -gt 15) {
+                                Revoke-AzureAdInvitation -Tenant $tenantKey -User $guest.id
                             }
                         }
 
@@ -1660,9 +1670,9 @@ function global:Grant-AzProjectRole {
                 }
             }
 
-            Write-Host+
-            $message = "    * Use -RemoveExpiredInvitiations to remove accounts with expired invitations"
-            Write-Host+ -NoTrace $message -ForegroundColor DarkGray
+            # Write-Host+
+            # $message = "    * Use -RemoveExpiredInvitiations to remove accounts with expired invitations"
+            # Write-Host+ -NoTrace $message -ForegroundColor DarkGray
             
             Write-Host+
             $message = "<  User verification <.>60> SUCCESS"
@@ -1816,7 +1826,7 @@ function global:Grant-AzProjectRole {
                         @{Name="securityKey";Expression={$_.role}},
                         @{Name="securityValue";Expression={"Grant"}},
                         @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
-                        @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}},
+                        @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).id}},
                         @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
                     Sort-Object -Property assigneeType, assignee, resourceType, resourceId -Unique |
                         Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation 
@@ -1931,7 +1941,7 @@ function global:Grant-AzProjectRole {
                         @{Name="securityKey";Expression={$_.accessPolicy.Keys[0]}},
                         @{Name="securityValue";Expression={$_.accessPolicy.Values[0] | Join-String -Separator ", " }},  
                         @{Name="assigneeType";Expression={$_.groupMember ? "Group" : $_.objectType}},
-                        @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).displayName}},
+                        @{Name="assignee";Expression={$_objectId = $_.objectId; $_.groupMember ? $_.groupId : ($projectIdentities | Where-Object {$_objectId -eq $_.objectId}).id}},
                         @{Name="options";Expression={$_.options | Join-String -Separator ","}} | 
                     Sort-Object -Property * -Unique | Sort-Object -Property assigneeType, assignee, resourceType, resourceId |
                 Export-Csv -Path $global:AzureProject.Files.SecurityExportFile -UseQuotes Always -NoTypeInformation -Append
@@ -1962,7 +1972,7 @@ function global:Grant-AzProjectRole {
 
             foreach ($projectIdentity in $projectIdentities) {
                 
-                Write-Host+ -NoTrace -NoNewLine "    $($projectIdentity.displayName)" -ForegroundColor Gray
+                Write-Host+ -NoTrace -NoNewLine "    $($projectIdentity.id)" -ForegroundColor Gray
 
                 if ($projectIdentity.objectType -eq "User") {
                     $externalUserState = $assignee.externalUserState -eq "PendingAcceptance" ? "Pending" : $assignee.externalUserState
@@ -1977,7 +1987,7 @@ function global:Grant-AzProjectRole {
                 Write-Host+ -Iff $(!$projectIdentity.managed -and ![string]::IsNullOrEmpty($guest.adminRole)) -NoTrace -NoTimestamp -NoNewLine -NoSeparator " *** $($projectIdentity.reason) *** " -ForegroundColor DarkRed
 
                 Write-Host+
-                Write-Host+ -NoTrace "    $($emptyString.PadLeft($projectIdentity.displayName.Length,"-"))" -ForegroundColor Gray
+                Write-Host+ -NoTrace "    $($emptyString.PadLeft($projectIdentity.id.Length,"-"))" -ForegroundColor Gray
 
                 # sort by resourceScope to ensure children are after parents
                 $resourcesToCheck = $resources | Sort-Object -Property resourcePath
@@ -2301,6 +2311,54 @@ function global:Grant-AzProjectRole {
 
 }
 Set-Alias -Name azProjGrant -Value Grant-AzProjectRole -Scope Global
+
+function global:Revoke-AzureADInvitation {
+
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $isUserId = $User -match $global:RegexPattern.Guid
+    $isGuestUserPrincipalName = $User -match $global:RegexPattern.Username.AzureAD -and $User -like "*#EXT#*"
+    $isEmail = $User -match $global:RegexPattern.Mail
+    $isMemberUserPrincipalName = $User -match $global:RegexPattern.Username.AzureAD
+
+    $isValidUser = $isUserId -or $isEmail -or $isMemberUserPrincipalName -or $isGuestUserPrincipalName
+    if (!$isValidUser) {
+        if ($global:ErrorActionPreference -eq 'Continue') {
+            throw "'$User' is not a valid object id, userPrincipalName or email address."
+        }
+        return
+    }
+
+    $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $User
+    if ($azureADUser.externalUserState -eq "PendingAcceptance") {
+
+        # delete user
+        Remove-AzureADUser -Tenant $tenantKey -Id $azureADUser.id
+
+        # comment out all import file entries which reference the user
+        foreach ($importFileType in @("User","Group","Security")) {
+            $updatedContent = @()
+            Get-Content -Path $global:AzureProject.Files."$($importFileType)ImportFile" | ForEach-Object {
+                $updatedContent += $_ -like "*$($azureADUser.mail)*" ? "# $_" : $_
+            }
+            Set-Content -Path $global:AzureProject.Files."$($importFileType)ImportFile" -Value $updatedContent
+        }
+        
+    }
+    else {
+        if ($global:ErrorActionPreference -eq 'Continue') {
+            throw "'$User' does not have a pending invitation."
+        }
+        return
+    }
+}
 
 function global:Deploy-AzProject {
 
