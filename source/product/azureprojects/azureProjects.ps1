@@ -914,31 +914,12 @@ function global:Grant-AzProjectRole {
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
 
     $message = "<  -User <signInName|objectId> < >35> Processes only the specified user (object id, upn or email)."
-    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
-    # $message = "<  -RemoveExpiredInvitations < >35> Removes accounts with invitations pending more than 30 days."
-    # Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor $($User ? "DarkYellow" : "DarkGray")
+
     $message = "<  -WhatIf < >35> Simulates operations to allow for testing (Grant-AzProjectRole only)."
-    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor DarkGray
+    Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor $($WhatIf ? "DarkYellow" : "DarkGray")
     Write-Host+
 
-    # if ($User -and $RemoveExpiredInvitations) {
-    #     Write-Host+ -NoTrace -NoSeparator -NoTimestamp "  ERROR:  The `$RemoveExpiredInvitations switch cannot be used with the `$User parameter." -ForegroundColor Red
-    #     Write-Host+
-    #     return
-    # }
-
-    # if ($RemoveExpiredInvitations) {
-    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  The `"RemoveExpiredInvitations`" switch has been specified." -ForegroundColor Gray
-    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp "  Accounts with invitations pending more than 30 days will be deleted." -ForegroundColor Gray
-    #     Write-Host+
-    #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp -NoNewLine "  Continue (Y/N)? " -ForegroundColor Gray
-    #     $response = Read-Host
-    #     if ($response -eq $global:emptyString -or $response.ToUpper().Substring(0,1) -ne "Y") {
-    #         Write-Host+
-    #         return
-    #     }
-    #     Write-Host+
-    # }
 
     # validate $global:AzureProject
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
@@ -1304,6 +1285,7 @@ function global:Grant-AzProjectRole {
                     $resource.resourceContext = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
 
                     $_storageContainers = Get-AzStorageContainer -Context $resource.resourceContext
+                    $_storageContainers = $_storageContainers | Where-Object {$_.Name -notmatch "^bootdiagnostics-|insights-"}
                     foreach ($_storageContainer in $_storageContainers) {
 
                         $_storageContainerType = "StorageContainer"
@@ -1459,7 +1441,7 @@ function global:Grant-AzProjectRole {
                             objectType = "User"
                             objectId = $unauthorizedAzureADUser.id
                             # signInName = $unauthorizedAzureADUser.mail
-                            id = $unauthorizedAzureADUser.mail
+                            id = $unauthorizedAzureADUser.mail ?? $unauthorizedAzureADUser.userPrincipalName
                             displayName = $unauthorizedAzureADUser.displayName
                             authorized = $false
                             accountEnabled = $unauthorizedAzureADUser.accountEnabled
@@ -1504,7 +1486,7 @@ function global:Grant-AzProjectRole {
                                 objectType = "User"
                                 objectId = $unauthorizedAzureADUser.id
                                 # signInName = $unauthorizedAzureADUser.mail
-                                id = $unauthorizedAzureADUser.mail
+                                id = $unauthorizedAzureADUser.mail ?? $unauthorizedAzureADUser.userPrincipalName
                                 displayName = $unauthorizedAzureADUser.displayName
                                 authorized = $false
                                 accountEnabled = $unauthorizedAzureADUser.accountEnabled
@@ -2142,9 +2124,15 @@ function global:Grant-AzProjectRole {
 
                                             if (!$WhatIf) {
                                                 $resourceLocksCanNotDelete = Get-AzResourceLock -Scope $resourceScope | Where-Object {$_.Properties.level -eq "CanNotDelete"}
-                                                $resourceLocksCanNotDelete | Foreach-Object {Remove-AzResourceLock -Scope $resourceScope -LockName $_.Name -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null}
+                                                $resourceLocksCanNotDelete | Foreach-Object {
+                                                    $_resourceScopeForLock = Get-AzResourceScope -ResourceType $_.ResourceType -ResourceName $_.ResourceName
+                                                    Remove-AzResourceLock -Scope $_resourceScopeForLock -LockName $_.Name -Force -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
+                                                }
                                                 Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $currentRoleAssignment.RoleDefinitionName -ObjectId $projectIdentity.objectId -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
-                                                $resourceLocksCanNotDelete | Foreach-Object {Set-AzResourceLock -Scope $resourceScope -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force} | Out-Null
+                                                $resourceLocksCanNotDelete | Foreach-Object {
+                                                    $_resourceScopeForLock = Get-AzResourceScope -ResourceType $_.ResourceType -ResourceName $_.ResourceName
+                                                    Set-AzResourceLock -Scope $_resourceScopeForLock -LockName $_.Name -LockLevel $_.Properties.level -LockNotes $_.Properties.notes -Force | Out-Null
+                                                }
                                             }
 
                                             $message = "$($rolesWrittenCount -gt 0 ? ", " : $null)"
