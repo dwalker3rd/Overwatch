@@ -181,7 +181,7 @@ $global:Product = @{Id="AzureProjects"}
         }
 
         if (!(Test-Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.SecurityImportFile)) {
-            Set-Content -Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.SecurityImportFile -Value "`"resourceID`",`"role`",`"assigneeType`",`"assignee`""
+            Set-Content -Path $global:Azure.Group.$GroupName.Project.$ProjectName.Files.SecurityImportFile -Value "`"resourceType`", `"resourceId`", `"securityType`", `"securityKey`", `"securityValue`", `"assigneeType`", `"assignee`", `"options`""
         }
     
     }
@@ -427,6 +427,7 @@ $global:Product = @{Id="AzureProjects"}
     
         $ResourceLocation = $global:AzureProject.ResourceLocation
         $Prefix = $global:AzureProject.Prefix
+        $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
     
         # get/read/update vmSize
         $vmSizeDefault = Read-AzProjectVariable -Name vmSize
@@ -1071,6 +1072,7 @@ function global:Grant-AzProjectRole {
 
             $unassignedResources = $resourceDifferences | Where-Object {$_.SideIndicator -eq "=>"} | Where-Object {$_.resourceType -notin $resourcesWithSpecialHandling}
             if ($unassignedResources) {
+                Write-Host+
                 $errorMessage = "<    WARNING: < >0> Unassigned resource[s] in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)"
                 Write-Host+ -NoTrace -Parse $errorMessage -ForegroundColor Yellow, DarkYellow
                 $errorMessageLength = ([regex]::Match($errorMessage,"^<\s*(.*)<.*>\d+>\s*(.*)$").Groups[1..2].Value | Join-String).Length
@@ -1092,7 +1094,6 @@ function global:Grant-AzProjectRole {
                         Write-Host+ -Iff $($hasUnassignedResourceId -and !$hasUnassignedResourceType) -NoTrace "    $($emptyString.PadLeft(3 + $contentRowColumns[0].Length," "))$($global:asciiCodes.RightArrowWithHook)  The resource id '$unassignedResourceId' is unassigned." -ForegroundColor DarkGray
                     }
                 }
-                Write-Host+
             }
 
             $invalidAssignees = @()
@@ -1203,7 +1204,7 @@ function global:Grant-AzProjectRole {
             }
 
             if (!$object) {
-                Write-Host+ -Iff $(!$object) -NoTrace -NoTimestamp -NoNewLine "  *** NOT FOUND ***" -ForegroundColor DarkRed
+                Write-Host+ -Iff $(!$object) -NoTrace -NoTimestamp "  *** NOT FOUND ***" -ForegroundColor DarkRed
                 $hasResourceErrors = $true
                 continue
             }
@@ -1820,7 +1821,9 @@ function global:Grant-AzProjectRole {
             $uniqueResourcesFromSecurityAssignments += $roleAssignments | Select-Object -Property resourceId, resourceType, objectId<# , signInName #> | Sort-Object -Property * -Unique
 
             # import previously exported security assignments to use with role and policy assignments below
-            $securityAssignmentsPreviouslyExported =  Import-AzProjectFile -Path $global:AzureProject.Files.SecurityExportFile
+            if (Test-Path $global:AzureProject.Files.SecurityExportFile) {
+                $securityAssignmentsPreviouslyExported =  Import-AzProjectFile -Path $global:AzureProject.Files.SecurityExportFile
+            }
 
             # export role assignments
             $roleAssignmentsExport = @()
@@ -2545,27 +2548,13 @@ function global:Deploy-AzProjectWithOverwatch {
             switch ($resourceType) {
                 default {
                     if ([string]::IsNullOrEmpty($resource.resourceScope)) {
-                        $scope = $global:AzureProject.ResourceType.$ResourceType.Scope
-                        $scope = $scope.Substring(0,$scope.LastIndexOf("/")+1) + $ResourceName
+                        $scope = Get-AzResourceScope -ResourceType $resourceType -ResourceName $resourceName
                     }
                     else {
                         $scope = $resource.resourceScope
                     }
                 }
-                {$_ -like "DataFactory*"} {
-                    if ([string]::IsNullOrEmpty($resource.resourceScope)) {
-                        $scope = $global:AzureProject.ResourceType.DataFactory.Scope
-                        $scope = $scope.Substring(0,$scope.LastIndexOf("/")+1) + $ResourceName
-                    }
-                    else {
-                        $scope = $resource.resourceScope
-                    }
-                }
-                "StorageContainer" {
-                    $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
-                    $scope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($_storageAccount.resourceName)/blobServices/default/containers/$($resourceName)"
-                }
-            }
+            } 
 
             # get object, if it exists
             $object = $null
@@ -2573,12 +2562,13 @@ function global:Deploy-AzProjectWithOverwatch {
                 default {
                     $getAzExpression = "Get-Az$resourceType -ResourceGroupName $resourceGroupName"
                     $getAzExpression += $resourceType -ne "ResourceGroup" ? " -Name $resourceName" : $null
-                    $getAzExpression += " -ErrorAction SilentlyContinue 2>&1"
-                    $object = Invoke-Expression $getAzExpression
+                    $object = Invoke-Expression $getAzExpression -ErrorAction SilentlyContinue 2>&1
                 }
-                "StorageContainer" {
-                    $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
-                    $object = Get-AzStorageContainer -Context $_storageAccount.resourceContext -Name $resourceName -ErrorAction SilentlyContinue
+                "DataFactory" {
+                    $object = Get-AzDataFactory -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+                    if (!$object) {
+                        $object = Get-AzDataFactoryV2 -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+                    }
                 }
             }
 
@@ -2588,35 +2578,32 @@ function global:Deploy-AzProjectWithOverwatch {
             }
 
             # create object
-            try {
-                switch ($resourceType) {
-                    default {
-                        if (!$object) {
+            if (!$object) {
+                try {
+                    switch ($resourceType) {
+                        default {
                             $getAzExpression = "New-Az$resourceType -ResourceGroupName $resourceGroupName -Name $resourceName -Location $resourceLocation"
                             $object = Invoke-Expression $getAzExpression
                         }
-                    }
-                    "StorageAccount" {
-                        if (!$object) {
-                            $_storageAccountParams = @{
+                        "VM" {
+                        }
+                        "StorageAccount" {
+                            $storageAccountParameters = Get-AzProjectStorageAccountParameters
+                            $params = @{
                                 Name = $resourceName
                                 ResourceGroupName = $resourceGroupName
                                 Location = $resourceLocation
-                                SKU = $global:AzureProject.ResourceType.$resourceType.Parameters.StorageAccountSku
-                                Kind = $global:AzureProject.ResourceType.$resourceType.Parameters.StorageAccountKind
+                                SKU = $storageAccountParameters.StorageAccountSku
+                                Kind = $storageAccountParameters.StorageAccountKind
                             }
-                            $object = New-AzStorageAccount+ @_storageAccountParams
+                            $object = New-AzStorageAccount+ @params
+                            $resource.resourceContext = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
                         }
-                        $resource.resourceContext = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
-                    }
-                    "StorageContainer" {    
-                        if (!$object) {
+                        "StorageContainer" {
                             $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
                             $object = New-AzStorageContainer+ -Context $_storageAccount.resourceContext -Name $resourceName
                         }
-                    }
-                    "MLWorkspace" {
-                        if (!$object) {
+                        "MLWorkspace" {
                             $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount"}
                             $_keyVault = $resources | Where-Object {$_.resourceType -eq "keyVault"}
                             $_applicationInsights = $resources | Where-Object {$_.resourceType -eq "ApplicationInsights"}
@@ -2633,9 +2620,9 @@ function global:Deploy-AzProjectWithOverwatch {
                         }
                     }
                 }
-            }
-            catch {
-                Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkRed
+                catch {
+                    Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkRed
+                }
             }
 
             $resource.resourceName = [string]::IsNullOrEmpty($resource.resourceName) ? $scope.Substring($scope.LastIndexOf("/")+1, $scope.Length-($scope.LastIndexOf("/")+1)) : $resource.resourceName
