@@ -1036,7 +1036,8 @@ function global:Show-PlatformStatus {
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Required,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$Issues,
         [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$ResetCache,
-        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly
+        [Parameter(Mandatory=$false,ParameterSetName="All")][switch]$CacheOnly,
+        [Parameter(Mandatory=$false,ParameterSetName="All")][string]$ComputerName = $env:COMPUTERNAME
     )
 
     if (!$Summary -and !$All -and !$Required -and !$Issues) { $Required = $true; $Issues = $true }
@@ -1047,7 +1048,12 @@ function global:Show-PlatformStatus {
     if ($ResetCache) { $CacheOnly = $false }
     if ($CacheOnly) { $ResetCache = $false }
 
-    $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
+    if ($ComputerName -eq $env:COMPUTERNAME) {
+        $platformStatus = Get-PlatformStatus -CacheOnly:$($CacheOnly.IsPresent) -ResetCache:$($ResetCache.IsPresent) -Quiet
+    }
+    else {
+        $platformStatus = Read-Cache platformstatus -ComputerName $Computername
+    }
     $_platformStatusRollupStatus = $platformStatus.RollupStatus
     if ((![string]::IsNullOrEmpty($platformStatus.Event) -and !$platformStatus.EventHasCompleted)) {
         $_platformStatusRollupStatus = switch ($platformStatus.Event) {
@@ -1056,8 +1062,11 @@ function global:Show-PlatformStatus {
         }
     }
 
+    $_environ = Get-EnvironConfig -Key Environ -Scope Global -ComputerName $ComputerName
+    $_platformInstance = $_environ.Instance
+
     # Write-Host+
-    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
+    Write-Host+ -NoTrace $_platformInstance, "Status", (Format-Leader -Length 39 -Adjust $_platformInstance.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
     #region STATUS  
 
@@ -1102,7 +1111,7 @@ function global:Show-PlatformStatus {
         $nodeStatus = $nodeStatus | Sort-Object -Property NodeId, Node
 
         foreach ($_nodeStatus in $nodeStatus) {
-            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq (pt components.Controller.nodes -k) ? "*" : $null) <.>42> $($_nodeStatus.Status.ToUpper())"
+            $message = "<  $($_nodeStatus.Role) ($($_nodeStatus.Node))$($_nodeStatus.node -eq $controller.Name ? "*" : $null) <.>42> $($_nodeStatus.Status.ToUpper())"
             Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.($_nodeStatus.Status)
         }
         # $nodeStatus | Sort-Object -Property Node | Format-Table -Property Role, Node, Status, Version
@@ -1150,7 +1159,7 @@ function global:Show-PlatformStatus {
 
     # Write-Host+ -Iff $(!$All -or !$platformStatus.Issues)
     
-    Write-Host+ -NoTrace $global:Platform.Instance, "Status", (Format-Leader -Length 39 -Adjust $global:Platform.Instance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
+    Write-Host+ -NoTrace $_platformInstance, "Status", (Format-Leader -Length 39 -Adjust $_platformInstance.Length), $_platformStatusRollupStatus.ToUpper() -ForegroundColor DarkBlue,Gray,DarkGray,$global:PlatformStatusColor.($platformStatus.RollupStatus)
 
     # Write-Host+
 
