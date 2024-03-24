@@ -70,29 +70,43 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
         "BatchAccount" = "Microsoft.Batch/BatchAccounts"        
         "CosmosDBAccount" = "Microsoft.DocumentDB/databaseAccounts"
         "DataFactory" = "Microsoft.DataFactory/factories"
+        "Disk" = "Microsoft.Compute/disks"
         "KeyVault" = "Microsoft.KeyVault/vaults"
+        "OperationalInsightsWorkspace" = "Microsoft.OperationalInsights/workspaces"
         "MLWorkspace" = "Microsoft.MachineLearningServices/workspaces"
         "NetworkInterface" = "Microsoft.Network/networkInterfaces"
+        "NetworkSecurityGroup" = "Microsoft.Network/networkSecurityGroups"
+        "PublicIpAddress" = "Microsoft.Network/publicIPAddresses"
+        "ResourceGroup" = "Microsoft.Resources/subscriptions/resourceGroups"
         "SqlVM" = "Microsoft.SqlVirtualMachine/SqlVirtualMachines"
         "StorageAccount" = "Microsoft.Storage/storageAccounts"
         "StorageContainer" = "Microsoft.Storage/storageAccounts/(.*)/blobServices/default/containers"
+        "VirtualNetwork" = "Microsoft.Network/virtualNetworks"
         "VM" = "Microsoft.Compute/virtualMachines"
+        "VmExtension" = "Microsoft.Compute/virtualMachines/extensions"
     }
 
     # reverse resource type alias map
     $global:ResourceTypeAlias += @{
         "Microsoft.Batch/BatchAccounts" = "BatchAccount"
         "Microsoft.Compute/virtualMachines" = "VM"
+        "Microsoft.Compute/virtualMachines/extensions" = "VmExtension"
         "Microsoft.DataFactory/factories" = "DataFactory"
+        "Microsoft.Compute/disks" = "Disk"
         "Microsoft.DocumentDB/databaseAccounts" = "CosmosDBAccount"
         "Microsoft.Insights/components" = "ApplicationInsights"
         "Microsoft.KeyVault/vaults" = "KeyVault"
         "Microsoft.MachineLearningServices/workspaces" = "MLWorkspace"
         "Microsoft.Network/bastionHosts" = "Bastion"
         "Microsoft.Network/networkInterfaces" = "NetworkInterface"
+        "Microsoft.Network/publicIPAddresses" = "PublicIpAddress"
+        "Microsoft.Network/networkSecurityGroups" = "NetworkSecurityGroup"
+        "Microsoft.Network/virtualNetworks" = "VirtualNetwork"
+        "Microsoft.OperationalInsights/workspaces" = "OperationalInsightsWorkspace" 
         "Microsoft.SqlVirtualMachine/SqlVirtualMachines" = "SqlVM"
         "Microsoft.Storage/storageAccounts" = "StorageAccount"
         "Microsoft.Storage/storageAccounts/(.*)/blobServices/default/containers" = "StorageContainer"
+        "Microsoft.Resources/subscriptions/resourceGroups" = "ResourceGroup"
     }    
 
     # resource location map
@@ -102,6 +116,6 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
     $global:ResourceLocations | Where-Object {!$global:ResourceLocationMap.$($_.DisplayName)} | Foreach-Object {$global:ResourceLocationMap += @{"$($_.DisplayName)" = $_.Location}}
 
     # available providers
-    $script:ResourceProviders = Get-AzResourceProvider -ListAvailable
+    $global:ResourceProviders = Get-AzResourceProvider -ListAvailable
 
 #endregion GLOBAL DEFINITIONS

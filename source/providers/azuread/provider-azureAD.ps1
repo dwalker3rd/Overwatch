@@ -196,7 +196,10 @@ function global:Get-AzureADUser {
 
     $isValidUser = $isUserId -or $isEmail -or $isMemberUserPrincipalName -or $isGuestUserPrincipalName
     if (!$isValidUser) {
-        throw "'$User' is not a valid object id, userPrincipalName or email address."
+        if ($global:ErrorActionPreference -eq 'Continue') {
+            throw "'$User' is not a valid object id, userPrincipalName or email address."
+        }
+        return
     }
 
     $filter = $isUserId ? "id eq '$User'" : $null
@@ -491,7 +494,10 @@ function global:Get-AzureADUser+ {
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     if ($User -notmatch $global:RegexPattern.Guid -and $User -notmatch $global:RegexPattern.Username.AzureAD) {
-        throw "'$User' is not a valid AzureAD user id or userPrincipalName."
+        if ($global:ErrorActionPreference -eq 'Continue') {
+            throw "'$User' is not a valid object id, userPrincipalName or email address."
+        }
+        return
     }
 
     $getParams = @{
