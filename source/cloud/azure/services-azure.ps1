@@ -955,20 +955,26 @@ function global:Show-CloudStatus {
     param()
 
     $azContext = Get-AzContext
+    $azCloudEnvironmentName = $azContext.Environment.Name ?? "AzureCloud"
 
-    Write-Host+ -NoTrace $azContext.Environment.Name, "Status", (Format-Leader -Length 39 -Adjust $azContext.Environment.Name.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
+    Write-Host+ -NoTrace $azCloudEnvironmentName, "Status", (Format-Leader -Length 39 -Adjust $azCloudEnvironmentName.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
-    # Write-Host+ -NoTrace "  Subscription:", $azContext.Subscription.Name -ForegroundColor DarkGray
+    if (!$azContext) {
+        Write-Host+ -NoTrace "  No context.  Run Connect-AzAccount to login." -ForegroundColor Red
+    }
+    else {
 
-    $unattachedManagedDiskGroups = Get-AzDisk+ -DiskState Unattached | Group-Object -Property ResourceGroupName
-    if ($unattachedManagedDiskGroups) {
-        foreach ($unattachedManagedDiskGroup in $unattachedManagedDiskGroups) {
-            $message = "<  $($unattachedManagedDiskGroup.Count) unattached managed disk$($unattachedManagedDiskGroup.Count -ne 1 ? "s": $null) <.>42> REVIEW"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+        $unattachedManagedDiskGroups = Get-AzDisk+ -DiskState Unattached | Group-Object -Property ResourceGroupName
+        if ($unattachedManagedDiskGroups) {
+            foreach ($unattachedManagedDiskGroup in $unattachedManagedDiskGroups) {
+                $message = "<  $($unattachedManagedDiskGroup.Count) unattached managed disk$($unattachedManagedDiskGroup.Count -ne 1 ? "s": $null) <.>42> REVIEW"
+                Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
+            }
+            Write-Host+ -NoTrace "    * Review with Show-AzDisk+" -ForegroundColor DarkGray
         }
-        Write-Host+ -NoTrace "    * Review with Show-AzDisk+" -ForegroundColor DarkGray
+
     }
 
-    Write-Host+ -NoTrace $azContext.Environment.Name, "Status", (Format-Leader -Length 39 -Adjust $azContext.Environment.Name.Length), "READY" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGreen
+    Write-Host+ -NoTrace $azCloudEnvironmentName, "Status", (Format-Leader -Length 39 -Adjust $azCloudEnvironmentName.Length), ($azContext ? "READY" : "FAIL") -ForegroundColor DarkBlue,Gray,DarkGray,($azContext ? "DarkGreen" : "DarkRed")
 
 }
