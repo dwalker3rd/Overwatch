@@ -33,7 +33,16 @@ $global:Product = @{Id="AzureProjects"}
     }
 
 #endregion SERVER CHECK
-#region LOCAL DEFINITIONS
+#region GLOBAL DEFINITIONS
+
+    # resource location map
+    $script:ResourceLocations = Get-AzLocation
+    $script:ResourceLocationMap = @{}
+    $script:ResourceLocations | Foreach-Object {$script:ResourceLocationMap += @{"$($_.Location)" = $_.DisplayName}}
+    $script:ResourceLocations | Where-Object {!$script:ResourceLocationMap.$($_.DisplayName)} | Foreach-Object {$script:ResourceLocationMap += @{"$($_.DisplayName)" = $_.Location}}
+
+    # available providers
+    $script:ResourceProviders = Get-AzResourceProvider -ListAvailable
 
     $resourcesWithSpecialHandling = @("ResourceGroup","DataFactory","NetworkInterface","StorageContainer")
 
@@ -205,7 +214,7 @@ $global:Product = @{Id="AzureProjects"}
         $_resourceTypeSplit = $ResourceType -split "\/"
         $_resourceProviderNamespace = $_resourceTypeSplit[0]
         $_resourceTypeName = $_resourceTypeSplit[1]
-        $_resourceLocation = $global:ResourceLocationMap.$($global:AzureProject.ResourceLocation)
+        $_resourceLocation = $script:ResourceLocationMap.$($global:AzureProject.ResourceLocation)
     
         $_resourceProvider = $script:ResourceProviders | Where-Object {$_.ProviderNamespace -eq $_resourceProviderNamespace -and $_.Locations -contains $_resourceLocation}
         if (!$_resourceProvider) {
@@ -824,7 +833,7 @@ function global:Initialize-AzProject {
                 Foreach-Object { $_groupName = $_; $global:Azure.Group.$_groupName.Project.Keys } | 
                     Foreach-Object { $_projectName = $_; $global:Azure.Group.$_groupName.Project.$_projectName.ResourceLocation} |
                         Sort-Object -Unique
-        $azLocations = $global:ResourceLocations | Where-Object {$_.providers -contains "Microsoft.Compute"} | 
+        $azLocations = $script:ResourceLocations | Where-Object {$_.providers -contains "Microsoft.Compute"} | 
             Select-Object -Property displayName, location | Sort-Object -Property location                        
         $resourceLocationSelections = $azLocations.Location
         $ResourceLocation = Request-AzProjectVariable -Name "ResourceLocation" -Suggestions $resourceLocationSuggestions -Selections $resourceLocationSelections -Default $resourceLocationDefault
