@@ -78,3 +78,24 @@ variable network_watcher_count {
 variable network_watcher_rg_name {
     default = "NetworkWatcherRG"
 }
+
+variable "log_analytics_workspace_sku" {
+  description = "Log Analytics Workspace SKU"
+  default     = "PerGB2018"
+}
+
+locals {
+    log_retention_days=90
+}
+
+variable "main_storage_account_tier" {
+  default     = "Standard"
+}
+
+variable "main_storage_account_kind" {
+  default = "BlobStorage"
+}
+
+variable "main_storage_account_replication_type" {
+  default = "LRS"
+}

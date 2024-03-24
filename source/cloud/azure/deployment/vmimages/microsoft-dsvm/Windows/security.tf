@@ -64,3 +64,27 @@ resource "azurerm_key_vault_secret" "vm_password" {
     random_password.password
   ]
 }
+
+# Role assignments
+resource "azurerm_role_assignment" "vm_reader" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_windows_virtual_machine.main.identity[0].principal_id
+  depends_on = [
+    azurerm_windows_virtual_machine.main
+  ]
+}
+
+## Diagnostics
+resource "azurerm_monitor_diagnostic_setting" "keyvault" {
+  name               = "kv-diagnostics"
+  target_resource_id = azurerm_key_vault.main.id
+  storage_account_id = azurerm_storage_account.secondary.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id 
+
+  metric {
+    category = "AllMetrics"
+  }
+  
+  depends_on = [azurerm_key_vault.main,azurerm_log_analytics_workspace.main,azurerm_storage_account.secondary]
+}

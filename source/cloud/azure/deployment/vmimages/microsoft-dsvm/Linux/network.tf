@@ -132,7 +132,6 @@ resource "azurerm_bastion_host" "bastion" {
     public_ip_address_id = azurerm_public_ip.bastion.id
   }
   depends_on           = [azurerm_subnet.bastion, azurerm_public_ip.bastion]
-
 }
 
 resource "azurerm_network_watcher" "main" {
