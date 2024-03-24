@@ -107,15 +107,6 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
         "Microsoft.Storage/storageAccounts" = "StorageAccount"
         "Microsoft.Storage/storageAccounts/(.*)/blobServices/default/containers" = "StorageContainer"
         "Microsoft.Resources/subscriptions/resourceGroups" = "ResourceGroup"
-    }    
-
-    # resource location map
-    $global:ResourceLocations = Get-AzLocation
-    $global:ResourceLocationMap = @{}
-    $global:ResourceLocations | Foreach-Object {$global:ResourceLocationMap += @{"$($_.Location)" = $_.DisplayName}}
-    $global:ResourceLocations | Where-Object {!$global:ResourceLocationMap.$($_.DisplayName)} | Foreach-Object {$global:ResourceLocationMap += @{"$($_.DisplayName)" = $_.Location}}
-
-    # available providers
-    $global:ResourceProviders = Get-AzResourceProvider -ListAvailable
+    }
 
 #endregion GLOBAL DEFINITIONS
