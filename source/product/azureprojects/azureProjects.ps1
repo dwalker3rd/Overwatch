@@ -14,29 +14,10 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id="AzureProjects"}
 . $PSScriptRoot\definitions.ps1
 
-#region SERVER CHECK
-
-    # Do NOT continue if ...
-    #   1. the host server is starting up or shutting down
-
-    # check for server shutdown/startup events
-    $serverStatus = Get-ServerStatus -ComputerName (Get-PlatformTopology nodes -Keys)
-    
-    # abort if a server startup/reboot/shutdown is in progress
-    if ($serverStatus -in ("Startup.InProgress","Shutdown.InProgress")) {
-        $action = "Sync"; $target = "AzureAD\$($tenantKey)"; $status = "Aborted"
-        $message = "Server $($ServerEvent.($($serverStatus.Split("."))[0]).ToUpper()) is $($ServerEventStatus.($($serverStatus.Split("."))[1]).ToUpper())"
-        Write-Log -Target $target -Action $action -Status $status -Message $message -EntryType "Warning" -Force
-        Write-Host+ -NoTrace $message -ForegroundColor DarkYellow
-        
-        return
-    }
-
-#endregion SERVER CHECK
 #region LOCAL DEFINITIONS
 
     $ResourceTypesWithSpecialAssignments = @("ResourceGroup","DataFactory","NetworkInterface","StorageContainer")
-    $ResourceTypesUnmanaged = @("ApplicationInsights","Disk","OperationalInsightsWorkspace","NetworkSecurityGroup","PublicIpAddress","VirtualNetwork","VmExtension")
+    $ResourceTypesUnmanaged = @("Disk","OperationalInsightsWorkspace","NetworkSecurityGroup","PublicIpAddress","VirtualNetwork","VmExtension")
 
 #endregion LOCAL DEFINITIONS
 #region LOCAL FUNCTIONS
@@ -192,13 +173,33 @@ $global:Product = @{Id="AzureProjects"}
         [CmdletBinding()]
         param(
             [Parameter(Mandatory=$true)][string]$ResourceType,
-            [Parameter(Mandatory=$true)][string]$ResourceName
+            [Parameter(Mandatory=$true)][string]$ResourceName,
+            [Parameter(Mandatory=$false)][string]$ResourceParent
         )
 
+        $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
+        $subscriptionId = $global:Azure.$tenantKey.Subscription.Id
+
         if ($ResourceType -eq "ResourceGroup") {
-            return (Get-AzResourceGroup -Name $ResourceName).ResourceId
+            return "/subscriptions/$subscriptionId/resourceGroups/$ResourceName"
         }
-    
+
+        if ($ResourceType -eq "StorageContainer") {
+            if ([string]::IsNullOrEmpty($ResourceParent)) {
+                throw "`$ResourceParent cannot be null for resource type 'StorageContainer'"
+            }
+            $_storageAccount = Get-AzResource -ResourceGroupName $global:AzureProject.ResourceGroupName -ResourceType $global:ResourceTypeAlias."StorageAccount" -Name $ResourceParent -ErrorAction SilentlyContinue
+            if (!$_storageAccount) {
+                throw "Resource 'StorageAccount/$ResourceParent' not found"
+            }
+            $_storageAccountContext = New-AzStorageContext -StorageAccountName $ResourceParent -UseConnectedAccount
+            $_storageContainer = Get-AzStorageContainer -Context $_storageAccountContext -Name $ResourceName -ErrorAction SilentlyContinue
+            if (!$_storageContainer) {
+                throw "Resource 'StorageContainer/$ResourceName' not found in 'StorageAccount/$ResourceParent'"
+            }
+            return "$($global:AzureProject.ScopeBase)/$($global:ResourceTypeAlias."StorageAccount")/$($ResourceParent)/blobServices/default/containers/$($ResourceName)"
+        }
+
         if ($ResourceType -notmatch "\/") {
             $ResourceType = $global:ResourceTypeAlias.$ResourceType
         }
@@ -216,12 +217,8 @@ $global:Product = @{Id="AzureProjects"}
         if (!$_resourceType) {
             throw "Resource type '$_resourceType' not found for resource provider '$_resourceProviderNamespace' in location '$_resourceLocation'"
         }
-        $_resource = Get-AzResource -ResourceGroupName $global:AzureProject.ResourceGroupName -ResourceType $ResourceType -Name $ResourceName
-        if (!$_resource) {
-            throw "Resource '$_resourceProviderNamespace/$_resourceType' not found in location '$_resourceLocation'"
-        }
     
-        return $_resource.resourceId
+        return "$($global:AzureProject.ScopeBase)/$ResourceType/$ResourceName"
     
     }
     
@@ -320,6 +317,8 @@ $global:Product = @{Id="AzureProjects"}
             [switch]$Overwrite
         )
     
+        $exportTarget = ![string]::IsNullOrEmpty($ProjectName) ? "project '$ProjectName'" : "$ResourceGroupName"
+
         if (![string]::IsNullOrEmpty($ProjectName)) {
             if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
             $ResourceGroupName = $global:AzureProject.ResourceGroupName
@@ -327,9 +326,18 @@ $global:Product = @{Id="AzureProjects"}
         if (![string]::IsNullOrEmpty($ResourceGroupName)) {
             if ($ResourceGroupName -ne $global:AzureProject.ResourceGroupName) {throw "`$global:AzureProject not initialized for project $ProjectName"}
         }
+
+        Write-Host+
+        $message = "<  Export $exportTarget resources <.>60> PENDING" 
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+
     
         $importedResources = @()
         if (Test-Path $global:AzureProject.Files.ResourceImportFile) {
+            # ensure the last row ends with a CRLF
+            if ((Get-Content -Path $global:AzureProject.Files.ResourceImportFile -Raw)[-1] -ne "`n") {
+                Add-Content -Path $global:AzureProject.Files.ResourceImportFile -Value $emptyString
+            }
             $importedResources += Import-AzProjectFile $global:AzureProject.Files.ResourceImportFile
         }
     
@@ -345,9 +353,9 @@ $global:Product = @{Id="AzureProjects"}
                 $_storageContainers | Where-Object {$_.resourceName -match "^bootdiagnostics-|insights-"} | ForEach-Object {
                     $_.exportResource = $false
                 }
-                if (!($_storageContainers | Where-Object {$_.exportResource})) {
-                    $_.exportResource = $false
-                }
+                # if (!($_storageContainers | Where-Object {$_.exportResource})) {
+                #     $_.exportResource = $false
+                # }
             }
         }
 
@@ -365,27 +373,43 @@ $global:Product = @{Id="AzureProjects"}
         #     Format-Table
 
         $exportedResources = $deployedResources | Where-Object {$_.exportResource}
-        $resourceDifferences = Compare-Object $importedResources $exportedResources -IncludeEqual -PassThru
+        $resourceDifferences = Compare-Object $importedResources $exportedResources -Property resourceType,resourceName,resourceId -IncludeEqual -PassThru
 
         Write-Host+ -NoTrace -NoTimestamp "   exportResource: `$true" -ForegroundColor Green
-        $resourceDifferences | 
+        $resourceDifferencesFormatTable = ($resourceDifferences | 
             Select-Object -Property resourceType,resourceName,resourceId,resourceParent,SideIndicator | 
-            Format-Table
+                Format-Table | Out-String) -split "`r`n"
+        for ($i = 0; $i -lt $resourceDifferencesFormatTable.Count-1; $i++) {
+            $rowColor = switch ($i) {
+                {$_ -in (1,2)} { "Green" }
+                {$resourceDifferencesFormatTable[$_].EndsWith("=>")} { "DarkYellow" }
+                default { "Gray" }
+            }
+            Write-Host+ -NoTrace -NoTimestamp $resourceDifferencesFormatTable[$i] -ForegroundColor $rowColor
+        }
     
+        $exportSuccess = $true
         if ($resourceDifferences.SideIndicator -contains "<=") {
-            Write-Host+ -NoTrace -NoTimestamp "Some resources in the resource import file have not been deployed." -ForegroundColor DarkRed
-            Write-Host+ -NoTrace -NoTimestamp "Verify resource deployment." -ForegroundColor DarkGray
+            Write-Host+ -NoTrace "  Some resources in the resource import file have not been deployed." -ForegroundColor DarkRed
+            Write-Host+ -NoTrace "  Verify resource deployment." -ForegroundColor DarkGray
+            $exportSuccess = $false
         }
         elseif ($resourceDifferences.SideIndicator -contains "=>") {
-            Write-Host+ -NoTrace -NoTimestamp "Some deployed resources are not in the resource import file." -ForegroundColor DarkYellow
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Update the resource import file (Y/N)? " -ForegroundColor Gray
+            Write-Host+ -NoTrace "  Some deployed resources are not in the resource import file." -ForegroundColor DarkYellow
+            Write-Host+ -NoTrace -NoNewLine "  Update the resource import file (Y/N)? " -ForegroundColor Gray
             $response = Read-Host
             if ($response -eq "Y") {
                 $resourceDifferences |
+                    Where-Object {$_.SideIndicator -eq "=>"} |
                     Select-Object -Property resourceType,resourceName,resourceId,resourceParent | 
-                        Export-Csv -Path $global:AzureProject.Files.ResourceImportFile -UseQuotes Always -NoTypeInformation
+                    Export-Csv -Path $global:AzureProject.Files.ResourceImportFile -UseQuotes Always -NoTypeInformation -Append
             }        
         }
+
+        Write-Host+
+        $message = "<  Export $exportTarget resources <.>60> $($exportSuccess ? "SUCCESS" : "FAIL")" 
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($exportSuccess ? "DarkGreen" : "DarkRed")
+        Write-Host+
     
         return
     
@@ -689,7 +713,7 @@ $global:Product = @{Id="AzureProjects"}
                                     resourceType = "StorageContainer"
                                     resourceName = $_storageContainer.Name
                                     resourceId = $_storageContainer.Name
-                                    resourceScope = "$($global:AzureProject.ScopeBase)/Microsoft.Storage/storageAccounts/$($_resourceName)/blobServices/default/containers/$($_storageContainer.Name)"
+                                    resourceScope = Get-AzResourceScope -ResourceType "StorageContainer" -ResourceName $_storageContainer.Name -ResourceParent $_resourceName
                                     resourcePath = $_resourcePath
                                     resourceObject = $_storageContainer
                                     resourceContext = $_storageAccountContext
@@ -729,6 +753,7 @@ function global:Initialize-AzProject {
         $Tenant = Request-AzProjectVariable -Name "Tenant" -Selections (Get-AzureTenantKeys) -Lowercase
     }
     $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     $subscriptionId = $global:Azure.$tenantKey.Subscription.Id
     $tenantId = $global:Azure.$tenantKey.Tenant.Id
@@ -902,7 +927,7 @@ function global:Initialize-AzProject {
         ResourceType = @{
             ResourceGroup = @{
                 Name = $resourceGroupName
-                Scope = "/subscriptions/$($global:Azure.$tenantKey.Subscription.Id)/resourceGroups/$resourceGroupName"
+                Scope = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName"
             }
             StorageAccount = @{
                 Parameters = @{}
@@ -957,7 +982,7 @@ function global:Grant-AzProjectRole {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
+        # [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
         # [switch]$RemoveExpiredInvitations,
@@ -982,8 +1007,9 @@ function global:Grant-AzProjectRole {
 
 
     # validate $global:AzureProject
-    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+
+    $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
 
     # get resource group name
     $resourceGroupName = $global:AzureProject.ResourceGroupName
@@ -1367,7 +1393,7 @@ function global:Grant-AzProjectRole {
                     $resource.resourceContext = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
 
                     $_storageContainers = Get-AzStorageContainer -Context $resource.resourceContext
-                    $_storageContainers = $_storageContainers | Where-Object {$_.Name -notmatch "^bootdiagnostics-|insights-"}
+                    $_storageContainers = $_storageContainers <# | Where-Object {$_.Name -notmatch "^bootdiagnostics-|insights-"} #>
                     foreach ($_storageContainer in $_storageContainers) {
 
                         $_storageContainerType = "StorageContainer"
@@ -2366,23 +2392,6 @@ function global:Grant-AzProjectRole {
 
                                     }
                                 }
-
-
-                                # # remove all access policies and break
-                                # if (!$projectIdentity.authorized -and $projectIdentity.removeAllAccessPolicies) {
-                                #     $accessPolicyParams = @{
-                                #         ResourceGroupName = $resourceGroupName
-                                #         VaultName = $resource.resourceName
-                                #         ObjectId = $projectIdentity.objectId
-                                #     }
-                                    
-                                #     if (!$WhatIf) {
-                                #         $result = Remove-AzKeyVaultAccessPolicy @accessPolicyParams -PassThru
-                                #         $result | Out-Null
-                                #         break
-                                #     }
-                                # }
-
                                 
                             }
                         }
@@ -2417,14 +2426,16 @@ function global:Revoke-AzureADInvitation {
 
     [CmdletBinding(SupportsShouldProcess=$true)]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
+        # [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$true)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User
     )
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+    # $tenantKey = $Tenant.split(".")[0].ToLower()
+    # if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+
+    $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
 
     $isUserId = $User -match $global:RegexPattern.Guid
     $isGuestUserPrincipalName = $User -match $global:RegexPattern.Username.AzureAD -and $User -like "*#EXT#*"
@@ -2518,19 +2529,20 @@ function global:Deploy-AzProject {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
+        # [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
-    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    # if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
 
     switch ($global:AzureProject.DeploymentType) {
         "Overwatch" {  
-            Deploy-AzProjectWithOverwatch -Tenant $tenantKey -Project $ProjectName
+            Deploy-AzProjectWithOverwatch <# -Tenant $tenantKey #> -Project $ProjectName
         }
         "DSVM" {
-            Deploy-AzProjectWithDSVM -Tenant $tenantKey -Project $ProjectName
+            Deploy-AzProjectWithDSVM <# -Tenant $tenantKey #> -Project $ProjectName
         }
     }
     
@@ -2546,29 +2558,48 @@ function global:Deploy-AzProjectWithOverwatch {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
+        # [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
-    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    # if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
-    
+
+    $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
     $resourceGroupName = $global:AzureProject.ResourceGroupName
     $resourceLocation = $global:AzureProject.ResourceLocation
-    
+    $prefix = $global:AzureProject.Prefix
+
+    #region DEPLOYED RESOURCES    
+
+        Write-Host+ 
+        $message = "<  Getting deployed resources <.>60> PENDING"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+        Write-Host+
+
+        $deployedResources = Get-AzDeployedResources -ProjectName $ProjectName
+
+        Write-Host+
+        $message = "<  Getting deployed resources <.>60> SUCCESS"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+
+    #endregion DEPLOYED RESOURCES
+
     Write-Host+
-    $message = "<  Project '$ProjectName' Deployment <.>60> PENDING" 
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-    Write-Host+
+    $message = "<  Deploy project '$ProjectName' <.>60> PENDING" 
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray   
 
     #region RESOURCE GROUP
 
+        Write-Host+ 
         $message = "<    ResourceGroups/$($resourceGroupName) <.>60> PENDING"
         Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
         
         $resourceExists = $false
         $resourceSuccess = $false
-        $resourceGroup = Get-AzResourceGroup -Name $global:AzureProject.ResourceGroupName -ErrorAction SilentlyContinue
+        $resourceGroupName = $global:AzureProject.ResourceGroupName
+        $resourceGroup = Get-AzResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue
         if ($resourceGroup) {
             $resourceExists = $true
             $resourceSuccess = $true
@@ -2591,9 +2622,22 @@ function global:Deploy-AzProjectWithOverwatch {
     #region RESOURCE IMPORT
 
         $resources += Import-AzProjectFile -Path $global:AzureProject.Files.ResourceImportFile | 
-            Select-Object -Property resourceType, resourceName, resourceId, @{Name="resourceScope"; Expression={$null}}, @{Name="resourcePath"; Expression={$null}}, @{Name="resourceObject"; Expression={$null}}, @{Name="resourceContext"; Expression={$null}}, resourceParent
- 
+            Select-Object -Property resourceType, resourceName, resourceId, 
+                @{Name="resourceScope"; Expression={$null}}, 
+                @{Name="resourcePath"; Expression={"$resourceGroupName/$($_.resourceType)/$($_.resourceName)"}}, 
+                @{Name="resourceObject"; Expression={$null}}, 
+                @{Name="resourceContext"; Expression={$null}}, 
+                resourceParent
 
+        # set resourcePath for resources with parents
+        foreach ($resource in ($resources | Where-Object {![string]::IsNullOrEmpty($_.resourceParent)})) {
+            $resourceParent = $resources | Where-Object {$_.resourceId -eq $resource.resourceParent}
+            $resource.resourcePath = "$resourceGroupName/$($resourceParent.resourceType)/$($resourceParent.resourceName)/$($resource.resourceType)/$($resource.resourceName)"
+        }
+
+        # sort resources by resourcePath
+        $resources = $resources | Sort-Object -Property resourcePath
+ 
         $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
         if ($duplicateResourceIds) {
             $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)."
@@ -2608,6 +2652,7 @@ function global:Deploy-AzProjectWithOverwatch {
     #endregion RESOURCE IMPORT   
     #region CREATE RESOURCES
 
+        $allResourcesExist = $true
         $deploymentSuccess = $true
         foreach ($resource in $resources) {
 
@@ -2629,7 +2674,7 @@ function global:Deploy-AzProjectWithOverwatch {
             switch ($resourceType) {
                 default {
                     if ([string]::IsNullOrEmpty($resource.resourceScope)) {
-                        $scope = Get-AzResourceScope -ResourceType $resourceType -ResourceName $resourceName
+                        $scope = Get-AzResourceScope -ResourceType $resourceType -ResourceName $resourceName -ResourceParent $resourceParent.resourceName
                     }
                     else {
                         $scope = $resource.resourceScope
@@ -2638,24 +2683,33 @@ function global:Deploy-AzProjectWithOverwatch {
             } 
 
             # get object, if it exists
-            $object = $null
-            switch ($resourceType) {
-                default {
-                    $getAzExpression = "Get-Az$resourceType -ResourceGroupName $resourceGroupName"
-                    $getAzExpression += $resourceType -ne "ResourceGroup" ? " -Name $resourceName" : $null
-                    $object = Invoke-Expression $getAzExpression -ErrorAction SilentlyContinue 2>&1
-                }
-                "DataFactory" {
-                    $object = Get-AzDataFactory -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
-                    if (!$object) {
-                        $object = Get-AzDataFactoryV2 -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
-                    }
-                }
-            }
+            $object = ($deployedResources | where-object {$_.resourceType -eq $resourceType -and $_.resourceName -eq $resourceName}).resourceObject
+
+            # $object = $null
+            # switch ($resourceType) {
+            #     default {
+            #         $getAzExpression = "Get-Az$resourceType -ResourceGroupName $resourceGroupName"
+            #         $getAzExpression += $resourceType -ne "ResourceGroup" ? " -Name $resourceName" : $null
+            #         $object = Invoke-Expression $getAzExpression -ErrorAction SilentlyContinue 2>&1
+            #     }
+            #     "DataFactory" {
+            #         $object = Get-AzDataFactory -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+            #         if (!$object) {
+            #             $object = Get-AzDataFactoryV2 -ResourceGroupName $resourceGroupName -Name $resourceName -ErrorAction SilentlyContinue
+            #         }
+            #     }
+            #     "StorageContainer" {
+            #         $_storageAccountContext = New-AzStorageContext -StorageAccountName $ResourceParent.resourceName -UseConnectedAccount
+            #         $object = Get-AzStorageContainer -Context $_storageAccountContext -Name $resourceName -ErrorAction SilentlyContinue
+            #     }
+            # }
 
             if ($object) { 
                 $resourceExists = $true
                 $resourceSuccess = $true
+            }
+            else {
+                $allResourcesExist = $false
             }
 
             # create object
@@ -2685,19 +2739,105 @@ function global:Deploy-AzProjectWithOverwatch {
                             $object = New-AzStorageContainer+ -Context $_storageAccount.resourceContext -Name $resourceName
                         }
                         "MLWorkspace" {
-                            $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount"}
-                            $_keyVault = $resources | Where-Object {$_.resourceType -eq "keyVault"}
-                            $_applicationInsights = $resources | Where-Object {$_.resourceType -eq "ApplicationInsights"}
+
+                            Write-Host+ # close -NoNewLine
+
+                            $_resourceType = "StorageAccount"
+                            $_resourceName = "$($prefix)$($ProjectName)diagstorage"
+                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            $_resourceExists = $true
+                            $_resourceSuccess = $true
+                            $_storageAccount = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType -and $_.resourceName -eq $_resourceName}).resourceObject # TODO: fix/standardize storage account names
+                            if (!$_storageAccount) { 
+                                $_resourceExists = $false
+                                $storageAccountParameters = Get-AzProjectStorageAccountParameters
+                                $params = @{
+                                    Name = $_resourceName
+                                    ResourceGroupName = $resourceGroupName
+                                    Location = $resourceLocation
+                                    SKU = $storageAccountParameters.StorageAccountSku
+                                    Kind = $storageAccountParameters.StorageAccountKind
+                                }
+                                $_storageAccount = New-AzStorageAccount+ @params -ErrorAction SilentlyContinue
+                                if (!$_storageAccount) { $_resourceSuccess = $false }
+                            }
+                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+                            # $_storageAccountType = $_resourceType
+                            # $_storageAccountName = $_resourceName
+
+                            $_resourceType = "KeyVault"
+                            $_resourceName = "$($prefix)$($ProjectName)-kv"
+                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            $_keyVault = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType}).resourceObject
+                            if (!$_keyVault) { 
+                                $_keyVault = New-AzKeyVault -ResourceGroupName $resourceGroup -Name $_resourceName -EnableRbacAuthorization
+                                if (!$_keyVault) { $_resourceSuccess = $false }
+                            }
+                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+
+                            $_resourceType = "OperationalInsightsWorkspace"
+                            $_resourceName = "$($prefix)$($ProjectName)-loganalytics"
+                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            $_operationalInsightsWorkspace = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType -and $_.resourceName -eq $_resourceName}).resourceObject
+                            if (!$_operationalInsightsWorkspace) {
+                                $_operationalInsightsWorkspace = New-AzOperationalInsightsWorkspace -ResourceGroupName $resourceGroupName -Name $_resourceName -Location $resourceLocation
+                                if (!$_operationalInsightsWorkspace) { $_resourceSuccess = $false }
+                                $_operationalInsightsWorkspaceLinkedStorageAccount = New-AzOperationalInsightsLinkedStorageAccount -ResourceGroupName $resourceGroupName -WorkspaceName $_resourceName -DataSourceType CustomLogs -StorageAccountId $_storageAccount.Id
+                                if (!$_operationalInsightsWorkspaceLinkedStorageAccount) { $_resourceSuccess = $false }
+                            }
+                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+
+                            $_resourceType = "ApplicationInsights"
+                            $_resourceName = "$($prefix)$($ProjectName)-appinsights"
+                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            $_applicationInsights = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType}).resourceObject
+                            if (!$_applicationInsights) { 
+                                $_applicationInsights = New-AzApplicationInsights -ResourceGroupName $resourceGroupName -Name $_resourceName -Location $resourceLocation -WorkspaceResourceId $_operationalInsightsWorkspace.ResourceId
+                                if (!$_applicationInsights) { $_resourceSuccess = $false }
+                            }
+                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+
                             $_mlWorkspaceParams = @{
                                 Name = $resourceName
                                 ResourceGroupName = $resourceGroupName
                                 Location = $resourceLocation
-                                ApplicationInsightID = $_applicationInsights.resourceScope
-                                KeyVaultId = $_keyVault.resourceScope
-                                StorageAccountId = $_storageAccount.resourceScope
+                                ApplicationInsightID = $_applicationInsights.Id
+                                KeyVaultId = $_keyVault.ResourceId
+                                StorageAccountId = $_storageAccount.Id
                                 IdentityType = 'SystemAssigned'
                             }
                             $object = New-AzMLWorkspace @_mlWorkspaceParams
+
+                            $message = "<    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($resourceTypeAndName) <.>60> PENDING"
+                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
                         }
                     }
                 }
@@ -2727,28 +2867,31 @@ function global:Deploy-AzProjectWithOverwatch {
         }
 
     #endregion CREATE RESOURCES
-    
-    Write-Host+
-    $message = "<  Project '$ProjectName' Deployment <.>60> $($deploymentSuccess ? "SUCCESS" : "FAIL")" 
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($deploymentSuccess ? "DarkGreen" : "DarkRed")
 
-    if ($deploymentSuccess) {
+    Write-Host+
+    $message = "<  Deploy project '$ProjectName' <.>60> $($deploymentSuccess ? "SUCCESS" : "FAIL")" 
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($deploymentSuccess ? "DarkGreen" : "DarkRed")    
+
+    if ($deploymentSuccess -and !$allResourcesExist) {
         # scan resource group and create resource import file
         Export-AzProjectResourceFile -Project $ProjectName
     }
-    
+
 }
 
 function global:Deploy-AzProjectWithDSVM {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
+        # [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
-    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    # $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    # if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+
+    $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
 
     if ($azProjectVmParameters.VmSize -eq "None") {
         Write-Host+ -NoTrace "VmSize cannot be null for a DSVM deployment." -ForegroundColor DarkRed
