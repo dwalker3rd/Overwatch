@@ -2650,6 +2650,11 @@ function global:Deploy-AzProjectWithOverwatch {
         }
 
     #endregion RESOURCE IMPORT   
+    #region COMPARE IMPORTED TO DEPLOYED RESOURCES
+
+        $resources = Compare-Object $resources $deployedResources -Property resourceType,resourceName,resourceId -IncludeEqual -PassThru | Where-Object {$_.SideIndicator -eq "<="} | Select-Object -ExcludeProperty SideIndicator
+
+    #endregion COMPARE IMPORTED TO DEPLOYED RESOURCES
     #region CREATE RESOURCES
 
         $allResourcesExist = $true
@@ -2716,11 +2721,24 @@ function global:Deploy-AzProjectWithOverwatch {
             if (!$object) {
                 try {
                     switch ($resourceType) {
-                        default {
-                            $getAzExpression = "New-Az$resourceType -ResourceGroupName $resourceGroupName -Name $resourceName -Location $resourceLocation"
-                            $object = Invoke-Expression $getAzExpression
+                        # default {
+                        #     $getAzExpression = "New-Az$resourceType -ResourceGroupName $resourceGroupName -Name $resourceName -Location $resourceLocation"
+                        #     $object = Invoke-Expression $getAzExpression
+                        # }
+                        "ApplicationInsights" {
+                            $_dependencyType = "OperationalInsightsWorkspace"
+                            $_dependencyName = "$($prefix)$($ProjectName)-loganalytics"
+                            $_dependency = $resources | Where-Object {$_.resourceType -eq $_dependencyType -and $_.resourceName -eq $_dependencyName}
+                            $object = New-AzApplicationInsights -ResourceGroupName $resourceGroupName -Name $resourceName -Location $resourceLocation -WorkspaceResourceId $_dependency.ResourceId
                         }
-                        "VM" {
+                        "OperationalInsightsWorkspace" {
+                            $_dependencyType = "StorageAccount"
+                            $_dependencyName = "$($prefix)$($ProjectName)diagstorage"
+                            $_dependency = $resources | Where-Object {$_.resourceType -eq $_dependencyType -and $_.resourceName -eq $_dependencyName}
+                            $object = New-AzOperationalInsightsWorkspace -ResourceGroupName $resourceGroupName -Name $resourceName -Location $resourceLocation
+                            $_operationalInsightsWorkspaceLinkedStorageAccount = New-AzOperationalInsightsLinkedStorageAccount -ResourceGroupName $resourceGroupName -WorkspaceName $resourceName -DataSourceType "CustomLogs" -StorageAccountId $_dependency.resourceScope
+                            $_operationalInsightsWorkspaceLinkedStorageAccount | Out-Null
+                            # if (!$_operationalInsightsWorkspaceLinkedStorageAccount) throw message, log, something
                         }
                         "StorageAccount" {
                             $storageAccountParameters = Get-AzProjectStorageAccountParameters
@@ -2735,109 +2753,129 @@ function global:Deploy-AzProjectWithOverwatch {
                             $resource.resourceContext = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
                         }
                         "StorageContainer" {
-                            $_storageAccount = $resources | Where-Object {$_.resourceType -eq "StorageAccount" -and $_.resourceId -eq $resource.resourceParent}
-                            $object = New-AzStorageContainer+ -Context $_storageAccount.resourceContext -Name $resourceName
+                            $_dependencyType = "StorageAccount"
+                            $_dependencyName = "$($prefix)$($ProjectName)diagstorage"
+                            $_dependency = $resources | Where-Object {$_.resourceType -eq $_dependencyType -and $_.resourceName -eq $_dependencyName -and $_.resourceId -eq $resource.resourceParent}
+                            $object = New-AzStorageContainer+ -Context $_dependency.resourceContext -Name $resourceName
                         }
+
                         "MLWorkspace" {
 
-                            Write-Host+ # close -NoNewLine
-
-                            $_resourceType = "StorageAccount"
-                            $_resourceName = "$($prefix)$($ProjectName)diagstorage"
-                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
-                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
-                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
-                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
-                            $_resourceExists = $true
-                            $_resourceSuccess = $true
-                            $_storageAccount = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType -and $_.resourceName -eq $_resourceName}).resourceObject # TODO: fix/standardize storage account names
-                            if (!$_storageAccount) { 
-                                $_resourceExists = $false
-                                $storageAccountParameters = Get-AzProjectStorageAccountParameters
-                                $params = @{
-                                    Name = $_resourceName
-                                    ResourceGroupName = $resourceGroupName
-                                    Location = $resourceLocation
-                                    SKU = $storageAccountParameters.StorageAccountSku
-                                    Kind = $storageAccountParameters.StorageAccountKind
+                            $_dependencies = @{}
+                            foreach ($_dependencyResourceType in $global:Azure.ResourceTypes.$resourceType.Dependencies.Keys) {
+                                $_dependencyResourceName = $global:Azure.ResourceTypes.$_dependencyResourceType.Name.Pattern
+                                foreach ($key in $global:Azure.ResourceTypes.$resourceType.Dependencies.$_dependencyResourceType.Keys) {
+                                    $value = $global:Azure.ResourceTypes.$resourceType.Dependencies.$_dependencyResourceType.$($key)
+                                    $_dependencyResourceName = $_dependencyResourceName -replace "<$key>", $value
                                 }
-                                $_storageAccount = New-AzStorageAccount+ @params -ErrorAction SilentlyContinue
-                                if (!$_storageAccount) { $_resourceSuccess = $false }
+                                $_dependencyResourceName = Invoke-Expression $_dependencyResourceName
+                                $_dependencyResourceObject = $deployedResources | Where-Object {$_.resourceType -eq $_dependencyResourceType -and $_.resourceName -eq $_dependencyResourceName}
+                                if (!$_dependencyResourceObject) {
+                                    throw "$_dependencyResourceType\$_dependencyResourceName does not exist."
+                                }
+                                $_dependencies += @{
+                                    $($_dependencyResourceType) = $deployedResources | Where-Object {$_.resourceType -eq $_dependencyResourceType -and $_.resourceName -eq $_dependencyResourceName}
+                                }
                             }
-                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
-                            $_messageExists = $_resourceExists ? "EXISTS" : $null
-                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
-                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
-                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
-                            # $_storageAccountType = $_resourceType
-                            # $_storageAccountName = $_resourceName
 
-                            $_resourceType = "KeyVault"
-                            $_resourceName = "$($prefix)$($ProjectName)-kv"
-                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
-                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
-                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
-                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
-                            $_keyVault = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType}).resourceObject
-                            if (!$_keyVault) { 
-                                $_keyVault = New-AzKeyVault -ResourceGroupName $resourceGroup -Name $_resourceName -EnableRbacAuthorization
-                                if (!$_keyVault) { $_resourceSuccess = $false }
-                            }
-                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
-                            $_messageExists = $_resourceExists ? "EXISTS" : $null
-                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
-                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
-                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+                            # Write-Host+ # close -NoNewLine
 
-                            $_resourceType = "OperationalInsightsWorkspace"
-                            $_resourceName = "$($prefix)$($ProjectName)-loganalytics"
-                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
-                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
-                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
-                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
-                            $_operationalInsightsWorkspace = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType -and $_.resourceName -eq $_resourceName}).resourceObject
-                            if (!$_operationalInsightsWorkspace) {
-                                $_operationalInsightsWorkspace = New-AzOperationalInsightsWorkspace -ResourceGroupName $resourceGroupName -Name $_resourceName -Location $resourceLocation
-                                if (!$_operationalInsightsWorkspace) { $_resourceSuccess = $false }
-                                $_operationalInsightsWorkspaceLinkedStorageAccount = New-AzOperationalInsightsLinkedStorageAccount -ResourceGroupName $resourceGroupName -WorkspaceName $_resourceName -DataSourceType CustomLogs -StorageAccountId $_storageAccount.Id
-                                if (!$_operationalInsightsWorkspaceLinkedStorageAccount) { $_resourceSuccess = $false }
-                            }
-                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
-                            $_messageExists = $_resourceExists ? "EXISTS" : $null
-                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
-                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
-                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+                            # $_resourceType = "StorageAccount"
+                            # $_resourceName = "$($prefix)$($ProjectName)diagstorage"
+                            # $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            # $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            # $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            # Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            # $_resourceExists = $true
+                            # $_resourceSuccess = $true
+                            # $_storageAccount = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType -and $_.resourceName -eq $_resourceName}).resourceObject # TODO: fix/standardize storage account names
+                            # if (!$_storageAccount) { 
+                            #     $_resourceExists = $false
+                            #     $storageAccountParameters = Get-AzProjectStorageAccountParameters
+                            #     $params = @{
+                            #         Name = $_resourceName
+                            #         ResourceGroupName = $resourceGroupName
+                            #         Location = $resourceLocation
+                            #         SKU = $storageAccountParameters.StorageAccountSku
+                            #         Kind = $storageAccountParameters.StorageAccountKind
+                            #     }
+                            #     $_storageAccount = New-AzStorageAccount+ @params -ErrorAction SilentlyContinue
+                            #     if (!$_storageAccount) { $_resourceSuccess = $false }
+                            # }
+                            # $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            # $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            # $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            # $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+                            # # $_storageAccountType = $_resourceType
+                            # # $_storageAccountName = $_resourceName
 
-                            $_resourceType = "ApplicationInsights"
-                            $_resourceName = "$($prefix)$($ProjectName)-appinsights"
-                            $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
-                            $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
-                            $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
-                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
-                            $_applicationInsights = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType}).resourceObject
-                            if (!$_applicationInsights) { 
-                                $_applicationInsights = New-AzApplicationInsights -ResourceGroupName $resourceGroupName -Name $_resourceName -Location $resourceLocation -WorkspaceResourceId $_operationalInsightsWorkspace.ResourceId
-                                if (!$_applicationInsights) { $_resourceSuccess = $false }
-                            }
-                            $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
-                            $_messageExists = $_resourceExists ? "EXISTS" : $null
-                            $_messageExistsDelimiter = $_resourceExists ? "/" : $null
-                            $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
-                            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+                            # $_resourceType = "KeyVault"
+                            # $_resourceName = "$($prefix)$($ProjectName)-kv"
+                            # $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            # $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            # $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            # Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            # $_keyVault = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType}).resourceObject
+                            # if (!$_keyVault) { 
+                            #     $_keyVault = New-AzKeyVault -ResourceGroupName $resourceGroup -Name $_resourceName #-EnableRbacAuthorization
+                            #     if (!$_keyVault) { $_resourceSuccess = $false }
+                            # }
+                            # $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            # $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            # $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            # $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+
+                            # $_resourceType = "OperationalInsightsWorkspace"
+                            # $_resourceName = "$($prefix)$($ProjectName)-loganalytics"
+                            # $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            # $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            # $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            # Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            # $_operationalInsightsWorkspace = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType -and $_.resourceName -eq $_resourceName}).resourceObject
+                            # if (!$_operationalInsightsWorkspace) {
+                            #     $_operationalInsightsWorkspace = New-AzOperationalInsightsWorkspace -ResourceGroupName $resourceGroupName -Name $_resourceName -Location $resourceLocation
+                            #     if (!$_operationalInsightsWorkspace) { $_resourceSuccess = $false }
+                            #     $_operationalInsightsWorkspaceLinkedStorageAccount = New-AzOperationalInsightsLinkedStorageAccount -ResourceGroupName $resourceGroupName -WorkspaceName $_resourceName -DataSourceType CustomLogs -StorageAccountId $_storageAccount.Id
+                            #     if (!$_operationalInsightsWorkspaceLinkedStorageAccount) { $_resourceSuccess = $false }
+                            # }
+                            # $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            # $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            # $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            # $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
+
+                            # $_resourceType = "ApplicationInsights"
+                            # $_resourceName = "$($prefix)$($ProjectName)-appinsights"
+                            # $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                            # $_resourceTypeAndName = ($_resourceTypeAndName.Length -gt 44 ? $_resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $_resourceTypeAndName)
+                            # $message = "<    $($global:asciiCodes.RightArrowWithHook)  $($_resourceTypeAndName) <.>60> PENDING"
+                            # Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            # $_applicationInsights = ($deployedResources | Where-Object {$_.resourceType -eq $_resourceType}).resourceObject
+                            # if (!$_applicationInsights) { 
+                            #     $_applicationInsights = New-AzApplicationInsights -ResourceGroupName $resourceGroupName -Name $_resourceName -Location $resourceLocation -WorkspaceResourceId $_operationalInsightsWorkspace.ResourceId
+                            #     if (!$_applicationInsights) { $_resourceSuccess = $false }
+                            # }
+                            # $_messageErase = "$($emptyString.PadLeft(8,"`b")) "
+                            # $_messageExists = $_resourceExists ? "EXISTS" : $null
+                            # $_messageExistsDelimiter = $_resourceExists ? "/" : $null
+                            # $_messageStatus = "$($_resourceSuccess ? "SUCCESS" : "FAIL")$($emptyString.PadLeft(8," "))"
+                            # Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $_messageErase, $_messageExists, $_messageExistsDelimiter, $_messageStatus -ForegroundColor DarkGray, DarkYellow, DarkGray, ($_resourceSuccess ? "DarkGreen" : "DarkRed")
 
                             $_mlWorkspaceParams = @{
                                 Name = $resourceName
                                 ResourceGroupName = $resourceGroupName
                                 Location = $resourceLocation
-                                ApplicationInsightID = $_applicationInsights.Id
-                                KeyVaultId = $_keyVault.ResourceId
-                                StorageAccountId = $_storageAccount.Id
+                                ApplicationInsightID = $_dependencies.ApplicationInsights.resourceObject.Id
+                                KeyVaultId = $_dependencies.KeyVault.resourceObject.ResourceId
+                                StorageAccountId = $_dependencies.StorageAccount.resourceObject.Id
                                 IdentityType = 'SystemAssigned'
                             }
                             $object = New-AzMLWorkspace @_mlWorkspaceParams
 
-                            $message = "<    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($resourceTypeAndName) <.>60> PENDING"
-                            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
+                            # $message = "<    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($resourceTypeAndName) <.>60> PENDING"
+                            # Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,Gray,DarkGray,DarkGray
                         }
                     }
                 }
