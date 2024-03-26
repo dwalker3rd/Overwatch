@@ -50,7 +50,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         Dependencies = @{}
                     }
                     Disk = @{
-                        Name = @{ Pattern = "`"`$(`$parentResourceName)-<dependencyType>00`"" }
+                        Name = @{ Pattern = "`"`$(`$dependentResourceName)-<dependencyType>00`"" }
                         Dependencies = @{}
                     }
                     KeyVault = @{
@@ -82,7 +82,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     PublicIPAddress = @{
-                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-`$(`$parentResourceType)-pip`"" }
+                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-`$(`$dependentResourceType)-pip`"" }
                         Dependencies = @{}
                     }
                     ResourceGroup = @{
