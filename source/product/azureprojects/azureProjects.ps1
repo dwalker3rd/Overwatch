@@ -354,6 +354,7 @@ $global:Product = @{Id="AzureProjects"}
             $rowColor = switch ($i) {
                 {$_ -in (1,2)} { "DarkGreen" }
                 {$resourceDifferencesFormatTable[$_].EndsWith("=>")} { "DarkYellow" }
+                {$resourceDifferencesFormatTable[$_].EndsWith("<=")} { "DarkRed" }
                 default { "DarkGray" }
             }
             Write-Host+ -NoTrace -NoTimestamp $resourceDifferencesFormatTable[$i] -ForegroundColor $rowColor
@@ -593,7 +594,14 @@ $global:Product = @{Id="AzureProjects"}
         Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "    ResourceGroup/$ResourceGroupName" -ForegroundColor DarkGray
 
         $_deployedResources = Get-AzResource -ResourceGroupName $ResourceGroupName | 
-            Where-Object {$global:ResourceTypeAlias.($_.ResourceType) -in $global:Azure.ResourceTypes.Keys}
+            Where-Object {$global:ResourceTypeAlias.($_.ResourceType) -in $global:Azure.ResourceTypes.Keys} | 
+            Select-Object -Property *, @{Name="ResourceTypeAndName";Expression={"$($global:ResourceTypeAlias.$($_.ResourceType))/$($_.Name)"}} | 
+            Sort-Object -Property ResourceTypeAndName
+
+        # used as a reference for containers below
+        if (Test-Path $global:AzureProject.Files.ResourceImportFile) {
+            $importedResources = Import-AzProjectFile $global:AzureProject.Files.ResourceImportFile
+        }
 
         foreach ($_resource in $_deployedResources) {
     
@@ -603,7 +611,7 @@ $global:Product = @{Id="AzureProjects"}
             
             if (![string]::IsNullOrEmpty($_resourceType)) {
 
-                $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                $_resourceTypeAndName = $_resource.ResourceTypeAndName # "$($_resourceType)/$($_resourceName)"
                 Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "    $_resourceTypeAndName" -ForegroundColor DarkGray
 
                 $_resourceObject = $null
@@ -708,7 +716,7 @@ $global:Product = @{Id="AzureProjects"}
                     switch ($_resourceType) {
                         "StorageAccount" {
                             $_storageAccountContext = New-AzStorageContext -StorageAccountName $_resource.resourceName -UseConnectedAccount
-                            $_storageContainers = Get-AzStorageContainer -Context $_storageAccountContext | Where-Object {$_.Name -notmatch $UnmanagedContainerRegex}
+                            $_storageContainers = Get-AzStorageContainer -Context $_storageAccountContext | Where-Object {$_.Name -notmatch $UnmanagedContainerRegex -or $_.Name -in $importedResources.resourceName}
                             foreach ($_storageContainer in $_storageContainers) {
 
                                 $_resourceTypeAndName = "$_resourceType/$_resourceName/StorageContainer/$($_storageContainer.Name)"
@@ -1006,7 +1014,6 @@ function global:Grant-AzProjectRole {
     $message = "<  -WhatIf < >35> Simulates operations to allow for testing (Grant-AzProjectRole only)."
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor $($WhatIf ? "DarkYellow" : "DarkGray")
     Write-Host+
-
 
     # validate $global:AzureProject
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
@@ -1395,7 +1402,7 @@ function global:Grant-AzProjectRole {
                     $resource.resourceContext = New-AzStorageContext -StorageAccountName $resourceName -UseConnectedAccount -ErrorAction SilentlyContinue
 
                     $_storageContainers = Get-AzStorageContainer -Context $resource.resourceContext
-                    $_storageContainers = $_storageContainers <# | Where-Object {$_.Name -notmatch "^bootdiagnostics|insights|azureml"} #>
+                    $_storageContainers = $_storageContainers | Where-Object {$_.Name -notmatch $UnmanagedContainerRegex -or $_.Name -in $resources.resourceName}
                     foreach ($_storageContainer in $_storageContainers) {
 
                         $_storageContainerType = "StorageContainer"
@@ -1756,15 +1763,20 @@ function global:Grant-AzProjectRole {
                     else {
                         $externalUserState = $guest.object.externalUserState -eq "PendingAcceptance" ? "Pending " : $guest.object.externalUserState
                         $externalUserStateChangeDateTime = $guest.object.externalUserStateChangeDateTime
+                        $externalUserStateColor = $externalUserState -eq "Pending " ? "DarkYellow" : "DarkGray"
 
                         if ($guest.object.externalUserState -eq "PendingAcceptance") {
                             if (([datetime]::Now - $externalUserStateChangeDateTime).TotalDays -gt 15) {
-                                Revoke-AzureAdInvitation -Tenant $tenantKey -User $guest.id
+                                if (!$WhatIf) {
+                                    Revoke-AzureAdInvitation -ProjectName $ProjectName -User $guest.id -Quiet
+                                }
+                                $externalUserState = "Revoked"
+                                $externalUserStateChangeDateTime = [datetime]::Now
+                                $externalUserStateColor = "DarkYellow"
                             }
                         }
 
                         $externalUserStateChangeDateString = $externalUserStateChangeDateTime.ToString("u").Substring(0,10)
-                        $externalUserStateColor = $externalUserState -eq "Pending " ? "DarkYellow" : "DarkGray"
                         $message = "$externalUserState $externalUserStateChangeDateString"
                         Write-Host+ -NoTrace -NoTimeStamp -NoNewLine $message -ForegroundColor $externalUserStateColor
 
@@ -2429,7 +2441,8 @@ function global:Revoke-AzureADInvitation {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param(        
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
-        [Parameter(Mandatory=$true)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User
+        [Parameter(Mandatory=$true)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
+        [switch]$Quiet
     )
 
     if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
@@ -2453,11 +2466,11 @@ function global:Revoke-AzureADInvitation {
     $azureADUser = Get-AzureADUser -Tenant $tenantKey -User $User
     $_userId = $azureADUser ? $azureADUser.mail : $User
 
-    Write-Host+
-    Write-Host+ -NoTrace "  Tenant:  ", $tenantKey -ForegroundColor DarkGray,DarkBlue
-    Write-Host+ -NoTrace "  Project: ", $ProjectName -ForegroundColor DarkGray,DarkBlue
-    Write-Host+ -NoTrace "  User:    ", $_userId -ForegroundColor DarkGray,DarkBlue
-    Write-Host+
+    Write-Host+ -Iff $($Quiet.IsPresent)
+    Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace "  Tenant:  ", $tenantKey -ForegroundColor DarkGray,DarkBlue
+    Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace "  Project: ", $ProjectName -ForegroundColor DarkGray,DarkBlue
+    Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace "  User:    ", $_userId -ForegroundColor DarkGray,DarkBlue
+    Write-Host+ -Iff $($Quiet.IsPresent)
 
     if (!$azureADUser) {
         throw "User '$_userId' not found in $($global:Azure.$tenantKey.Tenant.Type) tenant '$tenantKey'"
@@ -2466,13 +2479,13 @@ function global:Revoke-AzureADInvitation {
     $externalUserState = $azureADUser.externalUserState -eq "PendingAcceptance" ? "Pending" : $azureADUser.externalUserState
     $externalUserStateChangeDateTime = $azureADUser.externalUserStateChangeDateTime.ToString("u").Substring(0,10)
     $message = "<  Invitation ($externalUserStateChangeDateTime) <.>40> $($externalUserState.ToUpper())"
-    Write-Host+ -NoTrace -Parse  $message -ForegroundColor DarkGray,DarkGray,$($externalUserState -eq "Pending" ? "DarkYellow" : "DarkGray")
+    Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace -Parse  $message -ForegroundColor DarkGray,DarkGray,$($externalUserState -eq "Pending" ? "DarkYellow" : "DarkGray")
 
     if ($azureADUser.externalUserState -eq "PendingAcceptance") { 
 
         # delete user
         Remove-AzureADUser -Tenant $tenantKey -Id $azureADUser.id
-        Write-Host+ -NoTrace -Parse "<  $($global:Azure.$tenantKey.Tenant.Type) account <.>40> DELETED" -ForegroundColor DarkGray,DarkGray,DarkRed
+        Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace -Parse "<  $($global:Azure.$tenantKey.Tenant.Type) account <.>40> DELETED" -ForegroundColor DarkGray,DarkGray,DarkRed
 
         # comment out all import file entries which reference the user
         foreach ($importFileType in @("User","Group","Security")) {
@@ -2481,7 +2494,7 @@ function global:Revoke-AzureADInvitation {
                 $updatedContent += $_ -like "*$($azureADUser.mail)*" ? "# $_" : $_
             }
             Set-Content -Path $global:AzureProject.Files."$($importFileType)ImportFile" -Value $updatedContent
-            Write-Host+ -NoTrace -Parse "<  $($importFileType)ImportFile <.>40> UPDATED" -ForegroundColor DarkGray,DarkGray,DarkGray
+            Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace -Parse "<  $($importFileType)ImportFile <.>40> UPDATED" -ForegroundColor DarkGray,DarkGray,DarkGray
         }
 
         # get lastest export of security assignments
@@ -2495,7 +2508,7 @@ function global:Revoke-AzureADInvitation {
             $resourceScope = Get-AzResourceScope -ResourceType $roleAssignment.resourceType -ResourceName $roleAssignment.resourceName
             Remove-AzRoleAssignment -Scope $resourceScope -RoleDefinitionName $roleAssignment.securityKey -ObjectId $azureADUser.id -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null
         }
-        Write-Host+ -Iff $($roleAssignments.Count -gt 0) -NoTrace -Parse "<  All role assignments <.>40> REMOVED" -ForegroundColor DarkGray,DarkGray,DarkRed
+        Write-Host+ -Iff $($Quiet.IsPresent -and $roleAssignments.Count -gt 0) -NoTrace -Parse "<  All role assignments <.>40> REMOVED" -ForegroundColor DarkGray,DarkGray,DarkRed
 
         #remove access policies
         $accessPolicies = $securityAssignments | Where-Object {$_.securityType -eq "AccessPolicy"}
@@ -2503,7 +2516,7 @@ function global:Revoke-AzureADInvitation {
             $resourceScope = Get-AzResourceScope -ResourceType $accessPolicy.resourceType -ResourceName $accessPolicy.resourceName
             Remove-AzKeyVaultAccessPolicy -VaultName $accessPolicy.resourceName -ResourceGroupName $global:AzureProject.ResourceGroupName -ObjectId $azureADUser.id | Out
         }
-        Write-Host+ -Iff $($accessPolicies.Count -gt 0) -NoTrace -Parse "<  All access policies <.>40> REMOVED" -ForegroundColor DarkGray,DarkGray,DarkRed
+        Write-Host+ -Iff $($Quiet.IsPresent -and $accessPolicies.Count -gt 0) -NoTrace -Parse "<  All access policies <.>40> REMOVED" -ForegroundColor DarkGray,DarkGray,DarkRed
 
         # remove all export file entries which reference the user
         foreach ($exportFileType in @("Security")) {
@@ -2511,15 +2524,15 @@ function global:Revoke-AzureADInvitation {
             $updatedContent += Get-Content -Path $global:AzureProject.Files."$($exportFileType)ExportFile" | 
                 Where-Object { $_ -notlike "*$($azureADUser.mail)*" }
             Set-Content -Path $global:AzureProject.Files."$($exportFileType)ExportFile" -Value $updatedContent
-            Write-Host+ -NoTrace -Parse "<  $($exportFileType)ExportFile <.>40> UPDATED" -ForegroundColor DarkGray,DarkGray,DarkGray
+            Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace -Parse "<  $($exportFileType)ExportFile <.>40> UPDATED" -ForegroundColor DarkGray,DarkGray,DarkGray
         }
         
     }
     elseif ($azureADUser.externalUserState -eq "Accepted") {
-        Write-Host+ -NoTrace "  Accepted invitations cannot be revoked" -ForegroundColor DarkRed
+        Write-Host+ -Iff $($Quiet.IsPresent) -NoTrace "  Accepted invitations cannot be revoked" -ForegroundColor DarkRed
     }
 
-    Write-Host+
+    Write-Host+ -Iff $($Quiet.IsPresent)
     return
 
 }
