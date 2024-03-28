@@ -144,4 +144,5 @@ switch ($PSVersionTable.PSVersion.Major) {
 
 $global:asciiCodes = @{
     RightArrowWithHook = [char]0x21AA
+    NorthEastArrowWithHook = [char]0x2924
 }

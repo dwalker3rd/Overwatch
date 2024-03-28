@@ -22,6 +22,65 @@ $global:Product = @{Id="AzureProjects"}
 #endregion LOCAL DEFINITIONS
 #region LOCAL FUNCTIONS
 
+    function Find-AzProject {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,ParameterSetName="ByProjectName")]
+            [Alias("Project")][string]$ProjectName,
+
+            [Parameter(Mandatory=$true,ParameterSetName="ByResourceGroupName")]
+            [Alias("ResourceGroup")][string]$ResourceGroupName
+        )
+
+        foreach ($_groupName in $global:Azure.Group.Keys) {
+            foreach ($_projectName in $global:Azure.Group.$_groupName.Project.Keys) {
+                if ($global:Azure.Group.$_groupName.Project.$_projectName.Initialized) {
+                    if (![string]::IsNullOrEmpty($ProjectName)) {
+                        if ($_projectName -eq $ProjectName) {
+                            return $global:Azure.Group.$_groupName.Project.$ProjectName
+                        }
+                    }
+                    elseif (![string]::IsNullOrEmpty($ResourceGroupName)) {
+                        if ($global:Azure.Group.$_groupName.Project.$_projectName.ResourceGroupName -eq $ResourceGroupName) {
+                            return $global:Azure.Group.$_groupName.Project.$_projectName
+                        }
+                    }
+                }
+            }
+        }
+
+        return $null
+
+    }
+
+    function Switch-AzProject {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$false,Position=0)][Alias("Project")][string]$ProjectName
+        )
+
+        if ($ProjectName -ne $global:AzureProject.Name) {
+            Write-Host+
+            $_azureProject = Find-AzProject -ProjectName $ProjectName
+            Write-Host+ -NoTrace "ERROR: `$global:AzureProject is not $(!$_azureProject ? "initialized" : "configured") for project","'$ProjectName'" -ForegroundColor DarkRed,DarkBlue
+            if ($_azureProject) {
+                Write-Host+ -NoTrace -NoSeparator -NoNewLine "Switch to project ","'$ProjectName'","? (Y/N): " -ForegroundColor DarkGray,DarkBlue,DarkGray
+                $_response = Read-Host
+            }
+            if (!$_azureProject -or $_response -notin @("Y","Yes")) {
+                Write-Host+
+                return
+            }
+            $global:AzureProject = $_azureProject
+        }
+
+        Write-Host+ -NoTrace -NoSeparator "SUCCESS",": ","`$global:AzureProject is configured for project ","'$ProjectName'" -ForegroundColor DarkGreen,DarkGray,DarkGray,DarkBlue
+        Write-Host+
+
+    }
+
     function Request-AzProjectVariable {
 
         [CmdletBinding()]
@@ -320,11 +379,11 @@ $global:Product = @{Id="AzureProjects"}
         $exportTarget = ![string]::IsNullOrEmpty($ProjectName) ? "project '$ProjectName'" : "$ResourceGroupName"
 
         if (![string]::IsNullOrEmpty($ProjectName)) {
-            if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+            if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject is not initialized for project $ProjectName"}
             $ResourceGroupName = $global:AzureProject.ResourceGroupName
         }
         if (![string]::IsNullOrEmpty($ResourceGroupName)) {
-            if ($ResourceGroupName -ne $global:AzureProject.ResourceGroupName) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+            if ($ResourceGroupName -ne $global:AzureProject.ResourceGroupName) {throw "`$global:AzureProject is not initialized for project $ProjectName"}
         }
 
         Write-Host+
@@ -552,6 +611,9 @@ $global:Product = @{Id="AzureProjects"}
 
             [Parameter(Mandatory=$true,ParameterSetName="ByResourceGroupName")]
             [Alias("ResourceGroup")][string]$ResourceGroupName,
+
+            [Parameter(Mandatory=$false,ParameterSetName="ByProjectName")]
+            [Parameter(Mandatory=$false,ParameterSetName="ByResourceGroupName")][object]$DeployedResources,
             
             [Parameter(Mandatory=$false,ParameterSetName="ByProjectName")]
             [Parameter(Mandatory=$false,ParameterSetName="ByResourceGroupName")][switch]$Simple,
@@ -561,42 +623,57 @@ $global:Product = @{Id="AzureProjects"}
         )
     
         if (![string]::IsNullOrEmpty($ProjectName)) {
-            if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+            if ($ProjectName -ne $global:AzureProject.Name) {
+                Switch-AzProject -ProjectName $ProjectName
+            }
             $ResourceGroupName = $global:AzureProject.ResourceGroupName
         }
-        if (![string]::IsNullOrEmpty($ResourceGroupName)) {
-            if ($ResourceGroupName -ne $global:AzureProject.ResourceGroupName) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+        else {
+            if ($ResourceGroupName -ne $global:AzureProject.ResourceGroupName) {
+                Switch-AzProject -ResourceGroupName $ResourceGroupName
+            }
+            $ProjectName = $global:AzureProject.Name
         }
+
+        $firstPass = !$DeployedResources
+        $secondPass = !$firstPass
     
         $_resources = @()
 
-        if ($Simple) {
+        if ($firstPass) {
             $_resources += [PSCustomObject]@{
                 resourceType = "ResourceGroup"
                 resourceName = $ResourceGroupName
                 resourcePath = "/$ResourceGroupName"
                 resourceId = $ResourceGroupName
             }
-        }
-        else {
-            $_resources += [PSCustomObject]@{
-                resourceType = "ResourceGroup"
-                resourceName = $ResourceGroupName
-                resourcePath = "/$ResourceGroupName"
-                resourceId = $ResourceGroupName
-                resourceScope = Get-AzResourceScope -ResourceType "ResourceGroup" -ResourceName $ResourceGroupName
-                resourceObject = Get-AzResourceGroup -ResourceGroupName $ResourceGroupName
-                resourceContext = $null
-                resourceParent = $null
-            }
+
+            Write-Host+ -Iff $($Simple -and !$Quiet.IsPresent) -NoTrace "    ResourceGroup/$ResourceGroupName" -ForegroundColor DarkGray
+
+            # else {
+            #     $_resources += [PSCustomObject]@{
+            #         resourceType = "ResourceGroup"
+            #         resourceName = $ResourceGroupName
+            #         resourcePath = "/$ResourceGroupName"
+            #         resourceId = $ResourceGroupName
+            #         resourceScope = Get-AzResourceScope -ResourceType "ResourceGroup" -ResourceName $ResourceGroupName
+            #         resourceObject = Get-AzResourceGroup -ResourceGroupName $ResourceGroupName
+            #         resourceContext = $null
+            #         resourceParent = $null
+            #     }
+            # }
+
+            $_deployedResources = Get-AzResource -ResourceGroupName $ResourceGroupName | 
+                Where-Object {$global:ResourceTypeAlias.($_.ResourceType) -in $global:Azure.ResourceTypes.Keys} | 
+                Select-Object -Property *, @{Name="ResourceTypeAndName";Expression={"$($global:ResourceTypeAlias.$($_.ResourceType))/$($_.Name)"}} | 
+                Sort-Object -Property ResourceTypeAndName |
+                Select-Object -ExcludeProperty ResourceTypeAndName
         }
 
-        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "    ResourceGroup/$ResourceGroupName" -ForegroundColor DarkGray
+        if ($secondPass) {
+            $_deployedResources = $DeployedResources
+        }
 
-        $_deployedResources = Get-AzResource -ResourceGroupName $ResourceGroupName | 
-            Where-Object {$global:ResourceTypeAlias.($_.ResourceType) -in $global:Azure.ResourceTypes.Keys} | 
-            Select-Object -Property *, @{Name="ResourceTypeAndName";Expression={"$($global:ResourceTypeAlias.$($_.ResourceType))/$($_.Name)"}} | 
-            Sort-Object -Property ResourceTypeAndName
 
         # used as a reference for containers below
         if (Test-Path $global:AzureProject.Files.ResourceImportFile) {
@@ -605,14 +682,18 @@ $global:Product = @{Id="AzureProjects"}
 
         foreach ($_resource in $_deployedResources) {
     
-            $_resourceType = $global:ResourceTypeAlias.$($_resource.resourceType)
+            $_resourceType = $firstPass ? $global:ResourceTypeAlias.$($_resource.resourceType) : $_resource.resourceType
             $_resourceName = $_resource.resourceName
             $_resourcePath = "/$ResourceGroupName/$_resourceType/$_resourceName"
+            $_resourceParent = $_resource.resourceParent # not defined until second pass
             
             if (![string]::IsNullOrEmpty($_resourceType)) {
 
-                $_resourceTypeAndName = $_resource.ResourceTypeAndName # "$($_resourceType)/$($_resourceName)"
-                Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "    $_resourceTypeAndName" -ForegroundColor DarkGray
+                if ($Simple -or $secondPass) {
+                    $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
+                    $message = "    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($_resourceTypeAndName)"
+                    Write-Host+ -NoTrace $message -ForegroundColor DarkGray,DarkGray,DarkGray
+                }
 
                 $_resourceObject = $null
                 $_resourceParent = $null
@@ -664,8 +745,8 @@ $global:Product = @{Id="AzureProjects"}
                     }
                 }
 
-                # for simple mode, we're done
-                if ($Simple) {
+                # for simple mode (one pass only), we're done
+                if ($firstPass) {
                     $_resources += [PSCustomObject]@{
                         resourceType = $_resourceType
                         resourceName = $_resourceName
@@ -674,7 +755,7 @@ $global:Product = @{Id="AzureProjects"}
                         resourceParent = $_resourceParent
                     }
                 }
-                # NOT simple mode 
+                # for the second pass (now you've got resources in order) 
                 else {
                     # get resource object
                     switch ($_resourceType) {
@@ -719,8 +800,11 @@ $global:Product = @{Id="AzureProjects"}
                             $_storageContainers = Get-AzStorageContainer -Context $_storageAccountContext | Where-Object {$_.Name -notmatch $UnmanagedContainerRegex -or $_.Name -in $importedResources.resourceName}
                             foreach ($_storageContainer in $_storageContainers) {
 
-                                $_resourceTypeAndName = "$_resourceType/$_resourceName/StorageContainer/$($_storageContainer.Name)"
-                                Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "    $_resourceTypeAndName" -ForegroundColor DarkGray
+                                if ($Simple -or $secondPass) {
+                                    $_resourceTypeAndName = "$_resourceType/$_resourceName/StorageContainer/$($_storageContainer.Name)"
+                                    $message = "    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($_resourceTypeAndName)"
+                                    Write-Host+ -NoTrace $message -ForegroundColor DarkGray,DarkGray,DarkGray
+                                }
 
                                 $_resources += [PSCustomObject]@{
                                     resourceType = "StorageContainer"
@@ -740,7 +824,12 @@ $global:Product = @{Id="AzureProjects"}
             }
         }
 
-        return $_resources | Sort-Object -Property resourcePath
+        $_resources = $_resources | Sort-Object -Property resourcePath
+        if ($firstPass) {
+            $_resources = Get-AzDeployedResources -ProjectName $ProjectName -DeployedResources $_resources
+        }
+
+        return $_resources
 
     }
 
@@ -994,6 +1083,7 @@ function global:Grant-AzProjectRole {
 
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
         [switch]$WhatIf
@@ -1015,8 +1105,11 @@ function global:Grant-AzProjectRole {
     Write-Host+ -NoTrace -NoTimeStamp -Parse $message -ForegroundColor $($WhatIf ? "DarkYellow" : "DarkGray")
     Write-Host+
 
+    $tenantKey = Get-AzureTenantKeys -Tenant $Tenant
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
     # validate $global:AzureProject
-    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject is not initialized for project $ProjectName"}
 
     $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
 
@@ -2445,7 +2538,7 @@ function global:Revoke-AzureADInvitation {
         [switch]$Quiet
     )
 
-    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject is not initialized for project $ProjectName"}
 
     $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
 
@@ -2544,7 +2637,7 @@ function global:Deploy-AzProject {
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
-    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject is not initialized for project $ProjectName"}
 
     switch ($global:AzureProject.DeploymentType) {
         "Overwatch" {  
@@ -2743,7 +2836,9 @@ function global:Deploy-AzProjectWithOverwatch {
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
-    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    if ($ProjectName -ne $global:AzureProject.Name) {
+        Switch-AzProject -ProjectName $ProjectName
+    }
 
     $resourceGroupName = $global:AzureProject.ResourceGroupName
 
@@ -2867,7 +2962,7 @@ function global:Deploy-AzProjectWithDSVM {
         [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectName
     )
 
-    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject not initialized for project $ProjectName"}
+    if ($ProjectName -ne $global:AzureProject.Name) {throw "`$global:AzureProject is not initialized for project $ProjectName"}
 
     $tenantKey = Get-AzureTenantKeys -Tenant $global:AzureProject.Tenant
 
