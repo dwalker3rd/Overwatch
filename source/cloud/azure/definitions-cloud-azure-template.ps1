@@ -30,6 +30,10 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                     Bastion = @{
                         Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-bastion`"" }
                         Dependencies = @{
+                            VirtualNetworkSubnetConfig = @{
+                                SubnetName = "AzureBastionSubnet"
+                                AddressPrefix = "10.1.1.0/26"
+                            }
                             VirtualNetwork = @{}
                             PublicIPAddress = @{}
                         }
@@ -42,7 +46,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     CosmosDBAccount = @{
-                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-cosmos00`""}
+                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-cosmos<00>`""}
                         Dependencies = @{}
                     }
                     DataFactory = @{
@@ -50,7 +54,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         Dependencies = @{}
                     }
                     Disk = @{
-                        Name = @{ Pattern = "`"`$(`$dependentResourceName)-<dependencyType>00`"" }
+                        Name = @{ Pattern = "`"`$(`$dependentResourceName)-<dependencyType><00>`"" }
                         Dependencies = @{}
                     }
                     KeyVault = @{
@@ -58,7 +62,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         Dependencies = @{}
                     }
                     MLWorkspace = @{ 
-                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-mlws00`"" }
+                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-mlws<00>`"" }
                         Dependencies = @{
                             StorageAccount = @{ dependencyType = "diag" }
                             KeyVault = @{}
@@ -66,7 +70,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     NetworkInterface = @{
-                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-nic00`"" }
+                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-nic<00>`"" }
                         Dependencies = @{
                             VirtualNetworkSubnetConfig = @{}
                         }
@@ -103,13 +107,12 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     VM = @{
-                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-vm00`"" }
+                        Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-vm<00>`"" }
                         Admin = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)adm`"" }
                         Dependencies = @{
                             VirtualNetwork = @{}
-                            VirtualNetworkSubnetConfig = @{}
                             NetworkSecurityGroup = @{}
-                            PublicIPAddress = @{}
+                            PublicIPAddress = @{ dependentResourceType = "vm" }
                             NetworkInterface = @{}
                             Disk = @(
                                 @{ dependencyType = "osdisk" },
@@ -117,10 +120,18 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                             )
                         }
                     }
+                    VirtualNetworkSubnetConfig = @{
+                        Name = @{ Pattern = "`"<SubnetName>`"" }
+                        AddressPrefix = @{ Pattern = "`"<AddressPrefix>`"" }
+                    }
                     VirtualNetwork = @{
                         Name = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-vnet`"" }
+                        AddressPrefix = "10.1.1.0/16"
                         Dependencies = @{
-                            VirtualNetworkSubnetConfig = @{}
+                            VirtualNetworkSubnetConfig = @{
+                                SubnetName = "`"`$(`$prefix)`$(`$projectName)-vnet`""
+                                AddressPrefix = "10.1.1.0/24"
+                            }
                         }
                     }
                 }
@@ -186,3 +197,4 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
     }
 
 #endregion GLOBAL DEFINITIONS
+

@@ -691,8 +691,8 @@ $global:Product = @{Id="AzureProjects"}
 
                 if ($Simple -or $secondPass) {
                     $_resourceTypeAndName = "$($_resourceType)/$($_resourceName)"
-                    $message = "    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($_resourceTypeAndName)"
-                    Write-Host+ -NoTrace $message -ForegroundColor DarkGray,DarkGray,DarkGray
+                    $message = "    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.DownwardsRightArrow)  " : $null)$($_resourceTypeAndName)"
+                    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace $message -ForegroundColor DarkGray,DarkGray,DarkGray
                 }
 
                 $_resourceObject = $null
@@ -802,8 +802,8 @@ $global:Product = @{Id="AzureProjects"}
 
                                 if ($Simple -or $secondPass) {
                                     $_resourceTypeAndName = "$_resourceType/$_resourceName/StorageContainer/$($_storageContainer.Name)"
-                                    $message = "    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($_resourceTypeAndName)"
-                                    Write-Host+ -NoTrace $message -ForegroundColor DarkGray,DarkGray,DarkGray
+                                    $message = "    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.DownwardsRightArrow)  " : $null)$($_resourceTypeAndName)"
+                                    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace $message -ForegroundColor DarkGray,DarkGray,DarkGray
                                 }
 
                                 $_resources += [PSCustomObject]@{
@@ -826,7 +826,7 @@ $global:Product = @{Id="AzureProjects"}
 
         $_resources = $_resources | Sort-Object -Property resourcePath
         if ($firstPass) {
-            $_resources = Get-AzDeployedResources -ProjectName $ProjectName -DeployedResources $_resources
+            $_resources = Get-AzDeployedResources -ProjectName $ProjectName -DeployedResources $_resources -Quiet:$($Quiet.IsPresent)
         }
 
         return $_resources
@@ -1210,7 +1210,7 @@ function global:Grant-AzProjectRole {
                 $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)."
                 Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
                 foreach ($duplicateResourceId in $duplicateResourceIds) {
-                    Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Resource id '$($duplicateResourceId.resourceId)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
+                    Write-Host+ -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  Resource id '$($duplicateResourceId.resourceId)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
                 }
                 Write-Host+
                 return
@@ -1228,7 +1228,7 @@ function global:Grant-AzProjectRole {
                         $contentRowPart1 = $contentRowColumns[0..-1] | Join-String -Separator ","
                         $contentRowPart2 = $contentRowColumns[-1]
                         Write-Host+ -NoTrace -NoSeparator "    $contentRowPart1,", $contentRowPart2 -ForegroundColor DarkGray, DarkRed
-                        Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Parent '$invalidParentId' is invalid." -ForegroundColor DarkRed
+                        Write-Host+ -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  Parent '$invalidParentId' is invalid." -ForegroundColor DarkRed
                         Write-Host+
                         return
                     }
@@ -1270,9 +1270,9 @@ function global:Grant-AzProjectRole {
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[0])",", " -ForegroundColor ($hasUndefinedResourceType ? "DarkRed" : "DarkGray"), DarkGray
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[1])",", " -ForegroundColor ($hasUndefinedResourceId ? "DarkRed" : "DarkGray"), DarkGray
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp ($contentRowColumns[2..-1] | Join-String -Separator ", ") -ForegroundColor DarkGray
-                        Write-Host+ -Iff $($hasUndefinedResourceType -and $hasUndefinedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource '$undefinedResourceType/$undefinedResourceId' is undefined." -ForegroundColor DarkGray
-                        Write-Host+ -Iff $($hasUndefinedResourceType -and $hasUndefinedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource type '$undefinedResourceType' is undefined." -ForegroundColor DarkGray
-                        Write-Host+ -Iff $($hasUndefinedResourceId -and !$hasUndefinedResourceType) -NoTrace "    $($emptyString.PadLeft(3 + $contentRowColumns[0].Length," "))$($global:asciiCodes.RightArrowWithHook)  The resource id '$undefinedResourceId' is undefined." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUndefinedResourceType -and $hasUndefinedResourceId) -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  The resource '$undefinedResourceType/$undefinedResourceId' is undefined." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUndefinedResourceType -and $hasUndefinedResourceId) -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  The resource type '$undefinedResourceType' is undefined." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUndefinedResourceId -and !$hasUndefinedResourceType) -NoTrace "    $($emptyString.PadLeft(3 + $contentRowColumns[0].Length," "))$($global:asciiCodes.DownwardsRightArrow)  The resource id '$undefinedResourceId' is undefined." -ForegroundColor DarkGray
                         Write-Host+
                     }
                 }
@@ -1298,9 +1298,9 @@ function global:Grant-AzProjectRole {
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[0])",", " -ForegroundColor ($hasunassignedResourceType ? "DarkYellow" : "DarkGray"), DarkGray
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp -NoNewLine "$($contentRowColumns[1])",", " -ForegroundColor ($hasunassignedResourceId ? "DarkYellow" : "DarkGray"), DarkGray
                         Write-Host+ -NoTrace -NoSeparator -NoTimestamp ($contentRowColumns[2..-1] | Join-String -Separator ", ") -ForegroundColor DarkGray
-                        Write-Host+ -Iff $($hasUnassignedResourceType -and $hasUnassignedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource '$unassignedResourceType/$unassignedResourceId' is unassigned." -ForegroundColor DarkGray
-                        Write-Host+ -Iff $($hasUnassignedResourceType -and !$hasUnassignedResourceId) -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  The resource type '$unassignedResourceType' is unassigned." -ForegroundColor DarkGray
-                        Write-Host+ -Iff $($hasUnassignedResourceId -and !$hasUnassignedResourceType) -NoTrace "    $($emptyString.PadLeft(3 + $contentRowColumns[0].Length," "))$($global:asciiCodes.RightArrowWithHook)  The resource id '$unassignedResourceId' is unassigned." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUnassignedResourceType -and $hasUnassignedResourceId) -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  The resource '$unassignedResourceType/$unassignedResourceId' is unassigned." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUnassignedResourceType -and !$hasUnassignedResourceId) -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  The resource type '$unassignedResourceType' is unassigned." -ForegroundColor DarkGray
+                        Write-Host+ -Iff $($hasUnassignedResourceId -and !$hasUnassignedResourceType) -NoTrace "    $($emptyString.PadLeft(3 + $contentRowColumns[0].Length," "))$($global:asciiCodes.DownwardsRightArrow)  The resource id '$unassignedResourceId' is unassigned." -ForegroundColor DarkGray
                     }
                 }
             }
@@ -1326,7 +1326,7 @@ function global:Grant-AzProjectRole {
                             $contentRowPart3 = $contentRowColumns[($invalidAssigneeIndexOf+1)..($contentRowColumns.Count-1)] | Join-String -Separator ","
                             Write-Host+ -NoTrace -NoSeparator "    $contentRowPart1,", $contentRowPart2, ",", $contentRowPart3 -ForegroundColor DarkGray, DarkRed, DarkGray, DarkGray
                         }
-                        # Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Assignee '$invalidAssignee' is invalid." -ForegroundColor DarkGray
+                        # Write-Host+ -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  Assignee '$invalidAssignee' is invalid." -ForegroundColor DarkGray
                         Write-Host+
                     # }
                 }
@@ -1539,7 +1539,7 @@ function global:Grant-AzProjectRole {
             $errorMessage = "ERROR: Duplicate resource scope"
             Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
             foreach ($duplicateResourceScope in $duplicateResourceScopes.Group) {
-                Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  $($duplicateResourceScope.resourceScope)" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  $($duplicateResourceScope.resourceScope)" -ForegroundColor DarkGray
             }
             Write-Host+
             $hasResourceErrors = $true
@@ -2235,7 +2235,7 @@ function global:Grant-AzProjectRole {
                     $resourceScope = $resource.resourceScope
 
                     $resourceParent = $resources | Where-Object {$_.resourceId -eq $resource.resourceParent}
-                    $message = "    " + (![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : "") + "$($resourceType)/$($resourceName)"
+                    $message = "    " + (![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.DownwardsRightArrow)  " : "") + "$($resourceType)/$($resourceName)"
                     $message = ($message.Length -gt 55 ? $message.Substring(0,55) + "`u{22EF}" : $message) + " : "    
 
                     #region SET ROLE ASSIGNMENTS
@@ -2401,7 +2401,7 @@ function global:Grant-AzProjectRole {
                                         $currentAccessPolicyKey = $accessPolicyPermissionPropertyName
                                         $currentAccessPolicyValue = $currentAccessPolicy.$accessPolicyPermissionPropertyName
                                         $currentAccessPolicyValueStr = ($currentAccessPolicyValue | Foreach-Object {(Get-Culture).TextInfo.ToTitleCase($_)}) | Join-String -Separator ", "
-                                        $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($currentAccessPolicyKey) <.>61> $($currentAccessPolicyValueStr)" 
+                                        $message = "<    $($global:asciiCodes.DownwardsRightArrow)  AccessPolicy/$($currentAccessPolicyKey) <.>61> $($currentAccessPolicyValueStr)" 
                                         Write-Host+ -NoTrace -NoNewline $message -Parse -ForegroundColor DarkGray,DarkGray,$($projectIdentity.authorized ? "DarkGray" : "DarkRed")
                                         $accessPolicyPermissionWritten = $true
 
@@ -2459,7 +2459,7 @@ function global:Grant-AzProjectRole {
                                             $accessPolicyParams += @{ "$requiredAccessPolicyKey" = $requiredAccessPolicyValue }
 
                                             if (!$accessPolicyPermissionWritten) {
-                                                $message = "<    $($global:asciiCodes.RightArrowWithHook)  AccessPolicy/$($requiredAccessPolicyKey) <.>61> " 
+                                                $message = "<    $($global:asciiCodes.DownwardsRightArrow)  AccessPolicy/$($requiredAccessPolicyKey) <.>61> " 
                                                 Write-Host+ -NoTrace -NoNewline $message -Parse -ForegroundColor DarkGray
                                             }
 
@@ -2675,6 +2675,10 @@ function Deploy-AzResourceDependencies {
         Dependencies = @{}
     }
 
+    if (!$global:Azure.ResourceTypes.$ResourceType.Dependencies) {
+        return $dependencyObject
+    }
+
     foreach ($dependency in $global:Azure.ResourceTypes.$ResourceType.Dependencies.GetEnumerator()) {
         $dependencyResourceType = $dependency.Key
         $dependencyResourceName = $global:Azure.ResourceTypes.$dependencyResourceType.Name.Pattern
@@ -2721,8 +2725,15 @@ function Add-AzProjectResource {
     $resourceGroupName = $global:AzureProject.ResourceGroupName
     $resourceLocation = $global:AzureProject.ResourceLocation
 
-    # $dependenciesProvided = $null -ne $Dependencies
+    $dependenciesProvided = $null -ne $Dependencies
     if (!$Dependencies) {
+
+        Write-Host+
+        $resourceTypeAndName = "$($ResourceType)/$($ResourceName)"
+        $resourceTypeAndName = ($resourceTypeAndName.Length -gt 44 ? $resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $resourceTypeAndName)
+        Write-Host+ -NoTrace "  $resourceTypeAndName" -ForegroundColor Gray
+        Write-Host+ -NoTrace "  $($emptyString.PadLeft($resourceTypeAndName.Length,"-"))" -ForegroundColor DarkGray
+
         $dependencyObject = Deploy-AzResourceDependencies -ResourceType $ResourceType -ResourceName $ResourceName
         if (!$dependencyObject.Pass) {
             Write-Host+
@@ -2731,7 +2742,7 @@ function Add-AzProjectResource {
                 $dependency = $dependencyObject.Dependencies.$($key)
                 $dependencyResourceTypeAndName = "$($dependency.resource.resourceType)/$($dependency.resource.resourceName)"
                 if (!$dependency.Pass) {
-                    Write-Host+ -NoTrace "  $($global:asciiCodes.RightArrowWithHook) Dependency '$dependencyResourceTypeAndName' has a deployment failure/issue." -ForegroundColor DarkRed
+                    Write-Host+ -NoTrace "  $($global:asciiCodes.DownwardsRightArrow) Dependency '$dependencyResourceTypeAndName' has a deployment failure/issue." -ForegroundColor DarkRed
                 }
             }
             Write-host+
@@ -2757,12 +2768,10 @@ function Add-AzProjectResource {
         resourceExists = $true
     }
 
-    # if ($dependenciesProvided) {
-        $resourceTypeAndName = "$($ResourceType)/$($ResourceName)"
-        $resourceTypeAndName = ($resourceTypeAndName.Length -gt 44 ? $resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $resourceTypeAndName)
-        $message = "<    $($resourceTypeAndName) <.>60> DEPLOYING"
-        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
-    # }
+    $resourceTypeAndName = "$($ResourceType)/$($ResourceName)"
+    $resourceTypeAndName = ($resourceTypeAndName.Length -gt 44 ? $resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $resourceTypeAndName)
+    $message = "<  $($dependenciesProvided ? "$($global:asciiCodes.LeftwardsDownArrow) " : $null)$($resourceTypeAndName) <.>60> DEPLOYING"
+    Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
 
     try {
         switch ($ResourceType) {
@@ -2770,11 +2779,33 @@ function Add-AzProjectResource {
                 $resource.resourceObject = New-AzApplicationInsights -ResourceGroupName $resourceGroupName -Name $ResourceName -Location $resourceLocation -WorkspaceResourceId $Dependencies.OperationalInsightsWorkspace.resource.resourceScope
                 break
             }
+            "Bastion" {
+                $params = @{
+                    Name = $ResourceName
+                    ResourceGroupName = $resourceGroupName
+                    PublicIpAddressId = $Dependencies.PublicIPAddress.resource.resourceObject
+                    VirtualNetworkId = $Dependencies.VirtualNetwork.resource.resourceObject
+                }
+                $resource.resourceObject = New-AzBastion @params
+                break
+
+            }
             "OperationalInsightsWorkspace" {
                 $resource.resourceObject = New-AzOperationalInsightsWorkspace -ResourceGroupName $resourceGroupName -Name $ResourceName -Location $resourceLocation
                 $_operationalInsightsWorkspaceLinkedStorageAccount = New-AzOperationalInsightsLinkedStorageAccount -ResourceGroupName $resourceGroupName -WorkspaceName $ResourceName -DataSourceType "CustomLogs" -StorageAccountId $Dependencies.StorageAccount.resource.resourceScope -ErrorAction SilentlyContinue
                 $_operationalInsightsWorkspaceLinkedStorageAccount | Out-Null
                 # if (!$_operationalInsightsWorkspaceLinkedStorageAccount) throw message, log, something
+                break
+            }
+            "PublicIPAddress" {
+                $params = @{
+                    Name = $ResourceName
+                    ResourceGroupName = $resourceGroupName
+                    Location = $resourceLocation
+                    Sku = "Standard"
+                    AllocationMethod = "Static"
+                }
+                $resource.resourceObject = New-AzPublicIpAddress @params
                 break
             }
             "StorageAccount" {
@@ -2795,7 +2826,7 @@ function Add-AzProjectResource {
                 break
             }
             "MLWorkspace" {
-                $_mlWorkspaceParams = @{
+                $params = @{
                     Name = $ResourceName
                     ResourceGroupName = $resourceGroupName
                     Location = $resourceLocation
@@ -2804,7 +2835,18 @@ function Add-AzProjectResource {
                     StorageAccountId = $Dependencies.StorageAccount.resource.resourceScope
                     IdentityType = 'SystemAssigned'
                 }
-                $resource.resourceObject = New-AzMLWorkspace @_mlWorkspaceParams
+                $resource.resourceObject = New-AzMLWorkspace @params
+                break
+            }
+            "VirtualNetwork" {
+                $params = @{
+                    Name = $ResourceName
+                    ResourceGroupName = $resourceGroupName
+                    Location = $resourceLocation
+                    AddressPrefix = "10.1.1.0/26"
+                    Subnet = $Dependencies.VirtualNetworkSubnetConfig.resource.resourceObject
+                }
+                $resource.resourceObject = New-AzVirtualNetwork @params
                 break
             }
         }
@@ -2813,11 +2855,9 @@ function Add-AzProjectResource {
         Write-Host+ -NoTrace $_.Exception.Message -ForegroundColor DarkRed
     }
 
-    # if ($dependenciesProvided) {
-        $messageErase = "$($emptyString.PadLeft(10,"`b")) "
-        $messageStatus = "$($resource.resourceObject ? "DEPLOYED" : "FAILED")$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $messageErase, $messageStatus -ForegroundColor ($resource ? "DarkGreen" : "DarkRed")
-    # }
+    $messageErase = "$($emptyString.PadLeft(10,"`b")) "
+    $messageStatus = "$($resource.resourceObject ? "DEPLOYED" : "FAILED")$($emptyString.PadLeft(8," "))"
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $messageErase, $messageStatus -ForegroundColor ($resource ? "DarkGreen" : "DarkRed")
 
     if (!$resource.resourceObject) {
         return
@@ -2839,25 +2879,17 @@ function global:Deploy-AzProjectWithOverwatch {
     if ($ProjectName -ne $global:AzureProject.Name) {
         Switch-AzProject -ProjectName $ProjectName
     }
-
     $resourceGroupName = $global:AzureProject.ResourceGroupName
 
-    #region DEPLOYED RESOURCES    
-
-        Write-Host+ 
-        $message = "<  Getting deployed resources <.>60> PENDING"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-        $script:deployedResources = Get-AzDeployedResources -ProjectName $ProjectName
-
-        $message = "<  Getting deployed resources <.>60> SUCCESS"
-        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-
-    #endregion DEPLOYED RESOURCES
+    Write-Host+
+    $message = "<Project '$ProjectName' <.>60> DEPLOYING" 
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray   
 
     Write-Host+
-    $message = "<  Deploy project '$ProjectName' <.>60> DEPLOYING" 
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray   
+    Write-Host+ -NoTrace "  Project:      ", $ProjectName -ForegroundColor Gray, DarkBlue
+    Write-Host+ -NoTrace "  ResourceGroup:", $resourceGroupName -ForegroundColor Gray, DarkBlue
+    Write-Host+ -NoTrace "  Tenant:       ", $global:Azure.$($global:AzureProject.Tenant).Tenant.Id -ForegroundColor Gray, DarkBlue
+    Write-Host+ -NoTrace "  Subscription: ", $global:Azure.$($global:AzureProject.Tenant).Subscription.Id -ForegroundColor Gray, DarkBlue
 
     #region RESOURCE IMPORT
 
@@ -2881,16 +2913,29 @@ function global:Deploy-AzProjectWithOverwatch {
  
         $duplicateResourceIds = $resources | Group-Object -Property resourceId | Where-Object {$_.Count -gt 1}
         if ($duplicateResourceIds) {
+            Write-Host+
             $errorMessage = "ERROR: Duplicate resource ids found in $(Split-Path -Path $global:AzureProject.Files.ResourceImportFile -Leaf)."
             Write-Host+ -NoTrace "    $errorMessage" -ForegroundColor DarkRed
             foreach ($duplicateResourceId in $duplicateResourceIds) {
-                Write-Host+ -NoTrace "    $($global:asciiCodes.RightArrowWithHook)  Resource id '$($duplicateResourceId.Name)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
+                Write-Host+ -NoTrace "    $($global:asciiCodes.DownwardsRightArrow)  Resource id '$($duplicateResourceId.Name)' occurs $($duplicateResourceId.Count) times" -ForegroundColor DarkGray
             }
             Write-Host+
             return
         }
 
     #endregion RESOURCE IMPORT   
+    #region DEPLOYED RESOURCES    
+
+        Write-Host+
+        $message = "<Getting deployed resources <.>60> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
+        $script:deployedResources = Get-AzDeployedResources -ProjectName $ProjectName -Quiet
+
+        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
+        Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
+
+    #endregion DEPLOYED RESOURCES
     #region COMPARE IMPORTED TO DEPLOYED RESOURCES
 
         $resources = Compare-Object $script:deployedResources $resources -Property resourceType,resourceName,resourceId -IncludeEqual -PassThru | 
@@ -2900,58 +2945,55 @@ function global:Deploy-AzProjectWithOverwatch {
             Sort-Object -Property resourcePath
 
     #endregion COMPARE IMPORTED TO DEPLOYED RESOURCES
-    #region CREATE RESOURCES
+    #region LIST DEPLOYED RESOURCES
 
-        $projectDeploymentSuccess = $true
-        foreach ($resource in $resources) {
+        Write-Host+
+        $message = "Deployed Resources"
+        Write-Host+ -NoTrace "  $message" -ForegroundColor Gray
+        Write-Host+ -NoTrace "  $($emptyString.PadLeft($message.Length,"-"))" -ForegroundColor DarkGray
+
+        foreach ($resource in ($resources | Where-Object {$_.resourceExists})) {
 
             $resourceType = $resource.resourceType
             $resourceName = $resource.resourceName
             $resourceParent = $script:deployedResources | Where-Object {$_.resourceId -eq $resource.resourceParent}
 
-            $deployedResource = $deployedResources | Where-object {$_.resourceType -eq $resourceType -and $_.resourceName -eq $resourceName}
-            if (!$resource.resourceExists -and $deployedResource) { 
-                continue 
-            }
-
-            # $resourceTypeAndName = "$($resourceType)/$($resourceName)"
-            # $resourceTypeAndName = ($resourceTypeAndName.Length -gt 44 ? $resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $resourceTypeAndName)
-            # $message = "<    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($resourceTypeAndName) <.>60> DEPLOYING"
-            # Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGray
-
-            # $newLineWritten = $false
-            if (!$resource.resourceExists) {
-                # if ($global:Azure.ResourceTypes.$resourceType.Dependencies) {
-                #     Write-Host+ # close -NoNewLine
-                #     $newLineWritten = $true
-                # }
-                $resource = Add-AzProjectResource -ResourceType $resourceType -ResourceName $resourceName
-                $projectDeploymentSuccess = $projectDeploymentSuccess -and $null -ne $resource
-            }
-            else {
-                $resourceTypeAndName = "$($resourceType)/$($resourceName)"
-                $resourceTypeAndName = ($resourceTypeAndName.Length -gt 44 ? $resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $resourceTypeAndName)
-                $message = "<    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($resourceTypeAndName) <.>60> DEPLOYED"
-                Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGreen
-            }
-
-            # if (!$newLineWritten) {
-            #     $messageErase = "$($emptyString.PadLeft(10,"`b")) "
-            #     $messageStatus = "$($resource ? "DEPLOYED" : "FAILED")$($emptyString.PadLeft(8," "))"
-            #     Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $messageErase, $messageStatus -ForegroundColor ($resource ? "DarkGreen" : "DarkRed")
-            # }
-            # else {
-            #     $message = "<    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.RightArrowWithHook)  " : $null)$($resourceTypeAndName) <.>60> $($resource ? "DEPLOYED" : "FAILED")"
-            #     Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray,DarkGray,($resource ? "DarkGreen" : "DarkRed")
-            # }
+            $resourceTypeAndName = "$($resourceType)/$($resourceName)"
+            $resourceTypeAndName = ($resourceTypeAndName.Length -gt 44 ? $resourceTypeAndName.Substring(0,44) + " `u{22EF} " : $resourceTypeAndName)
+            $message = "<  $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.DownwardsRightArrow)  " : $null)$($resourceTypeAndName) <.>60> DEPLOYED"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkGray,DarkGray,DarkGreen
 
         }
 
+    #endregion LIST DEPLOYED RESOURCES
+    #region CREATE RESOURCES
+
+        $projectDeploymentSuccess = $true
+        $undeployedResources = $resources | Where-Object {!$_.resourceExists}
+        if ($undeployedResources) {
+
+            foreach ($resource in $undeployedResources) {
+
+                $resourceType = $resource.resourceType
+                $resourceName = $resource.resourceName
+
+                $deployedResource = $deployedResources | Where-object {$_.resourceType -eq $resourceType -and $_.resourceName -eq $resourceName}
+                if (!$deployedResource) { 
+                    $resource = Add-AzProjectResource -ResourceType $resourceType -ResourceName $resourceName
+                    $projectDeploymentSuccess = $projectDeploymentSuccess -and $null -ne $resource
+                }
+
+            }
+        
+        }
+
+        Write-Host+
+        $message = "<Project '$ProjectName' <.>60> $($projectDeploymentSuccess ? "DEPLOYED" : "FAILED")" 
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,($projectDeploymentSuccess ? "DarkGreen" : "DarkRed")   
+        Write-Host+
+
     #endregion CREATE RESOURCES
 
-    $message = "<  Deploy project '$ProjectName' <.>60> $($projectDeploymentSuccess ? "DEPLOYED" : "FAILED")" 
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($projectDeploymentSuccess ? "DarkGreen" : "DarkRed")   
-    Write-Host+ 
 
 }
 
