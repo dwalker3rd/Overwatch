@@ -664,7 +664,7 @@ $global:Product = @{Id="AzureProjects"}
             # }
 
             $_deployedResources = Get-AzResource -ResourceGroupName $ResourceGroupName | 
-                Where-Object {$global:ResourceTypeAlias.($_.ResourceType) -in $global:Azure.ResourceTypes.Keys} | 
+                Where-Object {$global:ResourceTypeAlias.($_.ResourceType) -in $global:Azure.ResourceType.Keys} | 
                 Select-Object -Property *, @{Name="ResourceTypeAndName";Expression={"$($global:ResourceTypeAlias.$($_.ResourceType))/$($_.Name)"}} | 
                 Sort-Object -Property ResourceTypeAndName |
                 Select-Object -ExcludeProperty ResourceTypeAndName
@@ -814,6 +814,28 @@ $global:Product = @{Id="AzureProjects"}
                                     resourcePath = "/$ResourceGroupName/$_resourceType/$_resourceName/StorageContainer/$($_storageContainer.Name)"
                                     resourceObject = $_storageContainer
                                     resourceContext = $_storageAccountContext
+                                    resourceParent = $_resourceName
+                                }
+
+                            }
+                        }
+                        "VirtualNetwork" {
+                            foreach ($_subnet in $_resourceObject.subnets) {
+
+                                if ($Simple -or $secondPass) {
+                                    $_resourceTypeAndName = "$_resourceType/$_resourceName/subnets/$($_subnet.Name)"
+                                    $message = "    $(![string]::IsNullOrEmpty($resourceParent) ? "$($global:asciiCodes.DownwardsRightArrow)  " : $null)$($_resourceTypeAndName)"
+                                    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace $message -ForegroundColor DarkGray,DarkGray,DarkGray
+                                }
+
+                                $_resources += [PSCustomObject]@{
+                                    resourceType = "Subnet"
+                                    resourceName = $_subnet.Name
+                                    resourceId = $_subnet.Name
+                                    resourceScope = Get-AzResourceScope -ResourceType "Subnet" -ResourceName $_subnet.Name -ResourceParent $_resourceName
+                                    resourcePath = "/$ResourceGroupName/$_resourceType/$_resourceName/subnets/$($_subnet.Name)"
+                                    resourceObject = $_subnet
+                                    resourceContext = $null
                                     resourceParent = $_resourceName
                                 }
 
@@ -2675,18 +2697,29 @@ function Deploy-AzResourceDependencies {
         Dependencies = @{}
     }
 
-    if (!$global:Azure.ResourceTypes.$ResourceType.Dependencies) {
+    if (!$global:Azure.ResourceType.$ResourceType.Dependencies) {
         return $dependencyObject
     }
 
-    foreach ($dependency in $global:Azure.ResourceTypes.$ResourceType.Dependencies.GetEnumerator()) {
+    foreach ($dependency in $global:Azure.ResourceType.$ResourceType.Dependencies.GetEnumerator()) {
+
         $dependencyResourceType = $dependency.Key
-        $dependencyResourceName = $global:Azure.ResourceTypes.$dependencyResourceType.Name.Pattern
-        foreach ($key in $dependency.Value.Keys) {
-            $value = $dependency.Value.$($key)
-            $dependencyResourceName = $dependencyResourceName -replace "<$key>", $value
+
+        $dependencyParams = @{}
+        $dependencyPatterns = $global:Azure.ResourceType.$dependencyResourceType.GetEnumerator() | Where-Object {$_.Value.Keys -contains "Pattern"}
+        foreach ($dependencyPattern in $dependencyPatterns) {
+            $dependencyParams += @{
+                $($dependencyPattern.Name) = $dependencyPattern.Value.Pattern
+            }
+            foreach ($key in $dependency.Value.Keys) {
+                $value = $dependency.Value.$($key)
+                $dependencyParams.$($dependencyPattern.Name) = $dependencyParams.$($dependencyPattern.Name) -replace "<$key>", $value
+            }
+            $dependencyParams.$($dependencyPattern.Name) = Invoke-Expression $dependencyParams.$($dependencyPattern.Name)
         }
-        $dependencyResourceName = Invoke-Expression $dependencyResourceName
+        $dependencyResourceName = $dependencyParams.ResourceName
+        $dependencyParams.Remove("ResourceName")
+
         $dependencyResource = $script:deployedResources | Where-Object {$_.resourceType -eq $dependencyResourceType -and $_.resourceName -eq $dependencyResourceName}
         $_pass = $true
         $_dependencyObject = Deploy-AzResourceDependencies -ResourceType $dependencyResourceType -ResourceName $dependencyResourceName -DependentResourceType $ResourceType -DependentResourceName $ResourceName
@@ -2694,7 +2727,8 @@ function Deploy-AzResourceDependencies {
             $_pass = $false
         }
         if (!$dependencyResource) {
-            $dependencyResource = Add-AzProjectResource -ResourceType $dependencyResourceType -ResourceName $dependencyResourceName -Dependencies $_dependencyObject.Dependencies
+            $_dependencyObject += $dependencyParams
+            $dependencyResource = Add-AzProjectResource -ResourceType $dependencyResourceType -ResourceName $dependencyResourceName -ResourceParams $dependencyParams -Dependencies $_dependencyObject.Dependencies
             if (!$dependencyResource) {
                 $_pass = $_pass = $false
             }
@@ -2719,7 +2753,8 @@ function Add-AzProjectResource {
     param(
         [Parameter(Mandatory=$true)][string]$ResourceType,
         [Parameter(Mandatory=$true)][string]$ResourceName,
-        [Parameter(Mandatory=$false)][object]$Dependencies
+        [Parameter(Mandatory=$false)][object]$Dependencies,
+        [Parameter(Mandatory=$false)][object]$ResourceParams
     )
 
     $resourceGroupName = $global:AzureProject.ResourceGroupName
@@ -2802,8 +2837,8 @@ function Add-AzProjectResource {
                     Name = $ResourceName
                     ResourceGroupName = $resourceGroupName
                     Location = $resourceLocation
-                    Sku = "Standard"
-                    AllocationMethod = "Static"
+                    Sku = $ResourceParams.Sku
+                    AllocationMethod = $ResourceParams.Static
                 }
                 $resource.resourceObject = New-AzPublicIpAddress @params
                 break
@@ -2833,9 +2868,17 @@ function Add-AzProjectResource {
                     ApplicationInsightID = $Dependencies.ApplicationInsights.resource.resourceScope
                     KeyVaultId = $Dependencies.KeyVault.resource.resourceScope
                     StorageAccountId = $Dependencies.StorageAccount.resource.resourceScope
-                    IdentityType = 'SystemAssigned'
+                    IdentityType = $ResourceParams.SystemAssigned
                 }
                 $resource.resourceObject = New-AzMLWorkspace @params
+                break
+            }
+            "Subnet" {
+                $params = @{
+                    Name = $ResourceName
+                    AddressPrefix = $ResourceParams.AddressPrefix
+                }
+                $resource.resourceObject = New-AzVirtualNetworkSubnetConfig @params
                 break
             }
             "VirtualNetwork" {
@@ -2843,8 +2886,8 @@ function Add-AzProjectResource {
                     Name = $ResourceName
                     ResourceGroupName = $resourceGroupName
                     Location = $resourceLocation
-                    AddressPrefix = "10.1.1.0/26"
-                    Subnet = $Dependencies.VirtualNetworkSubnetConfig.resource.resourceObject
+                    AddressPrefix = $ResourceParams.AddressPrefix
+                    Subnet = $Dependencies.Subnet.resource.resourceObject
                 }
                 $resource.resourceObject = New-AzVirtualNetwork @params
                 break
