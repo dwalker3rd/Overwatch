@@ -2818,12 +2818,21 @@ function Add-AzProjectResource {
                 $params = @{
                     Name = $ResourceName
                     ResourceGroupName = $resourceGroupName
-                    PublicIpAddressId = $Dependencies.PublicIPAddress.resource.resourceObject
-                    VirtualNetworkId = $Dependencies.VirtualNetwork.resource.resourceObject
+                    PublicIpAddressId = $Dependencies.PublicIPAddress.resource.resourceScope
+                    VirtualNetworkId = $Dependencies.VirtualNetwork.resource.resourceScope
                 }
                 $resource.resourceObject = New-AzBastion @params
                 break
 
+            }
+            "DataFactory" {
+                $params = @{
+                    Name = $ResourceName
+                    ResourceGroupName = $resourceGroupName
+                    Location = $resourceLocation
+                }
+                $resource.resourceObject = Set-AzDataFactoryV2 @params
+                break
             }
             "OperationalInsightsWorkspace" {
                 $resource.resourceObject = New-AzOperationalInsightsWorkspace -ResourceGroupName $resourceGroupName -Name $ResourceName -Location $resourceLocation
@@ -2868,7 +2877,7 @@ function Add-AzProjectResource {
                     ApplicationInsightID = $Dependencies.ApplicationInsights.resource.resourceScope
                     KeyVaultId = $Dependencies.KeyVault.resource.resourceScope
                     StorageAccountId = $Dependencies.StorageAccount.resource.resourceScope
-                    IdentityType = $ResourceParams.SystemAssigned
+                    IdentityType = "SystemAssigned"
                 }
                 $resource.resourceObject = New-AzMLWorkspace @params
                 break
@@ -2877,8 +2886,10 @@ function Add-AzProjectResource {
                 $params = @{
                     Name = $ResourceName
                     AddressPrefix = $ResourceParams.AddressPrefix
+                    VirtualNetwork = $Dependencies.VirtualNetwork.resource.resourceObject
                 }
-                $resource.resourceObject = New-AzVirtualNetworkSubnetConfig @params
+                $resource.resourceObject = Add-AzVirtualNetworkSubnetConfig @params
+                $resource.resourceObject | Set-AzVirtualNetwork
                 break
             }
             "VirtualNetwork" {
