@@ -16,8 +16,9 @@ $global:Product = @{Id="AzureProjects"}
 #region LOCAL DEFINITIONS
 
     $ResourceTypesWithSpecialAssignments = @("ResourceGroup","DataFactory","NetworkInterface","StorageContainer")
-    $UnmanagedResourceTypes = @("ApplicationInsights","Disk","OperationalInsightsWorkspace","NetworkSecurityGroup","PublicIpAddress","VirtualNetwork","VmExtension")
+    $UnmanagedResourceTypes = @("ApplicationInsights","Disk","OperationalInsightsWorkspace","NetworkSecurityGroup","PublicIPAddress","VirtualNetwork","VmExtension")
     $UnmanagedContainerRegex = "^bootdiagnostics|insights|azureml"
+    $NonPatternKeys = @("Dependencies")
 
 #endregion LOCAL DEFINITIONS
 #region LOCAL FUNCTIONS
@@ -513,6 +514,37 @@ $global:Product = @{Id="AzureProjects"}
         }
     
     }
+
+    # function Get-AzProjectPublicIPAddressParameters {
+    
+    #     # get/read/update publicIpAddressSku
+    #     $publicIpAddressSkuDefault = Read-AzProjectVariable -Name publicIpAddressSku
+    #     if ([string]::IsNullOrEmpty($publicIpAddressSku) -and ![string]::IsNullOrEmpty($publicIpAddressSkuDefault)) {
+    #         $publicIpAddressSku = $publicIpAddressSkuDefault
+    #     }
+    #     if ([string]::IsNullOrEmpty($publicIpAddressSku)) {
+    #         $publicIpAddressSkuDefault = "Standard"
+    #         $publicIpAddressSku = Request-AzProjectVariable -Name "PublicIPAddressSku" -Default $publicIpAddressSkuDefault
+    #     }
+    #     Write-AzProjectVariable -Name PublicIPAddressSku -Value $publicIpAddressSku
+
+    #     # get/read/update publicIpAddressAllocationMethod
+    #     $publicIpAddressAllocationMethodDefault = Read-AzProjectVariable -Name publicIpAddressAllocationMethod
+    #     if ([string]::IsNullOrEmpty($publicIpAddressAllocationMethod) -and ![string]::IsNullOrEmpty($publicIpAddressAllocationMethodDefault)) {
+    #         $publicIpAddressAllocationMethod = $publicIpAddressAllocationMethodDefault
+    #     }
+    #     if ([string]::IsNullOrEmpty($publicIpAddressAllocationMethod)) {
+    #         $publicIpAddressAllocationMethodDefault = "Static"
+    #         $publicIpAddressAllocationMethod = Request-AzProjectVariable -Name "PublicIPAddressAllocationMethod" -Default $publicIpAddressAllocationMethodDefault
+    #     }
+    #     Write-AzProjectVariable -Name PublicIPAddressAllocationMethod -Value $publicIpAddressAllocationMethod
+    
+    #     return [PSCustomObject]@{
+    #         PublicIPAddressSku = $publicIpAddressSku
+    #         PublicIPAddressAllocationMethod = $publicIpAddressAllocationMethod
+    #     }
+    
+    # }
     
     function Get-AzProjectVmParameters {
     
@@ -722,8 +754,8 @@ $global:Product = @{Id="AzureProjects"}
                         $_resourcePath = "/$ResourceGroupName/$_resourceParentType/$_resourceParent/$_resourceType/$_resourceName"
                         break
                     }
-                    "PublicIpAddress" {
-                        $_resourceObject = Get-AzPublicIpAddress -ResourceGroupName $ResourceGroupName -name $_resourceName
+                    "PublicIPAddress" {
+                        $_resourceObject = Get-AzPublicIPAddress -ResourceGroupName $ResourceGroupName -name $_resourceName
                         $_resourceParentSplit = $_resourceObject.IpConfiguration.Id -split "/"
                         $_resourceParentType = $global:ResourceTypeAlias.("$($_resourceParentSplit[-5])/$($_resourceParentSplit[-4])")
                         $_resourceParent = $_resourceParentSplit[-3]
@@ -762,7 +794,7 @@ $global:Product = @{Id="AzureProjects"}
                         "NetworkInterface" { break }
                         "ResourceGroup" { break }
                         "Disk" { break }
-                        "PublicIpAddress" { break }
+                        "PublicIPAddress" { break }
                         "DataFactory" {
                             $_resourceObject = Get-AzDataFactory -ResourceGroupName $ResourceGroupName -Name $_resourceName -ErrorAction SilentlyContinue
                             if (!$_resourceObject) {
@@ -1052,6 +1084,9 @@ function global:Initialize-AzProject {
                 Name = $resourceGroupName
                 Scope = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName"
             }
+            PublicIPAddress = @{
+                Parameters = @{}
+            }
             StorageAccount = @{
                 Parameters = @{}
             }
@@ -1085,6 +1120,7 @@ function global:Initialize-AzProject {
 
     $global:AzureProject.ResourceType.StorageAccount.Parameters = Get-AzProjectStorageAccountParameters
     $global:AzureProject.ResourceType.StorageContainer.Parameters = Get-AzProjectStorageContainerParameters
+    # $global:AzureProject.ResourceType.PublicIPAddress.Parameters = Get-AzProjectPublicIPAddressParameters
     switch ($DeploymentType) {
         "Overwatch" {
             Remove-AzProjectVmParameters
@@ -2691,10 +2727,16 @@ function Deploy-AzResourceDependencies {
     # but they may be referenced in the iex $dependencyResourceName below
     $resourceGroupName = $global:AzureProject.ResourceGroupName
     $prefix = $global:AzureProject.Prefix
+    $groupName = $global:AzureProject.GroupName
 
     $dependencyObject = [ordered]@{
         Pass = $true
         Dependencies = @{}
+    }
+    if ($ResourceType -ne "ResourceGroup") {
+        $dependencyObject.Dependendencies += @{
+            ResourceGroup = @{ resourceGroupName = $resourceGroupName }
+        }
     }
 
     if (!$global:Azure.ResourceType.$ResourceType.Dependencies) {
@@ -2706,7 +2748,7 @@ function Deploy-AzResourceDependencies {
         $dependencyResourceType = $dependency.Key
 
         $dependencyParams = @{}
-        $dependencyPatterns = $global:Azure.ResourceType.$dependencyResourceType.GetEnumerator() | Where-Object {$_.Value.Keys -contains "Pattern"}
+        $dependencyPatterns = $global:Azure.ResourceType.$dependencyResourceType.GetEnumerator() | Where-Object {$_.Keys -notin $NonPatternKeys}
         foreach ($dependencyPattern in $dependencyPatterns) {
             $dependencyParams += @{
                 $($dependencyPattern.Name) = $dependencyPattern.Value.Pattern
@@ -2759,6 +2801,8 @@ function Add-AzProjectResource {
 
     $resourceGroupName = $global:AzureProject.ResourceGroupName
     $resourceLocation = $global:AzureProject.ResourceLocation
+
+    Set-CursorInvisible
 
     $dependenciesProvided = $null -ne $Dependencies
     if (!$Dependencies) {
@@ -2818,7 +2862,7 @@ function Add-AzProjectResource {
                 $params = @{
                     Name = $ResourceName
                     ResourceGroupName = $resourceGroupName
-                    PublicIpAddressId = $Dependencies.PublicIPAddress.resource.resourceScope
+                    PublicIPAddressId = $Dependencies.PublicIPAddress.resource.resourceScope
                     VirtualNetworkId = $Dependencies.VirtualNetwork.resource.resourceScope
                 }
                 $resource.resourceObject = New-AzBastion @params
@@ -2834,6 +2878,32 @@ function Add-AzProjectResource {
                 $resource.resourceObject = Set-AzDataFactoryV2 @params
                 break
             }
+            "NetworkSecurityGroup" {
+                $params = @{
+                    Name = $ResourceName
+                    ResourceGroupName = $resourceGroupName
+                    Location = $resourceLocation
+                }
+                $resource.resourceObject = New-AzNetworkSecurityGroup @params
+                break
+            }
+            "NetworkSecurityRule" {
+                $params = @{
+                    Name = $ResourceParams.Name
+                    NetworkSecurityGroup = $Dependencies.NetworkSecurityGroup.resource.resourceObject
+                    Description = $ResourceParams.Description
+                    Access = $ResourceParams.Access
+                    Protocol = $ResourceParams.Protocol
+                    Direction = $ResourceParams.Direction
+                    Priority  = $ResourceParams.Priority
+                    SourceAddressPrefix = $ResourceParams.SourceAddressPrefix
+                    SourcePortRange = $ResourceParams.SourcePortRange
+                    DestinationAddressPrefix = $ResourceParams.DestinationAddressPrefix
+                    DestinationPortRange = $ResourceParams.DestinationPortRange
+                }
+                $resource.resourceObject = Add-AzNetworkSecurityRuleConfig @params
+                $resource.resourceObject | Set-AzNetworkSecurityGroup
+            }
             "OperationalInsightsWorkspace" {
                 $resource.resourceObject = New-AzOperationalInsightsWorkspace -ResourceGroupName $resourceGroupName -Name $ResourceName -Location $resourceLocation
                 $_operationalInsightsWorkspaceLinkedStorageAccount = New-AzOperationalInsightsLinkedStorageAccount -ResourceGroupName $resourceGroupName -WorkspaceName $ResourceName -DataSourceType "CustomLogs" -StorageAccountId $Dependencies.StorageAccount.resource.resourceScope -ErrorAction SilentlyContinue
@@ -2847,9 +2917,9 @@ function Add-AzProjectResource {
                     ResourceGroupName = $resourceGroupName
                     Location = $resourceLocation
                     Sku = $ResourceParams.Sku
-                    AllocationMethod = $ResourceParams.Static
+                    AllocationMethod = $ResourceParams.AllocationMethod
                 }
-                $resource.resourceObject = New-AzPublicIpAddress @params
+                $resource.resourceObject = New-AzPublicIPAddress @params
                 break
             }
             "StorageAccount" {
@@ -2877,7 +2947,7 @@ function Add-AzProjectResource {
                     ApplicationInsightID = $Dependencies.ApplicationInsights.resource.resourceScope
                     KeyVaultId = $Dependencies.KeyVault.resource.resourceScope
                     StorageAccountId = $Dependencies.StorageAccount.resource.resourceScope
-                    IdentityType = "SystemAssigned"
+                    IdentityType = $ResourceParams.IdentityType
                 }
                 $resource.resourceObject = New-AzMLWorkspace @params
                 break
@@ -2898,7 +2968,7 @@ function Add-AzProjectResource {
                     ResourceGroupName = $resourceGroupName
                     Location = $resourceLocation
                     AddressPrefix = $ResourceParams.AddressPrefix
-                    Subnet = $Dependencies.Subnet.resource.resourceObject
+                    Subnet = New-AzVirtualNetworkSubnetConfig -Name $ResourceParams.subnetName -AddressPrefix $ResourceParams.subnetAddressPrefix
                 }
                 $resource.resourceObject = New-AzVirtualNetwork @params
                 break
@@ -2911,7 +2981,9 @@ function Add-AzProjectResource {
 
     $messageErase = "$($emptyString.PadLeft(10,"`b")) "
     $messageStatus = "$($resource.resourceObject ? "DEPLOYED" : "FAILED")$($emptyString.PadLeft(8," "))"
-    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $messageErase, $messageStatus -ForegroundColor ($resource ? "DarkGreen" : "DarkRed")
+    Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $messageErase, $messageStatus -ForegroundColor ($resource.resourceObject ? "DarkGreen" : "DarkRed")
+
+    Set-CursorVisible
 
     if (!$resource.resourceObject) {
         return
@@ -2934,6 +3006,8 @@ function global:Deploy-AzProjectWithOverwatch {
         Switch-AzProject -ProjectName $ProjectName
     }
     $resourceGroupName = $global:AzureProject.ResourceGroupName
+
+    Set-CursorInvisible
 
     Write-Host+
     $message = "<Project '$ProjectName' <.>60> DEPLOYING" 
@@ -3048,6 +3122,7 @@ function global:Deploy-AzProjectWithOverwatch {
 
     #endregion CREATE RESOURCES
 
+    Set-CursorVisible
 
 }
 

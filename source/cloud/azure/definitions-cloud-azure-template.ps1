@@ -22,47 +22,48 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
 
                 ResourceType = @{
                     ApplicationInsights = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-appInsights`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-appInsights`""
                         Dependencies = @{
                             OperationalInsightsWorkspace = @{}
                         }
                     }
                     Bastion = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-bastion`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-bastion`""
                         Dependencies = @{
                             Subnet = @{
                                 subnetName = "AzureBastionSubnet"
                                 subnetAddressPrefix = "10.1.1.0/26"
                             }
-                            VirtualNetwork = @{}
                             PublicIPAddress = @{}
+                            VirtualNetwork = @{}
                         }
                     }
                     BatchAccount = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-batch`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-batch`""
                         Dependencies = @{
                             StorageAccount = @{ dependencyType = "diag" }
                             KeyVault = @{}
                         }
                     }
                     CosmosDBAccount = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-cosmos<00>`""}
+                        ResourceName = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-cosmos<00>`""}
                         Dependencies = @{}
                     }
                     DataFactory = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-adf`"" } 
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-adf`"" 
                         Dependencies = @{}
                     }
                     Disk = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$ResourceName)-<dependencyType><00>`"" }
+                        ResourceName = "`"`$(`$ResourceName)-<dependencyType><00>`""
                         Dependencies = @{}
                     }
                     KeyVault = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-kv`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-kv`""
                         Dependencies = @{}
                     }
                     MLWorkspace = @{ 
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-mlws<00>`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-mlws<00>`""
+                        IdentityType = "`"SystemAssigned`""
                         Dependencies = @{
                             StorageAccount = @{ dependencyType = "diag" }
                             KeyVault = @{}
@@ -70,35 +71,49 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     NetworkInterface = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-nic<00>`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-nic<00>`""
                         Dependencies = @{
                             Subnet = @{}
                         }
                     }
+                    NetworkSecurityRule = @{
+                        Name = "`"<Name>`""
+                        Description = "`"<Description>`""
+                        Access = "`"<Access>`""
+                        Protocol = "`"<Protocol>`""
+                        Direction = "`"<Direction>`""
+                        Priority = "`"<Priority>`""
+                        SourceAddressPrefix = "`"<SourceAddressPrefix>`""
+                        SourcePortRange = "`"<SourcePortRange>`""
+                        DestinationAddressPrefix = "`"<DestinationAddressPrefix>`""
+                        DestinationPortRange = "`"<DestinationPortRange>`""
+                        Dependencies = @{
+                            NetworkSecurityGroup = @{}
+                        }
+                    }
                     NetworkSecurityGroup = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-nsg`"" }
-                        Dependencies = @{}
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-nsg`""
                     }
                     OperationalInsightsWorkspace = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-loganalytics`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-loganalytics`""
                         Dependencies = @{
                             StorageAccount = @{ dependencyType = "diag" }
                         }
                     }
                     PublicIPAddress = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-`$(`$ResourceType)-pip`"" }
-                        Dependencies = @{}
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-`$(`$ResourceType)-pip`""
+                        Sku = "`"Standard`""
+                        AllocationMethod = "`"Static`""
                     }
                     ResourceGroup = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)-`$(`$projectName)-rg`"" }
-                        Dependencies = @{}
+                        ResourceName = "`"<resourceGroupName>`""
                     }
                     SqlVM = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-sqlvm`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-sqlvm`""
                         Dependencies = @{}
                     }
                     StorageAccount = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)<dependencyType>storage`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)<dependencyType>storage`""
                         Dependencies = @{}
                     }
                     StorageContainer = @{
@@ -107,8 +122,8 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     VM = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-vm<00>`"" }
-                        Admin = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)adm`"" }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-vm<00>`""
+                        Admin = "`"`$(`$prefix)`$(`$projectName)adm`""
                         Dependencies = @{
                             VirtualNetwork = @{}
                             NetworkSecurityGroup = @{}
@@ -121,19 +136,17 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     Subnet = @{
-                        ResourceName =  @{ Pattern = "`"<subnetName>`"" }
-                        AddressPrefix = @{ Pattern = "`"<subnetAddressPrefix>`"" }
-                        Dependencies = @{}
+                        ResourceName = "`"<subnetName>`""
+                        AddressPrefix = "`"<subnetAddressPrefix>`""
+                        Dependencies = @{
+                            VirtualNetwork = @{}
+                        }
                     }
                     VirtualNetwork = @{
-                        ResourceName =  @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-vnet`"" }
-                        AddressPrefix = "10.1.1.0/16"
-                        Dependencies = @{
-                            Subnet = @{
-                                subnetName =  "`$(`$prefix)`$(`$projectName)-subnet"
-                                subnetAddressPrefix = "10.1.1.0/24"
-                            }
-                        }
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-vnet`""
+                        AddressPrefix = "`"10.1.1.0/16`""
+                        SubnetName = "`"`$(`$prefix)`$(`$projectName)-subnet`""
+                        SubnetAddressPrefix = "`"10.1.1.0/24`""
                     }
                 }
                 
