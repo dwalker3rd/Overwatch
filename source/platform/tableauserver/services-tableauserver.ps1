@@ -308,25 +308,37 @@ function global:Request-Platform {
         [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
         [Parameter(Mandatory=$true)][string]$Context,
         [Parameter(Mandatory=$true)][string]$Reason,
-        [switch]$NoWait
+        [switch]$NoWait,
+        [switch]$IgnoreCurrentState,
+        [switch]$IgnorePendingChanges
     )
+
+    # $commandPresentParticiple = $Command + ($Command -eq "Stop" ? "p" : $null) + "ing"
+    $commandPastTense = $Command + ($Command -eq "Stop" ? "p" : $null) + "ed"
+
+    Set-CursorInvisible
 
     Write-Host+
     Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
     $message = "<  Command <.>25> $($Command.ToUpper())"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
     $message = "<  Reason <.>25> $Reason"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkBlue
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+
+    Write-Host+
+    $message = "<  Platform <.>25> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
     $platformStatus = Get-PlatformStatus
-    if (($Command -eq "Start" -and $platformStatus.RollupStatus -eq "Running") -or
+    if (!$IgnoreCurrentState -and 
+        ($Command -eq "Start" -and $platformStatus.RollupStatus -eq "Running") -or
         ($Command -eq "Stop" -and $platformStatus.RollupStatus -eq "Stopped")) {
             $commandStatus = $global:PlatformEventStatus.Completed
-            $message = "  Platform $($Command.ToUpper()) is already $($platformStatus.RollupStatus.ToUpper())."
+            $message = "  Platform is already $($platformStatus.RollupStatus.ToUpper())"
             Write-Log -Action $Command -EntryType "Information" -Status "Created" -Message $message -Force
-            Write-Host+ 
             Write-Host+ -NoTrace $message -ForegroundColor DarkGray
-            Write-Host+ 
+            Set-CursorVisible
+            return
         }
     else {
 
@@ -337,19 +349,43 @@ function global:Request-Platform {
 
         # preflight checks
         if ($Command -eq "Start") {
+
+            # apply any pending changes
+            $pendingChanges = Get-TsmPendingChanges
+            if ($pendingChanges.hasPendingChanges -and !$IgnorePendingChanges) {
+                $message = "<    Pending Changes <.>25> APPLYING"
+                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                $pendingChangesResult = Apply-TsmPendingChanges <# @{ successfulDeployment = $false; changes = @("this was a test") } #>
+                $_entryType = $pendingChangesResult.successfulDeployment ? "Information" : "Error"
+                $_status = $pendingChangesResult.successfulDeployment ? "Success" : "Error"
+                $_color = $pendingChangesResult.successfulDeployment ? "DarkGreen" : "Red"
+                $_message = $pendingChangesResult.changes[-1]
+                Write-Log -Action "Apply" -Target "Pending-Changes" -EntryType $_entryType -Status $_status -Message $_message -Force
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(9,"`b")) $($_status.ToUpper())" -ForegroundColor $_color
+                Write-Host+ -Iff $($_status -eq "Error") -NoTrace "    $_message" -ForegroundColor $_color
+            }
+
+            # preflight update
+            $message = "<    Preflight <.>25> PENDING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             Update-Preflight -Force
+            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor Green
+
         }
 
         try {
+
+            $message = "<  Platform <.>25> $($commandPresentParticiple.ToUpper())"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,"Dark$($Command -eq "Start" ? "Green" : "Red")"
 
             $platformJob = Invoke-TsmApiMethod -Method $Command
             Watch-PlatformJob -Id $platformJob.Id -Context $Context -NoEventManagement -NoMessaging
 
             if (!$NoWait) {
                 $platformJob = Wait-PlatformJob -Id $platformJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
+                $platformJob = Get-PlatformJob -Id $platformJob.id
             }
 
-            Write-Host+
             if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
                 $commandStatus = $global:PlatformEventStatus.Failed
                 $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) has "
@@ -374,11 +410,13 @@ function global:Request-Platform {
                 Write-Log -Action $Command -EntryType "Warning" -Status "Timeout" -Message "$($message) $($platformJob.status.ToUpper()). $($platformJob.statusMessage)."
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor $global:PlatformEventStatusColor.$commandStatus
             }
-            Write-Host+
 
-            # preflight checks
             if ($Command -eq "Start") {
+                # postflight checks
+                $message = "<    Postflight <.>25> PENDING"
+                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
                 Confirm-PostFlight -Force
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor Green
             }
 
         }
@@ -396,9 +434,10 @@ function global:Request-Platform {
 
     }
 
-    $message = "<  $($Command.ToUpper()) <.>25> $($commandStatus.ToUpper())"
+    $message = "<  Platform <.>25> $($commandPastTense.ToUpper())"
     Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformEventStatusColor.$commandStatus
-    Write-Host+
+
+    Set-CursorVisible
 
     if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
 
@@ -411,20 +450,24 @@ function global:Request-Platform {
         [CmdletBinding()] param (
             [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id ?? "Command",
             [Parameter(Mandatory=$false)][string]$Reason = "Start platform",
-            [switch]$NoWait
+            [switch]$NoWait,
+            [switch]$IgnoreCurrentState,
+            [switch]$IgnorePendingChanges
         )
 
-        Request-Platform -Command Start -Context $Context -Reason $Reason -NoWait:$NoWait.IsPresent
+        Request-Platform -Command Start -Context $Context -Reason $Reason -NoWait:$NoWait.IsPresent -IgnoreCurrentState:$IgnoreCurrentState.IsPresent -IgnorePendingChanges:$IgnorePendingChanges.IsPresent
     }
     function global:Stop-Platform {
 
         [CmdletBinding()] param (
             [Parameter(Mandatory=$false)][string]$Context = "Command",
             [Parameter(Mandatory=$false)][string]$Reason = "Stop platform",
-            [switch]$NoWait
+            [switch]$NoWait,
+            [switch]$IgnoreCurrentState,
+            [switch]$IgnorePendingChanges
         )
         
-        Request-Platform -Command Stop -Context $Context -Reason $Reason -NoWait:$NoWait.IsPresent
+        Request-Platform -Command Stop -Context $Context -Reason $Reason -NoWait:$NoWait.IsPresent -IgnoreCurrentState:$IgnoreCurrentState.IsPresent -IgnorePendingChanges:$IgnorePendingChanges.IsPresent
     }
 
     function global:Restart-Platform {
@@ -432,11 +475,13 @@ function global:Request-Platform {
         [CmdletBinding()] param (
             [Parameter(Mandatory=$false)][string]$Context = "Command",
             [Parameter(Mandatory=$false)][string]$Reason = "Restart platform",
-            [switch]$NoWait
+            [switch]$NoWait,
+            [switch]$IgnoreCurrentState,
+            [switch]$IgnorePendingChanges
         )
 
         Stop-Platform -Context $Context -Reason $Reason
-        Start-Platform -Context $Context -Reason $Reason -NoWait:$NoWait.IsPresent
+        Start-Platform -Context $Context -Reason $Reason -NoWait:$NoWait.IsPresent -IgnoreCurrentState:$IgnoreCurrentState.IsPresent -IgnorePendingChanges:$IgnorePendingChanges.IsPresent
     }
 
 #endregion SERVICE

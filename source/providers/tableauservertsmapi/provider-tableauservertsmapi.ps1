@@ -500,3 +500,91 @@ function global:Get-TsmConfigurationKey {
     return $configurationKey.$Name
 
 }
+
+# function global:Set-TsmConfigurationKey {
+
+#     [CmdletBinding()]
+#     param(
+#         [Parameter(Mandatory=$true)][string]$Name,
+#         [Parameter(Mandatory=$true)][string]$Value
+#     )
+
+# }
+
+
+function global:Get-TsmPendingChanges {
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][ValidateSet("config","topology")][string[]]$Type = @("config","topology")
+    )
+
+    $Type = $Type | Foreach-Object { $_.ToLower() }
+
+    $pendingChangesText = @("There are no pending configuration changes.","There are no pending topology changes.")
+    $restartRequiredText = @("These changes will require a server restart.")
+
+    $pendingChanges = @{}
+    $Type | Foreach-Object {
+        $pendingChanges += @{
+            "$_" = @{ 
+                command = ". tsm pending-changes list --$_-only"
+            }
+        }
+        $_changes = [array](Invoke-Expression $pendingChanges.$_.command)
+        $pendingChanges.$_ += @{ hasPendingChanges = $false }
+        $hasPendingChangesIndex = -1
+        if ($_changes[-1] -in $restartRequiredText) {
+            $pendingChanges.$_ += @{ restartRequired = $true }
+            $pendingChanges += @{ restartRequired = $true }
+            $hasPendingChangesIndex = -2
+        }
+        if ($_changes[$hasPendingChangesIndex] -notin $pendingChangesText) {
+            $pendingChanges.$_.hasPendingChanges = $true
+            $pendingChanges.$_ += @{ changes = $_changes }
+        }
+    }
+
+    $_changes = @()
+    foreach ($key in $pendingChanges.Keys) {
+        if ($pendingChanges.$Key.changes) {
+            $_changes += $pendingChanges.$Key.changes
+        }
+    }
+    $pendingChanges += @{ hasPendingChanges = $false }
+    if ($_changes) {
+        $pendingChanges.hasPendingChanges = $true
+        $pendingChanges += @{ changes = $_changes }
+    }
+
+    return $pendingChanges
+
+}
+
+function global:Apply-TsmPendingChanges {
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+
+    [CmdletBinding()]
+    param()
+
+    $successfulDeploymentText = @("Successfully deployed nodes with updated configuration and topology version.")
+
+    $pendingChanges = @{}
+    $pendingChanges += @{ hasPendingChanges = $false }
+    if ((Get-TsmPendingChanges).hasPendingChanges) {
+        $pendingChanges.hasPendingChanges = $true
+        $pendingChanges += @{ command = ". tsm pending-changes apply --ignore-prompt"}
+        $pendingChanges += @{
+            changes = [array](Invoke-Expression $pendingChanges.command)
+        }
+        $pendingChanges += @{
+            successfulDeployment = $pendingChanges.changes[-1] -in $successfulDeploymentText
+        }
+    }
+
+    return $pendingChanges
+
+}
