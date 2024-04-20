@@ -31,8 +31,7 @@ variable user_ip {
 }
 
 locals {
-    resource_prefix =  local.random_padding
-    #var.prefix
+    resource_prefix = local.random_padding
 }
 
 variable "virtual_network_address_prefix" {
@@ -69,7 +68,6 @@ variable "tags" {
     env    = "sandbox"
   }
 }
-
 variable network_watcher_name {
 }
 

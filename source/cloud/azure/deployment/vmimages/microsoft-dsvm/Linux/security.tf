@@ -49,7 +49,7 @@ resource "azurerm_key_vault_secret" "storage-account-name" {
 }
 
 # Save main Storage Account primary Key as a secret
-resource "azurerm_key_vault_secret" "example" {
+resource "azurerm_key_vault_secret" "storage_key" {
   name         = "${var.prefix}storage-key"
   value        = azurerm_storage_account.main.primary_access_key
   key_vault_id = azurerm_key_vault.main.id

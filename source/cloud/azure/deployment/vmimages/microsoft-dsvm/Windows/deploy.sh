@@ -143,49 +143,72 @@ if [ $? != 0 ]; then
     exit 1
 fi
 
-RESOURCE_PREFIX=$PREFIX
-# check if RESOURCE_PREFIX variable is set, ask if using default $RANDOM
+RESOURCE_PREFIX=$RESOURCE_PREFIX
+# check if RESOURCE_PREFIX variable is set
 if [ -z "$RESOURCE_PREFIX" ]; then
-    random=$(cat /dev/urandom | tr -dc 'a-zA-Z' | head -c 6)
-    if [ "$quiet" != "true" ]; then
-        echo "RESOURCE_PREFIX variable is not set, do you want to use the default prefix '$RANDOM'? (y/N)"
-        read useDefaultPrefix
-        useDefaultPrefix=$(echo ${useDefaultPrefix:-"n"} | tr '[:upper:]' '[:lower:]')
-        if [ "$useDefaultPrefix" = "y" ]; then
-            RESOURCE_PREFIX=$random
-        fi
-    else
-        RESOURCE_PREFIX=$random
-    fi
+    echo "Please enter your resource prefix:"
+    read RESOURCE_PREFIX
+    RESOURCE_PREFIX=${RESOURCE_PREFIX:-""}
     if [ -z "$RESOURCE_PREFIX" ]; then
-        echo "Please enter your resource prefix:"
-        read RESOURCE_PREFIX
-        RESOURCE_PREFIX=${RESOURCE_PREFIX:-""}
-        if [ -z "$RESOURCE_PREFIX" ]; then
-            echo "PREFIX cannot be empty, exiting..."
-            exit 1
-        fi
+        echo "PREFIX cannot be empty, exiting..."
+        exit 1
     fi
     RESOURCE_PREFIX=$(echo $RESOURCE_PREFIX | tr '[:upper:]' '[:lower:]')
 fi
 
-# check length of prefix is between 3 and 11 characters
+# check length of RESOURCE_PREFIX is between 3 and 11 characters
 if [ ${#RESOURCE_PREFIX} -lt 3 ] || [ ${#RESOURCE_PREFIX} -gt 11 ]; then
     echo "PREFIX '$RESOURCE_PREFIX', must be between 3 and 11 characters, current length is ${#RESOURCE_PREFIX}, exiting..."
     exit 1
 fi
 
-# check if RESOURCE_GROUP_NAME variable is set, ask if using default uksouth
+PROJECT_GROUP=$PROJECT_GROUP
+# check if PROJECT_GROUP variable is set
+if [ -z "$PROJECT_GROUP" ]; then
+    echo "Please enter the group name:"
+    read PROJECT_GROUP
+    PROJECT_GROUP=${PROJECT_GROUP:-""}
+    if [ -z "$PROJECT_GROUP" ]; then
+        echo "PROJECT cannot be empty, exiting..."
+        exit 1
+    fi
+    PROJECT_GROUP=$(echo $PROJECT_GROUP | tr '[:upper:]' '[:lower:]')
+fi
+
+# check length of PROJECT_GROUP is between 3 and 11 characters
+if [ ${#PROJECT_GROUP} -lt 3 ] || [ ${#PROJECT_GROUP} -gt 11 ]; then
+    echo "PREFIX '$PROJECT_GROUP', must be between 3 and 11 characters, current length is ${#PROJECT_GROUP}, exiting..."
+    exit 1
+fi
+
+PROJECT_NAME=$PROJECT_NAME
+# check if PROJECT_NAME variable is set
+if [ -z "$PROJECT_NAME" ]; then
+    echo "Please enter the project name:"
+    read PROJECT_NAME
+    PROJECT_NAME=${PROJECT_NAME:-""}
+    if [ -z "$PROJECT_NAME" ]; then
+        echo "PROJECT cannot be empty, exiting..."
+        exit 1
+    fi
+    PROJECT_NAME=$(echo $PROJECT_NAME | tr '[:upper:]' '[:lower:]')
+fi
+
+# check length of PROJECT_NAME is between 3 and 11 characters
+if [ ${#PROJECT_NAME} -lt 3 ] || [ ${#PROJECT_NAME} -gt 11 ]; then
+    echo "PREFIX '$PROJECT_NAME', must be between 3 and 11 characters, current length is ${#PROJECT_NAME}, exiting..."
+    exit 1
+fi
+
+# check if RESOURCE_GROUP_NAME variable is set, ask if using default eastus
 if [ -z "$RESOURCE_GROUP_NAME" ]; then
     if [ "$quiet" != "true" ]; then
-        echo "RESOURCE_GROUP_NAME variable is not set, do you want to use the default naming '$RESOURCE_PREFIX-rg'? (y/N)"
+        echo "RESOURCE_GROUP_NAME variable is not set, do you want to use the default naming '$PROJECT_GROUP'-$PROJECT_NAME-rg'? (y/N)"
         read useDefaultRgName
         useDefaultRgName=$(echo ${useDefaultRgName:-"n"} | tr '[:upper:]' '[:lower:]')
         if [ "$useDefaultRgName" = "y" ]; then
-            RESOURCE_GROUP_NAME="$RESOURCE_PREFIX-rg"
+            RESOURCE_GROUP_NAME="$PROJECT_GROUP'-$PROJECT_NAME-rg"
         fi
-    else
-        RESOURCE_GROUP_NAME="$RESOURCE_PREFIX-rg"
     fi
     if [ -z "$RESOURCE_GROUP_NAME" ]; then
         echo "Please enter your resource group name:"
@@ -226,6 +249,17 @@ if [ -z "$USER_ID" ]; then
             exit 1
         fi
     fi
+else
+    # get the user email 
+    USER_EMAIL=$(az ad user show --id $USER_ID --query mail -o tsv)
+    if [ -z "$USER_EMAIL" ]; then
+        echo "Failed to get user email, exiting..."
+        exit 1
+    else
+        if [ "$quiet" != "true" ]; then
+            echo "Using deployers email for certificate renewal notifications: $USER_EMAIL..."
+        fi    
+    fi    
 fi
 
 # new params
@@ -299,7 +333,31 @@ if [ -z "$STORAGE_ACCOUNT_TIER" ]; then
     fi
 fi
 
-# # check if AUTHORIZED_IP variable is set
+# check if USER_EMAIL variable is set
+if [ -z "$USER_EMAIL" ]; then
+    if [ "$quiet" != "true" ]; then
+        USER_EMAIL=$(az ad user show --id $USER_ID --query mail -o tsv)
+        echo "USER_EMAIL variable is not set, do you want to use the default email '$USER_EMAIL'? (y/N)"
+        read useDefaultUserEmail
+        useDefaultUserEmail=$(echo ${useDefaultUserEmail:-"n"} | tr '[:upper:]' '[:lower:]')
+        if [ "$useDefaultUserEmail" = "y" ]; then
+            USER_EMAIL=$USER_EMAIL
+        fi
+    else
+        USER_EMAIL=$(az ad user show --id $USER_ID --query mail -o tsv)
+    fi
+    if [ -z "$USER_EMAIL" ]; then
+        echo "Please enter your user email:"
+        read USER_EMAIL
+        USER_EMAIL=${USER_EMAIL:-""}
+        if [ -z "$USER_EMAIL" ]; then
+            echo "USER_EMAIL cannot be empty, exiting..."
+            exit 1
+        fi
+    fi
+fi
+
+# check if AUTHORIZED_IP variable is set
 # if [ -z "$AUTHORIZED_IP" ]; then
 #     if [ "$quiet" != "true" ]; then
 #         current_ip=$(curl -s https://api.ipify.org)
@@ -325,18 +383,41 @@ fi
 
 AUTHORIZED_IP=$(curl -s https://api.ipify.org)
 
+### Terraform state storage account information
+TF_RESOURCE_GROUP_NAME=${PROJECT_GROUP}-tfstate-rg
+TF_STORAGE_ACCOUNT_NAME=tfstate${PROJECT_NAME}01
+TF_STORAGE_CONTAINER_NAME=tfstate
+TF_STATE_KEY=${RESOURCE_PREFIX}.tfstate
+
 # print all input variables
+echo
 echo "Using the following input variables:"
-echo "  TENANT_ID=$TENANT_ID"
-echo "  SUBSCRIPTION_ID=$SUBSCRIPTION_ID"
-echo "  RESOURCE_LOCATION=$RESOURCE_LOCATION"
-echo "  RESOURCE_PREFIX=$RESOURCE_PREFIX"
-echo "  RESOURCE_GROUP_NAME=$RESOURCE_GROUP_NAME"
-echo "  VM_SIZE=$VM_SIZE"
-echo "  RESOURCE_ADMIN_USERNAME=$RESOURCE_ADMIN_USERNAME"
-echo "  STORAGE_ACCOUNT_TIER=$STORAGE_ACCOUNT_TIER"
-echo "  AUTHORIZED_IP=$AUTHORIZED_IP"
-echo "  USER_ID=$USER_ID"
+echo
+echo "  TENANT_ID = $TENANT_ID"
+echo "  SUBSCRIPTION_ID = $SUBSCRIPTION_ID"
+echo "  PROJECT_GROUP = $PROJECT_GROUP"
+echo "  PROJECT_NAME = $PROJECT_NAME"
+echo "  RESOURCE_LOCATION = $RESOURCE_LOCATION"
+echo "  RESOURCE_PREFIX = $RESOURCE_PREFIX"
+echo "  RESOURCE_GROUP_NAME = $RESOURCE_GROUP_NAME"
+echo "  VM_SIZE = $VM_SIZE"
+echo "  RESOURCE_ADMIN_USERNAME = $RESOURCE_ADMIN_USERNAME"
+echo "  STORAGE_ACCOUNT_TIER = $STORAGE_ACCOUNT_TIER"
+echo "  STORAGE_ACCOUNT_KIND = $STORAGE_ACCOUNT_KIND"
+echo "  STORAGE_ACCOUNT_REPLICATION_TYPE = $STORAGE_ACCOUNT_REPLICATION_TYPE"
+echo "  AUTHORIZED_IP = $AUTHORIZED_IP"
+echo "  USER_ID = $USER_ID"
+echo "  USER_EMAIL = $USER_EMAIL"
+echo
+
+# print all terraform state variables (defined again below)
+echo "Using the following terraform state variables:"
+echo
+echo "  TF_RESOURCE_GROUP_NAME = $TF_RESOURCE_GROUP_NAME"
+echo "  TF_STORAGE_ACCOUNT_NAME = $TF_STORAGE_ACCOUNT_NAME"
+echo "  TF_STORAGE_CONTAINER_NAME = $TF_STORAGE_CONTAINER_NAME"
+echo "  TF_STATE_KEY = $TF_STATE_KEY"
+echo
 
 if [ "$quiet" != "true" ]; then
     echo "Do you want to continue? (y/N)"
@@ -345,11 +426,14 @@ if [ "$quiet" != "true" ]; then
         echo "Exiting..."
         exit 1
     fi
+    echo ""
 fi
+
+start=`date +%s`
 
 echo "Enabling Network watchers..."
 NETWORK_WATCHER_RG="NetworkWatcherRG"
-nw_enabled_locations='westus,uksouth,northeurope,westeurope,eastasia,southeastasia,northcentralus,southcentralus,centralus,uksouth2,japaneast,japanwest,brazilsouth,australiaeast,australiasoutheast,centralindia,southindia,westindia,canadacentral,canadaeast,westcentralus,westus2,ukwest,uksouth,koreacentral,koreasouth,francecentral,australiacentral,southafricanorth,uaenorth,switzerlandnorth,germanywestcentral,norwayeast,westus3,jioindiawest,swedencentral'
+nw_enabled_locations='westus,eastus,northeurope,westeurope,eastasia,southeastasia,northcentralus,southcentralus,centralus,eastus2,japaneast,japanwest,brazilsouth,australiaeast,australiasoutheast,centralindia,southindia,westindia,canadacentral,canadaeast,westcentralus,westus2,ukwest,uksouth,koreacentral,koreasouth,francecentral,australiacentral,southafricanorth,uaenorth,switzerlandnorth,germanywestcentral,norwayeast,westus3,jioindiawest,swedencentral'
 should_import_nw_flag=true
 
 # Check if Network Watchers are available in the selected location
@@ -379,8 +463,8 @@ fi
 echo "Initializing terraform configuration..."
 
 ### Terraform state storage account information
-TF_RESOURCE_GROUP_NAME=${RESOURCE_PREFIX}state
-TF_STORAGE_ACCOUNT_NAME=tfstate${RESOURCE_PREFIX}0102
+TF_RESOURCE_GROUP_NAME=${PROJECT_GROUP}-tfstate-rg
+TF_STORAGE_ACCOUNT_NAME=tfstate${PROJECT_NAME}01
 TF_STORAGE_CONTAINER_NAME=tfstate
 TF_STATE_KEY=${RESOURCE_PREFIX}.tfstate
 
@@ -479,7 +563,7 @@ if [ "$storage_name_available" = "false" ]; then
         storage_created="true"
     else
         # ask if user wants to delete existing storage account
-        echo "Do you want to delete and create a new storage account $TF_STORAGE_ACCOUNT_NAME? (y/N)"
+        echo "Do you want to delete anc create a new storage account $TF_STORAGE_ACCOUNT_NAME? (y/N)"
         read deleteExistingStorageAccount
         deleteExistingStorageAccount=$(echo ${deleteExistingStorageAccount:-"n"} | tr '[:upper:]' '[:lower:]')
         if [ "$deleteExistingStorageAccount" = "y" ]; then
@@ -531,13 +615,15 @@ if [ "$storage_container_created" = "false" ]; then
 fi
 
 echo "Resource group, storage account and container for Terraform state storage created successfully"
-
+echo
 echo "Using the following Terraform state storage account information:"
-echo "  TF_RESOURCE_GROUP_NAME=$TF_RESOURCE_GROUP_NAME"
-echo "  TF_STORAGE_ACCOUNT_NAME=$TF_STORAGE_ACCOUNT_NAME"
-echo "  TF_STORAGE_CONTAINER_NAME=$TF_STORAGE_CONTAINER_NAME"
-echo "  TF_STORAGE_ACCOUNT_KEY=$TF_STORAGE_ACCOUNT_KEY"
-echo "  TF_STATE_KEY=$TF_STATE_KEY"
+echo
+echo "  TF_RESOURCE_GROUP_NAME = $TF_RESOURCE_GROUP_NAME"
+echo "  TF_STORAGE_ACCOUNT_NAME = $TF_STORAGE_ACCOUNT_NAME"
+echo "  TF_STORAGE_CONTAINER_NAME = $TF_STORAGE_CONTAINER_NAME"
+echo "  TF_STORAGE_ACCOUNT_KEY = $TF_STORAGE_ACCOUNT_KEY"
+echo "  TF_STATE_KEY = $TF_STATE_KEY"
+echo
 
 export TF_VAR_prefix=$RESOURCE_PREFIX
 export TF_VAR_location=$RESOURCE_LOCATION
@@ -545,6 +631,7 @@ export TF_VAR_compute_size=$VM_SIZE
 export TF_VAR_admin_username=$RESOURCE_ADMIN_USERNAME
 
 export TF_VAR_user_object_id=$USER_ID
+export TF_VAR_log_analytics_workspace_location=$RESOURCE_LOCATION
 export TF_VAR_network_watcher_name=$(az network watcher list --query "[?location=='$RESOURCE_LOCATION'].name" --output tsv)
 export TF_VAR_user_ip=$AUTHORIZED_IP
 export TF_VAR_main_resource_group_name=$RESOURCE_GROUP_NAME
@@ -556,15 +643,7 @@ else
     export TF_VAR_main_storage_account_kind="BlobStorage"
 fi
 
-env | grep '^TF_VAR_'
-if [ "$quiet" != "true" ]; then
-    echo "Do you want to continue? (y/N)"
-    read continue
-    if [ "$continue" != "y" ]; then
-        echo "Exiting..."
-        exit 1
-    fi
-fi
+export MSYS_NO_PATHCONV=1
 
 ### Deploy ###
 echo "Initializing terraform..."
@@ -589,6 +668,10 @@ else
     echo "Resources deployment failed"
     exit 1
 fi
+
+echo '====================================================================================='
+echo "All resources were deployed. DS environment configuration running now..."
+echo '====================================================================================='
 
 end=`date +%s`
 runtime=$((end-start))

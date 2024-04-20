@@ -142,6 +142,16 @@ switch ($PSVersionTable.PSVersion.Major) {
 #endregion CONSOLE METHODS
 #region ASCII CODES
 
+# reference: https://symbl.cc/en/unicode-table/#miscellaneous-symbols-and-arrows
 $global:asciiCodes = @{
-    RightArrowWithHook = [char]0x21AA
+    LeftwardsArrowWithHook = [char]0x21A9
+    RightwardsArrowWithHook = [char]0x21AA
+    DownwardsLeftArrow = [char]0x2BA0
+    DownwardsRightArrow = [char]0x2BA1
+    UpwardsLeftArrow = [char]0x2BA2
+    UpwardsRightArrow = [char]0x2BA3
+    LeftwardsUpArrow = [char]0x2BA4
+    RightwardsUpArrow = [char]0x2BA5
+    LeftwardsDownArrow = [char]0x2BA6
+    RightwardsDownArrow = [char]0x2BA7
 }

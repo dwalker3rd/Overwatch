@@ -112,17 +112,17 @@ else
     fi
 fi
 
-# check if RESOURCE_LOCATION variable is set, ask if using default eastus
+# check if RESOURCE_LOCATION variable is set, ask if using default uksouth
 if [ -z "$RESOURCE_LOCATION" ]; then
     if [ "$quiet" != "true" ]; then
-        echo "RESOURCE_LOCATION variable is not set, do you want to use the default location 'eastus'? (y/N)"
+        echo "RESOURCE_LOCATION variable is not set, do you want to use the default location 'uksouth'? (y/N)"
         read useDefaultLocation
         useDefaultLocation=$(echo ${useDefaultLocation:-"n"} | tr '[:upper:]' '[:lower:]')
         if [ "$useDefaultLocation" = "y" ]; then
-            RESOURCE_LOCATION="eastus"
+            RESOURCE_LOCATION="uksouth"
         fi
     else
-        RESOURCE_LOCATION="eastus"
+        RESOURCE_LOCATION="uksouth"
     fi
     if [ -z "$RESOURCE_LOCATION" ]; then
         echo "Please enter your resource location, you can see the list of location names by running the following command on another terminal window:"
@@ -670,7 +670,7 @@ else
 fi
 
 echo '====================================================================================='
-echo "All resources were deployed. DS environment configuration runnung now..."
+echo "All resources were deployed. DS environment configuration running now..."
 echo '====================================================================================='
 
 main_storage_account_name=$(terraform output -raw main_storage_account_name)

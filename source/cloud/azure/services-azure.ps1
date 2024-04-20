@@ -277,7 +277,7 @@ function global:Update-AzureConfig {
     $i = 0
     $foundMatch = $false
     do {
-        if ($azureDefinitions[$i] -match "Templates = @\{") {
+        if ($azureDefinitions[$i] -match "ResourceType = @\{") {
             $foundMatch = $true
         }
         else {
