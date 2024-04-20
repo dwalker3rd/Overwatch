@@ -46,7 +46,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                         }
                     }
                     CosmosDBAccount = @{
-                        ResourceName = @{ Pattern = "`"`$(`$prefix)`$(`$projectName)-cosmos<00>`""}
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-cosmos<00>`""
                         Dependencies = @{}
                     }
                     DataFactory = @{
