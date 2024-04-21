@@ -650,6 +650,7 @@ $global:Catalog.Provider += @{ SMTP =
                     }
                 }
             )
+            Flag = @("AlwaysLoad")
         }
     }
 }
@@ -663,6 +664,9 @@ $global:Catalog.Provider += @{ TwilioSMS =
         Description = "Overwatch Provider for Twilio SMS"
         Publisher = "Walker Analytics Consulting"
         Log = "TwilioSMS"
+        Installation = @{
+            Flag = @("AlwaysLoad")
+        }
     }
 }
 
@@ -675,6 +679,9 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         Description = "Overwatch Provider for Microsoft Teams"
         Publisher = "Walker Analytics Consulting"
         Log = "MicrosoftTeams"
+        Installation = @{
+            Flag = @("AlwaysLoad")
+        }
     }
 }
 
