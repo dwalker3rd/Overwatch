@@ -14,12 +14,12 @@
             }
 
         }
-        else {
+        # else {
 
-            $message = "  No postflight checks"
-            Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Yellow
+        #     $message = "  No postflight checks"
+        #     Write-Host+ -NoTrace -NoSeparator $message -ForegroundColor Yellow
 
-        }
+        # }
 
     #endregion IncompletePreflightChecks
 
