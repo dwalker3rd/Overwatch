@@ -68,6 +68,7 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
         Testing = "Testing" 
         Cancelled = "Cancelled"
         Created = "Created"
+        Succeeded = "Succeeded"
     }
     $global:PlatformEventStatusColor = @{ 
         InProgress = "DarkYellow" 
@@ -78,6 +79,7 @@ $global:Overwatch = $global:Catalog.Overwatch.Overwatch
         Testing = "DarkYellow" 
         Cancelled = "DarkYeallow"
         Created = "DarkGreen"
+        Succeeded = "DarkGreen"
     }
 
 #endregion EVENTS
