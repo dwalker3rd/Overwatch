@@ -226,157 +226,164 @@ return
 #endregion PLATFORMINFO
 #region SERVICE
 
-function global:Get-PlatformServices {
+    function global:Get-PlatformServices {
 
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory=$false)][string[]]$ComputerName,
-    [Parameter(Mandatory=$false)][string]$View,
-    [switch]$ResetCache
-)
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][string[]]$ComputerName,
+            [Parameter(Mandatory=$false)][string]$View,
+            [switch]$ResetCache
+        )
 
-$platformTopology = Get-PlatformTopology -Online
-if ([string]::IsNullOrEmpty($ComputerName)) {
-    $ComputerName = $platformTopology.nodes.Keys
-}
-
-if ($(Get-Cache platformservices).Exists -and !$ResetCache) {
-    Write-Host+ -IfDebug "Read-Cache platformservices" -ForegroundColor DarkYellow
-    $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
-    if ($platformServicesCache) {
-        $platformServices = $platformServicesCache
-        return $platformServices
-    }
-}
-
-$platformTopology = Get-PlatformTopology
-$platformStatus = Read-Cache platformstatus
-# $tableauServerStatus = Get-TableauServerStatus
-
-$eventVerb = $null
-$serviceStatusOK = @("Active","Running")
-if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
-    switch ($platformStatus.Event) {
-        "Stop" {
-            $eventVerb = "Stopping"
-            $serviceStatusOK += "Stopping"
-            $serviceStatusOK += "Stopped"
+        $platformTopology = Get-PlatformTopology -Online
+        if ([string]::IsNullOrEmpty($ComputerName)) {
+            $ComputerName = $platformTopology.nodes.Keys
         }
-        "Start" {
-            $eventVerb = "Starting"
-            $serviceStatusOK += "Starting"
-        }
-    }
-}
 
-Write-Host+ -IfDebug "Processing PlatformServices" -ForegroundColor DarkYellow
-if ($platformStatus.StatusObject) {
-    $platformServices = @()
-        foreach ($nodeId in $platformStatus.StatusObject.nodes.nodeId) {
-            $node = $platformTopology.Alias.$nodeId                   
-            $services = ($platformStatus.StatusObject.nodes | Where-Object {$_.nodeid -eq $nodeId}).services
-            $services | Foreach-Object {
-                $service = $_
-                $platformService = @(
-                    [PlatformCim]@{
-                        Name = $service.ServiceName
-                        DisplayName = $service.ServiceName
-                        Class = "Service"
-                        Node = $node
-                        Required = $service.rollupRequestedDeploymentState -eq "Enabled"
-                        Status = $service.rollupStatus -eq "Error" -or [string]::IsNullOrEmpty($service.rollupStatus) ? $eventVerb : $service.rollupStatus
-                        StatusOK = $serviceStatusOK
-                        IsOK = $serviceStatusOK.Contains($service.rollupStatus)
-                        Instance = $service.instances
-                    }
-                )
-                $platformServices += $platformService
+        if ($(Get-Cache platformservices).Exists -and !$ResetCache) {
+            Write-Host+ -IfDebug "Read-Cache platformservices" -ForegroundColor DarkYellow
+            $platformServicesCache = Read-Cache platformservices -MaxAge $(New-TimeSpan -Minutes 1)
+            if ($platformServicesCache) {
+                $platformServices = $platformServicesCache
+                return $platformServices
             }
         }
-}      
 
-Write-Host+ -IfDebug "Write-Cache platformservices" -ForegroundColor DarkYellow
-$platformServices | Write-Cache platformservices
+        $platformTopology = Get-PlatformTopology
+        $platformStatus = Read-Cache platformstatus
+        # $tableauServerStatus = Get-TableauServerStatus
 
-return $platformServices | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
-}
-
-function global:Request-Platform {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
-        [Parameter(Mandatory=$true)][string]$Context,
-        [Parameter(Mandatory=$true)][string]$Reason,
-        [switch]$NoWait,
-        [switch]$IgnoreCurrentState,
-        [switch]$IgnorePendingChanges
-    )
-
-    # $commandPresentParticiple = $Command + ($Command -eq "Stop" ? "p" : $null) + "ing"
-    $commandPastTense = $Command + ($Command -eq "Stop" ? "p" : $null) + "ed"
-
-    Set-CursorInvisible
-
-    Write-Host+
-    Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
-    $message = "<  Command <.>25> $($Command.ToUpper())"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
-    $message = "<  Reason <.>25> $Reason"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-    Write-Host+
-    $message = "<  Platform <.>25> PENDING"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-
-    $platformStatus = Get-PlatformStatus
-    if (!$IgnoreCurrentState -and 
-        ($Command -eq "Start" -and $platformStatus.RollupStatus -eq "Running") -or
-        ($Command -eq "Stop" -and $platformStatus.RollupStatus -eq "Stopped")) {
-            $commandStatus = $global:PlatformEventStatus.Completed
-            $message = "  Platform is already $($platformStatus.RollupStatus.ToUpper())"
-            Write-Log -Action $Command -EntryType "Information" -Status "Created" -Message $message -Force
-            Write-Host+ -NoTrace $message -ForegroundColor DarkGray
-            Set-CursorVisible
-            return
+        $eventVerb = $null
+        $serviceStatusOK = @("Active","Running")
+        if ($platformStatus.Event -and !$platformStatus.EventHasCompleted) {
+            switch ($platformStatus.Event) {
+                "Stop" {
+                    $eventVerb = "Stopping"
+                    $serviceStatusOK += "Stopping"
+                    $serviceStatusOK += "Stopped"
+                }
+                "Start" {
+                    $eventVerb = "Starting"
+                    $serviceStatusOK += "Starting"
+                }
+            }
         }
-    else {
 
-        Write-Log -Action $Command -Status $PlatformEventStatus.InProgress -Message "$($global:Platform.Name) $($Command.ToUpper())"
+        Write-Host+ -IfDebug "Processing PlatformServices" -ForegroundColor DarkYellow
+        if ($platformStatus.StatusObject) {
+            $platformServices = @()
+                foreach ($nodeId in $platformStatus.StatusObject.nodes.nodeId) {
+                    $node = $platformTopology.Alias.$nodeId                   
+                    $services = ($platformStatus.StatusObject.nodes | Where-Object {$_.nodeid -eq $nodeId}).services
+                    $services | Foreach-Object {
+                        $service = $_
+                        $platformService = @(
+                            [PlatformCim]@{
+                                Name = $service.ServiceName
+                                DisplayName = $service.ServiceName
+                                Class = "Service"
+                                Node = $node
+                                Required = $service.rollupRequestedDeploymentState -eq "Enabled"
+                                Status = $service.rollupStatus -eq "Error" -or [string]::IsNullOrEmpty($service.rollupStatus) ? $eventVerb : $service.rollupStatus
+                                StatusOK = $serviceStatusOK
+                                IsOK = $serviceStatusOK.Contains($service.rollupStatus)
+                                Instance = $service.instances
+                            }
+                        )
+                        $platformServices += $platformService
+                    }
+                }
+        }      
+
+        Write-Host+ -IfDebug "Write-Cache platformservices" -ForegroundColor DarkYellow
+        $platformServices | Write-Cache platformservices
+
+        return $platformServices | Select-Object -Property $($View ? $CimView.$($View) : $CimView.Default)
+
+    }
+
+    function global:Request-Platform {
+
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true)][ValidateSet("Stop","Start")][string]$Command,
+            [Parameter(Mandatory=$true)][string]$Context,
+            [Parameter(Mandatory=$false)][string]$Reason,
+            [switch]$NoWait,
+            [switch]$IgnoreCurrentState,
+            [switch]$IgnorePendingChanges
+        )
+
+        $commandPresentParticiple = $Command + ($Command -eq "Stop" ? "p" : $null) + "ing"
+        # $commandPastTense = $Command + ($Command -eq "Stop" ? "p" : $null) + "ed"
+        
+        $platformStatus = Get-PlatformStatus
+
+        Set-CursorInvisible
+
+        Write-Host+
+        Write-Host+ -NoTrace -NoSeparator "$($global:Platform.Name)" -ForegroundColor DarkBlue
+        $message = "< Command <.>48> $($Command.ToUpper())"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
+        if (![string]::IsNullOrEmpty($Reason)) {
+            $message = "< Reason <.>48> $($Reason.ToUpper())"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+        }
+
+        $message = "< Platform Status <.>48> $($platformStatus.RollupStatus.ToUpper())"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.$($platformStatus.RollupStatus)
+
+        Write-Log -Action $Command -Target "Platform" -EntryType "Information" -Status "Created" -Message $message -Force
+
+        if (!$IgnoreCurrentState -and 
+            ($Command -eq "Start" -and $platformStatus.RollupStatus -eq "Running") -or
+            ($Command -eq "Stop" -and $platformStatus.RollupStatus -eq "Stopped")) {
+                $message = "Platform is already $($platformStatus.RollupStatus.ToUpper())"
+                Write-Log -Action $Command -Target "Platform" -EntryType "Information" -Status $platformStatus.RollupStatus.ToUpper() -Message $message -Force
+                Set-CursorVisible
+                return
+            }
 
         $commandStatus = $PlatformEventStatus.InProgress
+        $message = "< Set Platform Event <.>48> PENDING"
+        Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
         Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
+        Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS " -ForegroundColor DarkGreen
+        Write-Log -Action $Command -Target "Platform" -EntryType "Information" -Status $commandStatus -Message $message -Force
 
         # preflight checks
         if ($Command -eq "Start") {
 
             # apply any pending changes
+            $message = "< Pending Changes <.>48> REVIEWING"
+            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
             $pendingChanges = Get-TsmPendingChanges
             if ($pendingChanges.hasPendingChanges -and !$IgnorePendingChanges) {
-                $message = "<    Pending Changes <.>25> APPLYING"
-                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+                Write-Host+ -NoTrace -NoTimestamp -NoNewline "$($emptyString.PadLeft(10,"`b")) APPLYING " -ForegroundColor DarkGray
                 $pendingChangesResult = Apply-TsmPendingChanges <# @{ successfulDeployment = $false; changes = @("this was a test") } #>
                 $_entryType = $pendingChangesResult.successfulDeployment ? "Information" : "Error"
-                $_status = $pendingChangesResult.successfulDeployment ? "Success" : "Error"
+                $_status = $pendingChangesResult.successfulDeployment ? "Applied" : "Error"
                 $_color = $pendingChangesResult.successfulDeployment ? "DarkGreen" : "Red"
                 $_message = $pendingChangesResult.changes[-1]
-                Write-Log -Action "Apply" -Target "Pending-Changes" -EntryType $_entryType -Status $_status -Message $_message -Force
-                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(9,"`b")) $($_status.ToUpper())" -ForegroundColor $_color
+                Write-Log -Action "Apply Pending-Changes" -Target "Platform" -EntryType $_entryType -Status $_status -Message $_message -Force
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(10,"`b")) $($_status.ToUpper())" -ForegroundColor $_color
                 Write-Host+ -Iff $($_status -eq "Error") -NoTrace "    $_message" -ForegroundColor $_color
+            }
+            else {
+                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(10,"`b")) NONE" -ForegroundColor DarkGray
             }
 
             # preflight update
-            $message = "<    Preflight <.>25> PENDING"
-            Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-            Update-Preflight -Force
-            Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor Green
+            if (HasPreflightUpdate) {
+                Update-Preflight -Force
+            }
 
         }
 
         try {
 
-            $message = "<  Platform <.>25> $($commandPresentParticiple.ToUpper())"
-            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,"Dark$($Command -eq "Start" ? "Green" : "Red")"
+            $message = "< Platform Status <.>48> $($commandPresentParticiple.ToUpper())"
+            Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,($Command -eq "Start" ? "Green" : "Red")
 
             $platformJob = Invoke-TsmApiMethod -Method $Command
             Watch-PlatformJob -Id $platformJob.Id -Context $Context -NoEventManagement -NoMessaging
@@ -384,39 +391,46 @@ function global:Request-Platform {
             if (!$NoWait) {
                 $platformJob = Wait-PlatformJob -Id $platformJob.id -Context $Context -TimeoutSeconds 1800 -ProgressSeconds -60
                 $platformJob = Get-PlatformJob -Id $platformJob.id
+                $commandStatus = $platformJob.status
             }
 
-            if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
+            if ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Succeeded -and $NoWait) {
+                $commandStatus = $global:PlatformEventStatus.Succeeded
+                $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) has "
+                Write-Log -Action $Command  -Target "Platform" -EntryType "Information" -Status "Succeeded" -Message "$($message) $commandStatus." -Force
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $commandStatus, ". ", $platformJob.errorMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,$global:PlatformEventStatusColor.$commandStatus
+            }
+            elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Failed) {
                 $commandStatus = $global:PlatformEventStatus.Failed
                 $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) has "
-                Write-Log -Action $Command -EntryType "Warning" -Status "Failure" -Message "$($message) $($platformJob.status.ToUpper()). $($platformJob.errorMessage)." 
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $platformJob.status.ToUpper(), ". ", $platformJob.errorMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,$global:PlatformEventStatusColor.$commandStatus
+                Write-Log -Action $Command  -Target "Platform" -EntryType "Warning" -Status "Failure" -Message "$($message) $commandStatus. $($platformJob.errorMessage)." 
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $commandStatus, ". ", $platformJob.errorMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,$global:PlatformEventStatusColor.$commandStatus
             } 
             elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Cancelled) {
                 $commandStatus = $global:PlatformEventStatus.Cancelled
                 $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was "
-                Write-Log -Action $Command -EntryType "Warning" -Status "Cancelled" -Message "$($message) $($platformJob.status.ToUpper()). $($platformJob.errorMessage)."
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $platformJob.status.ToUpper(), ". ", $platformJob.errorMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,$global:PlatformEventStatusColor.$commandStatus
+                Write-Log -Action $Command  -Target "Platform" -EntryType "Warning" -Status "Cancelled" -Message "$($message) $commandStatus. $($platformJob.errorMessage)."
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $commandStatus, ". ", $platformJob.errorMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,$global:PlatformEventStatusColor.$commandStatus
             }
             elseif ($platformJob.status -eq $global:tsmApiConfig.Async.Status.Created -and $NoWait) {
                 $commandStatus = $global:PlatformEventStatus.Created
                 $message = "Platform $($Command.ToUpper()) (Job id: $($platformJob.id)) was "
-                Write-Log -Action $Command -EntryType "Information" -Status "Created" -Message "$($message) $($platformJob.status.ToUpper()). $($platformJob.statusMessage)." -Force
-                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $platformJob.status.ToUpper(), ". ", $platformJob.statusMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,Gray
+                Write-Log -Action $Command  -Target "Platform" -EntryType "Information" -Status "Created" -Message "$($message) $commandStatus. $($platformJob.statusMessage)." -Force
+                Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message, $commandStatus, ". ", $platformJob.statusMessage -ForegroundColor Gray,$global:PlatformEventStatusColor.$commandStatus,Gray,Gray
             }
             elseif ($platformJob.status -ne $global:tsmApiConfig.Async.Status.Succeeded) {
                 $commandStatus = $global:PlatformEventStatus.Completed
                 $message = "Timeout waiting for platform $($Command.ToUpper()) (Job id: $($platformJob.id)) to complete. $($platformJob.statusMessage)"
-                Write-Log -Action $Command -EntryType "Warning" -Status "Timeout" -Message "$($message) $($platformJob.status.ToUpper()). $($platformJob.statusMessage)."
+                Write-Log -Action $Command  -Target "Platform" -EntryType "Warning" -Status "Timeout" -Message "$($message) $commandStatus. $($platformJob.statusMessage)."
                 Write-Host+ -NoTrace -NoTimestamp -NoSeparator $message -ForegroundColor $global:PlatformEventStatusColor.$commandStatus
             }
 
             if ($Command -eq "Start") {
                 # postflight checks
-                $message = "<    Postflight <.>25> PENDING"
-                Write-Host+ -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-                Confirm-PostFlight -Force
-                Write-Host+ -NoTrace -NoTimestamp "$($emptyString.PadLeft(8,"`b")) SUCCESS" -ForegroundColor Green
+                if (HasPostflightCheck) {
+                    Confirm-PostFlight -Force
+                }
+            
             }
 
         }
@@ -430,26 +444,26 @@ function global:Request-Platform {
         
         Set-PlatformEvent -Event $Command -Context $Context -EventReason $Reason -EventStatus $commandStatus
 
-        Write-Log -Action $Command -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
+        Write-Log -Action $Command  -Target "Platform" -Status $commandStatus -Message "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"
+
+        $platformStatus = Get-PlatformStatus
+
+        $message = "< Platform Status <.>48> $($platformStatus.RollupStatus.ToUpper())"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformStatusColor.$($platformStatus.RollupStatus)
+
+        Set-CursorVisible
+
+        if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
+
+        return
 
     }
-
-    $message = "<  Platform <.>25> $($commandPastTense.ToUpper())"
-    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$global:PlatformEventStatusColor.$commandStatus
-
-    Set-CursorVisible
-
-    if ($commandStatus -eq $PlatformEventStatus.Failed) {throw "$($global:Platform.Name) $($Command.ToUpper()) $($commandStatus)"}
-
-    return
-
-}
 
     function global:Start-Platform {
 
         [CmdletBinding()] param (
             [Parameter(Mandatory=$false)][string]$Context = $global:Product.Id ?? "Command",
-            [Parameter(Mandatory=$false)][string]$Reason = "Start platform",
+            [Parameter(Mandatory=$false)][string]$Reason<#  = "Start platform" #>,
             [switch]$NoWait,
             [switch]$IgnoreCurrentState,
             [switch]$IgnorePendingChanges
@@ -461,7 +475,7 @@ function global:Request-Platform {
 
         [CmdletBinding()] param (
             [Parameter(Mandatory=$false)][string]$Context = "Command",
-            [Parameter(Mandatory=$false)][string]$Reason = "Stop platform",
+            [Parameter(Mandatory=$false)][string]$Reason<#  = "Stop platform" #>,
             [switch]$NoWait,
             [switch]$IgnoreCurrentState,
             [switch]$IgnorePendingChanges
@@ -474,7 +488,7 @@ function global:Request-Platform {
 
         [CmdletBinding()] param (
             [Parameter(Mandatory=$false)][string]$Context = "Command",
-            [Parameter(Mandatory=$false)][string]$Reason = "Restart platform",
+            [Parameter(Mandatory=$false)][string]$Reason = "Restart",
             [switch]$NoWait,
             [switch]$IgnoreCurrentState,
             [switch]$IgnorePendingChanges
@@ -1230,7 +1244,7 @@ function global:Show-TSSslProtocols {
     $protocols = $protocols.GetEnumerator() | Sort-Object -Property value -Descending | Sort-Object -Property name
 
     foreach ($protocol in $protocols) {
-        $message = "<    $($protocol.name) <.>25> $($protocol.value.ToUpper())"
+        $message = "<    $($protocol.name) <.>48> $($protocol.value.ToUpper())"
         $color = $protocol.value -eq "ENABLED" ? "DarkGreen" : "DarkRed"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,$color
     }
