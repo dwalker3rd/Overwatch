@@ -1,0 +1,11 @@
+install-psresource Az -Version 11.6.0 -scope allusers
+install-psresource Az.Accounts -Version 2.19.0 -scope allusers
+install-psresource Az.Compute -Version 7.3.0 -scope allusers
+install-psresource Az.Resources -Version 6.16.2 -scope allusers
+install-psresource Az.Storage -Version 6.2.0 -scope allusers
+install-psresource Az.Network -Version 7.5.0 -scope allusers
+install-psresource Az.CosmosDb -Version 1.14.2 -scope allusers
+install-psresource Az.SqlVirtualMachine -Version 2.2.0 -scope allusers
+install-psresource Az.KeyVault -Version 5.3.0 -scope allusers
+install-psresource Az.DataFactory -Version 1.18.3 -scope allusers
+install-psresource Az.Batch -Version 3.6.0 -scope allusers

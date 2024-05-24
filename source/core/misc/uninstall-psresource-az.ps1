@@ -1,0 +1,11 @@
+uninstall-psresource Az -Version 11.6.0 -scope allusers
+uninstall-psresource Az.Accounts -Version 2.19.0 -scope allusers
+uninstall-psresource Az.Compute -Version 7.3.0 -scope allusers
+uninstall-psresource Az.Resources -Version 6.16.2 -scope allusers
+uninstall-psresource Az.Storage -Version 6.2.0 -scope allusers
+uninstall-psresource Az.Network -Version 7.5.0 -scope allusers
+uninstall-psresource Az.CosmosDb -Version 1.14.2 -scope allusers
+uninstall-psresource Az.SqlVirtualMachine -Version 2.2.0 -scope allusers
+uninstall-psresource Az.KeyVault -Version 5.3.0 -scope allusers
+uninstall-psresource Az.DataFactory -Version 1.18.3 -scope allusers
+uninstall-psresource Az.Batch -Version 3.6.0 -scope allusers
