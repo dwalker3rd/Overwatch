@@ -47,17 +47,17 @@ $global:Catalog.OS += @{ Windows11 =
 }
 
 $_cloudAzurePowershellModules = @(
-    @{ Name = "Az"; MinimumVersion = "11.0.0"; Repository = "PSGallery"; DoNotImport = $true }
-    @{ Name = "Az.Accounts"; MinimumVersion = "2.13.2"},
-    @{ Name = "Az.Compute"; MinimumVersion = "7.0.0" },
-    @{ Name = "Az.Resources"; MinimumVersion = "6.12.0" },
-    @{ Name = "Az.Storage"; MinimumVersion = "6.0.0" },
-    @{ Name = "Az.Network"; MinimumVersion = "7.0.0" },
-    @{ Name = "Az.CosmosDb"; MinimumVersion = "1.13.0" },
-    @{ Name = "Az.SqlVirtualMachine"; MinimumVersion = "2.1.0" },
-    @{ Name = "Az.KeyVault"; MinimumVersion = "5.0.0" },
-    @{ Name = "Az.DataFactory"; MinimumVersion = "1.17.1" },
-    @{ Name = "Az.Batch"; MinimumVersion = "3.5.0" }
+    @{ Name = "Az"; MinimumVersion = "12.0.0"; Repository = "PSGallery"; DoNotImport = $true }
+    @{ Name = "Az.Accounts"; MinimumVersion = "3.0.0"},
+    @{ Name = "Az.Compute"; MinimumVersion = "8.0.0" },
+    @{ Name = "Az.Resources"; MinimumVersion = "7.1.0" },
+    @{ Name = "Az.Storage"; MinimumVersion = "7.0.0" },
+    @{ Name = "Az.Network"; MinimumVersion = "7.6.0" },
+    @{ Name = "Az.CosmosDb"; MinimumVersion = "1.14.3" },
+    @{ Name = "Az.SqlVirtualMachine"; MinimumVersion = "2.2.1" },
+    @{ Name = "Az.KeyVault"; MinimumVersion = "6.0.0" },
+    @{ Name = "Az.DataFactory"; MinimumVersion = "1.18.4" },
+    @{ Name = "Az.Batch"; MinimumVersion = "3.6.1" }
 )
 $global:Catalog.Cloud += @{ Azure = 
     [Cloud]@{
