@@ -1,8 +1,8 @@
 #region AZCONFIG
 
     # required for Az 12.0.0 to disable WAM login.  See https://github.com/Azure/azure-powershell/issues/24967 
-    if (Get-InstalledPSResource Az -ErrorAction SilentlyContinue -or Get-InstalledPSResource Az -Scope AllUsers -ErrorAction SilentlyContinue) {
-        Update-AzConfig -EnableLoginByWam $false
+    if ((Get-InstalledPSResource Az -ErrorAction SilentlyContinue) -or (Get-InstalledPSResource Az -Scope AllUsers -ErrorAction SilentlyContinue)) {
+        Update-AzConfig -EnableLoginByWam $false -WarningAction SilentlyContinue | Out-Null
     }
 
 #endregion AZCONFIG 
