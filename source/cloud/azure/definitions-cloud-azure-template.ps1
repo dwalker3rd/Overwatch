@@ -11,8 +11,7 @@
     $global:Cloud = $global:Catalog.Cloud.Azure
     $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
 
-#endregion GLOBAL CLOUD   
-
+#endregion GLOBAL CLOUD
 #region INITIALIZATION
 
     function global:Initialize-AzureConfig {
