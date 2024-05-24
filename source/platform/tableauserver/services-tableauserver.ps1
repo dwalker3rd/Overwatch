@@ -1419,7 +1419,7 @@ function global:Confirm-PlatformLicenses {
     $expiringMaintenance = $PlatformLicenses | Where-Object {$_.maintenanceExpiry -le $90days}
     $expiringMaintenance | ForEach-Object {Write-Host+ -NoTrace -NoTimestamp -ForeGroundColor ($_.maintenanceExpiry -le $30days ? "DarkRed" : "DarkYellow") $indent,"$($_.licenseExpiry -le $30days ? "URGENT" : "WARNING"): $($_.product) maintenance expires in $([math]::Round($_.maintenanceExpiry.TotalDays,0)) days on $($_.maintenance.ToString('d MMMM yyyy'))"}
     
-    Write-Host+ 
+    # Write-Host+ 
 
     $licenseWarning = @()
     $licenseWarning += [array]$expiredLIcenses + [array]$expiredMaintenance + [array]$expiringLicenses + [array]$expiringMaintenance

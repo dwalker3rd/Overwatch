@@ -134,6 +134,8 @@ function global:Invoke-Preflight {
 
     $preflightPathExists = (Test-Path -Path ([FileObject]::new($preflightPath,$ComputerName)).Path)
     if ($preflightPathExists) {
+
+        Write-Host+ -Iff $(!$Quiet.IsPresent)
         
         # $actionPresentParticiple = 
         #     switch ($Action) {
@@ -142,7 +144,7 @@ function global:Invoke-Preflight {
         #     }
         # $message = "<$name $noun <.>48> $actionPresentParticiple"
         # Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -NoSeparator " $noun $Action", " [", "$name", "] ", (Format-Leader -Length 48 -Adjust (" $noun $Action [$name]  ").Length), " PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray,DarkGray
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -NoSeparator "$noun $Action", " [", "$name", "] ", (Format-Leader -Length 49 -Adjust (" $noun $Action [$name]  ").Length), " PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray,DarkGray
 
         Write-Log -Action "$name $noun $actionPresentParticiple" -Target $id
 
@@ -165,7 +167,7 @@ function global:Invoke-Preflight {
         #     }
         # $message = "<$name $noun <.>48> $($fail ? "FAIL" : $actionPastTense)" 
         # Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
-        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -NoSeparator " $noun $Action", " [", "$name", "] ", (Format-Leader -Length 48 -Adjust (" $noun $Action [$name]  ").Length), " $($fail ? "FAIL" : "PASS")" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,($fail ? "Red" : "Green")
+        Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -NoSeparator "$noun $Action", " [", "$name", "] ", (Format-Leader -Length 49 -Adjust (" $noun $Action [$name]  ").Length), " $($fail ? "FAIL" : "PASS")" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,($fail ? "Red" : "Green")
 
         Write-Log -verb "$name $noun $Action" -Target $id -Status ($fail ? "FAIL" : "PASS") -EntryType ($fail ? "Error" : "Information")
 
