@@ -193,7 +193,7 @@ try {
 
         foreach ($targetUserEnabledFromIdentityIssuer in $targetUsersEnabledFromIdentityIssuer) {
             $targetSignInName = ($targetUserEnabledFromIdentityIssuer | Where-Object {$null -ne $_.mail}).mail
-            if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName) {
+            if ($targetSignInName -in $sourceUsersDisabled.userPrincipalName -and $targetSignInName -notin $targetUsersToDisable.mail) {
                 # $targetUserEnabledFromIdentityIssuer is from the $targetUsers cache
                 # get user info directly from AD to get latest value of accountEnabled
                 $targetAzureADUser = Get-AzureADUser -Tenant $targetTenantKey -Id $targetUserEnabledFromIdentityIssuer.id
