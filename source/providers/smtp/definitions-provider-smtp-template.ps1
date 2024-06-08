@@ -48,6 +48,4 @@ $Provider.Config = $global:SmtpConfig
 
 return $Provider
 
-return $Provider
-
 #endregion PROVIDER DEFINITIONS
