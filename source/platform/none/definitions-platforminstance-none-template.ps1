@@ -75,7 +75,7 @@
             Throttle = New-TimeSpan -Minutes 15
         }
 
-#endregion SMTP      
+    #endregion SMTP      
 
     #region PLATFORM TOPOLOGY ALIASES
 
@@ -102,5 +102,11 @@
         $global:OverwatchControllers += $global:OverwatchRemoteControllers
 
     #endregion OVERWATCH TOPOLOGY    
+
+    #region TRACE OVERWATCH CONTROLLERS
+
+        $global:TestOverwatchControllers = $true
+
+    #endregion TRACE OVERWATCH CONTROLLERS
 
 #endregion INSTANCE-DEFINITIONS
