@@ -234,8 +234,6 @@ class Heartbeat {
     [bool]$Alert
     [object[]]$Issues
     [datetime]$TimeStamp
-    [bool]$FlapDetectionEnabled
-    [timespan]$FlapDetectionPeriod
     [bool]$ReportEnabled 
     [object[]]$ReportSchedule
     [DateTime]$PreviousReport
