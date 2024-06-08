@@ -76,6 +76,32 @@
 
     #endregion PROVIDER-MICROSOFT-TEAMS
 
+    #region SMS
+
+        $global:SMSConfig = @{
+            From = "<SMS From>"
+            To = @()
+            Throttle = New-TimeSpan -Minutes 15
+            MessageType = @($PlatformMessageType.Intervention)
+        }
+        $global:SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
+
+    #endregion SMS
+
+    #region SMTP
+
+        $global:SmtpConfig = @{
+            Server = "<SMTP Server>"
+            Port = "<SMTP Port>"
+            UseSsl = "<SMTP UseSSL>" -eq "True"
+            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
+            From = $null # deferred to provider
+            To = @() # deferred to provider
+            Throttle = New-TimeSpan -Minutes 15
+        }
+
+    #endregion SMTP     
+
     #region PLATFORM-TOPOLOGY-ALIASES
 
         # The following line indicates a post-installation configuration to the installer

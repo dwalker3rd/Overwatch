@@ -50,6 +50,7 @@ If using the Microsoft Teams provider, it must be configured here.
     $global:Platform.InstallPath = "<platformInstallLocation>"
 
     #endregion PLATFORM-OBJECT
+
     #region PLATFORMTOPOLOGY
 
         # The following line indicates a post-installation configuration to the installer
@@ -82,18 +83,21 @@ If using the Microsoft Teams provider, it must be configured here.
         }
 
     #endregion PLATFORMTOPOLOGY
+
     #region PLATFORM-TIMEOUTS
 
         $global:PlatformComponentTimeout = 300
         $global:PlatformShutdownMax = New-TimeSpan -Minutes 75   
 
     #endregion PLATFORM-TIMEOUTS
+
     #region PRINCIPAL-CONTEXT
 
         $global:PrincipalContextType = [System.DirectoryServices.AccountManagement.ContextType]::Machine  
         $global:PrincipalContextName = $env:COMPUTERNAME
 
     #endregion PRINCIPAL-CONTEXT
+
     #region CLEANUP
 
         # The following line indicates a post-installation configuration to the installer
@@ -140,6 +144,7 @@ If using the Microsoft Teams provider, it must be configured here.
         }
 
     #endregion CLEANUP
+
     #region DISKS
 
         $global:diskSpaceLowThreshold = 15
@@ -148,6 +153,7 @@ If using the Microsoft Teams provider, it must be configured here.
         $global:ignoreDisks = @("D:")
 
     #endregion DISKS
+
     #region MICROSOFT-TEAMS
 
         # The following line indicates a post-installation configuration to the installer
@@ -169,19 +175,46 @@ If using the Microsoft Teams provider, it must be configured here.
         $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
 
     #endregion MICROSOFT-TEAMS
+
+    #region SMS
+
+        $global:SMSConfig = @{
+            From = "<SMS From>"
+            To = @()
+            Throttle = New-TimeSpan -Minutes 15
+            MessageType = @($PlatformMessageType.Intervention)
+        }
+        $global:SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
+
+    #endregion SMS
+
+    #region SMTP
+
+        $global:SmtpConfig = @{
+            Server = "<SMTP Server>"
+            Port = "<SMTP Port>"
+            UseSsl = "<SMTP UseSSL>" -eq "True"
+            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
+            From = $null # deferred to provider
+            To = @() # deferred to provider
+            Throttle = New-TimeSpan -Minutes 15
+        }
+
+    #endregion SMTP     
+
     #region PYTHON
 
-    if (!$global:Location.Python) {    
-        $global:Location += @{
-            Python = @{
-                Env = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Env
-                Pip = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Pip
-                SitePackages = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.SitePackages
+        if (!$global:Location.Python) {    
+            $global:Location += @{
+                Python = @{
+                    Env = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Env
+                    Pip = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.Pip
+                    SitePackages = Invoke-Command $global:Catalog.Platform.$($global:Platform.Id).Installation.Python.Location.SitePackages
+                }
             }
         }
-    }
 
-        $global:RequiredPythonPackages = "<requiredPythonPackages>"
+            $global:RequiredPythonPackages = "<requiredPythonPackages>"
 
     #endregion PYTHON
 
