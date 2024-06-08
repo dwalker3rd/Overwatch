@@ -227,6 +227,9 @@ function global:ConvertTo-PSCustomObject {
         $outputObject = @() 
     }
     process { 
+        if ($InputObject.GetType().Name -eq "XmlElement") {
+            $InputObject = $InputObject | ConvertFrom-XML
+        }
         $outputObject += [PSCustomObject]$InputObject 
     }
     end { 

@@ -60,7 +60,9 @@ function global:Write-Host+ {
         [Parameter(Mandatory=$false)][string]$Prefix,
         [Parameter(Mandatory=$false)][bool]$Iff = $true,
         [Parameter(Mandatory=$false)][int]$MaxBlankLines,
+        [Parameter(Mandatory=$false)][int]$LineFeed,
         [Parameter(Mandatory=$false)][int]$ReverseLineFeed,
+        [switch]$EraseLine,
         [switch]$NoTimestamp,
         [switch]$NoTrace,
         [Parameter(Mandatory=$false)][ValidateSet("NoArguments","NoCommand","NoScriptName","NoLineNumber")][string[]]$TraceFormat,
@@ -79,7 +81,8 @@ function global:Write-Host+ {
         [Parameter(Mandatory=$false)][ValidateSet("Ignore","Include","Exclude")][string]$SetTimestampGlobal,
         [switch]$ResetTimestampGlobal,
         [Parameter(Mandatory=$false)][ValidateSet("Ignore","Include","Exclude")][string]$SetTraceGlobal,
-        [switch]$ResetTraceGlobal
+        [switch]$ResetTraceGlobal,
+        [switch]$LineNumbers
     )
 
     $global:WriteHostPlusEndOfLine = $NoNewLine
@@ -135,6 +138,12 @@ function global:Write-Host+ {
     if ($Parse -and $NoSeparator) {
         throw "The `"NoSeparator`" switch cannot be used with the `"Parse`" switch"
     }
+    # if ($ReverseLineFeed -and $LineFeed) {
+    #     throw "The `"ReverseLineFeed`" and `"LineFeed`" switches cannot be used together"
+    # }
+    if ($EraseLine -and !$ReverseLineFeed) {
+        throw "The `"EraseLine`" switch can only be used with the `"ReverseLineFeed`" switch"
+    }
 
     if ($NoIndent) {$Indent = 0}
     # if (!$global:WriteHostPlusEndOfLine) {$Indent = 0}
@@ -143,8 +152,31 @@ function global:Write-Host+ {
     # the extra Write-Host is necessary when using ReverseLineFeed to return to the first line
     if ($Clear) { Clear-Host; Write-Host }
 
-    if ($ReverseLineFeed -gt 0) { 
-        Write-Host -NoNewline "`e[$($ReverseLineFeed)F" 
+    $lineNumber = 0
+    if ($ReverseLineFeed -gt 0) {
+        Write-Host -NoNewLine "`e[$($ReverseLineFeed)F"
+        Write-Host -NoNewLine ($EraseLine ? "`e[0K" : $null)
+        for ($lineNumber = -1 * $ReverseLineFeed; $lineNumber -lt 0; $lineNumber++) {
+            Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
+            Write-Host -NoNewLine "`e[1E"
+            Write-Host -NoNewLine ($EraseLine ? "`e[0K" : $null)
+        }
+        Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
+        Write-Host -NoNewLine "`e[$($ReverseLineFeed)F"
+        $lineNumber = -1 * $ReverseLineFeed
+    }
+
+    If ($LineFeed) {
+        if ($ReverseLineFeed) {
+            for ($lineNumber = -1 * $ReverseLineFeed; $lineNumber -lt -1 * $ReverseLineFeed + $LineFeed; $lineNumber++) {
+                Write-Host -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
+            } 
+        }
+        else {
+            for ($lineNumber = 1; $lineNumber -lt $LineFeed; $lineNumber++) {
+                Write-Host -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
+            }
+        }
     }
 
     if ([string]::IsNullOrEmpty($Object)) {
@@ -158,8 +190,12 @@ function global:Write-Host+ {
             }
         }
         else {
-            Write-Host ""
-            $global:WriteHostPlusBlankLineCount++
+            # If $LineFeed switch is being used, skip this Write-Host b/c 
+            # the necessary number of blank lines have already been written
+            if (!$LineFeed) {
+                Write-Host -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
+                $global:WriteHostPlusBlankLineCount++
+            }
         }
         return
     }
@@ -194,12 +230,14 @@ function global:Write-Host+ {
     }
 
     if ($Object -ne "") {
+        Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($NoTimestamp ? "" : "[$([datetime]::Now.ToString('u'))] ")
         Write-Host -NoNewLine -ForegroundColor $DefaultForeGroundColor[0] ($NoTrace ? "" : "$($caller)")
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($Indent ? $emptyString.PadLeft($Indent," ") : "")
+
         If (![string]::IsNullOrEmpty($Prefix)) {
             $_foregroundColor = $ForegroundColor ? $ForegroundColor[0] : $DefaultForegroundColor[0]
-            Write-Host -NoNewLine -ForegroundColor $_foregroundColor ($Prefix ? $Prefix : "")
+            Write-Host -NoNewLine -ForegroundColor $_foregroundColor $($Prefix ? $Prefix : $null)
         }
 
         #+++

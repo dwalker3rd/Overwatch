@@ -150,7 +150,7 @@ function global:Initialize-TSRestApiConfiguration {
         SpecialAccounts = @("guest","tableausvc","TabSrvAdmin","alteryxsvc")
         SpecialGroups = @("All Users")
         SpecialMethods = @("ServerInfo","Login")
-        Defaults = $_provider.Defaults
+        Defaults = $_provider.Config.Defaults
     }
 
     $global:tsRestApiConfig.RestApiVersioning = @{
@@ -1190,7 +1190,7 @@ function global:Download-TSObject {
             [Parameter(Mandatory=$true)][Alias("Project")][string]$ProjectId,
             [Parameter(Mandatory=$false)][string]$Name = (Split-Path $Path -LeafBase),
             [Parameter(Mandatory=$false)][ValidateSet("twb","twbx","tde","tds","tdsx","hyper","tfl","tflx")][string]$Extension = ((Split-Path $Path -Extension).TrimStart(".")),
-            [Parameter(Mandatory=$false)][switch]$Progress = $global:ProgressPreference -eq "Continue"
+            [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
         )
 
         #region DEFINITIONS
@@ -1224,7 +1224,7 @@ function global:Download-TSObject {
             Set-CursorInvisible
 
             $message =  "<Uploading $Type `'$fileName`' <.>58> PENDING$($emptyString.PadLeft(9," "))"
-            Write-Host+ -Iff $Progress -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+            Write-Host+ -Iff $ShowProgress -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
             $chunkSize = 1mb
             $progressSizeInt = 1mb
@@ -1297,7 +1297,7 @@ function global:Download-TSObject {
                     }
 
                     $message = "$($emptyString.PadLeft(16,"`b"))FAILURE$($emptyString.PadLeft(16-$bytesUploaded.Length," "))"
-                    Write-Host+ -Iff $Progress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
+                    Write-Host+ -Iff $ShowProgress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor Red
                     Set-CursorVisible
 
                     $fileStream.Close()
@@ -1307,14 +1307,14 @@ function global:Download-TSObject {
                 }
 
                 $message = "$($emptyString.PadLeft(16,"`b"))$bytesReadTotalString","/","$fileSizeString$($emptyString.PadLeft(16-($bytesReadTotalString.Length + 1 + $fileSizeString.Length)," "))"
-                Write-Host+ -Iff $Progress -NoTrace -NoNewLine -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen,DarkGray,DarkGray
+                Write-Host+ -Iff $ShowProgress -NoTrace -NoNewLine -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen,DarkGray,DarkGray
 
                 $chunkCount++
 
             }
 
             $message = "$($emptyString.PadLeft(16,"`b"))$bytesReadTotalString","/","$fileSizeString$($emptyString.PadLeft(16-($bytesReadTotalString.Length + 1 + $fileSizeString.Length)," "))"
-            Write-Host+ -Iff $Progress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen,DarkGray,DarkGreen
+            Write-Host+ -Iff $ShowProgress -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen,DarkGray,DarkGreen
 
             Set-CursorVisible
 
@@ -2049,14 +2049,21 @@ function global:Get-TSProjects+ {
     param(
         [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
-        [Parameter(Mandatory=$false)][string]$Filter
+        [Parameter(Mandatory=$false)][string]$Filter,
+        [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
+    Set-CursorInvisible
     $projects = @()
-    Get-TSProjects -Filter $Filter | Foreach-Object {
-        Write-Host+ -NoTrace $_.Name
+    $projectIndex = 0
+    $_projects = Get-TSProjects -Filter $Filter 
+    $projectCount = $_projects.Count
+    $_projects | Foreach-Object {
+        $projectIndex++
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$projectIndex/$projectCount] $($_.Name)" -ForegroundColor DarkGray
         $projects += Get-TSProject+ -Id $_.id -Users $Users -Groups $Groups -Filter $Filter
     }
+    Set-CursorVisible
 
     return $projects
 }
@@ -2288,7 +2295,7 @@ function global:Get-TSProjectDefaultPermissions {
     foreach ($project in $Projects) {
         $_projectDefaultPermissions = @{}
         foreach ($_type in $Type) {
-            $_projectDefaultPermissions += @{ $($_type -replace "s$","") = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) }
+            $_projectDefaultPermissions += @{ $($_type -replace ($_type -eq "lenses" ? "es$" : "s$"),"") = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) }
         }
         $projectDefaultPermissions += $_projectDefaultPermissions | ConvertTo-PSCustomObject
     }

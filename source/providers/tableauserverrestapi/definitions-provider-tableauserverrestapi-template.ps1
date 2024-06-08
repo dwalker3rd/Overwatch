@@ -63,24 +63,53 @@ $Provider.Config += @{
                 "Delete:Allow","Delete:Deny",
                 "ExportXml:Allow","ExportXml:Deny",
                 "Read:Allow","Read:Deny",
-                "Write:Allow","Write:Deny"
+                "Write:Allow","Write:Deny",
+                "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
+                "SaveAs:Allow", "SaveAs:Deny"
             )
 
             Flow = @(
-                "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
-                "ChangePermissions:Allow","ChangePermissions:Deny",
-                "Delete:Allow","Delete:Deny",
-                "ExportXml:Allow","ExportXml:Deny",
-                "Execute:Allow","Execute:Deny",
                 "Read:Allow","Read:Deny",
-                "WebAuthoring:Allow","WebAuthoring:Deny",
-                "Write:Allow","Write:Deny"
+                "Write:Deny","Write:Allow",
+                "Delete:Deny","Delete:Allow",
+                "ChangePermissions:Deny","ChangePermissions:Allow",
+                "ExportXml:Allow","ExportXml:Deny",
+                "ChangeHierarchy:Deny","ChangeHierarchy:Allow",
+                "Execute:Allow","Execute:Deny",
+                "WebAuthoringForFlows:Allow","WebAuthoringForFlows:Deny"
             )
 
-            DataRole = @()
-            Database = @()
-            Metric = @()
-            Lens = @()
+            DataRole = @(
+                "ChangePermissions:Allow","ChangePermissions:Deny",
+                "Delete:Allow","Delete:Deny",
+                "Read:Allow","Read:Deny",
+                "Write:Allow","Write:Deny",
+                "ChangeHierarchy:Allow","ChangeHierarchy:Deny",
+                "SaveAs:Allow", "SaveAs:Deny"
+            )
+
+            Database = @(
+                "ChangePermissions:Allow","ChangePermissions:Deny",
+                "Read:Allow","Read:Deny",
+                "Write:Allow","Write:Deny",
+                "ChangeHierarchy:Allow","ChangeHierarchy:Deny"
+            )
+
+            Metric = @(
+                "ChangePermissions:Allow","ChangePermissions:Deny",
+                "Delete:Allow","Delete:Deny",
+                "Read:Allow","Read:Deny",
+                "Write:Allow","Write:Deny",
+                "ChangeHierarchy:Allow","ChangeHierarchy:Deny"                
+            )
+            
+            Lens = @(
+                "ChangePermissions:Allow","ChangePermissions:Deny",
+                "Delete:Allow","Delete:Deny",
+                "Read:Allow","Read:Deny",
+                "Write:Allow","Write:Deny",
+                "ChangeHierarchy:Allow","ChangeHierarchy:Deny"                
+            )
 
         }
 

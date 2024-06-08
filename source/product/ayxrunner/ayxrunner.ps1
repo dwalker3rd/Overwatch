@@ -13,29 +13,41 @@ $global:WriteHostPlusPreference = "Continue"
 $global:Product = @{Id = "ayxrunner"}
 . $PSScriptRoot\definitions.ps1
 
-#region OVERRIDE MICROSOFTTEAMS
+#region OVERRIDE MESSAGING PROVIDER CONFIGS
 
-    # If using the MicrosoftTeams provider, enter the webhook URI[s] for each message type (see $PlatformMessageType)
-    # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
+    #region SMTP
 
-    $global:MicrosoftTeamsConfig = @{
-        Connector = @{
-            AllClear = @("<Microsoft Teams AllClear Webhook>")
-            Alert = @("<Microsoft Teams AllClear Webhook>")
-            Intervention = @("<Microsoft Teams AllClear Webhook>")               
-            Information = @("<Microsoft Teams AllClear Webhook>")
-        }
-    }
-    $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
+        # SMTP normally uses the ContactsDB CSV file for the "To" field
+        # To override that, enter an email address or email addresses as an array
+
+        $global:SmtpConfig.To = @()
+
+
+    #endregion SMTP
+    #region MICROSOFTTEAMS
+
+        # Enter the webhook URI[s] for each message type (see $PlatformMessageType) you want to override
+        # $MicrosoftTeamsConfig.MessageType defines which message types are forwarded by the MicrosoftTeams provider
+
+        $global:MicrosoftTeamsConfig.Connector = @{
+                AllClear = @("<Microsoft Teams AllClear Webhook>")
+                Alert = @("<Microsoft Teams Alert Webhook>")
+                Intervention = @("<Microsoft Teams Intervention Webhook>")
+                Warning = @("<Microsoft Teams Warning Webhook>")
+                Information = @("<Microsoft Teams Information Webhook>")
+            }
+        $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
+
+    #endregion MICROSOFTTEAMS
 
     $providers = Get-Provider -ResetCache
     $providers.Id | ForEach-Object {
         if (Test-Path -Path "$($global:Location.Providers)\provider-$($_).ps1") {
             $null = . "$($global:Location.Providers)\provider-$($_).ps1"
         }
-    }    
+    }
 
-#endregion OVERRIDE MICROSOFTTEAMS
+#endregion OVERRIDE MESSAGING PROVIDER CONFIGS
 
 $ayxRunnerLogPath = "$($global:Location.Logs)\ayxrunner.log"
 $ayxRunnerLog = @{}
