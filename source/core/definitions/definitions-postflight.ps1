@@ -29,6 +29,10 @@ function global:HasPostflight {
             }
         }
 
+        if ($null -eq $id) {
+            return $false
+        }
+
         $postflightPath = switch ($_target) {
             "Overwatch" {
                 "$($global:Location.Postflight)\postflight$($Action.ToLower())s-$($_target.ToLower()).ps1"

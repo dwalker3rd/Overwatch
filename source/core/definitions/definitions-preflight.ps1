@@ -112,6 +112,8 @@ function global:Invoke-Preflight {
 
     $noun = "Preflight"
 
+    $id = $null
+    $name = $null
     switch ($Target) {
         "PlatformInstance" {
             $id = $global:Platform.Instance
@@ -121,6 +123,10 @@ function global:Invoke-Preflight {
             $id = Invoke-Expression "`$global:$($Target).Id"
             $name = Invoke-Expression "`$global:$($Target).Name"
         }
+    }
+
+    if ($null -eq $id) {
+        return $false
     }
 
     $preflightPath = switch ($Target) {
