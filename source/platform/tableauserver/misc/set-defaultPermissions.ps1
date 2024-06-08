@@ -1,9 +1,4 @@
-param(
-    [Parameter(Mandatory=$true)][string]$ContentUrl,
-    [Parameter(Mandatory=$false)][object]$Group,
-    [Parameter(Mandatory=$false)][string]$User,
-    [Parameter(Mandatory=$true)][object]$ProjectAsDefaultPermissionsTemplate
-)
+$levelColors = @("Blue","Cyan","Cyan","Cyan","Cyan","Cyan","Cyan")
 
 function Write-Start {
 
@@ -13,8 +8,8 @@ function Write-Start {
         [switch]$NewLine
     )
 
-    $message = "<$Name <.>48> PENDING"
-    Write-Host+ -NoTrace -NoTimestamp -NoNewLine:$(!($NewLine.IsPresent)) -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+    $message = "<    $Name <.>36> PENDING"
+    Write-Host+ -NoTrace -NoTimestamp -NoNewLine:$(!($NewLine.IsPresent)) -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
 
 }
 
@@ -23,92 +18,146 @@ function Write-End {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$Name,
+        [Parameter(Mandatory=$false)][string]$Status = ($Refresh ? "REFRESHED" : ($Restore ? "RESTORED" : "REUSING")),
         [switch]$NewLine
     )
 
+    $statusColor = 
+        switch ($Status) {
+            "FAILED" { "Red" }
+            default { "DarkGreen" }
+        }
+
     if ($NewLine) {
-        $message = "<$Name <.>48> SUCCESS"
-        Write-Host+ -NoTrace -NoTimestamp -Parse $message-ForegroundColor Gray,DarkGray,DarkGreen
+        $message = "<    $Name <.>36> $status"
+        Write-Host+ -NoTrace -NoTimestamp -ReverseLineFeed 1 -Parse $message -ForegroundColor DarkBlue,DarkGray,$statusColor
     }
     else {
-        $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
+        $message = "$($emptyString.PadLeft(8,"`b")) $status$($emptyString.PadLeft(8," "))"
+        Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor $statusColor
     }
 }
 
-function Cache-TSServerObjects {
+function global:Get-TSServerObjects {
 
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
     Param ()
 
     Write-Start site
-    $script:site = Get-TSSite
-    # $script:site | Write-Cache tableau-path-org-site
+    $global:site = Get-TSSite 
+    $global:site | Write-Cache "$($global:Platform.Instance)-site" 
     Write-End site
 
     Write-Start users
-    $script:users = Get-TSusers
-    # $script:users | Write-Cache tableau-path-org-users
+    $global:users = Get-TSUsers
+    $global:users | Write-Cache "$($global:Platform.Instance)-users"
     Write-End users
 
     Write-Start groups
-    $script:groups = Get-TSgroups
-    # $script:groups | Write-Cache tableau-path-org-groups
+    $global:groups = Get-TSGroups
+    $global:groups | Write-Cache "$($global:Platform.Instance)-groups"
     Write-End groups
 
     Write-Start projects+ -NewLine
-    $script:projects = Get-TSProjects+ -Groups $script:groups -Users $script:users
-    # $script:projects | Write-Cache tableau-path-org-projects
-    Write-End projects+
+    Write-Host+ -SetIndentGlobal 8
+    $global:projects = Get-TSProjects+ -Groups $global:groups -Users $global:users
+    $global:projects | Write-Cache "$($global:Platform.Instance)-projects"
+    Write-Host+ -ResetIndentGlobal
+    Write-End projects+ -NewLine
 
-    Write-Start projectDefaultPermissions+
-    $script:projectsDefaultPermissions = Get-TSProjectDefaultPermissions+ -Projects $script:projects -Groups $script:groups -Users $script:users
-    # $script:projectDefaultPermissions | Write-Cache tableau-path-org-projectDefaultPermissions
-    Write-End projectDefaultPermissions+
+    Write-Start projectsDefaultPermissions+
+    $global:projectsDefaultPermissions = Get-TSProjectDefaultPermissions+ -Projects $global:projects -Groups $global:groups -Users $global:users
+    $global:projectsDefaultPermissions | Write-Cache "$($global:Platform.Instance)-projectsDefaultPermissions"
+    Write-End projectsDefaultPermissions+
 
-    # Write-Start workbooks+
-    # $script:workbooks = Get-TSWorkbooks+ -users $script:users -groups $script:groups -projects $script:projects
-    # $script:workbooks | Write-Cache tableau-path-org-workbooks
-    # Write-End workbooks+
+    Write-Start workbooks+
+    $global:workbooks = Get-TSWorkbooks+ -users $global:users -groups $global:groups -projects $global:projects
+    $global:workbooks | Write-Cache "$($global:Platform.Instance)-workbooks"
+    Write-End workbooks+
 
-    # Write-Start datasources+
-    # $script:datasources = Get-TSDatasources+ -users $script:users -groups $script:groups -projects $script:projects
-    # $script:datasources | Write-Cache tableau-path-org-datasources
-    # Write-End datasources+
+    Write-Start datasources+
+    $global:datasources = Get-TSDatasources+ -users $global:users -groups $global:groups -projects $global:projects
+    $global:datasources | Write-Cache "$($global:Platform.Instance)-datasources"
+    Write-End datasources+
 
-    # Write-Start flows+
-    # $script:flows = Get-TSFlows+ -Users $script:users -Groups $script:groups -Projects $script:projects -Download
-    # $script:flows | Export-CSV -Path "$($exportPath)\flows.csv"
-    # Write-End flows+
+    Write-Start flows+
+    $global:flows = Get-TSFlows+ -Users $global:users -Groups $global:groups -Projects $global:projects
+    $global:flows | Write-Cache "$($global:Platform.Instance)-flows"
+    Write-End flows+
 
-    # Write-Start metrics
-    # $script:metrics = Get-TSMetrics
-    # $script:metrics | Export-CSV -Path "$($exportPath)\metrics.csv"
-    # Write-End metrics
+    Write-Start metrics
+    $global:metrics = Get-TSMetrics
+    $global:metrics | Write-Cache "$($global:Platform.Instance)-metrics"
+    Write-End metrics
 
-    # Write-Start favorites
-    # $script:favorites = Get-TSFavorites
-    # $script:favorites | Export-CSV -Path "$($exportPath)\favorites.csv"
-    # Write-End favorites
+    Write-Start favorites
+    $global:favorites = Get-TSFavorites
+    $global:favorites | Write-Cache "$($global:Platform.Instance)-favorites"
+    Write-End favorites
 
-    # Write-Start subscriptions
-    # $script:subscriptions = Get-TSSubscriptions
-    # $script:subscriptions | Export-CSV -Path "$($exportPath)\subscriptions.csv"
-    # Write-End subscriptions
+    Write-Start subscriptions
+    $global:subscriptions = Get-TSSubscriptions
+    $global:subscriptions | Write-Cache "$($global:Platform.Instance)-subscriptions"
+    Write-End subscriptions
 
-    # Write-Start schedules
-    # $script:schedules = Get-TSSchedules 
-    # $script:schedules | Export-CSV -Path "$($exportPath)\schedules.csv"
-    # Write-End schedules
+    Write-Start schedules
+    $global:schedules = Get-TSSchedules
+    $global:schedules | Write-Cache "$($global:Platform.Instance)-schedules"
+    Write-End schedules
 
-    # Write-Start dataAlerts
-    # $script:dataAlerts = Get-TSDataAlerts
-    # $script:dataAlerts | Export-CSV -Path "$($exportPath)\dataAlerts.csv"
-    # Write-End dataAlerts
+    Write-Start dataAlerts
+    $global:dataAlerts = Get-TSDataAlerts
+    $global:dataAlerts | Write-Cache "$($global:Platform.Instance)-dataAlerts"
+    Write-End dataAlerts
+
+    Write-Host+
 
 }
 
-function Update-TSProject {
+function global:Restore-TSServerObjects {
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
+    Param ()
+
+    function Restore-Cache {
+
+        param(
+            [Parameter(Mandatory=$false)][string]$Type
+        )
+
+        Write-Start $Type
+        $status = $Refresh ? "REFRESHED" : ($Restore ? "RESTORED" : "REUSING")
+        if ((Get-Cache "$($global:Platform.Instance)-$Type").Exists) {
+            $tsObject = Read-Cache "$($global:Platform.Instance)-$Type"
+        }
+        else {
+            $status = "FAILED"
+        }
+        Write-End $Type -Status $status
+
+        return $tsObject
+
+    }
+
+    $global:site = Restore-Cache site
+    $global:users = Restore-Cache users
+    $global:groups = Restore-Cache groups
+    $global:projects = Restore-Cache projects
+    $global:projectsDefaultPermissions = Restore-Cache projectsDefaultPermissions
+    $global:workbooks = Restore-Cache workbooks
+    $global:datasources = Restore-Cache datasources
+    $global:flows = Restore-Cache flows
+    $global:metrics = Restore-Cache metrics
+    $global:favorites = Restore-Cache favorites
+    $global:subscriptions = Restore-Cache subscriptions
+    $global:schedules = Restore-Cache schedules
+    $global:dataAlerts = Restore-Cache dataAlerts
+
+    Write-Host+
+
+}
+
+function global:Update-TSProjectDefaultPermissions {
 
     param(
         [Parameter(Mandatory=$true)][object]$Project,
@@ -118,9 +167,7 @@ function Update-TSProject {
         [Parameter(Mandatory=$false)][int]$Level = 0
     )
 
-    # if (!($Group -or $User) -or ($Group -and $User)) {
-    #     throw "Must specify either Group or User"
-    # }
+    $typeLength = 0
 
     foreach ($key in $Permissions.Keys) {
         $type = "$($key)$($key -eq "lens" ? "es" : "s")"
@@ -130,17 +177,22 @@ function Update-TSProject {
             throw $responseError
         }
         else { 
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine " +$type" -ForegroundColor DarkGray
+            $typeMessage = " +$type"; $typeLength += $typeMessage.Length
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine $typeMessage -ForegroundColor DarkGreen
         }
     }
 
-    Write-Host+ # close NoNewLine
+    Write-Host+ -NoTrace -NoTimestamp -NoNewLine "$($emptyString.PadLeft($typeLength,"`b"))$($emptyString.PadLeft($typeLength," "))$($emptyString.PadLeft($typeLength,"`b"))"
+    Write-Host+
 
     $Level = $Level + 1
-    foreach ($nestedProject in ($script:projects | Where-Object { $_.parentProjectId -eq $Project.id })) {
+    foreach ($nestedProject in ($global:projects | Where-Object { $_.parentProjectId -eq $Project.id })) {
         if ($nestedProject.contentPermissions -ne "LockedToProject") {
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "$($global:emptyString.PadLeft($Level * 4," "))$($nestedProject.name)"
-            Update-TSProject -Project $nestedProject -Group $Group -User $User -Permissions $Permissions -Level $Level
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "$($global:emptyString.PadLeft(($Level+1) * 4," "))$($Level)>","$($nestedProject.name)","[$($nestedProject.contentPermissions)]" -ForegroundColor DarkGray, $levelColors[$Level], DarkGray
+            Update-TSProjectDefaultPermissions -Project $nestedProject -Group $Group -User $User -Permissions $Permissions -Level $Level
+        }
+        else {
+            Write-Host+ -NoTrace -NoTimestamp "$($global:emptyString.PadLeft(($Level+1) * 4," "))$($Level)>","$($nestedProject.name)","[LockedToParent]" -ForegroundColor DarkGray, $levelColors[$Level], DarkGray
         }
     }
 
@@ -148,37 +200,106 @@ function Update-TSProject {
 
 }
 
-#region MAIN
+function global:Set-ProjectDefaultPermissions {
 
+    param(
+        # the site contenturl
+        [Parameter(Mandatory=$true)][string]$ContentUrl,
+        # a group object or name
+        [Parameter(Mandatory=$false)][object]$Group, 
+         # a user object or name
+        [Parameter(Mandatory=$false)][object]$User,
+        # a default permissions object or the project name to use as a template
+        [Parameter(Mandatory=$true)][object]$DefaultPermissions, 
+        [switch]$Restore,
+        [switch]$Refresh,
+        [switch]$ShowProgress
+    )
+
+    if ($Refresh -and $Restore) {
+        throw "The switches `$Refresh and `$Restore cannot be used together."
+    }
     if (!($Group -or $User) -or ($Group -and $User)) {
-        throw "Must specify either Group or User"
+        throw "A group or a user must be specified."
     }
 
-    $_user = $null
-    if (![string]::IsNullOrEmpty($User)) {
-        $_user = $script:users | Where-Object {$_.name -eq $User}
-    }
-    $_group = $null
-    if (![string]::IsNullOrEmpty($Group)) {
-        $_group = $script:groups | Where-Object {$_.name -eq $Group}
+    $_showProgress = $global:ProgressPreference
+    if ($ShowProgress) {
+        $global:ProgressPreference = "Continue"
     }
 
-    $_projectDefaultPermissions = $projectDefaultPermissions | Where-Object {$_.workbook.project.name -eq $ProjectAsDefaultPermissionsTemplate}
-
-    $_permissions = @{}
-    foreach ($type in @("workbook","datasource","datarole","lens","flow","metric","database")) {
-        $_permissions += @{"$($type)" = ($_projectDefaultPermissions.$($type).granteeCapabilities | where-object {$_.group.id -eq $_group.id}).capabilities.capability}
-    }
+    Write-Host+ -ResetIndentGlobal
+    
+    Write-Host+
 
     Connect-TableauServer -Site $ContentUrl
-    # Cache-TSServerObjects
+    Write-Host+ -NoTrace -NoTimestamp "Server:","$($global:Platform.Uri.Host)" -ForegroundColor DarkGray,DarkBlue
+    Write-Host+ -NoTrace -NoTimestamp "Site:","$($site.contentUrl)" -ForegroundColor DarkGray,DarkBlue
 
-    Write-Host+ -NoTrace -NoTimestamp -LineFeed 2 "site: $($site.contentUrl)"
+    Write-Host+
 
-    $_level = 0
-    foreach ($parentProject in ($script:projects | Where-Object { $null -eq $_.parentProjectId })) {
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine "$($global:emptyString.PadLeft($Level * 4," "))$($parentProject.name)"
-        Update-TSProject -Project $parentProject -Group $_group -User $_user -Permissions $_permissions -Level $_level
+    if ($Refresh) {
+        Get-TSServerObjects
+    }
+    elseif ($Restore) {
+        Restore-TSServerObjects
+    }
+    else {
     }
 
-#endregion MAIN
+    # if $User is type [string], then find the user object by name
+    if ($null -ne $User -and $User.GetType() -eq [string]) {
+        if (![string]::IsNullOrEmpty($User)) {
+            $_user = $global:users | Where-Object {$_.name -eq $User}
+            if (!$_user) {
+                Write-Host+ -NoTrace -NoTimestamp "[ERROR] The user `'$User`' was not found in site `'$($site.contentUrl)`'." -ForegroundColor Red
+                Write-Host+
+                return
+            }
+            $User = $_user
+        }
+    }
+
+    # if $Group is type [string], then find the Group object by name
+    if ($null -ne $Group -and $Group.GetType() -eq [string]) {
+        if (![string]::IsNullOrEmpty($Group)) {
+            $_group = $global:groups | Where-Object {$_.name -eq $Group}
+            if (!$_group) {
+                Write-Host+ -NoTrace -NoTimestamp "[ERROR] The group `'$Group`' was not found in site `'$($site.contentUrl)`'." -ForegroundColor Red
+                Write-Host+
+                return 
+            }
+            $Group = $_group
+        }
+    }
+
+    # if $DefaultPermissions is type [string], then it's a project name
+    # find the project object and then, using the $Group or $User object name, get the default permissions for each type
+    if ($DefaultPermissions.GetType() -eq [string]) {
+        $_defaultPermissions = $projectsDefaultPermissions | Where-Object {$_.workbook.project.name -eq $DefaultPermissions}
+        if (!$_defaultPermissions) {
+            Write-Host+ -NoTrace -NoTimestamp "[ERROR] `$DefaultPermissions is null." -ForegroundColor Red
+            Write-Host+ -NoTrace -NoTimestamp "[ERROR] The template project `'$DefaultPermissions`' was not found in site `'$($site.contentUrl)`'."  -ForegroundColor Red
+            Write-Host+
+            return
+        }
+        $DefaultPermissions = @{}
+        foreach ($type in @("workbook","datasource","datarole","lens","flow","metric","database")) {
+            if ($Group) {
+                $DefaultPermissions += @{"$($type)" = ($_defaultPermissions.$($type).granteeCapabilities | where-object {$_.group.id -eq $Group.id}).capabilities.capability}
+            }
+            elseif ($User) {
+                $DefaultPermissions += @{"$($type)" = ($_defaultPermissions.$($type).granteeCapabilities | where-object {$_.user.id -eq $User.id}).capabilities.capability}
+            }
+        }
+    }
+
+    $Level = 0
+    foreach ($parentProject in ($global:projects | Where-Object { $null -eq $_.parentProjectId })) {
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine "$($global:emptyString.PadLeft(($Level+1) * 4," "))$($Level)>","$($parentProject.name)","[$($parentProject.contentPermissions)]" -ForegroundColor DarkGray, $levelColors[$Level], DarkGray
+        Update-TSProjectDefaultPermissions -Project $parentProject -Group $Group -User $User -Permissions $DefaultPermissions -Level $Level
+    }
+
+    $global:ProgressPreference = $_showProgress
+
+}

@@ -5,26 +5,26 @@ Heartbeat functions for the Overwatch Monitor product.
 Maintains heartbeat status and history.
 .Parameter IsOK
 Flag (set by the Monitor product) which indicates the overall status of the platform.
+.Parameter Status
+[string] Status description (set by the Monitor product).
 .Parameter PlatformIsOK
 Flag (set by the platform) which indicates the current status of the platform.
 .Parameter PlatformRollupStatus
 [string] Status description (set by the platform).
 .Parameter Alert
 Flag which indicates whether the platform has an active alert.
-.Parameter PlatformTimeStamp
+.Parameter Issues
+Current issues as reported by the platform.
+.Parameter TimeStamp
 [datetime] Heartbeat timestamp.
 .Parameter ReportEnabled
-[bool] Whether or not reporting is enabled.
-.Parameter ReportFrequency
-[timespan] The frequency at which heartbeat reports occur.
+[bool] Flag which indicates whether heartbeat reports are enabled/disabled.
+.Parameter ReportSchedule
+[timespan] or [arraylist] The amount of time between heartbeat reports.
 .Parameter PreviousReport
 [datetime] The time at which the previous status report occurred.
 .Parameter SincePreviousReport
 [timespan] The time SINCE the previous status report occurred.
-.Parameter FlapDetectionEnabled
-[bool] Flag which indicates whether Overwatch uses flap detection to avoid reporting rapid state changes.  
-.Parameter FlapDetectionPeriod
-[timespan] When flap detection is enabled, the period required before Overwatch reports a NOT OK status.
 #>
 
 $HeartbeatHistoryMax = 72 # 6 hours if the interval is 5 minutes
@@ -40,8 +40,6 @@ function Get-HeartbeatSettings {
     
     $Heartbeat.ReportEnabled = $monitor.Config.ReportEnabled
     $Heartbeat.ReportSchedule = $monitor.Config.ReportEnabled ? $monitor.Config.ReportSchedule :  [timespan]::Zero
-    $Heartbeat.FlapDetectionEnabled = $monitor.Config.FlapDetectionEnabled
-    $Heartbeat.FlapDetectionPeriod = $monitor.Config.FlapDetectionPeriod
 
     return $Heartbeat
 

@@ -52,6 +52,7 @@ If using the Microsoft Teams provider, it must be configured here.
     $global:Platform.InstallPath = "<platformInstallLocation>"
 
     #endregion PLATFORM-OBJECT
+    
     #region PLATFORMTOPOLOGY
 
         # The following line indicates a post-installation configuration to the installer
@@ -81,18 +82,21 @@ If using the Microsoft Teams provider, it must be configured here.
         $global:PlatformTopologyDefaultComponentMap = @{}
 
     #endregion PLATFORMTOPOLOGY
+
     #region PLATFORM-TIMEOUTS
 
         $global:PlatformComponentTimeout = 300
         $global:PlatformShutdownMax = New-TimeSpan -Minutes 75   
 
     #endregion PLATFORM-TIMEOUTS
+
     #region PRINCIPAL-CONTEXT
 
         $global:PrincipalContextType = [System.DirectoryServices.AccountManagement.ContextType]::Machine  
         $global:PrincipalContextName = $env:COMPUTERNAME
 
     #endregion PRINCIPAL-CONTEXT
+
     #region CLEANUP
 
         # The following line indicates a post-installation configuration to the installer
@@ -139,6 +143,7 @@ If using the Microsoft Teams provider, it must be configured here.
         }
 
     #endregion CLEANUP
+
     #region DISKS
 
         $global:diskSpaceLowThreshold = 15
@@ -147,6 +152,7 @@ If using the Microsoft Teams provider, it must be configured here.
         $global:ignoreDisks = @("D:")
 
     #endregion DISKS
+
     #region MICROSOFT-TEAMS
 
         # The following line indicates a post-installation configuration to the installer
@@ -159,7 +165,7 @@ If using the Microsoft Teams provider, it must be configured here.
             Connector = @{
                 AllClear = @("<Microsoft Teams AllClear Webhook>")
                 Alert = @("<Microsoft Teams Alert Webhook>","<Microsoft Teams Alert Webhook>")
-                Heartbeat = @("<Microsoft Teams Heartbeat Webhook>")
+                # Heartbeat = @("<Microsoft Teams Heartbeat Webhook>")
                 Information = @("<Microsoft Teams Information Webhook>")
                 Intervention = @("<Microsoft Teams Intervention Webhook>")
                 Warning = @("<Microsoft Teams Warning Webhook>")
@@ -168,16 +174,43 @@ If using the Microsoft Teams provider, it must be configured here.
         $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
 
     #endregion MICROSOFT-TEAMS
+
+    #region SMS
+
+        $global:SMSConfig = @{
+            From = "<SMS From>"
+            To = @()
+            Throttle = New-TimeSpan -Minutes 15
+            MessageType = @($PlatformMessageType.Intervention)
+        }
+        $global:SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
+
+    #endregion SMS
+
+    #region SMTP
+
+        $global:SmtpConfig = @{
+            Server = "<SMTP Server>"
+            Port = "<SMTP Port>"
+            UseSsl = "<SMTP UseSSL>" -eq "True"
+            MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
+            From = $null # deferred to provider
+            To = @() # deferred to provider
+            Throttle = New-TimeSpan -Minutes 15
+        }
+
+    #endregion SMTP    
+
     #region PYTHON
 
-    $global:Location += @{
-        Python = @{
-            Pip = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Scripts"
-            SitePackages = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Lib\site-packages"
+        $global:Location += @{
+            Python = @{
+                Pip = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Scripts"
+                SitePackages = "F:\Program Files\Alteryx\bin\Miniconda3\envs\DesignerBaseTools_vEnv\Lib\site-packages"
+            }
         }
-    }
 
-        $global:RequiredPythonPackages = "<requiredPythonPackages>"
+            $global:RequiredPythonPackages = "<requiredPythonPackages>"
 
     #endregion PYTHON
 
