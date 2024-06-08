@@ -1027,7 +1027,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
             $destinationEnvironFileExists = Test-Path $destinationEnvironFile
             if ($installMode -eq "Install") {
-                Update-Environ -Source  $tempEnvironFile -Destination $destinationEnvironFile
+                Update-Environ -Source  $sourceEnvironFile -Destination $destinationEnvironFile
             }
             elseif ($installMode -eq "Update") {
                 if ($environFileUpdated) {

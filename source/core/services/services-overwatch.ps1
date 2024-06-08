@@ -1343,7 +1343,7 @@
 
         begin {
 
-            If (!$PassFailOnly) {Write-Host+}
+            # If (!$PassFailOnly) {Write-Host+}
 
             $messagePart = "  SSL Protocol ","$($ComputerName)"
             Write-Host+ -Iff (!$PassFailOnly) -NoTrace -NoSeparator $messagePart[0],"[",$messagePart[1],"] ",(Format-Leader -Length 47 -Adjust ((($messagePart -join " ").Length+2)))," PENDING" -ForegroundColor Gray,DarkGray,DarkBlue,DarkGray,DarkGray,DarkGray

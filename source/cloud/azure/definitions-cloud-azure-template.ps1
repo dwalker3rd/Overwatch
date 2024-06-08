@@ -1,6 +1,17 @@
-$global:Cloud = $global:Catalog.Cloud.Azure
-$global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
+#region AZCONFIG
 
+    # required for Az 12.0.0 to disable WAM login.  See https://github.com/Azure/azure-powershell/issues/24967 
+    if ((Get-InstalledPSResource Az -ErrorAction SilentlyContinue) -or (Get-InstalledPSResource Az -Scope AllUsers -ErrorAction SilentlyContinue)) {
+        Update-AzConfig -EnableLoginByWam $false -WarningAction SilentlyContinue | Out-Null
+    }
+
+#endregion AZCONFIG 
+#region GLOBAL CLOUD
+
+    $global:Cloud = $global:Catalog.Cloud.Azure
+    $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
+
+#endregion GLOBAL CLOUD
 #region INITIALIZATION
 
     function global:Initialize-AzureConfig {
@@ -20,37 +31,136 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
                     Data = "$($global:Location.Root)\data\azure"
                 }
 
-                Templates = @{
-                    Resources = @{
-                        Location = "uksouth"
-                        Bastion = @{ Name = @{ Pattern = "<0><1>bastion" } }
-                        ResourceGroup = @{Name = @{ Pattern = "<0>-<1>-rg" } }
-                        StorageAccount = @{
-                            SKU = "Standard_LRS"
-                            Name = @{ Pattern = "<0><1>storage" }
-                            SoftDelete = @{
-                                Enabled = $true
-                                RetentionDays = 7
+                ResourceType = @{
+                    ApplicationInsights = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-appInsights`""
+                        Dependencies = @{
+                            OperationalInsightsWorkspace = @{}
+                        }
+                    }
+                    Bastion = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-bastion`""
+                        Dependencies = @{
+                            Subnet = @{
+                                subnetName = "AzureBastionSubnet"
+                                subnetAddressPrefix = "10.1.1.0/26"
                             }
-                            Permission = "Off"
+                            PublicIPAddress = @{}
+                            VirtualNetwork = @{}
                         }
-                        VM = @{
-                            Name = @{ Pattern = "<0><1>vm<2>" }
-                            Size = "Standard_DS13_v2"
-                            OsType = "Windows"
-                            Admin = @{ Pattern = "<0><1>adm" }
+                    }
+                    BatchAccount = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-batch`""
+                        Dependencies = @{
+                            StorageAccount = @{ dependencyType = "diag" }
+                            KeyVault = @{}
                         }
-                        BatchAccount = @{ Name = @{ Pattern = "<0><1>batch" } }
-                        MLWorkspace = @{ Name = @{ Pattern = "<0><1>mlws<2>" } }
-                        CosmosDBAccount = @{  Name = @{ Pattern = "<0><1>cosmos<2>"  } }
-                        SqlVM = @{ Name = @{ Pattern = "<0><1>sqlvm<2>" } }
-                        KeyVault = @{ Name = @{ Pattern = "<0><1>-kv" } }
-                        DataFactory = @{ Name = @{ Pattern = "<0><1>-adf" } }
-                        ApplicationInsights = @{ Name = @{ Pattern = "<0><1>-appInsights"}}
-                        NetworkInterface = @{ Name = @{ Pattern = "<0><1>-nic" } }
+                    }
+                    CosmosDBAccount = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-cosmos<00>`""
+                        Dependencies = @{}
+                    }
+                    DataFactory = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-adf`"" 
+                        Dependencies = @{}
+                    }
+                    Disk = @{
+                        ResourceName = "`"`$(`$ResourceName)-<dependencyType><00>`""
+                        Dependencies = @{}
+                    }
+                    KeyVault = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-kv`""
+                        Dependencies = @{}
+                    }
+                    MLWorkspace = @{ 
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-mlws<00>`""
+                        IdentityType = "`"SystemAssigned`""
+                        Dependencies = @{
+                            StorageAccount = @{ dependencyType = "diag" }
+                            KeyVault = @{}
+                            ApplicationInsights = @{}
+                        }
+                    }
+                    NetworkInterface = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-nic<00>`""
+                        Dependencies = @{
+                            Subnet = @{}
+                        }
+                    }
+                    NetworkSecurityRule = @{
+                        Name = "`"<Name>`""
+                        Description = "`"<Description>`""
+                        Access = "`"<Access>`""
+                        Protocol = "`"<Protocol>`""
+                        Direction = "`"<Direction>`""
+                        Priority = "`"<Priority>`""
+                        SourceAddressPrefix = "`"<SourceAddressPrefix>`""
+                        SourcePortRange = "`"<SourcePortRange>`""
+                        DestinationAddressPrefix = "`"<DestinationAddressPrefix>`""
+                        DestinationPortRange = "`"<DestinationPortRange>`""
+                        Dependencies = @{
+                            NetworkSecurityGroup = @{}
+                        }
+                    }
+                    NetworkSecurityGroup = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-nsg`""
+                    }
+                    OperationalInsightsWorkspace = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-loganalytics`""
+                        Dependencies = @{
+                            StorageAccount = @{ dependencyType = "diag" }
+                        }
+                    }
+                    PublicIPAddress = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-`$(`$ResourceType)-pip`""
+                        Sku = "`"Standard`""
+                        AllocationMethod = "`"Static`""
+                    }
+                    ResourceGroup = @{
+                        ResourceName = "`"<resourceGroupName>`""
+                    }
+                    SqlVM = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-sqlvm`""
+                        Dependencies = @{}
+                    }
+                    StorageAccount = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)<dependencyType>storage`""
+                        Dependencies = @{}
+                    }
+                    StorageContainer = @{
+                        Dependencies = @{
+                            StorageAccount = @{ dependencyType = $null }
+                        }
+                    }
+                    VM = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-vm<00>`""
+                        Admin = "`"`$(`$prefix)`$(`$projectName)adm`""
+                        Dependencies = @{
+                            VirtualNetwork = @{}
+                            NetworkSecurityGroup = @{}
+                            PublicIPAddress = @{ dependentResourceType = "vm" }
+                            NetworkInterface = @{}
+                            Disk = @(
+                                @{ dependencyType = "osdisk" },
+                                @{ dependencyType = "datadisk" }
+                            )
+                        }
+                    }
+                    Subnet = @{
+                        ResourceName = "`"<subnetName>`""
+                        AddressPrefix = "`"<subnetAddressPrefix>`""
+                        Dependencies = @{
+                            VirtualNetwork = @{}
+                        }
+                    }
+                    VirtualNetwork = @{
+                        ResourceName = "`"`$(`$prefix)`$(`$projectName)-vnet`""
+                        AddressPrefix = "`"10.1.1.0/16`""
+                        SubnetName = "`"`$(`$prefix)`$(`$projectName)-subnet`""
+                        SubnetAddressPrefix = "`"10.1.1.0/24`""
                     }
                 }
-
+                
             }
 
         }
@@ -72,15 +182,16 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
         "DataFactory" = "Microsoft.DataFactory/factories"
         "Disk" = "Microsoft.Compute/disks"
         "KeyVault" = "Microsoft.KeyVault/vaults"
-        "OperationalInsightsWorkspace" = "Microsoft.OperationalInsights/workspaces"
         "MLWorkspace" = "Microsoft.MachineLearningServices/workspaces"
         "NetworkInterface" = "Microsoft.Network/networkInterfaces"
         "NetworkSecurityGroup" = "Microsoft.Network/networkSecurityGroups"
+        "OperationalInsightsWorkspace" = "Microsoft.OperationalInsights/workspaces"
         "PublicIpAddress" = "Microsoft.Network/publicIPAddresses"
         "ResourceGroup" = "Microsoft.Resources/subscriptions/resourceGroups"
         "SqlVM" = "Microsoft.SqlVirtualMachine/SqlVirtualMachines"
         "StorageAccount" = "Microsoft.Storage/storageAccounts"
         "StorageContainer" = "Microsoft.Storage/storageAccounts/(.*)/blobServices/default/containers"
+        "Subnet" = "Microsoft.Network/virtualNetworks/(.*)/subnets"
         "VirtualNetwork" = "Microsoft.Network/virtualNetworks"
         "VM" = "Microsoft.Compute/virtualMachines"
         "VmExtension" = "Microsoft.Compute/virtualMachines/extensions"
@@ -102,6 +213,7 @@ $global:Cloud.Image = "$($global:Location.Images)/azure_logo.png"
         "Microsoft.Network/publicIPAddresses" = "PublicIpAddress"
         "Microsoft.Network/networkSecurityGroups" = "NetworkSecurityGroup"
         "Microsoft.Network/virtualNetworks" = "VirtualNetwork"
+        "Microsoft.Network/virtualNetworks/(.*)/subnets" = "Subnet"
         "Microsoft.OperationalInsights/workspaces" = "OperationalInsightsWorkspace" 
         "Microsoft.SqlVirtualMachine/SqlVirtualMachines" = "SqlVM"
         "Microsoft.Storage/storageAccounts" = "StorageAccount"

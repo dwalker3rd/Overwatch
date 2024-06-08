@@ -1,12 +1,6 @@
 ## Copyright (c) Microsoft Corporation. All rights reserved.
 ## Licensed under the MIT License.
 
-resource "azurerm_network_watcher" "main" {
-  name                = var.network_watcher_name
-  location            = azurerm_resource_group.main.location
-  resource_group_name = var.network_watcher_rg_name
-}
-
 # Public IP
 resource "azurerm_public_ip" "main" {
   name                = "${var.prefix}-vm-pip"
@@ -50,6 +44,7 @@ resource "azurerm_subnet" "main" {
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = var.subnet_address_prefix
+  service_endpoints    = ["Microsoft.KeyVault","Microsoft.Storage"]
 }
 
 # Network Security Group
@@ -98,7 +93,6 @@ resource "azurerm_network_interface_security_group_association" "main" {
 }
 
 # Bastion Host
-
 resource "azurerm_subnet" "bastion" {
   name                 = "AzureBastionSubnet"
   resource_group_name  = azurerm_resource_group.main.name
@@ -126,5 +120,34 @@ resource "azurerm_bastion_host" "bastion" {
     public_ip_address_id = azurerm_public_ip.bastion.id
   }
   depends_on           = [azurerm_subnet.bastion, azurerm_public_ip.bastion]
+}
 
+resource "azurerm_network_watcher" "main" {
+  name                = "${var.network_watcher_name}"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = var.network_watcher_rg_name
+}
+
+## Network Watcher and Logs
+resource "azurerm_network_watcher_flow_log" "main" {
+  name                      = "${var.network_watcher_name}${var.prefix}"
+  network_watcher_name      = azurerm_network_watcher.main.name
+  resource_group_name       = azurerm_network_watcher.main.resource_group_name
+  network_security_group_id = azurerm_network_security_group.main.id
+  storage_account_id        = azurerm_storage_account.secondary.id
+  enabled                   = true
+
+  retention_policy {
+    enabled = true
+    days    = 30
+  }
+
+  traffic_analytics {
+    enabled               = true
+    workspace_id          = azurerm_log_analytics_workspace.main.workspace_id
+    workspace_region      = azurerm_log_analytics_workspace.main.location
+    workspace_resource_id = azurerm_log_analytics_workspace.main.id
+    interval_in_minutes   = 10
+  }
+  depends_on = [azurerm_storage_account.secondary, azurerm_log_analytics_workspace.main]
 }

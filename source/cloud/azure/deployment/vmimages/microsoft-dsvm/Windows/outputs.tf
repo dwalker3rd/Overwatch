@@ -14,10 +14,6 @@ output "main_storage_account_key" {
   sensitive = true
 }
 
-output "secondary_storage_account_name" {
-  value = azurerm_storage_account.secondary.name
-}
-
 output "secondary_storage_account_key" {
   value = azurerm_storage_account.secondary.primary_access_key
   sensitive = true

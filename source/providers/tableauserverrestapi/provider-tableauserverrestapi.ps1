@@ -150,7 +150,7 @@ function global:Initialize-TSRestApiConfiguration {
         SpecialAccounts = @("guest","tableausvc","TabSrvAdmin","alteryxsvc")
         SpecialGroups = @("All Users")
         SpecialMethods = @("ServerInfo","Login")
-        Defaults = $_provider.Defaults
+        Defaults = $_provider.Config.Defaults
     }
 
     $global:tsRestApiConfig.RestApiVersioning = @{
@@ -2052,11 +2052,19 @@ function global:Get-TSProjects+ {
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
+    Write-Host+
+
+    Set-CursorInvisible
     $projects = @()
-    Get-TSProjects -Filter $Filter | Foreach-Object {
-        Write-Host+ -NoTrace $_.Name
+    $projectIndex = 0
+    $_projects = Get-TSProjects -Filter $Filter 
+    $projectCount = $_projects.Count
+    $_projects | Foreach-Object {
+        $projectIndex++
+        Write-Host+ -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "    [$projectIndex/$projectCount] $($_.Name)"
         $projects += Get-TSProject+ -Id $_.id -Users $Users -Groups $Groups -Filter $Filter
     }
+    Set-CursorVisible
 
     return $projects
 }
@@ -2288,7 +2296,7 @@ function global:Get-TSProjectDefaultPermissions {
     foreach ($project in $Projects) {
         $_projectDefaultPermissions = @{}
         foreach ($_type in $Type) {
-            $_projectDefaultPermissions += @{ $($_type -replace "s$","") = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) }
+            $_projectDefaultPermissions += @{ $($_type -replace ($_type -eq "lenses" ? "es$" : "s$"),"") = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) }
         }
         $projectDefaultPermissions += $_projectDefaultPermissions | ConvertTo-PSCustomObject
     }
