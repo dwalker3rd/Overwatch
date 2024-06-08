@@ -15,7 +15,7 @@ $_provider | Out-Null
     }
 
     $overwatchRoot = $PSScriptRoot -replace "\\install",""
-    if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1 | Select-String "<fromPhone>" -Quiet) {
+    if (Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1 | Select-String "<SMS From>" -Quiet) {
 
         $interaction = $true
 
@@ -44,7 +44,7 @@ $_provider | Out-Null
         } until ($fromPhone)
 
         $twilioSmsDefinitionsFile = Get-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1
-        $twilioSmsDefinitionsFile = $twilioSmsDefinitionsFile -replace "<fromPhone>", $fromPhone
+        $twilioSmsDefinitionsFile = $twilioSmsDefinitionsFile -replace "<SMS From>", $fromPhone
         $twilioSmsDefinitionsFile | Set-Content -Path $overwatchRoot\definitions\definitions-provider-twiliosms.ps1
 
         #region SAVE SETTINGS
