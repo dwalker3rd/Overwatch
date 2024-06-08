@@ -15,15 +15,7 @@
     $Provider = $null
     $Provider = $global:Catalog.Provider.TwilioSMS
 
-    $SMSConfig = @{
-        From = "<fromPhone>"
-        To = @()
-        Throttle = New-TimeSpan -Minutes 15
-        MessageType = @($PlatformMessageType.Intervention)
-    }
-    $SMSConfig += @{RestEndpoint = "https://api.twilio.com/2010-04-01/Accounts/<AccountSID>/Messages.json"}
-
-    $Provider.Config = $SMSConfig
+    $Provider.Config = $global:SMSConfig
 
     return $Provider
 

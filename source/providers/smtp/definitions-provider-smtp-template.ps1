@@ -44,18 +44,9 @@ $Provider = $global:Catalog.Provider.SMTP
 
 #endregion PREREQUISITES
 
-$SmtpConfig = 
-    @{
-        Server = "<server>"
-        Port = "<port>"
-        UseSsl = "<useSsl>"
-        MessageType = @($PlatformMessageType.Warning,$PlatformMessageType.Alert,$PlatformMessageType.AllClear,$PlatformMessageType.Intervention)
-        From = $null # deferred to provider
-        To = @()
-        Throttle = New-TimeSpan -Minutes 15
-    }
+$Provider.Config = $global:SmtpConfig
 
-$Provider.Config = $SmtpConfig
+return $Provider
 
 return $Provider
 
