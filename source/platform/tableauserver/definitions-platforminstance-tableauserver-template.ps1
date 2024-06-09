@@ -1,4 +1,4 @@
-﻿#region INSTANCE-DEFINITIONS
+#region INSTANCE-DEFINITIONS
 
     #region PLATFORM-OBJECT
 
@@ -23,7 +23,7 @@
 
     #endregion PRINCIPAL-CONTEXT
 
-    #region PRODUCT-CLEANUP
+    #region CLEANUP
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Product > Cleanup > Customization
@@ -43,18 +43,18 @@
         #     TimeoutInSeconds = 0
         # }  
 
-    #endregion PRODUCT-CLEANUP    
+    #endregion CLEANUP    
 
-    #region PRODUCT-DISKCHECK
+    #region DISKS
 
         $global:diskSpaceLowThreshold = 15
         $global:diskSpaceCriticalThreshold = 10
         $global:ignoreDriveType = @(2,5)
         $global:ignoreDisks = @("D:")
 
-    #endregion PRODUCT-DISKCHECK
+    #endregion DISKS
 
-    #region PROVIDER-MICROSOFT-TEAMS
+    #region MICROSOFT-TEAMS    
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Provider > MicrosoftTeams > Webhooks
