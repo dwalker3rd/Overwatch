@@ -536,6 +536,17 @@ $global:Catalog.Product += @{ AyxRunner =
     }
 }
 
+$global:Catalog.Product += @{ Upgrade = 
+    [Product]@{
+        Id = "Upgrade"
+        Name = "Upgrade"
+        DisplayName = "Upgrade"
+        Description = "Upgrades a platform."
+        Publisher = "Walker Analytics Consulting"
+        HasTask = $true
+    }
+}
+
 $global:Catalog.Provider += @{ "OnePassword" = 
     [Provider]@{
         Id = "OnePassword"
