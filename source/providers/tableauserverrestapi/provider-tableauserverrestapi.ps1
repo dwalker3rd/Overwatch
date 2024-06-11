@@ -1110,7 +1110,7 @@ function global:Download-TSObject {
     $projects = Get-TSProjects
     $project = $projects | Where-Object {$_.id -eq $InputObject.project.id}
     do {
-        $projectName = $project.Name -replace $global:RegexPattern.Download.InvalidFileNameChars, ""
+        $projectName = [System.Web.HttpUtility]::UrlEncode($project.Name)
         $projectPath = $projectName + ($projectPath ? "\" : $null) + $projectPath
         $project = $projects | Where-Object {$_.id -eq $project.parentProjectId}
     } until (!$project)
@@ -1130,7 +1130,7 @@ function global:Download-TSObject {
     $headers."Content-Type" = $headers."Content-Type".Replace("<ResourceString>",$global:tsRestApiConfig.Method.$Method.ResourceString)
 
     $tempOutFileDirectory = "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentUrl\.temp"
-    if (!(Test-Path $tempOutFileDirectory)) { New-Item -ItemType Directory -Path $tempOutFileDirectory | Out-Null }
+    if (!(Test-Path $tempOutFileDirectory -PathType Container)) { New-Item -ItemType Directory -Path $tempOutFileDirectory | Out-Null }
     $tempOutFile = "$tempOutFileDirectory\$($InputObject.id)"
     Remove-Item -Path $tempOutFile -Force -ErrorAction SilentlyContinue
 
@@ -1142,7 +1142,7 @@ function global:Download-TSObject {
         }
         else {
             if ($response.httpErrorCode) {
-                return @{ error = [System.Collections.Specialized.OrderedDictionary]@{ code = $response.httpErrorCode; detail = $response.message } }
+                return @{ error = [ordered]@{ code = $response.httpErrorCode; detail = $response.message } }
             }
         }
     }
@@ -1151,17 +1151,18 @@ function global:Download-TSObject {
     }
 
     if ([string]::IsNullOrEmpty($responseHeaders."Content-Disposition")) {
-        return @{ error = [System.Collections.Specialized.OrderedDictionary]@{ code = 404; summary = "Not Found"; detail = "$((Get-Culture).TextInfo.ToTitleCase($objectType)) download failed" }  }
+        return @{ error = [ordered]@{ code = 404; summary = "Not Found"; detail = "$((Get-Culture).TextInfo.ToTitleCase($objectType)) download failed" }  }
     }      
 
+    $projectPathDecoded = [System.Web.HttpUtility]::UrlDecode($projectPath)
     $contentDisposition = $responseHeaders."Content-Disposition".Split("; ")
     $contentDispositionFileName = $contentDisposition[1].Split("=")[1].Replace("`"","")
-    $outFileNameLeafBase = Split-Path $contentDispositionFileName -LeafBase
-    $outFileExtension = Split-Path $contentDispositionFileName -Extension
+    $outFileNameLeafBase = [System.Web.HttpUtility]::UrlDecode($(Split-Path $contentDispositionFileName -LeafBase))
+    $outFileExtension = [System.Web.HttpUtility]::UrlDecode($(Split-Path $contentDispositionFileName -Extension))
     $outFileName = $outFileNameLeafBase + ($revision ? ".rev$revision" : $null) + $outFileExtension
-    $outFileDirectory = "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentUrl\$projectPath$($revision ? "\$contentDispositionFileName.revisions" : $null)"
+    $outFileDirectory = "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentUrl\$projectPathDecoded$($revision ? "\$contentDispositionFileName.revisions" : $null)"
     $outFileDirectory = $outFileDirectory -replace "[<>|]", "-"
-    if (!(Test-Path $outFileDirectory)) { New-Item -ItemType Directory -Path $outFileDirectory | Out-Null }
+    if (!(Test-Path -Path $outFileDirectory -PathType Container)) { New-Item -ItemType Directory -Path $outFileDirectory | Out-Null }
     $outFile = "$outFileDirectory\$outFileName"
 
     Remove-Item -Path $outFile -Force -ErrorAction SilentlyContinue
@@ -1688,12 +1689,24 @@ function global:Get-TSUsers+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers)
+        [Parameter(Mandatory=$false)][object]$Users,
+        [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
+    if (!$Users) {
+        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSUsers' in the caller to pass `$Users into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+        $Users = Get-TSUsers
+    }
+
+    $site = Get-TSSite
+
+    Set-CursorInvisible
     $usersPlus = @()
-    $site = Get-TSCurrentSite
-    $Users | ForEach-Object {
+    $userIndex = 0
+    $userCount = $Users.Count
+    $Users | Foreach-Object {
+        $userIndex++
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$userIndex/$userCount] $($_.Name)" -ForegroundColor DarkGray
         $usersPlus += Get-TSUser+ -Id $_.Id -Site $site
     }
 
@@ -1706,7 +1719,7 @@ function global:Get-TSUser+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)][string]$Id,
-        [Parameter(Mandatory=$false)][object]$Site = (Get-TSCurrentSite)
+        [Parameter(Mandatory=$false)][object]$Site = (Get-TSSite)
     )
 
     $user = Get-TSUser -Id $Id
@@ -1919,18 +1932,40 @@ function global:Get-TSGroups+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups)
+        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
-    foreach ($group in $Groups) {
-        $users = Get-TSGroupMembership -Group $group
-        $group | Add-Member -NotePropertyName membership -NotePropertyValue $users
+    $site = Get-TSCurrentSite
+
+    Set-CursorInvisible
+    $groupsPlus = @()
+    $groupIndex = 0
+    $groupCount = $_groups.Count
+    $Groups | Foreach-Object {
+        $groupIndex++
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$groupIndex/$groupCount] $($_.Name)" -ForegroundColor DarkGray
+        $groupsPlus += Get-TSGroup+ -Id $_.Id -Site $site
     }
 
-    $site = Get-TSCurrentSite
-    $Groups | Add-Member -NotePropertyName site -NotePropertyValue $site
+    return $groupsPlus
 
-    return $Groups
+}
+
+function global:Get-TSGroup+ {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Id,
+        [Parameter(Mandatory=$false)][object]$Site = (Get-TSSite)
+    )
+
+    $group = Get-TSGroup -Id $Id
+    $users = Get-TSGroupMembership -Group $group
+    $group | Add-Member -NotePropertyName membership -NotePropertyValue $users
+    $group | Add-Member -NotePropertyName site -NotePropertyValue $site
+
+    return $group
     
 }
 
@@ -2047,11 +2082,41 @@ function global:Get-TSProjects+ {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Users,
+        [Parameter(Mandatory=$false)][object]$Groups,
+        [Parameter(Mandatory=$false)][object]$Projects,
         [Parameter(Mandatory=$false)][string]$Filter,
         [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
+
+    $function = $PSCmdlet.MyInvocation.MyCommand.Name
+    $callStack = Get-PSCallStack
+    $caller = $callStack[1].Command -eq "<ScriptBlock>" ? "You" : "'$($callStack[1].Command)'"
+
+    $recommendation = "[PERFORMANCE] $caller should use the '`$<lookupObject>' parameter to pass the <lookupObject> object<singularOrPlural> to '$function'."
+
+    $lookupObjects = @()
+    if (!$Users) { 
+        $lookupObjects += "Users"
+        $Users = Get-TSUsers
+    }
+    if (!$Groups) {
+        $lookupObjects += "Groups"
+        $Groups = Get-TSGroups
+    }
+    if (!$Projects) {
+        $lookupObjects += "Projects"
+        $Projects = Get-TSProjects -Filter $Filter
+    }
+
+    if ($lookupObjects) {
+        Write-Host+
+        $message = $recommendation -replace "<lookupObject>", ($lookupObjects -join ", ")
+        $message = $message -replace "<singularOrPlural>", ($lookupObjects.Count -eq 1 ? $null : "s")
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Gray
+        Start-Sleep -Seconds 5
+        Write-Host+ -ReverseLineFeed 2 -EraseLineToCursor
+    }
 
     Set-CursorInvisible
     $projects = @()
@@ -2061,7 +2126,7 @@ function global:Get-TSProjects+ {
     $_projects | Foreach-Object {
         $projectIndex++
         Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$projectIndex/$projectCount] $($_.Name)" -ForegroundColor DarkGray
-        $projects += Get-TSProject+ -Id $_.id -Users $Users -Groups $Groups -Filter $Filter
+        $projects += Get-TSProject+ -Id $_.id -Users $Users -Groups $Groups -Projects $_projects -Filter $Filter
     }
     Set-CursorVisible
 
@@ -2073,14 +2138,30 @@ function global:Get-TSProject+ {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Id,
-        [Parameter(Mandatory=$false)][object]$Users = (Get-TSUsers),
-        [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
+        [Parameter(Mandatory=$false)][object]$Users,
+        [Parameter(Mandatory=$false)][object]$Groups,
+        [Parameter(Mandatory=$false)][object]$Projects,
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    $project = Get-TSProjects -Filter $Filter | Where-Object {$_.id -eq $Id}
-    $projectPermissions = Get-TSProjectPermissions+ -Users $Users -Groups $Groups -Projects $project
-    $project | Add-Member -NotePropertyName permissions -NotePropertyValue $projectPermissions
+    if (!$Users) {
+        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSUsers' in the caller to pass `$Users into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+        $Users = Get-TSUsers
+    }
+    if (!$Groups) {
+        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSGroups' in the caller to pass `$Groups into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+        $Groups = Get-TSGroups
+    }
+    if (!$Projects) {
+        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSProjects' in the caller to pass `$Projects into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+        $Projects = Get-TSProjects -Filter $Filter
+    }
+
+    $project = $projects | Where-Object {$_.id -eq $Id}
+    if (!$project.Permissions) {
+        $projectPermissions = Get-TSProjectPermissions+ -Users $Users -Groups $Groups -Projects $project
+        $project | Add-Member -NotePropertyName permissions -NotePropertyValue $projectPermissions
+    }
 
     return $project
 }
@@ -2391,13 +2472,21 @@ function global:Get-TSWorkbooks+ {
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
         [Parameter(Mandatory=$false)][string]$Filter,
-        [Parameter(Mandatory=$false)][switch]$Download
+        [Parameter(Mandatory=$false)][switch]$Download,
+        [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
+    Set-CursorInvisible
     $workbooks = @()
-    Get-TSWorkbooks -Filter $Filter -Download:$Download.IsPresent | Foreach-Object {
+    $workbookIndex = 0
+    $_workbooks = Get-TSworkbooks -Filter $Filter 
+    $workbookCount = $_workbooks.Count
+    $_workbooks | Foreach-Object {
+        $workbookIndex++
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$workbookIndex/$workbookCount] $($_.Name)" -ForegroundColor DarkGray
         $workbooks += Get-TSWorkbook+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter -Download:$Download.IsPresent
     }
+    Set-CursorVisible
 
     return $workbooks
 
@@ -2646,13 +2735,21 @@ function global:Get-TSViews+ {
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
         [Parameter(Mandatory=$false)][object]$Workbooks,
-        [Parameter(Mandatory=$false)][string]$Filter
+        [Parameter(Mandatory=$false)][string]$Filter,
+        [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
+    Set-CursorInvisible
     $views = @()
-    Get-TSViews -Filter $Filter | Foreach-Object {
+    $viewIndex = 0
+    $_views = Get-TSviews -Filter $Filter 
+    $viewCount = $_views.Count
+    $_views | Foreach-Object {
+        $viewIndex++
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$viewIndex/$viewCount] $($_.Name)" -ForegroundColor DarkGray
         $views += Get-TSView+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter
     }
+    Set-CursorVisible
 
     return $views
 }
@@ -2835,13 +2932,21 @@ function global:Get-TSDatasources+ {
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
         [Parameter(Mandatory=$false)][string]$Filter,
-        [Parameter(Mandatory=$false)][switch]$Download
+        [Parameter(Mandatory=$false)][switch]$Download,
+        [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
+    Set-CursorInvisible
     $datasources = @()
-    Get-TSDatasources -Filter $Filter -Download:$Download.IsPresent | Foreach-Object {
+    $datasourceIndex = 0
+    $_datasources = Get-TSdatasources -Filter $Filter 
+    $datasourceCount = $_datasources.Count
+    $_datasources | Foreach-Object {
+        $datasourceIndex++
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$datasourceIndex/$datasourceCount] $($_.Name)" -ForegroundColor DarkGray
         $datasources += Get-TSDatasource+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter -Download:$Download.IsPresent
     }
+    Set-CursorVisible
 
     return $datasources
 
@@ -3083,13 +3188,21 @@ function global:Get-TSFlows+ {
         [Parameter(Mandatory=$false)][object]$Groups = (Get-TSGroups),
         [Parameter(Mandatory=$false)][object]$Projects = (Get-TSProjects+),
         [Parameter(Mandatory=$false)][string]$Filter,
-        [Parameter(Mandatory=$false)][switch]$Download
+        [Parameter(Mandatory=$false)][switch]$Download,
+        [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
+    Set-CursorInvisible
     $flows = @()
-    Get-TSFlows -Filter $Filter -Download:$Download.IsPresent | Foreach-Object {
+    $flowIndex = 0
+    $_flows = Get-TSflows -Filter $Filter 
+    $flowCount = $_flows.Count
+    $_flows | Foreach-Object {
+        $flowIndex++
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$flowIndex/$flowCount] $($_.Name)" -ForegroundColor DarkGray
         $flows += Get-TSFlow+ -Id $_.id -Users $Users -Groups $Groups -Projects $Projects -Filter $Filter -Download:$Download.IsPresent
     }
+    Set-CursorVisible
 
     return $flows
 
