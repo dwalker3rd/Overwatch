@@ -23,15 +23,13 @@ $global:Product.Config = @{
         build = ""
         version = ""
         script = ""
-        args = @()
         workingDirectory = ""
         startPlatform = $true
         retryCount = 1
     }
 }
-$global:Product.Config."<platform>".script = "C:\Program Files\Platform...\scripts\upgrade.ps1"
+$global:Product.Config."<platform>".script = "C:\Program Files\Platform...\scripts\upgrade.ps1 --arg1"
 $global:Product.Config."<platform>".workingDirectory = "C:\Program Files\...\scripts"
-$global:Product.Config."<platform>".args += ""
 
 return $global:Product
 
