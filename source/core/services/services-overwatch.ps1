@@ -2301,13 +2301,13 @@
                 if ($child -is [system.xml.xmltext])
                 # if it is simple XML text 
                 {
-                    Write-Host+ -IfVerbose "simple xml $childname"; -ForegroundColor DarkYellow
+                    Write-Host+ -IfVerbose "simple xml $childname" -ForegroundColor DarkYellow
                     $oHash.$childname += $child.InnerText
                 }
                 # if it has a #text child we may need to cope with attributes
                 elseif ($child.FirstChild.Name -eq '#text' -and $child.ChildNodes.Count -eq 1)
                 {
-                    Write-Host+ -IfVerbose "text"; -ForegroundColor DarkYellow
+                    Write-Host+ -IfVerbose "text" -ForegroundColor DarkYellow
                     if ($null -ne $child.Attributes) #hah, an attribute
                     {
                         <#we need to record the text with the #text label and preserve all
@@ -2329,7 +2329,7 @@
                 # if it is a data section, a block of text that isnt parsed by the parser,
                 # but is otherwise recognized as markup
                 {
-                    Write-Host+ -IfVerbose "cdata section"; -ForegroundColor DarkYellow
+                    Write-Host+ -IfVerbose "cdata section" -ForegroundColor DarkYellow
                     $oHash.$childname = $child.'#cdata-section'
                 }
                 elseif ($child.ChildNodes.Count -gt 1 -and 
