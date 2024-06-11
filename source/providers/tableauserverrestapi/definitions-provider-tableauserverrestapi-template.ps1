@@ -91,6 +91,7 @@ $Provider.Config += @{
             Database = @(
                 "ChangePermissions:Allow","ChangePermissions:Deny",
                 "Read:Allow","Read:Deny",
+                "Delete:Allow","Delete:Deny",
                 "Write:Allow","Write:Deny",
                 "ChangeHierarchy:Allow","ChangeHierarchy:Deny"
             )
