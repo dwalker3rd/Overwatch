@@ -1,340 +1,444 @@
-    function Export-TSObject {
+    $script:exporttypes = @{
+        server = @(
+            "serverInfo","sites"
+        )
+        site = @(
+            "site","users","groups","projects",
+            "projectDefaultPermissions",
+            "workbooks",
+            "views","datasources","flows","metrics","favorites",
+            "subscriptions","schedules","dataAlerts"
+        )
+    }
+    $script:plusTypes = @("users","groups","projects","projectDefaultPermissions","workbooks","views","datasources","flows")
+    $script:typesRequiringUsers = @("projects","projectDefaultPermissions","workbooks","views","datasources","flows")
+    $script:typesRequiringGroups = @("projects","projectDefaultPermissions","workbooks","views","datasources","flows")
+    $script:typesRequiringProjects = @("projectDefaultPermissions","workbooks","views","datasources","flows")
+    $script:downloadTypes = @("workbooks","datasources","flows")
+    $script:showProgressTypes = @("users","groups","projects","workbooks","views","datasources","flows")
+    
+    function Write-Start {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true)][string]$Action,
+            [Parameter(Mandatory=$true)][string]$Type,
+            [switch]$NewLine
+        )
+
+        $script:WriteEndNewLine = $NewLine
+
+        $actionMessage = "    $Action "
+        $actionMessageLength = 42 - $actionMessage.Length
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine $actionMessage -ForegroundColor DarkGray
+        Write-Host+ -NoTrace -NoTimestamp -NoNewLine:$(!$NewLine) -Parse "<$Type <.>$($actionMessageLength)> PENDING" -ForegroundColor DarkBlue,DarkGray,DarkGray
+
+    }
+
+    function Write-End {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true)][string]$Action,
+            [Parameter(Mandatory=$true)][string]$Type,
+            [Parameter(Mandatory=$false)][string]$Status = "SUCCESS",
+            [switch]$NewLine
+        )
+
+        if ($script:WriteEndNewLine) {
+            $NewLine = $true
+            $script:WriteEndNewLine = $false
+        }
+
+        $statusColor = 
+            switch ($Status) {
+                "FAILED" { "Red" }
+                default { "Green" }
+            }
+
+        if ($NewLine) {
+            $actionMessage = "    $Action "
+            $actionMessageLength = 42 - $actionMessage.Length
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -ReverseLineFeed 1 -EraseLine $actionMessage -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine:$(!$NewLine)  -Parse "<$Type <.>$($actionMessageLength)> $Status " -ForegroundColor DarkBlue,DarkGray,$statusColor
+        }
+        else {
+            $statusMessage = "$($emptyString.PadLeft(8,"`b")) $status"
+            Write-Host+ -NoTrace -NoTimeStamp $statusMessage -ForegroundColor $statusColor
+        }
+    }
+
+    function Get-ServerUri {
+
+        param(
+            [Parameter(Mandatory=$false)][object]$Server
+        )
+
+        $uri = $Server
+        try { invoke-webrequest $uri -Method Head | Out-Null }
+        catch {
+            try {
+                $uri = "https://$($Server)"
+                invoke-webrequest $uri -Method Head | Out-Null
+            }
+            catch { return }
+        }
+        return [uri]$uri
+
+    }
+
+    function Lock-ExportDirectory {
+
+        param(
+            [Parameter(Mandatory=$true,Position=0)][ValidateSet("Server","Site")][string]$Target
+        )
+        
+        $lockFile = switch ($Target) {
+            "Server" { $serverLockFile }
+            "Site" { $siteLockFile }
+        }
+        
+        Set-Content $lockFile -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
+    
+    }
+    function Lock-Site { Lock-ExportDirectory Site }
+    function Lock-Server { Lock-ExportDirectory Server }
+
+    function Unlock-ExportDirectory {
+    
+        param(
+            [Parameter(Mandatory=$true,Position=0)][ValidateSet("Server","Site")][string]$Target
+        )
+    
+        $lockFile = switch ($Target) {
+            "Server" { $serverLockFile }
+            "Site" { $siteLockFile }
+        }
+    
+        Remove-Item $lockFile -Force
+    
+    }
+    function Unlock-Site { Unlock-ExportDirectory Site }
+    function Unlock-Server { Unlock-ExportDirectory Server }
+
+    function IsServerLocked {
+
+        param()
+
+        if (Test-Path $serverLockFile) {
+            $inUseMeta = Get-Content $serverLockFile
+            $inUseDateTime = ($inUseMeta.Split(","))[0]
+            $inUseUsername = ($inUseMeta.Split(","))[1]
+            if ($inUseUsername -ne $ENV:USERNAME) {
+                Write-Host+ -NoTrace -NoTimestamp "[$inUseDateTime] Server $( $global:tsrestApiConfig.Server) locked by $inUseUsername." -ForegroundColor DarkYellow
+                return $true
+            }
+        }
+        return $false
+
+    }
+
+    function IsAnySiteLocked {
+
+        param()
+
+        $isAnySiteLocked = $false
+        foreach ($site in $global:sites) {
+            $siteLockFile = "$exportDirectory\$($Site.contentUrl)\inUse.lock"
+            if (Test-Path $siteLockFile) {
+                $inUseMeta = Get-Content $siteLockFile
+                $inUseDateTime = ($inUseMeta.Split(","))[0]
+                $inUseUsername = ($inUseMeta.Split(","))[1]
+                if ($inUseUsername -ne $ENV:USERNAME) {
+                    Write-Host+ -NoTrace -NoTimestamp "[$inUseDateTime] Site $($site.contentUrl) locked by $inUseUsername." -ForegroundColor DarkYellow
+                    $isAnySiteLocked = $true
+                }
+            }
+        }
+        return $isAnySiteLocked
+
+    }
+
+    function Get-TSObjects+ {
+
+        param()
+
+        $_showProgress = $global:ProgressPreference
+        if ($ShowProgress) {
+            $global:ProgressPreference = "Continue"
+        }
+
+        foreach ($exportType in ($script:exportTypes.server + $Script:exportTypes.site)) {
+
+            Write-Start -Action "Get" -Type $exportType
+
+            $exportTypeTitleCase = "$($exportType[0].ToString().ToUpper())$($exportType.SubString(1,$exportType.Length-1))"
+            $getTSObjectsExpression = "Get-TS$($exportTypeTitleCase)$($exportType -in $plusTypes ? "+" : $null) "
+            $getTSObjectsExpression += $exportType -in $typesRequiringUsers ? "-Users `$global:Users " : $null
+            $getTSObjectsExpression += $exportType -in $typesRequiringGroups ? "-Groups `$global:Groups " : $null
+            $getTSObjectsExpression += $exportType -in $typesRequiringProjects ? "-Projects `$global:Projects " : $null
+            $getTSObjectsExpression += $exportType -in $showProgressTypes ? "-ShowProgress " : $null
+
+            try {
+                if ($exportType -in $showProgressTypes) {
+                    Write-Host+ -SetIndentGlobal 8
+                    Write-Host+; Write-Host+
+                }
+                
+                Set-Variable -Scope Global -Name $exportType -Value (Invoke-Expression $getTSObjectsExpression)
+                
+                if ($exportType -in $showProgressTypes) {
+                    Write-Host+ -ResetIndentGlobal
+                }
+            }
+            catch {}
+            finally {
+                Write-Host+ -ResetIndentGlobal
+            }   
+
+            Invoke-Expression "`$global:$exportType" | Write-Cache "$($global:Platform.Instance)-$exportType" 
+
+            Write-End -Action "Get" -Type $exportType
+        }
+
+        $global:ProgressPreference = $_showProgress
+
+    }
+
+    function Restore-TSObjects {
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+        param ()
+
+        function Restore-TSObject {
+            param(
+                [Parameter(Mandatory=$false,Position=0)][string]$Type
+            )
+            $status = "RESTORED"
+            Write-Start -Action "Restore" -Type $Type
+            if ((Get-Cache "$($global:Platform.Instance)-$Type").Exists) {
+                Set-Variable -Scope Global -Name $Type -Value (Read-Cache "$($global:Platform.Instance)-$Type")
+            }
+            else {
+                $status = "NOCACHE"
+            }
+            Write-End -Action "Restore" -Type $Type -Status $status
+        }
+    
+        foreach ($exportType in ($script:exportTypes.server + $Script:exportTypes.site)) {
+            Restore-TSObject $exportType
+        }
+
+    }
+
+    function global:Export-TSObject {
 
         [CmdletBinding()]
         param(
             [Parameter(ValueFromPipeline)][Object[]]$InputObject,
-            [Parameter(Mandatory=$true,Position=0)][ValidateSet("Server","Site")][string]$Type,
             [Parameter(Mandatory=$true,Position=1)][string]$Name,
             [Parameter(Mandatory=$false)][ValidateSet("json")][string]$Format = "json"
         )
 
         begin {
-
-            $exportDirectory = switch ($Type) {
-                "Server" {
-                    "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\.$Format"
-                }
-                "Site" {
-                    $contentUrl = ![string]::IsNullOrEmpty($global:tsRestApiConfig.ContentUrl) ? $global:tsRestApiConfig.ContentUrl : "default"
-                    "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentURL\.$Format"
-                }
-            }
-            if (!(Test-Path -Path $exportDirectory -PathType Container)) { New-Item -ItemType Directory -Path $exportDirectory | Out-Null }
-
             $outFile = "$exportDirectory\$Name.$Format"
-
             $outputObject = @()
-
         }
         process {
-
             $outputObject += $InputObject 
-        
         }
         end {
-
             if (!$outputObject) { return }
-        
             switch ($Format) {
                 default {
-                    $exportObject = $outputObject | ConvertFrom-XmlElement | ConvertTo-Json -Depth 10
+                    $exportObject = $outputObject | ConvertTo-Json -Depth 10
                 }
             }
             Set-Content -Path $outFile -Value $exportObject -Force
-        
         }
-
     }
 
-    function Write-Start {
+    function Download-TSSiteContent {
 
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory=$true,Position=0)][string]$Name,
-            [switch]$NewLine
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+
+        Param (
+            [Parameter(Mandatory=$true,Position=1)][string]$Type
         )
 
-        $message = "<$Name <.>48> PENDING"
-        Write-Host+ -NoTrace -NoNewLine:$(!($NewLine.IsPresent)) -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
+        $contentUrl = (Get-TSSite).contentUrl
+        $exportDirectory = "$($global:Location.Data)\$($global:Platform.Instance)\.export\$contentUrl\"
+
+        if (!(Test-Path -Path $exportDirectory -PathType Container)) {
+            New-Item -ItemType Directory -Path $exportDirectory | Out-Null
+        }
+
+        $objects = (Invoke-Expression "`$global:$Type")[0..2]
+
+        $count = 1
+        foreach ($object in $objects) {
+
+            $downloadStatus = "SUCCEEDED"
+
+            $objectId = $object.Id
+            $objectName = $object.Name
+            $objectType = $Type -replace '^(.*)s$','$1'
+
+            $response = Download-TSObject -Method "Get$objectType" -InputObject $object
+            if ($response.error) {
+                $errorMessage = "Error $($response.error.code) ($($response.error.summary)): $($response.error.detail)"
+                Write-Log -Message $errorMessage -EntryType "Error" -Action $Method -Status "Error"
+                $object | Add-Member -NotePropertyName "error" -NotePropertyValue ($response | ConvertTo-Json -Compress) -ErrorAction SilentlyContinue
+                $downloadStatus = "FAILED"
+            }
+            else {
+                $object | Add-Member -NotePropertyName "outFile" -NotePropertyValue $response.outFile -ErrorAction SilentlyContinue
+            }
+
+            $_objectPath = $null
+            if (!$object.outFile) { throw "$($response.outFile) is null." }
+            $objectPath = $object.outFile -replace [System.Text.RegularExpressions.Regex]::Escape($exportDirectory), ""
+            Write-Host+ -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLineToCursor "        [$count/$($objects.Count)] $objectPath" -ForegroundColor DarkGray
+
+            $count++
+
+        }
+
+        Write-Host+ -NoTrace -NoTimeStamp -ReverseLineFeed 2 -EraseLineToCursor
 
     }
 
-    function Write-End {
-
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory=$true,Position=0)][string]$Name,
-            [switch]$NewLine
-        )
-
-        if ($NewLine) {
-            $message = "<$Name <.>48> SUCCESS"
-            Write-Host+ -NoTrace -Parse $message-ForegroundColor Gray,DarkGray,DarkGreen
-        }
-        else {
-            $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS$($emptyString.PadLeft(8," "))"
-            Write-Host+ -NoTrace -NoSeparator -NoTimeStamp $message -ForegroundColor DarkGreen
-        }
-    }
-
-    function global:Export-Content {
+    function Export-TSServer {
 
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
 
         [CmdletBinding()]
-        param ()
+        param (
+            [Parameter(Mandatory=$false)][string]$Server =  $global:tsrestApiConfig.Server,
+            [switch]$Restore,
+            [switch]$Refresh
+        )
 
-        # Write-Host+ -ResetAll
-
-        Write-Host+ -NoTrace -NoTimestamp "Export for Tableau Server"
-
-        do {
-            $defaultServerSiteResponse = "site"
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Export server or site?","[$defaultServerSiteResponse]: " -ForegroundColor Gray,Blue
-            $exportServerSiteResponse = Read-Host
-            $exportServerSiteResponse = ![string]::IsNullOrEmpty($exportServerSiteResponse) ? $exportServerSiteResponse : $defaultServerSiteResponse
-            if ($exportServerSiteResponse -notin ("Server","Site")) { 
-                Write-Host+ -NoTrace -NoTimestamp "Response must be `"Server`" or `"Site`"" -ForegroundColor Red
-            }
-        } until ($exportServerSiteResponse -in ("Server","Site"))
-
-        $defaultServerResponse = $global:tsRestApiConfig.Server
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Server","[$defaultServerResponse]",": " -ForegroundColor Gray,Blue,Gray
-        $server = Read-Host
-        $server = ![string]::IsNullOrEmpty($server) ? $server : $defaultServerResponse
-
-        $contentUrl = ""
-        if ($exportServerSiteResponse -eq "Site") {
-            $defaultContentUrlResponse = $global:tsRestApiConfig.ContentUrl
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine "ContentUrl","[$defaultContentUrlResponse]",": " -ForegroundColor Gray,Blue,Gray
-            $contentUrl = Read-Host
-            $contentUrl = ![string]::IsNullOrEmpty($contentUrl) ? $contentUrl : $defaultContentUrlResponse
-        }
-
-        $defaultCredentialsNameResponse = $exportServerSiteResponse -eq "Server" ? "localadmin-$($global:Platform.Instance)" : $null
-        Write-Host+ -NoTrace -NoTimestamp -NoNewLine "Credentials","[$defaultCredentialsNameResponse]",": " -ForegroundColor Gray,Blue,Gray
-        $credentialsName = Read-Host
-        $credentialsName = ![string]::IsNullOrEmpty($credentialsName) ? $credentialsName : $defaultCredentialsNameResponse
+        if (IsServerLocked) { return }
+        if (IsAnySiteLocked) { return }
 
         try {
-            Initialize-TSRestApiConfiguration -Server $server -ContentUrl $contentUrl -Credentials $credentialsName
-        }
-        catch {
-            throw "Invalid server, site or credentials."
-        }
 
-        switch ($exportServerSiteResponse) {
-            "Server" { 
-                Export-TSServer
+            $script:exportDirectory = "$($global:Location.Data)\$($global:Platform.Instance)\.export\"
+            $script:serverLockFile = "$exportDirectory\inUse.lock"
+
+            # remove all files from the server's export/download directory
+            # Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+            Lock-Server
+
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "Server:","$($global:Platform.Instance)" -ForegroundColor DarkGray,DarkBlue
+            Write-Host+
+
+            if ($Refresh) {
+                Get-TSObjects+
             }
-            "Site" {
-                Export-TSSite 
+            elseif ($Restore) {
+                Restore-TSObjects
             }
+
+            foreach ($exportType in $exportTypes.server) {
+                Write-Start -Action "Export" -Type $exportType
+                Invoke-Expression "`$global:$($exportType)" | Export-TSObject Server $exportType
+                Write-End -Action "Export" -Type $exportType
+            }
+
+            foreach ($site in $global:sites) {
+                Export-TSSite $site.contentUrl
+            }
+
+        }
+        catch {}
+        finally {
+            Unlock-Server
         }
 
-
     }
 
-function global:Export-TSServer {
+    function Export-TSSite {
 
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false)][string]$Server = $global:tsRestApiConfig.Server,
-        [Parameter(Mandatory=$false)][string]$Credentials = "localadmin-$($global:Platform.Instance)"
-    )
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$false)][object]$Server =  $global:tsrestApiConfig.Server,
+            [Parameter(Mandatory=$true,Position=0)][object]$Site,
+            [switch]$Restore,
+            [switch]$Refresh
+        )
 
-    # is the server export/download directory locked?
-    if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock") {
+        $_server = $Server
+        $script:Server = Get-ServerUri $Server
+        if (!$script:Server) {
+            throw "'$_server' is not a valid uri or uri.host"
+        }
 
-        $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock"
-        $inuseDateTime = ($inuseMeta.Split(","))[0]
-        $inuseUsername = ($inuseMeta.Split(","))[1]
-        
-        Write-Host+ -NoTrace -NoTimestamp "The server export directory has been in use by $inuseUsername since $inuseDateTime" -ForegroundColor DarkYellow
-        return
+        $contentUrl = switch ($Site.GetType()) {
+            "object" { $Site.ContentUrl }
+            "string" { $Site }
+        }
+        if ($contentUrl -in $global:Sites.contentUrl) {
+            throw "'$Site' is not a valid site for server '$script:Server'."
+        }
 
-    }
+        Switch-TSSite -ContentUrl $contentUrl
+        # call Get-TSSite to get the proper case for the contentUrl
+        $contentUrl = (Get-TSSite).contentUrl 
 
-    # is any site's export/downlaod directory locked?
-    foreach ($site in Get-TSSites) {
-        if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$($site.contentUrl)\inuse.lock") {
+        if (IsServerLocked) { return }
+        if (IsAnySiteLocked) { return }
 
-            $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$($site.contentUrl)\inuse.lock"
-            $inuseDateTime = ($inuseMeta.Split(","))[0]
-            $inuseUsername = ($inuseMeta.Split(","))[1]
+        try {
+
+            $script:exportDirectory
+            $script:exportDirectory = "$($global:Location.Data)\$($global:Platform.Instance)\.export\$contentUrl"
+            $script:siteLockFile = "$exportDirectory\inUse.lock"
+
+            # # remove all files from this site's download/export directory
+            # Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$contentUrl\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+            # set this site's export/download directory's lock file with current datetime and user
+            if (!(Test-Path $exportDirectory)) { New-Item -ItemType Directory -Path $exportDirectory | Out-Null }
+
+            Lock-Site $Site
             
-            Write-Host+ -NoTrace -NoTimestamp "The site export directory for the site `"$($site.contentUrl)`" has been in use by $inuseUsername since $inuseDateTime" -ForegroundColor DarkYellow
-            return
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "Site:","$(![string]::IsNullOrEmpty($contentUrl) ? $contentUrl : "default")" -ForegroundColor DarkGray,DarkBlue
+            Write-Host+
+                    
+            if ($Refresh) {
+                Get-TSObjects+ Site
+            }
+            elseif ($Restore) {
+                Restore-TSObjects Site
+            }
+
+            foreach ($exportType in $exportTypes.site) {
+                $objectCount = (Invoke-Expression "`$global:$($exportType)").Count
+                Write-Start -Action "Export" -Type $exportType -NewLine:$($exportType -in $downloadTypes)
+                if ($objectCount -gt 0) {
+                    Invoke-Expression "`$global:$($exportType)" | Export-TSObject site $exportType
+                    if ($downloadTypes -contains $exportType) {
+                        Write-Host+
+                        Download-TSContent Site $exportType
+                    }
+                }
+                Write-End -Action "Export" -Type $exportType -Status "Exported"
+            }
+        
+            Write-Host+
+
+        }
+        catch {}
+        finally {
+
+            Unlock-Site
 
         }
     }
-
-    try {
-
-        # remove all files from the server's export/download directory
-        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\*" -Recurse -Force -ErrorAction SilentlyContinue
-
-        # set the server lock file with the current datetime and user
-        Set-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock" -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
-
-        # Write-Host+ -ResetAll
-        Write-Host+
-        Write-Host+ -NoTrace "Server: $($global:tsRestApiConfig.Platform.Uri.Host) ($($global:tsRestApiConfig.Platform.Name))"
-
-        Write-Host+ -SetIndentGlobal +2
-
-        Write-Start serverInfo
-        $serverInfo = Get-TSServerInfo
-        $serverInfo | Export-TSObject Server serverInfo
-        Write-End serverInfo
-
-        Write-Start sites
-        $sites = Get-TSSites
-        $sites | Export-TSObject Server sites
-        Write-End sites
-
-        Write-Host+ -SetIndentGlobal -2
-
-        foreach ($site in $sites) { Export-TSSite $site.contentUrl }
-
-    }
-    catch {}
-    finally {
-        # remove the server's export/download directory lock file
-        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock" -force
-    }
-
-}
-
-function global:Export-TSSite {
-
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingPlainTextForPassword", "")]
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false,Position=0)][Alias("Site")][string]$ContentUrl = $global:tsRestApiConfig.ContentUrl
-    )
-
-    $callStack = Get-PSCallStack
-    $caller = $callstack[1] ? ($callstack[1].FunctionName -eq "<ScriptBlock>" ? "" : $callstack[1].FunctionName.replace('global:','')) : ""
-    if ($caller -ne "Export-TSServer") {
-
-        # is the server's export/download directory locked?
-        if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock") {
-
-            $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\inuse.lock"
-            $inuseDateTime = ($inuseMeta.Split(","))[0]
-            $inuseUsername = ($inuseMeta.Split(","))[1]
-            
-            Write-Host+ -NoTrace -NoTimestamp "The server export directory has been in use by $inuseUsername since $inuseDateTime" -ForegroundColor DarkYellow
-            return
-
-        }
-    
-    }
-
-    # is this site's export/download directory locked?
-    if (Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")\inuse.lock") {
-
-        $inuseMeta = Get-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\inuse.lock"
-        $inuseDateTime = ($inuseMeta.Split(","))[0]
-        $inuseUsername = ($inuseMeta.Split(","))[1]
-        
-        Write-Host+ -NoTrace -NoTimestamp "The site export directory for this site, `"$ContentUrl`", has been in use by $inuseUsername since $inuseDateTime" -ForegroundColor DarkYellow
-        return
-
-    }
-
-    try {
-
-        # remove all files from this site's download/export directory
-        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\*" -Recurse -Force -ErrorAction SilentlyContinue
-
-        # set this site's export/download directory's lock file with current datetime and user
-        if (!(Test-Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl")) { New-Item -ItemType Directory -Path "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl" | Out-Null }
-        Set-Content "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\inuse.lock" -Value "$([datetime]::Now.ToString('u')), $($env:USERNAME)"
-        
-        Write-Host+ -MaxBlankLines 1
-        Write-Host+ -NoTrace "Site: $(![string]::IsNullOrEmpty($ContentUrl) ? $ContentUrl : "default")"
-        Write-Host+ -SetIndentGlobal +2
-
-        Switch-TSSite -ContentUrl $ContentUrl
-
-        Write-Start site
-        $site = Get-TSSite
-        $site | Export-TSObject Site site
-        Write-End site
-        
-        Write-Start users
-        $users = Get-TSUsers+
-        $users | Export-TSObject Site users
-        Write-End users
-        
-        Write-Start groups
-        $groups = Get-TSGroups+
-        $groups | Export-TSObject Site groups
-        Write-End groups
-
-        Write-Start projects
-        $projects = Get-TSProjects+
-        $projects | Export-TSObject Site projects
-        Write-End projects
-
-        Write-Start workbooks
-        $workbooks = Get-TSWorkbooks+ -Users $Users -Groups $Groups -Projects $Projects -Download
-        $workbooks | Export-TSObject Site workbooks
-        Write-End workbooks
-
-        Write-Start wiews
-        $views = Get-TSViews+  -Users $Users -Groups $Groups -Projects $Projects -Workbooks $workbooks
-        $views | Export-TSObject Site views
-        Write-End views
-
-        Write-Start datasources
-        $datasources = Get-TSDatasources+ -Users $Users -Groups $Groups -Projects $Projects -Download
-        $datasources | Export-TSObject Site datasources
-        Write-End datasources
-
-        Write-Start flows
-        $flows = Get-TSFlows+ -Users $Users -Groups $Groups -Projects $Projects -Download
-        $flows | Export-TSObject Site flows
-        Write-End flows
-
-        Write-Start metrics
-        $metrics = Get-TSMetrics
-        $metrics | Export-TSObject Site metrics
-        Write-End metrics
-
-        Write-Start favorites
-        $favorites = Get-TSFavorites
-        $favorites | Export-TSObject Site favorites
-        Write-End favorites
-
-        Write-Start subscriptions
-        $subscriptions = Get-TSSubscriptions
-        $subscriptions | Export-TSObject Site subscriptions
-        Write-End subscriptions
-
-        Write-Start schedules
-        $schedules = Get-TSSchedules 
-        $schedules | Export-TSObject Site schedules
-        Write-End schedules
-
-        Write-Start dataAlerts
-        $dataAlerts = Get-TSDataAlerts
-        $dataAlerts | Export-TSObject Site dataAlerts
-        Write-End dataAlerts
-        
-        Write-Host+ -SetIndentGlobal -2
-        Write-Host+
-    }
-    catch {}
-    finally {
-
-        # remove this site's export/download directory lock file
-        Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$ContentUrl\inuse.lock" -force
-
-    }
-}
