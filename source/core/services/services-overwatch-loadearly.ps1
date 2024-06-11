@@ -62,7 +62,7 @@ function global:Write-Host+ {
         [Parameter(Mandatory=$false)][int]$MaxBlankLines,
         [Parameter(Mandatory=$false)][int]$LineFeed,
         [Parameter(Mandatory=$false)][int]$ReverseLineFeed,
-        [switch]$EraseLine,
+        [switch]$EraseLine, [switch]$EraseToCursor, [switch]$EraseFromCursor, [switch]$EraseLineToCursor,
         [switch]$NoTimestamp,
         [switch]$NoTrace,
         [Parameter(Mandatory=$false)][ValidateSet("NoArguments","NoCommand","NoScriptName","NoLineNumber")][string[]]$TraceFormat,
@@ -98,9 +98,9 @@ function global:Write-Host+ {
     $returnAfterSettings = $false
     if ($ResetMaxBlankLines) { $global:WriteHostPlusBlankLineCount = 0; $returnAfterSettings = $true }
     if ($global:WriteHostPlusPreference -and $global:WriteHostPlusPreference -ne "Continue") { $returnAfterSettings = $true }
-    if ($IfVerbose -and !$VerbosePreference) { $returnAfterSettings = $true }
-    if ($IfDebug -and !$DebugPreference) { $returnAfterSettings = $true }
-    if ($IfInformation -and !$InformationPreference) { $returnAfterSettings = $true }
+    if ($IfVerbose -and $VerbosePreference -ne "Continue") { $returnAfterSettings = $true }
+    if ($IfDebug -and $DebugPreference -ne "Continue") { $returnAfterSettings = $true }
+    if ($IfInformation -and $InformationPreference -ne "Continue") { $returnAfterSettings = $true }
     if ($ResetIndentGlobal) { $global:WriteHostPlusIndentGlobal = 0; $returnAfterSettings = $true }
     if ($SetIndentGlobal) { 
         if ($SetIndentGlobal -match $global:RegexPattern.SignedInteger) {
@@ -141,9 +141,9 @@ function global:Write-Host+ {
     # if ($ReverseLineFeed -and $LineFeed) {
     #     throw "The `"ReverseLineFeed`" and `"LineFeed`" switches cannot be used together"
     # }
-    if ($EraseLine -and !$ReverseLineFeed) {
-        throw "The `"EraseLine`" switch can only be used with the `"ReverseLineFeed`" switch"
-    }
+    # if ($EraseLine -and !$ReverseLineFeed) {
+    #     throw "The `"EraseLine`" switch can only be used with the `"ReverseLineFeed`" switch"
+    # }
 
     if ($NoIndent) {$Indent = 0}
     # if (!$global:WriteHostPlusEndOfLine) {$Indent = 0}
@@ -155,11 +155,13 @@ function global:Write-Host+ {
     $lineNumber = 0
     if ($ReverseLineFeed -gt 0) {
         Write-Host -NoNewLine "`e[$($ReverseLineFeed)F"
-        Write-Host -NoNewLine ($EraseLine ? "`e[0K" : $null)
+        Write-Host -NoNewLine ($EraseToCursor ? "`e[1K" : $null)
+        Write-Host -NoNewLine ($EraseFromCursor ? "`e[0K" : $null)
+        Write-Host -NoNewLine ($EraseLine -or $EraseLineToCursor ? "`e[2K" : $null)
         for ($lineNumber = -1 * $ReverseLineFeed; $lineNumber -lt 0; $lineNumber++) {
             Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
             Write-Host -NoNewLine "`e[1E"
-            Write-Host -NoNewLine ($EraseLine ? "`e[0K" : $null)
+            Write-Host -NoNewLine ($EraseLineToCursor ? "`e[2K" : $null)
         }
         Write-Host -NoNewLine -ForegroundColor $DefaultForegroundColor[0] ($LineNumbers ? "#$($lineNumber) " : $null)
         Write-Host -NoNewLine "`e[$($ReverseLineFeed)F"
