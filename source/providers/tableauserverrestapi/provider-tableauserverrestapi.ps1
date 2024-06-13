@@ -1162,6 +1162,9 @@ function global:Download-TSObject {
     $outFileName = $outFileNameLeafBase + ($revision ? ".rev$revision" : $null) + $outFileExtension
     $outFileDirectory = "$($global:Location.Root)\Data\$($global:tsRestApiConfig.Platform.Instance)\.export\$contentUrl\$projectPathDecoded$($revision ? "\$contentDispositionFileName.revisions" : $null)"
     $outFileDirectory = $outFileDirectory -replace "[<>|]", "-"
+    if ($InputObject.location.type -eq "PersonalSpace") {
+        $outFileDirectory += "Personal Space\$($InputObject.owner.name)\"
+    }
     if (!(Test-Path -Path $outFileDirectory -PathType Container)) { New-Item -ItemType Directory -Path $outFileDirectory | Out-Null }
     $outFile = "$outFileDirectory\$outFileName"
 
@@ -2210,7 +2213,6 @@ function global:Get-TSProjectPermissions+ {
     foreach ($project in $projects) {
 
         $permissions = Get-TSProjectPermissions -Project $project
-        $permissions | Add-Member -NotePropertyName defaultPermissions -NotePropertyValue (Get-TSProjectDefaultPermissions+ -Project $project)
         foreach ($permission in $permissions) {
             foreach ($granteeCapability in $permission.GranteeCapabilities) {
                 if ($granteeCapability.user) {
@@ -2226,8 +2228,12 @@ function global:Get-TSProjectPermissions+ {
                     }
                 }
             }
-            $projectPermissions += $permissions
         }
+
+        $defaultPermissions = Get-TSProjectDefaultPermissions+ -Project $project -Groups $Groups -Users $Users
+        $permissions | Add-Member -NotePropertyName defaultPermissions -NotePropertyValue $defaultPermissions
+        
+        $projectPermissions += $permissions
 
     }
 
@@ -2376,7 +2382,8 @@ function global:Get-TSProjectDefaultPermissions {
     foreach ($project in $Projects) {
         $_projectDefaultPermissions = @{}
         foreach ($_type in $Type) {
-            $_projectDefaultPermissions += @{ $($_type -replace ($_type -eq "lenses" ? "es$" : "s$"),"") = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) }
+            $_projectDefaultPermissionsByType = Get-TSObjects -Method GetProjectDefaultPermissions -Params @($project.Id,$_type) | ConvertTo-PSCustomObject
+            $_projectDefaultPermissions += @{ $($_type -replace ($_type -eq "lenses" ? "es$" : "s$"),"") = $_projectDefaultPermissionsByType }
         }
         $projectDefaultPermissions += $_projectDefaultPermissions | ConvertTo-PSCustomObject
     }
