@@ -167,6 +167,8 @@
             $global:ProgressPreference = "Continue"
         }
 
+        $site = Get-TSSite
+
         foreach ($exportType in ($script:exportTypes.server + $Script:exportTypes.site)) {
 
             Write-Start -Action "Get" -Type $exportType
@@ -195,7 +197,8 @@
                 Write-Host+ -ResetIndentGlobal
             }   
 
-            Invoke-Expression "`$global:$exportType" | Write-Cache "$($global:Platform.Instance)-$exportType" 
+            $cache = "$($global:Platform.Instance)-$($site.name -eq "Default" ? "default" : $site.contentUrl)-$exportType"
+            Invoke-Expression "`$global:$exportType" | Write-Cache $cache
 
             Write-End -Action "Get" -Type $exportType
         }
@@ -210,22 +213,30 @@
         param ()
 
         function Restore-TSObject {
+
             param(
-                [Parameter(Mandatory=$false,Position=0)][string]$Type
+                [Parameter(Mandatory=$true)][object]$Site,
+                [Parameter(Mandatory=$true)][string]$Type
             )
+            
             $status = "RESTORED"
             Write-Start -Action "Restore" -Type $Type
             if ((Get-Cache "$($global:Platform.Instance)-$Type").Exists) {
-                Set-Variable -Scope Global -Name $Type -Value (Read-Cache "$($global:Platform.Instance)-$Type")
+                $cache = "$($global:Platform.Instance)-$($Site.name -eq "Default" ? "default" : $Site.contentUrl)-$Type"
+                Set-Variable -Scope Global -Name $Type -Value (Read-Cache $cache)
             }
             else {
                 $status = "NOCACHE"
             }
+            
             Write-End -Action "Restore" -Type $Type -Status $status
+
         }
+
+        $site = Get-TSSite
     
         foreach ($exportType in ($script:exportTypes.server + $Script:exportTypes.site)) {
-            Restore-TSObject $exportType
+            Restore-TSObject -Site $site -Type $exportType
         }
 
     }
@@ -266,14 +277,7 @@
             [Parameter(Mandatory=$true,Position=1)][string]$Type
         )
 
-        $contentUrl = (Get-TSSite).contentUrl
-        $exportDirectory = "$($global:Location.Data)\$($global:Platform.Instance)\.export\$contentUrl\"
-
-        if (!(Test-Path -Path $exportDirectory -PathType Container)) {
-            New-Item -ItemType Directory -Path $exportDirectory | Out-Null
-        }
-
-        $objects = (Invoke-Expression "`$global:$Type")[0..2]
+        $objects = (Invoke-Expression "`$global:$Type")
 
         $count = 1
         foreach ($object in $objects) {
@@ -319,13 +323,13 @@
             [switch]$Refresh
         )
 
-        if (IsServerLocked) { return }
-        if (IsAnySiteLocked) { return }
-
         try {
 
             $script:exportDirectory = "$($global:Location.Data)\$($global:Platform.Instance)\.export\"
             $script:serverLockFile = "$exportDirectory\inUse.lock"
+
+            if (IsServerLocked) { return }
+            if (IsAnySiteLocked) { return }
 
             # remove all files from the server's export/download directory
             # Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\*" -Recurse -Force -ErrorAction SilentlyContinue
@@ -345,12 +349,17 @@
 
             foreach ($exportType in $exportTypes.server) {
                 Write-Start -Action "Export" -Type $exportType
-                Invoke-Expression "`$global:$($exportType)" | Export-TSObject Server $exportType
+                Invoke-Expression "`$global:$($exportType)" | Export-TSObject $exportType
                 Write-End -Action "Export" -Type $exportType
             }
 
+            # copy to Azure storage blob
+            $creds = get-credentials azure-storagecontainer-backups-admin
+            $blobSasUrl = "$($creds.UserName)/$($global:Platform.Instance)/.export/?$($creds.GetNetworkCredential().Password)"
+            azcopy copy "$($exportDirectory)*.*" $blobSasUrl
+
             foreach ($site in $global:sites) {
-                Export-TSSite $site.contentUrl
+                Export-TSSite $site
             }
 
         }
@@ -383,7 +392,7 @@
             "object" { $Site.ContentUrl }
             "string" { $Site }
         }
-        if ($contentUrl -in $global:Sites.contentUrl) {
+        if ($contentUrl -notin $global:Sites.contentUrl) {
             throw "'$Site' is not a valid site for server '$script:Server'."
         }
 
@@ -391,14 +400,15 @@
         # call Get-TSSite to get the proper case for the contentUrl
         $contentUrl = (Get-TSSite).contentUrl 
 
-        if (IsServerLocked) { return }
-        if (IsAnySiteLocked) { return }
-
         try {
 
-            $script:exportDirectory
-            $script:exportDirectory = "$($global:Location.Data)\$($global:Platform.Instance)\.export\$contentUrl"
+            $script:exportDirectoryRoot = "$($global:Location.Data)\$($global:Platform.Instance)\.export\"
+            $script:serverLockFile = "$exportDirectoryRoot\inUse.lock"
+            $script:exportDirectory = $exportDirectoryRoot + $contentUrl
             $script:siteLockFile = "$exportDirectory\inUse.lock"
+
+            if (IsServerLocked) { return }
+            if (IsAnySiteLocked) { return }
 
             # # remove all files from this site's download/export directory
             # Remove-Item "$($global:Location.Root)\data\$($tsRestApiConfig.Platform.Instance)\.export\$contentUrl\*" -Recurse -Force -ErrorAction SilentlyContinue
@@ -413,24 +423,29 @@
             Write-Host+
                     
             if ($Refresh) {
-                Get-TSObjects+ Site
+                Get-TSObjects+
             }
             elseif ($Restore) {
-                Restore-TSObjects Site
+                Restore-TSObjects
             }
 
             foreach ($exportType in $exportTypes.site) {
                 $objectCount = (Invoke-Expression "`$global:$($exportType)").Count
                 Write-Start -Action "Export" -Type $exportType -NewLine:$($exportType -in $downloadTypes)
                 if ($objectCount -gt 0) {
-                    Invoke-Expression "`$global:$($exportType)" | Export-TSObject site $exportType
+                    Invoke-Expression "`$global:$($exportType)" | Export-TSObject $exportType
                     if ($downloadTypes -contains $exportType) {
                         Write-Host+
-                        Download-TSContent Site $exportType
+                        Download-TSSiteContent $exportType
                     }
                 }
                 Write-End -Action "Export" -Type $exportType -Status "Exported"
             }
+
+            # copy to Azure storage blob
+            $creds = get-credentials azure-storagecontainer-backups-admin
+            $blobSasUrl = "$($creds.UserName)/$($global:Platform.Instance)/.export/ $($contentUrl)?$($creds.GetNetworkCredential().Password)"
+            azcopy copy $exportDirectory $blobSasUrl --recursive=true
         
             Write-Host+
 
