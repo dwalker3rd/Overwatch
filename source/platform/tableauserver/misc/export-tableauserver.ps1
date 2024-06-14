@@ -41,7 +41,8 @@
             [Parameter(Mandatory=$true)][string]$Action,
             [Parameter(Mandatory=$true)][string]$Type,
             [Parameter(Mandatory=$false)][string]$Status = "SUCCESS",
-            [switch]$NewLine
+            [switch]$NewLine,
+            [switch]$ShowProgress
         )
 
         if ($script:WriteEndNewLine) {
@@ -55,11 +56,18 @@
                 default { "Green" }
             }
 
-        if ($NewLine) {
+        if ($ShowProgress -and $Type -in $script:showProgressTypes) {
+            $actionMessage = "    $Action "
+            $actionMessageLength = 42 - $actionMessage.Length
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -ReverseLineFeed 1 -EraseLine 
+            Write-Host+ -NoTrace -NoTimestamp -NoNewLine -ReverseLineFeed 2 -EraseLine $actionMessage -ForegroundColor DarkGray
+            Write-Host+ -NoTrace -NoTimestamp -Parse "<$Type <.>$($actionMessageLength)> $Status " -ForegroundColor DarkBlue,DarkGray,$statusColor
+        }
+        elseif ($NewLine) {
             $actionMessage = "    $Action "
             $actionMessageLength = 42 - $actionMessage.Length
             Write-Host+ -NoTrace -NoTimestamp -NoNewLine -ReverseLineFeed 1 -EraseLine $actionMessage -ForegroundColor DarkGray
-            Write-Host+ -NoTrace -NoTimestamp -NoNewLine:$(!$NewLine)  -Parse "<$Type <.>$($actionMessageLength)> $Status " -ForegroundColor DarkBlue,DarkGray,$statusColor
+            Write-Host+ -NoTrace -NoTimestamp -Parse "<$Type <.>$($actionMessageLength)> $Status " -ForegroundColor DarkBlue,DarkGray,$statusColor
         }
         else {
             $statusMessage = "$($emptyString.PadLeft(8,"`b")) $status"
@@ -167,6 +175,8 @@
             $global:ProgressPreference = "Continue"
         }
 
+        Write-Host+
+
         $site = Get-TSSite
 
         foreach ($exportType in ($script:exportTypes.server + $Script:exportTypes.site)) {
@@ -200,7 +210,7 @@
             $cache = "$($global:Platform.Instance)-$($site.name -eq "Default" ? "default" : $site.contentUrl)-$exportType"
             Invoke-Expression "`$global:$exportType" | Write-Cache $cache
 
-            Write-End -Action "Get" -Type $exportType
+            Write-End -Action "Get" -Type $exportType -ShowProgress
         }
 
         $global:ProgressPreference = $_showProgress
@@ -221,8 +231,8 @@
             
             $status = "RESTORED"
             Write-Start -Action "Restore" -Type $Type
-            if ((Get-Cache "$($global:Platform.Instance)-$Type").Exists) {
-                $cache = "$($global:Platform.Instance)-$($Site.name -eq "Default" ? "default" : $Site.contentUrl)-$Type"
+            $cache = "$($global:Platform.Instance)-$($Site.name -eq "Default" ? "default" : $Site.contentUrl)-$Type"
+            if ((Get-Cache $cache).Exists) {
                 Set-Variable -Scope Global -Name $Type -Value (Read-Cache $cache)
             }
             else {
@@ -234,10 +244,30 @@
         }
 
         $site = Get-TSSite
-    
-        foreach ($exportType in ($script:exportTypes.server + $Script:exportTypes.site)) {
-            Restore-TSObject -Site $site -Type $exportType
+
+        $cache = Get-Cache "$($global:Platform.Instance)-$($site.name -eq "Default" ? "default" : $site.contentUrl)-site" -MaxAge (New-TimeSpan -Days 1)
+        if ($cache.Exists) {
+            $cacheLastWriteTime = [datetime]::now - $cache.age()
+            $cacheAgeInHours = [math]::Round($cache.age().TotalHours,1)
+
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "Last cache refresh: ","$($cacheLastWriteTime.ToString('u'))" -ForegroundColor DarkGray, DarkBlue
+            Write-Host+ -NoTrace -NoTimestamp -Iff $($cache.age().TotalHours -gt 24) "WARNING: $($site.contentUrl) caches are $cacheAgeInHours hours old. Refresh with Get-TSObjects+." -ForegroundColor DarkYellow
+            Write-Host+
+
+            foreach ($exportType in ($script:exportTypes.server + $Script:exportTypes.site)) {
+                Restore-TSObject -Site $site -Type $exportType
+            }
         }
+        else {
+            Write-Host+
+            Write-Host+ -NoTrace -NoTimestamp "NOTFOUND: $($site.contentUrl) caches were not found." -ForegroundColor Red
+            Write-Host+ -NoTrace -NoTimestamp "INFO: Use","Get-TSObjects+","to get and cache objects." -ForegroundColor Gray,DarkBlue,Gray
+        }
+
+        Write-Host+
+
+        return
 
     }
 
@@ -338,7 +368,6 @@
 
             Write-Host+
             Write-Host+ -NoTrace -NoTimestamp "Server:","$($global:Platform.Instance)" -ForegroundColor DarkGray,DarkBlue
-            Write-Host+
 
             if ($Refresh) {
                 Get-TSObjects+
@@ -383,13 +412,13 @@
         )
 
         $_server = $Server
-        $script:Server = Get-ServerUri $Server
+        $script:Server = Get-ServerUri $_server
         if (!$script:Server) {
             throw "'$_server' is not a valid uri or uri.host"
         }
 
         $contentUrl = switch ($Site.GetType()) {
-            "object" { $Site.ContentUrl }
+            {$_ -in ("object","pscustomobject")} { $Site.ContentUrl }
             "string" { $Site }
         }
         if ($contentUrl -notin $global:Sites.contentUrl) {
@@ -420,7 +449,6 @@
             
             Write-Host+
             Write-Host+ -NoTrace -NoTimestamp "Site:","$(![string]::IsNullOrEmpty($contentUrl) ? $contentUrl : "default")" -ForegroundColor DarkGray,DarkBlue
-            Write-Host+
                     
             if ($Refresh) {
                 Get-TSObjects+
