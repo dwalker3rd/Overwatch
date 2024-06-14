@@ -37,7 +37,7 @@ $global:RegexPattern = @{
             1076 = "The\sreason\ssupplied\sby\suser\s(?'user'\S*)\sfor\sthe\slast\sunexpected\sshutdown\sof\sthis\scomputer\sis:\s(?'reason'.*)\n\s*Reason\sCode:\s*(?'code'.*)\n\s*Bug\sID:\s*(?'bugID'.*)\s*Bugcheck\sString:\s*(?'bugcheckString'.*)\n\s*Comment:\s*(?'comment'\S?.*)"
         }
         ComputerName = "[^\.\\/\:\*\?""\<\>\|]{1}[^\\/\:\*\?""\<\>\|]{0,14}"
-        Unc = "^(?:\\\\(?<computername>[^\\]*))?\\?(?'path'(?'drive'[a-zA-Z](?:\$|\:))?\\?(?'directory'.*[\/\\])?(?'filenamewithoutextension'[\w\-_\.]*?)((?'extension'\.\w+)*)?)$"
+        Unc = "^(?:\\\\(?<computername>[^\\]*))?\\?(?'path'(?'drive'[a-zA-Z](?:\$|\:))?\\?(?'directory'.*[\/\\])?(?'filenamewithoutextension'[\w\-_\.\s]*?)((?'extension'\.\w+)*)?)$"
     }
     WriteHostPlus = @{
         Parse = "^<(.*?)\s<(.)>(\d*)>\s(.*)$"
