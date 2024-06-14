@@ -1696,9 +1696,24 @@ function global:Get-TSUsers+ {
         [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
-    if (!$Users) {
-        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSUsers' in the caller to pass `$Users into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+    $function = $PSCmdlet.MyInvocation.MyCommand.Name
+    $callStack = Get-PSCallStack
+    $caller = $callStack[1].Command -eq "<ScriptBlock>" ? "You" : "'$($callStack[1].Command)'"
+
+    $recommendation = "[PERFORMANCE] $caller should use the '`$<lookupObject>' parameter to pass the <lookupObject> object<singularOrPlural> to '$function'."
+
+    $lookupObjects = @()
+    if (!$Users) { 
+        $lookupObjects += "Users"
         $Users = Get-TSUsers
+    }
+
+    if ($lookupObjects) {
+        $message = $recommendation -replace "<lookupObject>", ($lookupObjects -join ", ")
+        $message = $message -replace "<singularOrPlural>", ($lookupObjects.Count -eq 1 ? $null : "s")
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGray
+        Start-Sleep -Seconds 5
+        Write-Host+ -ReverseLineFeed 2 -EraseLineToCursor
     }
 
     $site = Get-TSSite
@@ -1939,37 +1954,20 @@ function global:Get-TSGroups+ {
         [Parameter(Mandatory=$false)][switch]$ShowProgress = $global:ProgressPreference -eq "Continue"
     )
 
-    $site = Get-TSCurrentSite
-
-    Set-CursorInvisible
-    $groupsPlus = @()
     $groupIndex = 0
-    $groupCount = $_groups.Count
-    $Groups | Foreach-Object {
+    $groupCount = $Groups.Count
+    foreach ($group in $Groups) {
         $groupIndex++
-        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$groupIndex/$groupCount] $($_.Name)" -ForegroundColor DarkGray
-        $groupsPlus += Get-TSGroup+ -Id $_.Id -Site $site
+        Write-Host+ -Iff $ShowProgress -NoTrace -NoTimeStamp -ReverseLineFeed 1 -EraseLine "[$groupIndex/$groupCount] $($group.Name)" -ForegroundColor DarkGray
+        $users = Get-TSGroupMembership -Group $group
+        $group | Add-Member -NotePropertyName membership -NotePropertyValue $users
     }
 
-    return $groupsPlus
+    $site = Get-TSCurrentSite
+    $Groups | Add-Member -NotePropertyName site -NotePropertyValue $site
 
-}
+    return $Groups
 
-function global:Get-TSGroup+ {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)][string]$Id,
-        [Parameter(Mandatory=$false)][object]$Site = (Get-TSSite)
-    )
-
-    $group = Get-TSGroup -Id $Id
-    $users = Get-TSGroupMembership -Group $group
-    $group | Add-Member -NotePropertyName membership -NotePropertyValue $users
-    $group | Add-Member -NotePropertyName site -NotePropertyValue $site
-
-    return $group
-    
 }
 
 function global:Get-TSGroups {
@@ -2113,10 +2111,9 @@ function global:Get-TSProjects+ {
     }
 
     if ($lookupObjects) {
-        Write-Host+
         $message = $recommendation -replace "<lookupObject>", ($lookupObjects -join ", ")
         $message = $message -replace "<singularOrPlural>", ($lookupObjects.Count -eq 1 ? $null : "s")
-        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Gray
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGray
         Start-Sleep -Seconds 5
         Write-Host+ -ReverseLineFeed 2 -EraseLineToCursor
     }
@@ -2147,17 +2144,32 @@ function global:Get-TSProject+ {
         [Parameter(Mandatory=$false)][string]$Filter
     )
 
-    if (!$Users) {
-        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSUsers' in the caller to pass `$Users into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+    $function = $PSCmdlet.MyInvocation.MyCommand.Name
+    $callStack = Get-PSCallStack
+    $caller = $callStack[1].Command -eq "<ScriptBlock>" ? "You" : "'$($callStack[1].Command)'"
+
+    $recommendation = "[PERFORMANCE] $caller should use the '`$<lookupObject>' parameter to pass the <lookupObject> object<singularOrPlural> to '$function'."
+
+    $lookupObjects = @()
+    if (!$Users) { 
+        $lookupObjects += "Users"
         $Users = Get-TSUsers
     }
     if (!$Groups) {
-        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSGroups' in the caller to pass `$Groups into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+        $lookupObjects += "Groups"
         $Groups = Get-TSGroups
     }
     if (!$Projects) {
-        Write-Host+ -NoTrace -NoTimestamp "[INFO] For better performance, use 'Get-TSProjects' in the caller to pass `$Projects into $($PSCmdlet.MyInvocation.MyCommand.Name)." -ForegroundColor DarkGray
+        $lookupObjects += "Projects"
         $Projects = Get-TSProjects -Filter $Filter
+    }
+
+    if ($lookupObjects) {
+        $message = $recommendation -replace "<lookupObject>", ($lookupObjects -join ", ")
+        $message = $message -replace "<singularOrPlural>", ($lookupObjects.Count -eq 1 ? $null : "s")
+        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkGray
+        Start-Sleep -Seconds 5
+        Write-Host+ -ReverseLineFeed 2 -EraseLineToCursor
     }
 
     $project = $projects | Where-Object {$_.id -eq $Id}
