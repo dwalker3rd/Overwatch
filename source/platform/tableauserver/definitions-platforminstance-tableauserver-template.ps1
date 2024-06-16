@@ -1,4 +1,4 @@
-#region INSTANCE-DEFINITIONS
+#region INSTANCE DEFINITIONS
 
     #region PLATFORM OBJECT
 
@@ -74,7 +74,7 @@
         }
         $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
 
-    #endregion PROVIDER MICROSOFT TEAMS
+    #endregion MICROSOFT TEAMS
 
     #region SMS
 
