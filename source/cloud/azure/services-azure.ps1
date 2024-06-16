@@ -68,7 +68,7 @@ function global:Connect-AzAccount+ {
 
     $creds = get-credentials $global:Azure.$tenantKey.Admin.Credentials
 
-    $azureProfile = Connect-AzAccount -Credential $creds -TenantId $tenantId -SubscriptionId $subscriptionId -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+    $azureProfile = Connect-AzAccount -Credential $creds -TenantId $tenantId -SubscriptionId $subscriptionId -ErrorAction SilentlyContinue -WarningAction SilentlyContinue -InformationAction Ignore
     if (!$azureProfile) {
         $exception = [Microsoft.Azure.Commands.Common.Exceptions.AzPSAuthenticationFailedException]((Get-Error).Exception).InnerException
         if ($exception.DesensitizedErrorMessage -like "MFA*") {
@@ -154,14 +154,15 @@ function global:Update-AzureConfig {
                 }
             } until ($TenantId)
 
-            $azureProfile = Connect-AzAccount -Credential $creds -TenantId $TenantId -SubscriptionId $SubscriptionId -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-            if (!$azureProfile) {
-                $exception = [Microsoft.Azure.Commands.Common.Exceptions.AzPSAuthenticationFailedException](Get-Error).Exception
-                if ($exception.DesensitizedErrorMessage -like "MFA*") {
-                    $azureProfile = Connect-AzAccount -TenantId $TenantId -SubscriptionId $SubscriptionId
-                }
-            }
+            # $azureProfile = Connect-AzAccount -Credential $creds -TenantId $TenantId -SubscriptionId $SubscriptionId -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+            # if (!$azureProfile) {
+            #     $exception = [Microsoft.Azure.Commands.Common.Exceptions.AzPSAuthenticationFailedException](Get-Error).Exception
+            #     if ($exception.DesensitizedErrorMessage -like "MFA*") {
+            #         $azureProfile = Connect-AzAccount -TenantId $TenantId -SubscriptionId $SubscriptionId
+            #     }
+            # }
 
+            $azureProfile = Connect-AzAccount+ -Tenant $Tenant
             if (!$azureProfile) {
                 Write-Host+ -NoTrace -NoTimestamp "    Invalid Tenant ID, Subscription ID or Azure Admin Credentials." -ForegroundColor Red
                 $TenantId = $SubscriptionId = $creds = $null
@@ -666,7 +667,12 @@ function Invoke-ComputerCommand {
 
     $azContext = Get-AzContext
     if (!$azContext.Subscription) {
-        Connect-AzAccount+ -Tenant $Tenant
+        $azureProfile = Connect-AzAccount+ -Tenant $Tenant
+        if (!$azureProfile) {
+            $message = "    Invalid Tenant ID, Subscription ID or Azure Admin Credentials."
+            Write-Log -Target "Azure" -Action "Connect-AzAccount+" -Status "Error" -Message $message -EntryType "Error" -Force
+            Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor Red
+        }
     }
 
     $powerStateTarget = switch ($Command) { "Start" { "VM running" }; "Stop" { "VM deallocated" }}
@@ -957,24 +963,34 @@ function global:Show-CloudStatus {
     $azContext = Get-AzContext
     $azCloudEnvironmentName = $azContext.Environment.Name ?? "AzureCloud"
 
-    Write-Host+ -NoTrace $azCloudEnvironmentName, "Status", (Format-Leader -Length 39 -Adjust $azCloudEnvironmentName.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
+    Write-Host+ -NoTrace -NoNewLine $azCloudEnvironmentName, "Status", (Format-Leader -Length 39 -Adjust $azCloudEnvironmentName.Length), "PENDING" -ForegroundColor DarkBlue,Gray,DarkGray,DarkGray
 
+    $cloudStatusWritten =  $false
     if (!$azContext) {
+        Write-Host+ # close -NoNewLine
         Write-Host+ -NoTrace "  No context.  Run Connect-AzAccount to login." -ForegroundColor Red
+        $cloudStatusWritten =  $true
     }
     else {
 
         $unattachedManagedDiskGroups = Get-AzDisk+ -DiskState Unattached | Group-Object -Property ResourceGroupName
         if ($unattachedManagedDiskGroups) {
+            Write-Host+ # close -NoNewLine
             foreach ($unattachedManagedDiskGroup in $unattachedManagedDiskGroups) {
                 $message = "<  $($unattachedManagedDiskGroup.Count) unattached managed disk$($unattachedManagedDiskGroup.Count -ne 1 ? "s": $null) <.>42> REVIEW"
                 Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkYellow
             }
             Write-Host+ -NoTrace "    * Review with Show-AzDisk+" -ForegroundColor DarkGray
+            $cloudStatusWritten =  $true
         }
 
     }
 
-    Write-Host+ -NoTrace $azCloudEnvironmentName, "Status", (Format-Leader -Length 39 -Adjust $azCloudEnvironmentName.Length), ($azContext ? "READY" : "FAIL") -ForegroundColor DarkBlue,Gray,DarkGray,($azContext ? "DarkGreen" : "DarkRed")
+    if (!$cloudStatusWritten) {
+        Write-Host+ -NoTimestamp -NoTrace "$($emptyString.PadLeft(7,"`b"))READY  " -ForegroundColor DarkGreen
+    }
+    else {
+        Write-Host+ -NoTrace $azCloudEnvironmentName, "Status", (Format-Leader -Length 39 -Adjust $azCloudEnvironmentName.Length), ($azContext ? "READY" : "FAIL") -ForegroundColor DarkBlue,Gray,DarkGray,($azContext ? "DarkGreen" : "DarkRed")
+    }
 
 }
