@@ -1,27 +1,27 @@
 #region INSTANCE-DEFINITIONS
 
-    #region PLATFORM-OBJECT
+    #region PLATFORM OBJECT
 
         $global:Platform.Instance = "<platformInstanceId>"
         $global:Platform.Uri = [System.Uri]::new("<platformInstanceUrl>")
         $global:Platform.Domain = "<platformInstanceDomain>"
         $global:Platform.InstallPath = "<platformInstallLocation>"
 
-    #endregion PLATFORM-OBJECT
+    #endregion PLATFORM OBJECT
 
-    #region PLATFORM-TIMEOUTS
+    #region PLATFORM TIMEOUTS
 
         $global:PlatformComponentTimeout = 300
         $global:PlatformShutdownMax = New-TimeSpan -Minutes 75   
 
-    #endregion PLATFORM-TIMEOUTS
+    #endregion PLATFORM TIMEOUTS
 
-    #region PRINCIPAL-CONTEXT
+    #region PRINCIPAL CONTEXT
 
         $global:PrincipalContextType = [System.DirectoryServices.AccountManagement.ContextType]::Machine  
         $global:PrincipalContextName = $env:COMPUTERNAME
 
-    #endregion PRINCIPAL-CONTEXT
+    #endregion PRINCIPAL CONTEXT
 
     #region CLEANUP
 
@@ -54,7 +54,7 @@
 
     #endregion DISKS
 
-    #region MICROSOFT-TEAMS    
+    #region MICROSOFT TEAMS    
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Provider > MicrosoftTeams > Webhooks
@@ -72,9 +72,9 @@
                 Warning = @("<Microsoft Teams Warning Webhook>")
             }
         }
-        $global:MicrosoftTeamsConfig.MessageType = $MicrosoftTeamsConfig.Connector.Keys
+        $global:MicrosoftTeamsConfig.MessageType = $global:MicrosoftTeamsConfig.Connector.Keys
 
-    #endregion PROVIDER-MICROSOFT-TEAMS
+    #endregion PROVIDER MICROSOFT TEAMS
 
     #region SMS
 
@@ -102,7 +102,7 @@
 
     #endregion SMTP     
 
-    #region PLATFORM-TOPOLOGY-ALIASES
+    #region PLATFORM TOPOLOGY ALIASES
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Platform > Topology > Update Alias Regex [OPTIONAL]
@@ -116,9 +116,9 @@
             }
         }
 
-    #endregion PLATFORM-TOPOLOGY-ALIASES
+    #endregion PLATFORM TOPOLOGY ALIASES
     
-    #region TLS-BEST-PRACTICES
+    #region TLS BEST PRACTICES
     
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > PlatformInstance > BestPractice > TLS
@@ -135,9 +135,9 @@
             # signatureAlgorithms = @("sha256RSA")
         }
 
-    #endregion TLS-BEST-PRACTICES   
+    #endregion TLS BEST PRACTICES   
 
-    #region OVERWATCH-TOPOLOGY
+    #region OVERWATCH TOPOLOGY
 
         # The following line indicates a post-installation configuration to the installer
         # Manual Configuration > Platform > Topology > Update Overwatch Remote Controllers    
@@ -145,6 +145,6 @@
         $global:OverwatchRemoteControllers += @()
         $global:OverwatchControllers += $global:OverwatchRemoteControllers
 
-    #endregion OVERWATCH-TOPOLOGY    
+    #endregion OVERWATCH TOPOLOGY    
 
-#endregion INSTANCE-DEFINITIONS
+#endregion INSTANCE DEFINITIONS
