@@ -89,6 +89,7 @@ function global:Initialize-TsmApiConfiguration {
                 Queued = "Queued"
             } 
             DontWatchExternalJobType = @("RebuildSearchIndex")
+            Initialized = $false
         }
     }
     $global:tsmApiConfig.ApiUri = "https://$($global:tsmApiConfig.Server):$($global:tsmApiConfig.Port)/api/$($global:tsmApiConfig.ApiVersion)"
@@ -252,6 +253,8 @@ function global:Initialize-TsmApiConfiguration {
             Response = @{Keys = "asyncJob"}
         }
     }
+
+    $global:tsmApiConfig.Initialized = $true
 
     return
 

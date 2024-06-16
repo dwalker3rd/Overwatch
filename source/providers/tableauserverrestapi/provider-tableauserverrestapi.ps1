@@ -151,6 +151,7 @@ function global:Initialize-TSRestApiConfiguration {
         SpecialGroups = @("All Users")
         SpecialMethods = @("ServerInfo","Login")
         Defaults = $_provider.Config.Defaults
+        Initialized = $false
     }
 
     $global:tsRestApiConfig.RestApiVersioning = @{
@@ -239,6 +240,8 @@ function global:Initialize-TSRestApiConfiguration {
     $platformInfo | Write-Cache platforminfo
 
     Update-TSRestApiMethods
+
+    $global:tsRestApiConfig.Initialized = $true
     
     return
 
