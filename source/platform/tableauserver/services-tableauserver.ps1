@@ -1206,24 +1206,12 @@ Set-Alias -Name ptInit -Value Initialize-PlatformTopology -Scope Global
 #endregion TOPOLOGY
 #region CONFIGURATION
 
-function global:Get-ConfigurationKey {
-
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$false)][Alias("K")][string]$Key
-    )
-
-    $currentConfigurationVersion = Invoke-TsmApiMethod -Method "CurrentConfigurationVersion"
-    $value = Invoke-TsmApiMethod -Method "ConfigurationKey" -Params @($currentConfigurationVersion, $Key)
-    return $value.(Invoke-Expression "`'$Key`'")
-}
-
 function global:Show-TSSslProtocols {
 
     Write-Host+ -NoTrace "  Tableau Server SSL Protocols" -ForegroundColor DarkBlue
 
     $sslProtocolsAll = "+SSLv2 +SSLv3 +TLSv1 +TLSv1.1 +TLSv1.2 +TLSv1.3"
-    $sslProtocols = Get-ConfigurationKey -Key "ssl.protocols"
+    $sslProtocols = Get-TsmConfigurationKey -Key "ssl.protocols"
     $sslProtocols = $sslProtocols.PSObject.Properties.Value -replace "all",$sslProtocolsAll
     $sslProtocols = $sslProtocols -split " " | Sort-Object
 

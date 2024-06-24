@@ -494,13 +494,13 @@ function global:Get-TsmConfigurationKey {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true,Position=0)][string]$Name
+        [Parameter(Mandatory=$true,Position=0)][string]$Key
     )
 
     $currentConfigurationVersion = Invoke-TsmApiMethod -Method CurrentConfigurationVersion
-    $configurationKey =  Invoke-TsmApiMethod -Method ConfigurationKey -params @($currentConfigurationVersion,$Name)
+    $configurationKey =  Invoke-TsmApiMethod -Method ConfigurationKey -params @($currentConfigurationVersion,$Key)
 
-    return $configurationKey.$Name
+    return $configurationKey.$Key
 
 }
 
