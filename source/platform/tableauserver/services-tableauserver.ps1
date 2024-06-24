@@ -1215,7 +1215,7 @@ function global:Get-ConfigurationKey {
 
     $currentConfigurationVersion = Invoke-TsmApiMethod -Method "CurrentConfigurationVersion"
     $value = Invoke-TsmApiMethod -Method "ConfigurationKey" -Params @($currentConfigurationVersion, $Key)
-    return $value
+    return $value.(Invoke-Expression "`'$Key`'")
 }
 
 function global:Show-TSSslProtocols {
