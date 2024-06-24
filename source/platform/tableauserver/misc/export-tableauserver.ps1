@@ -472,7 +472,7 @@
 
             # copy to Azure storage blob
             $creds = get-credentials azure-storagecontainer-backups-admin
-            $blobSasUrl = "$($creds.UserName)/$($global:Platform.Instance)/.export/ $($contentUrl)?$($creds.GetNetworkCredential().Password)"
+            $blobSasUrl = "$($creds.UserName)/$($global:Platform.Instance)/.export?$($creds.GetNetworkCredential().Password)"
             azcopy copy $exportDirectory $blobSasUrl --recursive=true
         
             Write-Host+
