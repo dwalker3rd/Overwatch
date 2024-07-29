@@ -354,8 +354,16 @@ class FileObjectBase {
     
     [void]ValidatePath([string]$Path) {
 
+        # breaking change in .net core 2.1 to be addressed in future release
+        # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/test-path?view=powershell-7.4#parameters
+        # https://learn.microsoft.com/en-us/dotnet/core/compatibility/2.1#path-apis-dont-throw-an-exception-for-invalid-characters
+        if ($Path -contains [System.IO.Path]::GetInvalidPathChars()) {
+            throw "Path `'$Path`' contains invalid characters."
+        }
+
+
         # valid Path format
-        if (!$(Test-Path $Path -IsValid)) {
+        if (!$(Test-Path $Path -IsValid) -and ((Split-Path $Path -LeafBase) -ne "*")) {
             throw "Path `'$Path`' is an invalid path specification."
         }
 
