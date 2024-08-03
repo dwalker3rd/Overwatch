@@ -68,6 +68,8 @@ try {
     Initialize-TSRestApiConfiguration
     $tsRestApiAvailable = $true
 
+    Get-PlatformInfo -ResetCache
+
     If (!$newLineWritten) {
         Write-Host+ -NoTrace -NoTimeStamp "$($emptyString.PadLeft(8,"`b")) READY  " -ForegroundColor DarkGreen
     }
