@@ -591,3 +591,17 @@ function global:Apply-TsmPendingChanges {
     return $pendingChanges
 
 }
+
+function global:Rebuild-SearchIndex {
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "")]
+
+    [CmdletBinding()]
+    param()
+
+    $platformJob = Invoke-TsmApiMethod -Method RebuildSearchIndex
+
+    return $platformJob
+
+}
+Set-Alias -Scope Global -Name RebuildSearchIndex -Value Rebuild-SearchIndex
