@@ -233,7 +233,13 @@ $global:StatusView = @{
 }
 
 $global:PlatformJobView = @{
-    Default = @("id","jobType","status","progress","createdAt","updatedAt","completedAt","statusMessage","jobTimeout","worker")
+    Default = @("id","jobType","status","progress",
+        @{Name="doneSteps"; Expression = {$_.detailedProgress.doneSteps}},
+        @{Name="totalSteps"; Expression = {$_.detailedProgress.totalSteps}},
+        @{Name="createdAt"; Expression = {$epoch.AddSeconds($_.createdAt/1000).ToString("u")}},
+        @{Name="updatedAt"; Expression = {$epoch.AddSeconds($_.updatedAt/1000).ToString("u")}},
+        @{Name="completedAt"; Expression = {$epoch.AddSeconds($_.completedAt/1000).ToString("u")}},
+        "jobTimeout","worker")
     Min = @(
         "id","jobType","status","progress",
         @{Name="doneSteps"; Expression = {$_.detailedProgress.doneSteps}},
