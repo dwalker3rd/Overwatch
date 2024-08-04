@@ -599,6 +599,8 @@ function global:Rebuild-SearchIndex {
     [CmdletBinding()]
     param()
 
+    if ($global:Environ.Platform -ne "TableauServer") { return }
+
     $platformJob = Invoke-TsmApiMethod -Method RebuildSearchIndex
 
     return $platformJob
