@@ -12,10 +12,48 @@ function global:Connect-AzureAD {
     if (!$appCredentials) {
         throw "Unable to find the MSGraph credentials `"$($global:Azure.$tenantKey.MsGraph.Credentials)`""
     }
-    
-    Connect-MgGraph -NoWelcome -TenantId $global:Azure.$tenantKey.Tenant.Id -ClientSecretCredential $appCredentials
 
-    $global:Azure.$tenantKey.MsGraph += @{ Context = Get-MgContext }
+    #region HTTP
+
+        $appId = $appCredentials.UserName
+        $appSecret = $appCredentials.GetNetworkCredential().Password
+        $scope = $global:Azure.$tenantKey.MsGraph.Scope
+        $tenantDomain = $global:Azure.$tenantKey.Tenant.Domain
+
+        $uri = "https://login.microsoftonline.com/$tenantDomain/oauth2/v2.0/token"
+
+        # Add-Type -AssemblyName System.Web
+
+        $body = @{
+            client_id = $appId
+            client_secret = $appSecret
+            scope = $scope
+            grant_type = 'client_credentials'
+        }
+
+        $restParams = @{
+            ContentType = 'application/x-www-form-urlencoded'
+            Method = 'POST'
+            Body = $body
+            Uri = $uri
+        }
+
+        # request token
+        $response = Invoke-RestMethod @restParams
+
+        #TODO: try/catch for expired secret with critical messaging
+        
+        # headers
+        $global:Azure.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
+
+    #endregion HTTP
+    #region MGGRAPH
+    
+        Connect-MgGraph -NoWelcome -TenantId $global:Azure.$tenantKey.Tenant.Id -ClientSecretCredential $appCredentials
+
+        $global:Azure.$tenantKey.MsGraph.Context = Get-MgContext
+
+    #endregion MGGRAPH
 
     return
 
@@ -64,6 +102,24 @@ function global:Invoke-AzureADRestMethod {
     
 }
 
+function global:Get-AzureADApplication {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$false)][string]$ApplicationId,
+        [Parameter(Mandatory=$false)][string]$View
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $response = Get-MgApplication -Filter "AppId eq '$ApplicationId'"
+
+    return $response
+
+}
+
 function global:Get-AzureADGroup {
 
     [CmdletBinding()]
@@ -71,7 +127,6 @@ function global:Get-AzureADGroup {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][string]$Id,
         # [Parameter(Mandatory=$false)][string[]]$Properties,
-        # [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "v1.0",
         [Parameter(Mandatory=$false)][string]$View
     )
 
@@ -92,7 +147,6 @@ function global:Get-AzureADUser {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
         # [Parameter(Mandatory=$false)][string[]]$Properties,
-        # [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
 
@@ -129,7 +183,6 @@ function global:Remove-AzureADUser {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][string]$Id
-        # [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta"
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
@@ -141,13 +194,6 @@ function global:Remove-AzureADUser {
     return
      
 }
-
-#
-# ISSUE (MSAL.PS): https://github.com/AzureAD/MSAL.PS/issues/32
-# MSAL.PS and Az.Accounts use different versions of the Microsoft.Identity.Client
-# if Connect-AzAccount+ is called first, then Reset-AzureADUserPassword will fail
-# if Reset-AzureADUserPassword is called first, then Connect-AzAccount+ will fail
-# 
 
 function global:Reset-AzureADUserPassword {
 
@@ -251,7 +297,6 @@ function global:Update-AzureADUserProperty {
         [Parameter(Mandatory=$true)][object]$User,
         [Parameter(Mandatory=$true)][string]$Property,
         [Parameter(Mandatory=$true)][string]$Value
-        # [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
@@ -1212,37 +1257,5 @@ function global:Find-AzureADGroup {
     if ($DisplayName) {$findParams += @{DisplayName = $DisplayName}}
     
     return Find-AzureADObject -Tenant $tenantKey -Type "Group" -Groups $Groups @findParams
-
-}
-
-function global:Get-AzureADApplication {
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$false)][string]$AppId,
-        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
-        [Parameter(Mandatory=$false)][string]$View
-    )
-
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
-
-    $uri = "https://graph.microsoft.com/$graphApiVersion/applications(appId='{$AppId}')" 
-
-    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-    $headers.Add("Content-Type", "application/json")
-    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
-
-    $restParams = @{
-        ContentType = 'application/x-www-form-urlencoded'
-        Headers = $headers
-        Method = 'GET'
-        Uri = $uri
-    }
-
-    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
-
-    return $response
 
 }
