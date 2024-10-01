@@ -628,7 +628,7 @@ function global:Restart-RMTController {
     param (
         [Parameter(Mandatory=$false)][string[]]$ComputerName = $global:PlatformTopologyBase.Components.Controller.Nodes.Keys,
         [Parameter(Mandatory=$false)][string]$Context = "Command",
-        [Parameter(Mandatory=$true)][string]$Reason
+        [Parameter(Mandatory=$false)][string]$Reason = "Restart RMT Controller"
     )
     
     Stop-RMTController -ComputerName $ComputerName -Context $Context -Reason $Reason
