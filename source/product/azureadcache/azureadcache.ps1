@@ -62,8 +62,6 @@ $action = $null; $target = $null; $status = $null
 
 foreach ($tenantKey in $tenantKeys) {
 
-    
-
     $action = $null; $target = $null; $status = $null
     try {
 
@@ -86,7 +84,7 @@ foreach ($tenantKey in $tenantKeys) {
         $action = "Get"; $target = "AzureAD\$tenantKey\Groups"
         Get-AzureADObjects -Tenant $tenantKey -Type Groups -Delta
         $action = "Get"; $target = "AzureAD\$tenantKey\Users"
-        Get-AzureADObjects -Tenant $tenantKey -Type Users -Delta
+        Get-AzureADObjects -Tenant $tenantKey -Type Users -Delta        
 
         $action = "Export"; $target = "AzureAD\$tenantKey\Users"
         $message = "<Exporting user cache <.>48> PENDING"
@@ -101,7 +99,7 @@ foreach ($tenantKey in $tenantKeys) {
         Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen 
 
         Write-Host+
-        Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-users.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
+        Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-users.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true     
         Write-Host+
 
         $action = "Export"; $target = "AzureAD\$tenantKey\Groups"
@@ -122,9 +120,9 @@ foreach ($tenantKey in $tenantKeys) {
 
         Write-Host+
         Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-groups.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
-        Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true
-        Write-Host+
-
+        Copy-Files -Path "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -ComputerName (pt nodes -k) -ExcludeComputerName $env:COMPUTERNAME -Verbose:$true     
+        Write-Host+   
+        
     }
     catch {
 
@@ -139,3 +137,26 @@ foreach ($tenantKey in $tenantKeys) {
 
     }
 }
+
+# set params for uploading files to Azure Storage
+$resourceGroup = "apps-gen-rg"
+$storageAccountName = "pathaiforhealthadmin"
+$containerName = "fabric"
+$storageAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $resourceGroup -Name $storageAccountName)[0].Value
+$storageContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey 
+
+$message = "<Exporting cache to Azure Storage <.>48> PENDING"
+Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray  
+
+foreach ($tenantKey in $tenantKeys) {
+
+    Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-users.csv" -Container $containerName -Blob "azuread\$tenantKey-users.csv" -Context $storageContext -Force 
+    Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groups.csv" -Container $containerName -Blob "azuread\$tenantKey-groups.csv" -Context $storageContext -Force
+    Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -Container $containerName -Blob "azuread\$tenantKey-groupMembership.csv" -Context $storageContext -Force    
+            
+}
+
+write-Host+
+$message = "<Exporting cache to Azure Storage <.>48> SUCCESS"
+Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+Write-Host+
