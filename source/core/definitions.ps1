@@ -241,6 +241,7 @@ function Close-Definitions {
             $_platformTasksDisabled | Show-PlatformTasks
             Write-Host+ -SetIndentGlobal $_indent -SetTimeStampGlobal Ignore -SetTraceGlobal Ignore
             Write-Host+ -ReverseLineFeed 3
+            Write-Host+
         }
     }
 
@@ -248,7 +249,7 @@ function Close-Definitions {
 #region CLOSE
 
     if (!$Quiet) {
-        Write-Host+ -Iff (!$_warnings)
+        Write-Host+ #-Iff (!$_warnings)
         $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
         Write-Host+
