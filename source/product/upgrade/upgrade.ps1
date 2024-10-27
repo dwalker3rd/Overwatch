@@ -16,8 +16,12 @@ $global:Product = @{Id="Command"}
 
 Write-Host+ -ResetAll
 
-$build = "20233.24.0514.1218"
-$version = "2023.3.6"
+$build = ""
+$version = ""
+
+if ([string]::IsNullOrEmpty($build) -or $build -le $global:Platform.Build) {
+    throw "Unable to upgrade Tableau Server if `$build has not been specified."
+}
 
 #region STOP PLATFORM
 
@@ -31,7 +35,9 @@ $version = "2023.3.6"
 #endregion UPGRADE
 #region START PLATFORM
 
-    Start-Sleep -Seconds 20
+    Start-Sleep -Seconds 10
+    Get-PlatformInfo -ResetCache
+    Start-Sleep -Seconds 10
     Start-Platform
 
 #endregion START PLATFORM
