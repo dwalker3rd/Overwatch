@@ -469,6 +469,19 @@ function global:Get-TableauServerStatus {
                                     Remove-CimSession $cimSession
                                 }
                             }
+                            "noninteractive" {
+                                if ($instance.message -like "Unexpected HTTP error response (503)") {
+                                    # added 2024-10-27
+                                    # this has apparently been happening for some time.
+                                    # however, either TSM didn't report it, or Overwatch's flap detection prevented it from being reported. 
+                                    # but as of 2024.2.4, it's now being reported about 8-10 minutes after the start of each hour
+                                    # given that it's every hour and that I cannot find a single hit about this issue,
+                                    # I'm assuming this is an internal issue or, at least, one that doesn't impact us.
+                                    # therefore, i'm ignoring it
+                                    $instance.message = "Unknown issue with the noninteractive microcontainer"
+                                    $service.rollupStatus = "Running"                                    
+                                }
+                            }
                         }
                     }
                 }
