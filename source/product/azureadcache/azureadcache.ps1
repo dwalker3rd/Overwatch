@@ -150,6 +150,8 @@ Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray
 
 foreach ($tenantKey in $tenantKeys) {
 
+    Set-AzStorageBlobContent -File "$($global:Location.Data)\$tenantKey-users.cache" -Container $containerName -Blob "azuread\$tenantKey-users.json" -Context $storageContext -Force 
+    Set-AzStorageBlobContent -File "$($global:Location.Data)\$tenantKey-groups.cache" -Container $containerName -Blob "azuread\$tenantKey-groups.json" -Context $storageContext -Force
     Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-users.csv" -Container $containerName -Blob "azuread\$tenantKey-users.csv" -Context $storageContext -Force 
     Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groups.csv" -Container $containerName -Blob "azuread\$tenantKey-groups.csv" -Context $storageContext -Force
     Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -Container $containerName -Blob "azuread\$tenantKey-groupMembership.csv" -Context $storageContext -Force    
