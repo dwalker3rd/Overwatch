@@ -97,13 +97,13 @@ foreach ($mailMerge in $mailMerges) {
     }
 }
 
-Write-Host+ -NoTrace -NoTimestamp "    $emailCount mail merge$($emailCount -eq 1 ? $null : "s") processed"
-
 if ($emailCount -eq 0) {
     $message = "$($emptyString.PadLeft(8,"`b")) SUCCESS"
-    Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGray 
+    Write-Host+ -NoTrace -NoSeparator -NoTimestamp $message -ForegroundColor DarkGreen
+    Write-Host+ -NoTrace -NoTimestamp "    $emailCount mail merge$($emailCount -eq 1 ? $null : "s") processed"    
 }
 else {
+    Write-Host+ -NoTrace -NoTimestamp "    $emailCount mail merge$($emailCount -eq 1 ? $null : "s") processed"
     Write-Host+
     $message = "<Mail merge <.>48> SUCCESS"
     Write-Host+ -NoTimestamp -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
