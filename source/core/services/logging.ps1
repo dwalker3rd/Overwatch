@@ -155,6 +155,7 @@ function global:Read-Log {
         [Parameter(Mandatory=$false)][Alias("First")][int32]$Oldest,
         [Parameter(Mandatory=$false)][string]$View,
         [Parameter(Mandatory=$false)][string]$Status,
+        [Parameter(Mandatory=$false)][string]$Target,
         [switch]$UseDefaultView
     )
     
@@ -261,6 +262,7 @@ function global:Read-Log {
     if ($Action) {$logEntry = $logEntry | Where-Object {$_.Action -eq $Action}}
     if ($Context) {$logEntry = $logEntry | Where-Object {$_.Context -in $Context}}
     if ($Status) {$logEntry = $logEntry | Where-Object {$_.Status -eq $Status}}
+    if ($Target) {$logEntry = $logEntry | Where-Object {$_.Target -eq $Target}}
 
     if ($Newest) {$logEntry = $logEntry | Select-Object -Last $Newest}
     if ($Oldest) {$logEntry = $logEntry | Select-Object -First $Oldest}

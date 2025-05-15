@@ -547,6 +547,42 @@ $global:Catalog.Product += @{ Upgrade =
     }
 }
 
+$global:Catalog.Product += @{ AzureDownload = 
+    [Product]@{
+        Id = "AzureDownload"
+        Name = "AzureDownload"
+        DisplayName = "AzureDownload"
+        Description = "Scheduled download of blobs/files from Azure Storage."
+        Publisher = "Walker Analytics Consulting"
+        Log = "AzureDownload"
+        HasTask = $true
+        Installation = @{
+            Flag = @("NoPrompt")
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"}
+            )
+        }
+    }
+}
+
+$global:Catalog.Product += @{ MailMerge = 
+    [Product]@{
+        Id = "MailMerge"
+        Name = "MailMerge"
+        DisplayName = "MailMerge"
+        Description = "Merges data and templates into emails and sends via SMTP."
+        Publisher = "Walker Analytics Consulting"
+        Log = "MailMerge"
+        HasTask = $true
+        Installation = @{
+            Flag = @("NoPrompt")
+            Prerequisites = @(
+                @{ Type = "Provider"; Provider = "SMTP"}
+            )
+        }
+    }
+}
+
 $global:Catalog.Provider += @{ "OnePassword" = 
     [Provider]@{
         Id = "OnePassword"
