@@ -3,6 +3,7 @@ Overwatch.code-workspace
 .vscode/settings.json
 /*
 !source
+!docs
 !LICENSE
 !README.md
 source/providers/1password/*.json
