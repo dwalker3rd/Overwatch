@@ -1581,16 +1581,40 @@
             )
 
             if ([string]::IsNullOrEmpty($Version)) { return $true }
-            if ($InputObject.Count -eq 1) {
-                return $Version -eq $InputObject.Version
+
+            # cast to [version]
+            
+            $ver = [version]$Version
+            $all = $InputObject.Version | ForEach-Object { [version]$_ }
+
+            if ($all.Count -eq 1) {
+                return $ver -eq $all[0]
             }
-            if ($InputObject.Count -gt 1) {
-                return $Version -ge $InputObject.Version[-1] -and $Version -le $InputObject.Version[0]
+            if ($all.Count -gt 1) {
+                return $ver -ge $all[-1] -and $ver -le $all[0]
             }
 
             return $false
-
         }
+
+        # function IsValidVersion {
+
+        #     param (
+        #         [Parameter(Mandatory=$true)][AllowNull()][AllowEmptyString()][string]$Version,
+        #         [Parameter(Mandatory=$true)][Alias("Package","Module")][object[]]$InputObject
+        #     )
+
+        #     if ([string]::IsNullOrEmpty($Version)) { return $true }
+        #     if ($InputObject.Count -eq 1) {
+        #         return $Version -eq $InputObject.Version
+        #     }
+        #     if ($InputObject.Count -gt 1) {
+        #         return $Version -ge $InputObject.Version[-1] -and $Version -le $InputObject.Version[0]
+        #     }
+
+        #     return $false
+
+        # }
 
         $global:PsDefaultModuleRepositoryName = "PSGallery"
         $global:PsDefaultPackageProviderName = "NuGet"
