@@ -327,7 +327,7 @@ $global:Location.Definitions = $tempLocationDefinitions
     if ([string]::IsNullOrEmpty($installedPlatforms)) {
         if ([string]::IsNullOrEmpty($platformId)) {
             # make sure "None" is listed first
-            $installedPlatforms = @("None",($unInstallablePlatforms -split ", " | Where-Object {$_ -ne "None"}) -join ", ")
+            $installedPlatforms = @("None") + ($unInstallablePlatforms -split ", " | Where-Object {$_ -ne "None"})
         }
         else {
             $installedPlatforms = @($platformId)
@@ -395,7 +395,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         #region PLATFORM INSTANCE URI
 
-            if ($platformId -notin $unInstallablePlatforms) {
+            if ($platformId -notin $unInstallablePlatforms -or $platformId -eq "None") {
                     $_useDefaultResponses = $UseDefaultResponses
                     do {
                         try {
@@ -455,44 +455,42 @@ $global:Location.Definitions = $tempLocationDefinitions
     # if ($platformId -eq "None") {
     #     $platformInstanceId = "None"
     # }
-    # else {
-        $platformInstanceIdRegex = (Get-Catalog -Type "Platform" -Id $platformId).Installation.PlatformInstanceId
-        if (!$platformInstanceIdRegex) {
-            $platformInstanceIdRegex = @{
-                Input = "`$global:Platform.Uri.Host"
-                Pattern = "\."
-                Replacement = "-"
-            }
+    $platformInstanceIdRegex = (Get-Catalog -Type "Platform" -Id $platformId).Installation.PlatformInstanceId
+    if (!$platformInstanceIdRegex) {
+        $platformInstanceIdRegex = @{
+            Input = "`$global:Platform.Uri.Host"
+            Pattern = "\."
+            Replacement = "-"
         }
-        if ([string]::IsNullOrEmpty($platformInstanceId)) {
-            $platformInstanceId = (Invoke-Expression $platformInstanceIdRegex.Input) -replace $platformInstanceIdRegex.Pattern,$platformInstanceIdRegex.Replacement
-        }
+    }
+    if ([string]::IsNullOrEmpty($platformInstanceId)) {
+        $platformInstanceId = (Invoke-Expression $platformInstanceIdRegex.Input) -replace $platformInstanceIdRegex.Pattern,$platformInstanceIdRegex.Replacement
+    }
 
-        $_useDefaultResponses = $UseDefaultResponses
-        do {
-            $platformInstanceIdResponse = $null
-            Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
-            if (!$UseDefaultResponses) {
-                $platformInstanceIdResponse = Read-Host
-            }
-            else {
-                Write-Host+
-            }
-            $platformInstanceId = ![string]::IsNullOrEmpty($platformInstanceIdResponse) ? $platformInstanceIdResponse : $platformInstanceId
-            if ([string]::IsNullOrEmpty($platformInstanceId)) {
-                $UseDefaultResponses = $false
-                Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance ID is required" -ForegroundColor Red
-                $platformInstanceId = $null
-            }
-            if ($platformInstanceId -notmatch "^[a-zA-Z0-9\-]*$") {
-                $UseDefaultResponses = $false
-                Write-Host+ -NoTrace -NoTimestamp "INVALID CHARACTER: letters, digits and hypen only" -ForegroundColor Red
-                $platformInstanceId = $null
-            }
-        } until ($platformInstanceId)
-        if ($_useDefaultResponses) { $UseDefaultResponses = $true }
-        Write-Host+ -NoTrace -NoTimestamp "Platform Instance ID: $platformInstanceId" -IfDebug -ForegroundColor Yellow
-    # }
+    $_useDefaultResponses = $UseDefaultResponses
+    do {
+        $platformInstanceIdResponse = $null
+        Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Platform Instance ID ", "$($platformInstanceId ? "[$platformInstanceId]" : "[]")", ": " -ForegroundColor Gray, Blue, Gray
+        if (!$UseDefaultResponses) {
+            $platformInstanceIdResponse = Read-Host
+        }
+        else {
+            Write-Host+
+        }
+        $platformInstanceId = ![string]::IsNullOrEmpty($platformInstanceIdResponse) ? $platformInstanceIdResponse : $platformInstanceId
+        if ([string]::IsNullOrEmpty($platformInstanceId)) {
+            $UseDefaultResponses = $false
+            Write-Host+ -NoTrace -NoTimestamp "NULL: Platform Instance ID is required" -ForegroundColor Red
+            $platformInstanceId = $null
+        }
+        if ($platformInstanceId -notmatch "^[a-zA-Z0-9\-]*$") {
+            $UseDefaultResponses = $false
+            Write-Host+ -NoTrace -NoTimestamp "INVALID CHARACTER: letters, digits and hypen only" -ForegroundColor Red
+            $platformInstanceId = $null
+        }
+    } until ($platformInstanceId)
+    if ($_useDefaultResponses) { $UseDefaultResponses = $true }
+    Write-Host+ -NoTrace -NoTimestamp "Platform Instance ID: $platformInstanceId" -IfDebug -ForegroundColor Yellow
 
 #endregion PLATFORM INSTANCE ID
 #region PLATFORM INSTANCE NODES
@@ -586,7 +584,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion IMAGES
 #region LOCAL DIRECTORIES
 
-    $requiredDirectories = @("archive","config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","install\data","views")
+    $requiredDirectories = @("archive","config","data","definitions","docs","docs\img","img","initialize","install","logs","preflight","postflight","providers","services","temp","install\data","views","misc","misc\powershell")
 
     $missingDirectories = @()
     foreach ($requiredDirectory in $requiredDirectories) {
