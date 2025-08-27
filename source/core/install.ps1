@@ -193,7 +193,7 @@ $providerIds = @()
     $installedPlatforms = @()
     foreach ($key in $global:Catalog.Platform.Keys) {
         # TODO: this is awkward and it confuses me: rework this
-        $platformIsInstalled = $global:Catalog.Platform.$key.Installation.Flag -contains "UnInstallable" ? $false : $true
+        $platformIsInstalled = $global:Catalog.Platform.$key.Installation.Flags -contains "UnInstallable" ? $false : $true
         foreach ($installationTest in $global:Catalog.Platform.$key.Installation.IsInstalled) {
             switch ($installationTest) {
                 # test for os or platform services
@@ -323,7 +323,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 #endregion CLOUD
 #region PLATFORM ID
 
-    $unInstallablePlatforms = (Get-Catalog -Type Platform | Where-Object {$_.Installation.Flag -contains "UnInstallable"}).Id
+    $unInstallablePlatforms = (Get-Catalog -Type Platform | Where-Object {$_.Installation.Flags -contains "UnInstallable"}).Id
     if ([string]::IsNullOrEmpty($installedPlatforms)) {
         if ([string]::IsNullOrEmpty($platformId)) {
             # make sure "None" is listed first
@@ -395,7 +395,7 @@ $global:Location.Definitions = $tempLocationDefinitions
 
         #region PLATFORM INSTANCE URI
 
-            if ($platformId -notin $unInstallablePlatforms -or $platformId -eq "None") {
+            if ($global:Catalog.Platform.$platformId.Installation.Flags -notcontains "NoPlatformInstanceUri") {
                     $_useDefaultResponses = $UseDefaultResponses
                     do {
                         try {
@@ -423,7 +423,7 @@ $global:Location.Definitions = $tempLocationDefinitions
         #endregion PLATFORM INSTANCE URI
         #region PLATFORM INSTANCE DOMAIN
 
-            if ($platformId -notin $unInstallablePlatforms) {
+            if ($global:Catalog.Platform.$platformId.Installation.Flags -notcontains "NoPlatformInstanceUri") {
                 $platformInstanceDomain ??= $platformInstanceUri.Host.Split(".",2)[1]
                 $_useDefaultResponses = $UseDefaultResponses
                 do {
@@ -456,14 +456,14 @@ $global:Location.Definitions = $tempLocationDefinitions
     #     $platformInstanceId = "None"
     # }
     $platformInstanceIdRegex = (Get-Catalog -Type "Platform" -Id $platformId).Installation.PlatformInstanceId
-    if (!$platformInstanceIdRegex) {
+    if (!$platformInstanceIdRegex -and $global:Catalog.Platform.$platformId.Installation.Flags -notcontains "NoPlatformInstanceUri") {
         $platformInstanceIdRegex = @{
             Input = "`$global:Platform.Uri.Host"
             Pattern = "\."
             Replacement = "-"
         }
     }
-    if ([string]::IsNullOrEmpty($platformInstanceId)) {
+    if ([string]::IsNullOrEmpty($platformInstanceId) -and $global:Catalog.Platform.$platformId.Installation.Flags -notcontains "NoPlatformInstanceUri") {
         $platformInstanceId = (Invoke-Expression $platformInstanceIdRegex.Input) -replace $platformInstanceIdRegex.Pattern,$platformInstanceIdRegex.Replacement
     }
 
@@ -629,11 +629,11 @@ $global:Location.Definitions = $tempLocationDefinitions
                         Write-Host+ -NoTrace -NoTimestamp "---------------" -ForegroundColor DarkGray
                         $productHeaderWritten = $true
                     }
-                    if ($product.Installation.Flag -contains "AlwaysInstall") {
+                    if ($product.Installation.Flags -contains "AlwaysInstall") {
                         Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Install $($product.Id) ","[Y]",": Always Install" -ForegroundColor DarkGray,DarkBlue,DarkGray
                         $productsSelected += $product.Id
                     }
-                    elseif ($product.Installation.Flag -notcontains "NoPrompt") {
+                    elseif ($product.Installation.Flags -notcontains "NoPrompt") {
                         $productResponseDefault = $product.ID -in $productIds ? "Y" : "N"
                         $productResponse = $null
                         Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($product.Id) ","[$productResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
@@ -680,11 +680,11 @@ $global:Location.Definitions = $tempLocationDefinitions
                     Write-Host+ -NoTrace -NoTimestamp "----------------" -ForegroundColor DarkGray
                     $providerHeaderWritten = $true
                 }
-                if ($provider.Installation.Flag -contains "AlwaysInstall") {
+                if ($provider.Installation.Flags -contains "AlwaysInstall") {
                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator "Install $($provider.Id) ","[Y]",": Always Install" -ForegroundColor DarkGray,DarkBlue,DarkGray
                     $providersSelected += $provider.Id
                 }
-                elseif ($provider.Installation.Flag -notcontains "NoPrompt") {
+                elseif ($provider.Installation.Flags -notcontains "NoPrompt") {
                     $providerResponseDefault = $provider.ID -in $providerIds ? "Y" : "N"
                     $providerResponse = $null
                     Write-Host+ -NoTrace -NoTimestamp -NoSeparator -NoNewLine "Install $($provider.Id) ","[$providerResponseDefault]",": " -ForegroundColor Gray,Blue,Gray
@@ -1474,14 +1474,14 @@ $global:Location.Definitions = $tempLocationDefinitions
 #region REMOVE CACHE
 
     if ($installMode -eq "Install" -or $classesFileUpdated) {
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\clusterstatus.cache"
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\heartbeat.cache"
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platforminfo.cache"
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformstatus.cache"
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformservices.cache"
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\platformtopology.cache"
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\providers.cache"
-        Remove-Files "$PSScriptRoot\data\$($platformInstanceId.ToLower())\products.cache"
+        Remove-Files "$PSScriptRoot\data\clusterstatus.cache"
+        Remove-Files "$PSScriptRoot\data\heartbeat.cache"
+        Remove-Files "$PSScriptRoot\data\platforminfo.cache"
+        Remove-Files "$PSScriptRoot\data\platformstatus.cache"
+        Remove-Files "$PSScriptRoot\data\platformservices.cache"
+        Remove-Files "$PSScriptRoot\data\platformtopology.cache"
+        Remove-Files "$PSScriptRoot\data\providers.cache"
+        Remove-Files "$PSScriptRoot\data\products.cache"
     }
 
 #endregion REMOVE CACHE
