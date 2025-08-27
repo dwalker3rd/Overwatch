@@ -2,6 +2,58 @@ param (
     [switch]$UseDefaultResponses
 )
 
+    # Local version for installation only
+    # The global Provider version isn't yet installed
+    function Connect-AzureAD {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+        $appCredentials = Get-Credentials $global:Azure.$tenantKey.MsGraph.Credentials
+        if (!$appCredentials) {
+            throw "Unable to find the MSGraph credentials `"$($global:Azure.$tenantKey.MsGraph.Credentials)`""
+        }
+        
+        $appId = $appCredentials.UserName
+        $appSecret = $appCredentials.GetNetworkCredential().Password
+        $scope = $global:Azure.$tenantKey.MsGraph.Scope
+        $tenantDomain = $global:Azure.$tenantKey.Tenant.Domain
+
+        $uri = "https://login.microsoftonline.com/$tenantDomain/oauth2/v2.0/token"
+
+        # Add-Type -AssemblyName System.Web
+
+        $body = @{
+            client_id = $appId
+            client_secret = $appSecret
+            scope = $scope
+            grant_type = 'client_credentials'
+        }
+
+        $restParams = @{
+            ContentType = 'application/x-www-form-urlencoded'
+            Method = 'POST'
+            Body = $body
+            Uri = $uri
+        }
+
+        # request token
+        $response = Invoke-RestMethod @restParams
+
+        #TODO: try/catch for expired secret with critical messaging
+        
+        # headers
+        $global:Azure.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
+
+        return
+
+    }
+
 $_provider = Get-Catalog -Type $_provider -Id AzureAD
 $_provider | Out-Null
 
