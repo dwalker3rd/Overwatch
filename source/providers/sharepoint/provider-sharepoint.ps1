@@ -55,9 +55,3 @@ function global:Get-SharePointSiteListItems {
     return $listItemData
 
 }    
-
-# Connect-AzureAD -Tenant $Tenant
-# $site = Get-SharePointSite -Tenant $Tenant -Name "rhsupplies"
-# $list = Get-SharePointSiteList -Site $site -Name "ref - Countries"
-# $listItems = Get-SharePointSiteListItems -Site $site -List $list
-# $listItems | Format-Table
