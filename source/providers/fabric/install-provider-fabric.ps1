@@ -2,7 +2,7 @@ param (
     [switch]$UseDefaultResponses
 )
 
-$_provider = Get-Provider -Id 'MicrosoftTeams'
+$_provider = Get-Provider -Id 'Fabric'
 $_provider | Out-Null
 
 #region PROVIDER-SPECIFIC INSTALLATION
