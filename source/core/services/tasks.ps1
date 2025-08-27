@@ -13,7 +13,7 @@ function global:Register-PlatformTask {
         [Parameter(Mandatory=$false)][System.Management.Automation.PSCredential]$Credentials = $(Get-Credentials "localadmin-$($global:Platform.Instance)"),
 
         [Parameter(Mandatory=$false)][DateTime]$At,
-        [Parameter(Mandatory=$false)][string]$RandomDelay,
+        [Parameter(Mandatory=$false)][TimeSpan]$RandomDelay,
 
         [switch]$Once,
         [Parameter(Mandatory=$false)][TimeSpan]$RepetitionInterval,
