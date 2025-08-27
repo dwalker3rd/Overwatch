@@ -2070,8 +2070,8 @@
                     # $prerequisiteTest.Results = Test-Prerequisites -Type $prerequisite.Type -Id $prerequisiteId -PrerequisiteType Installation -Quiet:$Quiet
                     if (!$prerequisiteTest.Pass) {
                         $prerequisiteTest.Block = $true
-                        if ($global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag) {
-                            if (Compare-Object $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flag @("AlwaysInstall","NoPrompt") -ExcludeDifferent -PassThru) {
+                        if ($global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flags) {
+                            if (Compare-Object $global:Catalog.$($prerequisite.Type).$prerequisiteId.Installation.Flags @("AlwaysInstall","NoPrompt") -ExcludeDifferent -PassThru) {
                                 $prerequisiteTest.Block = $false
                             }
                         }
