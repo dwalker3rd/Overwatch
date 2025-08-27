@@ -618,7 +618,7 @@ function script:Uninstall-CatalogObject {
     $Id = $global:Catalog.$Type.$Id.Id
     $catalogObject = Get-Catalog -Type $Type -Id $Id
 
-    if (!$Force -and $catalogObject.Installation.Flag -eq "UninstallProtected") { return }
+    if (!$Force -and $catalogObject.Installation.Flags -eq "UninstallProtected") { return }
 
     $customUninstallScript = "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"
     $hasCustomUninstallScript = Test-Path -Path $customUninstallScript

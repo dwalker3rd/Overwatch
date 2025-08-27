@@ -123,7 +123,7 @@ function Close-Definitions {
 #region MINIMUM DEFINITIONS RETURN
 
     if ($MinimumDefinitions) { 
-        $providers = Get-Provider -ResetCache | Where-Object {$_.Installed -and $_.Installation.Flag -contains "AlwaysLoad"}
+        $providers = Get-Provider -ResetCache | Where-Object {$_.Installed -and $_.Installation.Flags -contains "AlwaysLoad"}
         if ($providers) {
             $providers.Id | ForEach-Object {
                 if ((Test-Prerequisites -Uid "Provider.$($_)" -PrerequisiteType Installation -Quiet).Pass) {                    

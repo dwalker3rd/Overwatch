@@ -96,7 +96,7 @@ Write-Host+
                     Write-Host+ -Iff $($Force.IsPresent) 
 
                     # This component is protected by the UninstallProtected catalog flag and cannot be uinstalled
-                    if ($global:Catalog.$Type.$Id.Installation.Flag -contains "UninstallProtected") {
+                    if ($global:Catalog.$Type.$Id.Installation.Flags -contains "UninstallProtected") {
                         Write-Host+ -NoTrace -NoTimestamp "WARN: $Type `"$Id`" is protected and cannot be uninstalled." -ForegroundColor DarkYellow
                         return
                     }
