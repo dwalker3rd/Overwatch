@@ -47,7 +47,7 @@ $global:Catalog.OS += @{ Windows11 =
 }
 
 $_cloudAzurePowershellModules = @(
-    @{ Name = "Az"; MinimumVersion = "12.0.0"; Repository = "PSGallery"; DoNotImport = $true }
+    @{ Name = "Az"; MinimumVersion = "12.0.0"; Repository = "PSGallery"; DoNotImport = $true },
     @{ Name = "Az.Accounts"; MinimumVersion = "3.0.0"},
     @{ Name = "Az.Compute"; MinimumVersion = "8.0.0" },
     @{ Name = "Az.Resources"; MinimumVersion = "7.1.0" },
@@ -899,6 +899,8 @@ $global:Catalog.Provider += @{ AzureAD =
                     PowerShell = @{
                         Modules = @(
                             @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"}
+                            @{ Name = "Microsoft.Graph.Beta"}
                         )
                     }
                 }
@@ -912,6 +914,8 @@ $global:Catalog.Provider += @{ AzureAD =
                     PowerShell = @{
                         Modules = @(
                             @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"}
+                            @{ Name = "Microsoft.Graph.Beta"}
                         )
                     }
                 }
@@ -932,9 +936,71 @@ $global:Catalog.Provider += @{ Fabric =
         Log = "Fabric"
         Installation = @{
             Prerequisites = @(
-                @{ Type = "Cloud"; Cloud = "Azure"},
+                @{ Type = "Cloud"; Cloud = "Azure"}
+                @{ Type = "Provider"; Provider = "AzureAD"}                
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "Az.Accounts"; MinimumVersion = "3.0.0"}
+                        )
+                    }
+                }
+            )
+        }
+        Initialization = @{
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"}
                 @{ Type = "Provider"; Provider = "AzureAD"}
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "Az.Accounts"; MinimumVersion = "3.0.0"}
+                        )
+                    }
+                }
             )
         }        
+    }
+}
+
+$global:Catalog.Provider += @{ SharePoint = 
+    [Provider]@{
+        Id = "SharePoint"
+        Name = "SharePoint"
+        DisplayName = "SharePoint"
+        Category = "Collaboration"
+        Description = "Overwatch Provider for SharePoint"
+        Publisher = "Walker Analytics Consulting"
+        Log = "SharePoint"
+        Installation = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"}
+                            @{ Name = "Microsoft.Graph.Beta"}
+                        )
+                    }
+                }                
+            )
+        }     
+        Initialization = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true}
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true}
+                        )
+                    }
+                }                
+            )
+        }           
     }
 }
