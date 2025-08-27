@@ -83,10 +83,10 @@
 
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByName")]
-            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ById")][string]$Tenant,
-            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByName")][string]$Name,
-            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ById")][string]$Id
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceName")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceId")][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceName")][string]$Name,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][string]$Id
         )
 
         $tenantKey = $Tenant.split(".")[0].ToLower()
@@ -249,20 +249,29 @@
 
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByUPN")]
-            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ById")][string]$Tenant,
-            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByUPN")][object]$Workspace,
-            [Parameter(Mandatory=$true,Position=2,ParameterSetName="ByUPN")][Alias("UPN")][string]$UserPrincipalName,
-            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ById")][string]$Id
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByPrincipal")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceId")][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByPrincipal")]
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][object]$Workspace,
+            [Parameter(Mandatory=$true,Position=2,ParameterSetName="ByPrincipal")][ValidateSet("User","Group")][string]$PrincipalType,
+            [Parameter(Mandatory=$true,Position=3,ParameterSetName="ByPrincipal")][Alias("PrincipalName")][string]$PrincipalId,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][string]$Id
         )
 
         $tenantKey = $Tenant.split(".")[0].ToLower()
         if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}  
 
         $workspaceRoleAssignmentId = $Id
-        if ($UserPrincipalName) {
+        if ($PrincipalType){
             $_workspaceRoleAssignments = Get-WorkspaceRoleAssignments -Tenant $Tenant -Workspace $Workspace
-            $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.userDetails.userPrincipalName -eq $UserPrincipalName }
+            switch ($PrincipalType) {
+                "User" {
+                    $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.userDetails.userPrincipalName -eq $PrincipalId }
+                }
+                "Group" {
+                    $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.displayName -eq $PrincipalId }
+                }
+            }
             $workspaceRoleAssignmentId = $_workspaceRoleAssignment.Id
         }
 
@@ -280,16 +289,36 @@
         param(
             [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
             [Parameter(Mandatory=$true,Position=1)][object]$Workspace,
-            [Parameter(Mandatory=$true,Position=2)][Alias("UPN")][string]$UserPrincipalName,
+            [Parameter(Mandatory=$true,Position=2)][ValidateSet("User","Group")][string]$PrincipalType,
+            [Parameter(Mandatory=$true,Position=2)][Alias("PrincipalName")][string]$PrincipalId,
             [Parameter(Mandatory=$true,Position=3)][ValidateSet("Admin","Contributor","Member","Viewer")][string]$Role
         )
 
         $tenantKey = $Tenant.split(".")[0].ToLower()
         if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
 
-        $azureADUser = Get-AzureADUser -Tenant $Tenant -User $UserPrincipalName
+        $isGuid =  $PrincipalId -match $global:RegexPattern.Guid
+        # $isUPN = $PrincipalId -match $global:RegexPattern.Username.AzureAD
 
-        $body = @{ principal = @{ type = "User"; id = $azureADUser.id}; role = $Role } | ConvertTo-Json
+        $azureADPrincipal = $null
+        switch ($PrincipalType) {
+            "User" {
+                $_azureADUser = $null
+                if (!$isGuid) {
+                    $_azureADUser = Find-AzureADUser -Tenant $Tenant -UserPrincipalName $PrincipalId
+                }
+                $azureADPrincipal = Get-AzureADUser -Tenant $Tenant -Id $_azureADUser.id
+            }
+            "Group" {
+                $_azureADGroup = $null
+                if (!$isGuid) {
+                    $_azureADGroup = Find-AzureADGroup -Tenant $Tenant -DisplayName $PrincipalId
+                }
+                $azureADPrincipal = Get-AzureADGroup -Tenant $Tenant -Id $_azureADGroup.id                
+            }
+        }
+
+        $body = @{ principal = @{ type = $PrincipalType; id = $azureADPrincipal.id}; role = $Role } | ConvertTo-Json
         $workspaceRoleAssignment = Invoke-RestMethod -Method POST `
             -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/roleAssignments" `
             -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
@@ -370,12 +399,12 @@
 
     [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByName")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="BySettingName")]
             [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByTitle")]
-            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByGroup")][string]$Tenant,
-            [Parameter(Mandatory=$false,Position=1,ParameterSetName="ByName")][Alias("Name")][string]$SettingName,
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByTenantSettingGroup")][string]$Tenant,
+            [Parameter(Mandatory=$false,Position=1,ParameterSetName="BySettingName")][Alias("Name")][string]$SettingName,
             [Parameter(Mandatory=$false,Position=1,ParameterSetName="ByTitle")][string]$Title,
-            [Parameter(Mandatory=$false,Position=1,ParameterSetName="ByGroup")][Alias("Group")][string]$TenantSettingGroup
+            [Parameter(Mandatory=$false,Position=1,ParameterSetName="ByTenantSettingGroup")][Alias("Group")][string]$TenantSettingGroup
 
         )
 
