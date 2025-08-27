@@ -920,3 +920,21 @@ $global:Catalog.Provider += @{ AzureAD =
         }
     }
 }
+
+$global:Catalog.Provider += @{ Fabric = 
+    [Provider]@{
+        Id = "Fabric"
+        Name = "Fabric"
+        DisplayName = "Fabric"
+        Category = "Analytics"
+        Description = "Overwatch Provider for Fabric"
+        Publisher = "Walker Analytics Consulting"
+        Log = "Fabric"
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"},
+                @{ Type = "Provider"; Provider = "AzureAD"}
+            )
+        }        
+    }
+}
