@@ -52,7 +52,10 @@ function global:Get-PlatformStatusRollup {
         [switch]$Quiet
     )
 
-    $monitor = Get-PlatformTask -Id Monitor
+    $monitor = Get-PlatformTask -Id Monitor | Where-Object {$_.ProductID -eq "Monitor"}
+    if ([string]::IsNullOrEmpty($monitor)) {
+        return $true, "Running", $null, $null
+    }
 
     $issues = @()
     $issues += $monitor.Instance | Where-Object {$_.Required -and $_.Class -in ("Task") -and !$_.IsOK} | 
