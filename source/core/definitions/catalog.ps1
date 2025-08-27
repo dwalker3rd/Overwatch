@@ -103,7 +103,7 @@ $global:Catalog.Platform += @{ None =
         Description = "Ov"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Flag = @("UnInstallable")
+            Flags = @("UnInstallable", "NoPlatformInstanceUri")
             PlatformInstanceId = @{
                 Input = "None"
                 Pattern = ""
@@ -152,7 +152,7 @@ $global:Catalog.Platform += @{ TableauCloud =
                 @{ Type = "Provider"; Provider = "TableauServerRestApi"},
                 @{ Type = "Provider"; Provider = "TableauServerTabCmd"}
             )
-            Flag = @("UnInstallable")
+            Flags = @("UnInstallable", "NoPlatformInstanceUri")
             PlatformInstanceId = @{
                 Input = "`$global:Platform.Uri.Host"
                 Pattern = "\."
@@ -339,7 +339,7 @@ $global:Catalog.Product += @{ Command =
         Publisher = "Walker Analytics Consulting"
         Log = "Command"
         Installation = @{
-            Flag = @("AlwaysInstall","UninstallProtected")
+            Flags = @("AlwaysInstall","UninstallProtected")
         }
     }
 }
@@ -404,7 +404,7 @@ $global:Catalog.Product += @{ AzureADCache =
         Log = "AzureADSync"
         HasTask = $true
         Installation = @{
-            Flag = @("NoPrompt")
+            # Flags = @("NoPrompt")
             Prerequisites = @(
                 @{ Type = "Cloud"; Cloud = "Azure"},
                 @{ Type = "Provider"; Provider = "AzureAD"}
@@ -557,7 +557,7 @@ $global:Catalog.Product += @{ AzureDownload =
         Log = "AzureDownload"
         HasTask = $true
         Installation = @{
-            Flag = @("NoPrompt")
+            Flags = @("NoPrompt")
             Prerequisites = @(
                 @{ Type = "Cloud"; Cloud = "Azure"}
             )
@@ -575,7 +575,7 @@ $global:Catalog.Product += @{ MailMerge =
         Log = "MailMerge"
         HasTask = $true
         Installation = @{
-            Flag = @("NoPrompt")
+            Flags = @("NoPrompt")
             Prerequisites = @(
                 @{ Type = "Provider"; Provider = "SMTP"}
             )
@@ -605,7 +605,7 @@ $global:Catalog.Provider += @{ "OnePassword" =
             Prerequisites = @(
                 @{ Type = "CLI"; CLI = "OnePasswordCLI" }
             )
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -697,7 +697,7 @@ $global:Catalog.Provider += @{ SMTP =
                     }
                 }
             )
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -712,7 +712,7 @@ $global:Catalog.Provider += @{ TwilioSMS =
         Publisher = "Walker Analytics Consulting"
         Log = "TwilioSMS"
         Installation = @{
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -727,7 +727,7 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         Publisher = "Walker Analytics Consulting"
         Log = "MicrosoftTeams"
         Installation = @{
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -741,7 +741,7 @@ $global:Catalog.Provider += @{ Views =
         Description = "Property views for Overwatch objects."
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Flag = @("AlwaysInstall","UninstallProtected")
+            Flags = @("AlwaysInstall","UninstallProtected")
         }
     }
 }
