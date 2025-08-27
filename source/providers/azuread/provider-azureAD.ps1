@@ -12,41 +12,53 @@ function global:Connect-AzureAD {
     if (!$appCredentials) {
         throw "Unable to find the MSGraph credentials `"$($global:Azure.$tenantKey.MsGraph.Credentials)`""
     }
+
+    #region HTTP
+
+        $appId = $appCredentials.UserName
+        $appSecret = $appCredentials.GetNetworkCredential().Password
+        $scope = $global:Azure.$tenantKey.MsGraph.Scope
+        $tenantDomain = $global:Azure.$tenantKey.Tenant.Domain
+
+        $uri = "https://login.microsoftonline.com/$tenantDomain/oauth2/v2.0/token"
+
+        # Add-Type -AssemblyName System.Web
+
+        $body = @{
+            client_id = $appId
+            client_secret = $appSecret
+            scope = $scope
+            grant_type = 'client_credentials'
+        }
+
+        $restParams = @{
+            ContentType = 'application/x-www-form-urlencoded'
+            Method = 'POST'
+            Body = $body
+            Uri = $uri
+        }
+
+        # request token
+        $response = Invoke-RestMethod @restParams
+
+        #TODO: try/catch for expired secret with critical messaging
+        
+        # headers
+        $global:Azure.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
+
+    #endregion HTTP
+    #region MGGRAPH
     
-    $appId = $appCredentials.UserName
-    $appSecret = $appCredentials.GetNetworkCredential().Password
-    $scope = $global:Azure.$tenantKey.MsGraph.Scope
-    $tenantDomain = $global:Azure.$tenantKey.Tenant.Domain
+        Connect-MgGraph -NoWelcome -TenantId $global:Azure.$tenantKey.Tenant.Id -ClientSecretCredential $appCredentials
 
-    $uri = "https://login.microsoftonline.com/$tenantDomain/oauth2/v2.0/token"
+        $global:Azure.$tenantKey.MsGraph.Context = Get-MgContext
 
-    # Add-Type -AssemblyName System.Web
-
-    $body = @{
-        client_id = $appId
-        client_secret = $appSecret
-        scope = $scope
-        grant_type = 'client_credentials'
-    }
-
-    $restParams = @{
-        ContentType = 'application/x-www-form-urlencoded'
-        Method = 'POST'
-        Body = $body
-        Uri = $uri
-    }
-
-    # request token
-    $response = Invoke-RestMethod @restParams
-
-    #TODO: try/catch for expired secret with critical messaging
-    
-    # headers
-    $global:Azure.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
+    #endregion MGGRAPH
 
     return
 
 }
+Set-Alias -Scope Global -Name Connect-AzureAD -Value Connect-MgGraph+
 
 function global:Invoke-AzureADRestMethod {
 
