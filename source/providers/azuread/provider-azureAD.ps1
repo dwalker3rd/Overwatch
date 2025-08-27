@@ -609,7 +609,7 @@ function global:Send-AzureADInvitation {
         Uri = $uri
     }
 
-    if ($PSCmdlet.ShouldProcess($Email, "Send invitation to '{0}'")) {
+    if ($PSCmdlet.ShouldProcess($Email, "Send invitation")) {
         $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method POST -Headers $headers -Body $body
         return $response
     }
