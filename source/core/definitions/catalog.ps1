@@ -898,9 +898,9 @@ $global:Catalog.Provider += @{ AzureAD =
                     Type = "PowerShell"
                     PowerShell = @{
                         Modules = @(
-                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
-                            @{ Name = "Microsoft.Graph"}
-                            @{ Name = "Microsoft.Graph.Beta"}
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
                         )
                     }
                 }
@@ -913,9 +913,9 @@ $global:Catalog.Provider += @{ AzureAD =
                     Type = "PowerShell"
                     PowerShell = @{
                         Modules = @(
-                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
-                            @{ Name = "Microsoft.Graph"}
-                            @{ Name = "Microsoft.Graph.Beta"}
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
                         )
                     }
                 }
@@ -980,9 +980,9 @@ $global:Catalog.Provider += @{ SharePoint =
                     Type = "PowerShell"
                     PowerShell = @{
                         Modules = @(
-                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
-                            @{ Name = "Microsoft.Graph"}
-                            @{ Name = "Microsoft.Graph.Beta"}
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
                         )
                     }
                 }                
@@ -994,13 +994,48 @@ $global:Catalog.Provider += @{ SharePoint =
                     Type = "PowerShell"
                     PowerShell = @{
                         Modules = @(
-                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
-                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true}
-                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true}
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
                         )
                     }
                 }                
             )
         }           
+    }
+}
+
+$global:Catalog.Provider += @{ ExchangeOnline =
+    [Provider]@{
+        Id = "ExchangeOnline"
+        Name = "ExchangeOnline"
+        DisplayName = "Exchange Online"
+        Description = "Overwatch Provider for Exchange Online."
+        Category = "Mail"
+        Publisher = "Walker Analytics Consulting"
+        Installation = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "ExchangeOnlineManagement"}
+                        )
+                    }
+                }
+            )
+        }
+        Initialization = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "ExchangeOnlineManagement"}
+                        )
+                    }
+                }
+            )
+        }
     }
 }
