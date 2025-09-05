@@ -312,7 +312,8 @@ function global:Disable-PlatformTask {
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ById")][string]$Id,
         [Parameter(Mandatory=$false,Position=0,ParameterSetName="ByTaskName")][string]$TaskName,
         [Parameter(Mandatory=$false)][timespan]$Timeout = (New-TimeSpan -Seconds 60),
-        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "null"
+        [Parameter(Mandatory=$false)][ValidateSet("IsTargetState","PlatformTask.Status","PlatformTask","null")][string]$OutputType = "null",
+        [switch]$Force
     )
 
     if ($PlatformTask) {
@@ -334,6 +335,16 @@ function global:Disable-PlatformTask {
     $isTargetState = $PlatformTask.Status -in $global:PlatformTaskState.Disabled
     if ($isTargetState) {
         return Invoke-Expression "`$$OutputType"
+    }
+
+
+    # if running, then wait for PlatformTask to stop
+    if ($PlatformTask.Status -in $global:PlatformTaskState.Running -and !$Force) {
+        $PlatformTask = Wait-PlatformTask -PlatformTask $PlatformTask -State $global:PlatformTaskState.Ready -OutputType PlatformTask -Timeout $Timeout
+        if ($PlatformTask.Status -ne $global:PlatformTaskState.Ready) {
+            $isTargetState = $false
+            return Invoke-Expression "`$$OutputType"
+        }
     }
 
     # disable PlatformTask
