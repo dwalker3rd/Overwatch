@@ -706,7 +706,7 @@ function script:Remove-CatalogObjectFiles {
 
     if ($DeleteAllData) {
         New-Item -ItemType Directory "$archivePath\data" -ErrorAction SilentlyContinue | Out-Null
-        Move-Files -Path "$($global:Location.Data)\$($Id.ToLower())\*.*" -Destination "$archivePath\data" -Recurse -Overwrite
+        # Move-Files -Path "$($global:Location.Data)\$($Id.ToLower())\*.*" -Destination "$archivePath\data" -Recurse -Overwrite
     }
 
     # copy to archive folder (don't delete in case the catalog object is reinstalled)
