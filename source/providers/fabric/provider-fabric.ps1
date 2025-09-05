@@ -43,15 +43,27 @@
 
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
-            [Parameter(Mandatory=$true,Position=1)][string]$Name
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceName")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceId")][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceName")][string]$Name,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][string]$Id,
+            [Parameter(Mandatory=$false)][object[]]$Capacities
         )
 
         $tenantKey = $Tenant.split(".")[0].ToLower()
         if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }       
 
-        $capacities = Get-Capacities -Tenant $Tenant
-        $capacity = $capacities | Where-Object { $_.displayName -eq $Name }
+        $_capacities = $Capacities
+        if (!$Capacities) {
+            $_capacities = Get-Capacities -Tenant $Tenant
+        }
+
+        if ($Name) {
+            $capacity = $_capacities | Where-Object { $_.displayName -eq $Name }
+        }
+        else {
+            $capacity = $_capacities | Where-Object { $_.id -eq $Id }
+        }
         return $capacity
 
     }
@@ -103,7 +115,12 @@
             -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$workspaceId" `
             -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers     
 
-        return $workspace
+        if (![string]::IsNullOrEmpty($workspace.id)) {
+            return $workspace
+        }
+        else {
+            return
+        }
 
     }
 
@@ -112,13 +129,15 @@
         [CmdletBinding()]
         param(
             [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
-            [Parameter(Mandatory=$true,Position=1)][string]$Name
+            [Parameter(Mandatory=$true,Position=1)][string]$Name,
+            [Parameter(Mandatory=$false)][string]$Description
         )
 
         $tenantKey = $Tenant.split(".")[0].ToLower()
         if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}       
 
         $body = @{ displayName = $Name } | ConvertTo-Json
+        if ($Description) { $_body += @{ description = $Description } }
         $workspace = Invoke-RestMethod -Method POST `
             -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces" `
             -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
@@ -269,7 +288,7 @@
                     $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.userDetails.userPrincipalName -eq $PrincipalId }
                 }
                 "Group" {
-                    $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.displayName -eq $PrincipalId }
+                    $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.id -eq $PrincipalId }
                 }
             }
             $workspaceRoleAssignmentId = $_workspaceRoleAssignment.Id
@@ -283,7 +302,7 @@
 
     }
 
-    function global:Set-WorkspaceRoleAssignment {
+    function global:Add-WorkspaceRoleAssignment {
 
         [CmdletBinding()]
         param(
@@ -303,18 +322,16 @@
         $azureADPrincipal = $null
         switch ($PrincipalType) {
             "User" {
-                $_azureADUser = $null
                 if (!$isGuid) {
-                    $_azureADUser = Find-AzureADUser -Tenant $Tenant -UserPrincipalName $PrincipalId
+                    $azureADPrincipal = Find-AzureADUser -Tenant $Tenant -UserPrincipalName $PrincipalId
                 }
-                $azureADPrincipal = Get-AzureADUser -Tenant $Tenant -Id $_azureADUser.id
+                $azureADPrincipal = Get-AzureADUser -Tenant $Tenant -Id $PrincipalId
             }
             "Group" {
-                $_azureADGroup = $null
                 if (!$isGuid) {
-                    $_azureADGroup = Find-AzureADGroup -Tenant $Tenant -DisplayName $PrincipalId
+                    $azureADPrincipal = Find-AzureADGroup -Tenant $Tenant -DisplayName $PrincipalId
                 }
-                $azureADPrincipal = Get-AzureADGroup -Tenant $Tenant -Id $_azureADGroup.id                
+                $azureADPrincipal = Get-AzureADGroup -Tenant $Tenant -Id $PrincipalId                
             }
         }
 
