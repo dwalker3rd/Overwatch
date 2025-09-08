@@ -19,36 +19,8 @@ param (
             throw "Unable to find the MSGraph credentials `"$($global:Azure.$tenantKey.MsGraph.Credentials)`""
         }
         
-        $appId = $appCredentials.UserName
-        $appSecret = $appCredentials.GetNetworkCredential().Password
-        $scope = $global:Azure.$tenantKey.MsGraph.Scope
-        $tenantDomain = $global:Azure.$tenantKey.Tenant.Domain
-
-        $uri = "https://login.microsoftonline.com/$tenantDomain/oauth2/v2.0/token"
-
-        # Add-Type -AssemblyName System.Web
-
-        $body = @{
-            client_id = $appId
-            client_secret = $appSecret
-            scope = $scope
-            grant_type = 'client_credentials'
-        }
-
-        $restParams = @{
-            ContentType = 'application/x-www-form-urlencoded'
-            Method = 'POST'
-            Body = $body
-            Uri = $uri
-        }
-
-        # request token
-        $response = Invoke-RestMethod @restParams
-
-        #TODO: try/catch for expired secret with critical messaging
-        
-        # headers
-        $global:Azure.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
+        Connect-MgGraph -NoWelcome -TenantId $global:Azure.$tenantKey.Tenant.Id -ClientSecretCredential $appCredentials
+        $global:Azure.$tenantKey.MsGraph.Context = Get-MgContext
 
         return
 
@@ -108,12 +80,12 @@ $_provider | Out-Null
         }
         catch {}
 
-        if ([string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.AccessToken)) {
+        if ([string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.Context)) {
             Write-Host+ -NoTrace -NoTimestamp "    Invalid MSGraph App Id or Secret." -ForegroundColor Red
             $creds = $null
         }
 
-    } until (![string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.AccessToken))
+    } until (![string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.Context))
 
 
 #endregion MSGRAPH CREDENTIALS
