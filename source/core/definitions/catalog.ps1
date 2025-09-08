@@ -583,6 +583,29 @@ $global:Catalog.Product += @{ MailMerge =
     }
 }
 
+$global:Catalog.Product += @{ SPOSyncFabric = 
+    [Product]@{
+        Suite = "SPOSyncFabric"
+        Id = "SPOSyncFabric"
+        Name = "SPOSyncFabric"
+        DisplayName = "SPOSyncFabric"
+        Description = "Syncs SharePoint lists to Microsoft Fabric objects."
+        Publisher = "Walker Analytics Consulting"
+        Log = "SPOSyncFabric"
+        HasTask = $true
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Product"; Product = "AzureADCache"}
+                @{ Type = "Cloud"; Cloud = "Azure"}
+                @{ Type = "Provider"; Provider = "AzureAD"}
+                @{ Type = "Provider"; Provider = "Fabric"}
+                @{ Type = "Provider"; Provider = "SharePoint"}                               
+                @{ Type = "Provider"; Provider = "ExchangeOnline"}                 
+            )
+        }
+    }
+}
+
 $global:Catalog.Provider += @{ "OnePassword" = 
     [Provider]@{
         Id = "OnePassword"

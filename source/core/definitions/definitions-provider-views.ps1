@@ -308,6 +308,27 @@ $global:CatalogView = @{
     }
 }
 
+$global:SharePointView = @{
+    Capacity = @{
+        Default = @("ID", "Capacity Name", "SKU", "Region", "State", "Capacity ID")
+    }
+    Workspace = @{
+        Default = @("ID", "Workspace Name", "Capacity Name", "Command", "Status", "Workspace ID")
+        }
+    User = @{
+        Default = @("ID", "User Name", "User Email", "Account Status", "External User State", "Command", "Status", "User Email (backup)")
+    }
+    Group = @{
+        Default = @("ID", "Group Name", "Group ID", "Command", "Status")
+    }
+    GroupMembership = @{
+        Default = @("ID", "Group Name", "User Email", "Command", "Status")  
+    }
+    WorkspaceRoleAssignment = @{
+        Default = @("ID", "Workspace Name", "Group Name", "Role", "Command", "Status", "Workspace Role Assignment ID")
+    }
+}
+
 #endregion VIEW DEFINITIONS
 
 return $Provider
