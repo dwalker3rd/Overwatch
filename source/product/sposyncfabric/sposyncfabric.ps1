@@ -55,7 +55,7 @@ function Update-SharepointListItemHelper {
 
 }
 
-Write-Host+
+# Write-Host+
 
 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Connecting to tenant ", $global:Fabric.Tenant -ForegroundColor DarkGray, DarkBlue
 Connect-Fabric -Tenant $global:Fabric.Tenant
@@ -92,6 +92,14 @@ Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching users from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
 $azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
 Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+
+# cache groups to improve performance
+Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+$azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
+$azureADGroups = $azureADGroups | Where-Object { ![string]::IsNullOrEmpty($_.displayName) }
+Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+
+Write-Host+
 
 #region GET SHAREPOINT LISTS
 
@@ -441,14 +449,14 @@ Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #endregion PROCESS WORKSPACE COMMANDS
 
-Write-Host+ -Iff $($hadCommand)
+# Write-Host+ -Iff $($hadCommand)
 # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
-# Write-Host+
+Write-Host+
 
 # cache users to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching users from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+# Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching users from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+# $azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
+# Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #region GET SHAREPOINT LISTS
 
@@ -528,7 +536,7 @@ Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
         # update sharepoint list item when $azureADUser.accountenabled does not match Account Status
         if ($($userListItem.'Account Status' -eq "Enabled") -ne $azureADUser.accountEnabled) {
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "Account Status" -Value $($azureADUser.accountEnabled ? "Enabled" : "Disabled")   
-            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "User ", $azureADUser.mail, $($azureADUser.accountEnabled ? "Enabled" : "Disabled") -ForegroundColor DarkGray, DarkBlue, ($azureADUser.accountEnabled ? "DarkGreen" : "DarkRed")              
+            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "User ", $azureADUser.mail, $($azureADUser.accountEnabled ? " Enabled" : " Disabled") -ForegroundColor DarkGray, DarkBlue, ($azureADUser.accountEnabled ? "DarkGreen" : "DarkRed")              
             $updatedUserList = $true
         }
 
@@ -683,15 +691,15 @@ Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #region REFRESH AZURE AD USER CACHE
 
-Write-Host+ -Iff $($hadCommand)
+# Write-Host+ -Iff $($hadCommand)
 # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
-# Write-Host+
+Write-Host+
 
-# cache groups to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
-$azureADGroups = $azureADGroups | Where-Object { ![string]::IsNullOrEmpty($_.displayName) }
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+# # cache groups to improve performance
+# Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+# $azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
+# $azureADGroups = $azureADGroups | Where-Object { ![string]::IsNullOrEmpty($_.displayName) }
+# Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #region GET SHAREPOINT LISTS
 
@@ -837,14 +845,14 @@ Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 }
 
-Write-Host+ -Iff $($hadCommand)
+# Write-Host+ -Iff $($hadCommand)
 # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
-# Write-Host+
+Write-Host+
 
 # cache groups to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+# Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+# $azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
+# Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #region GET SHAREPOINT LISTS
 
@@ -986,24 +994,24 @@ Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #endregion PROCESS GROUP MEMBERSHIP COMMANDS
 
-Write-Host+ -Iff $($hadCommand)
+# Write-Host+ -Iff $($hadCommand)
 # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
-# Write-Host+
+Write-Host+
 
-# cache workspaces to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching workspaces from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$workspaces = Get-Workspaces -Tenant $global:Fabric.Tenant | Where-Object { $_.type -eq "Workspace" -and ![string]::IsNullOrEmpty($_.capacityId) }
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+# # cache workspaces to improve performance
+# Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching workspaces from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+# $workspaces = Get-Workspaces -Tenant $global:Fabric.Tenant | Where-Object { $_.type -eq "Workspace" -and ![string]::IsNullOrEmpty($_.capacityId) }
+# Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
-# cache users to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching users from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+# # cache users to improve performance
+# Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching users from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+# $azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
+# Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
-# cache groups to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+# # cache groups to improve performance
+# Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+# $azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
+# Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #region GET SHAREPOINT LISTS
 
@@ -1144,6 +1152,8 @@ Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 #endregion PROCESS GROUP MEMBERSHIP COMMANDS    
 
-Write-Host+ -Iff $($hadCommand)
+# Write-Host+ -Iff $($hadCommand)
 # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
 # Write-Host+ -MaxBlankLines 1
+
+Write-Host+

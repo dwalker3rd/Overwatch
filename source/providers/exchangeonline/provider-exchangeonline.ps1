@@ -8,9 +8,9 @@ function global:Connect-ExchangeOnline+ {
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}    
 
-    $exchangeOnlineCredentials = Get-Credentials "$Tenant-exchangeonline"
+    $exchangeOnlineCredentials = Get-Credentials "$tenantKey-exchangeonline"
     if (!$exchangeOnlineCredentials) {
-        throw "Unable to find the Exchange Online credentials `"$Tenant-exchangeonline`""
+        throw "Unable to find the Exchange Online credentials `"$tenantKey-exchangeonline`""
     }    
 
     Connect-ExchangeOnline -Credential $exchangeOnlineCredentials -DisableWAM -ShowBanner:$false

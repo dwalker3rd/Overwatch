@@ -14,11 +14,17 @@
 
     $global:Product = $global:Catalog.Product.SPOSyncFabric
 
+    $global:Product.DisplayName = "$($global:Overwatch.Name) $($global:Product.Name)"
+    $global:Product.DisplayName += $global:Platform.Name -ne "None" ?  "for $($global:Platform.Name)" : $null
+    $global:Product.TaskName = $global:Product.DisplayName
+    $global:Product.Description = "Syncs SharePoint lists to Microsoft Fabric objects."
+    $global:Product.HasTask = $true
+
     $global:Product.Config = @{}
 
     $global:SharePoint = @{
-        Tenant = "<SharePoint Tenant>"
-        Site = "<SharePoint Site>"
+        Tenant = "pathseattle"
+        Site = "rhsupplies"
         List = @{
             Workspaces = "Fabric Workspaces"
             Capacities = "Fabric Capacities"
@@ -35,7 +41,7 @@
     }
 
     $global:Fabric = @{
-        Tenant = "<Fabric Tenant>"
+        Tenant = "rhsuppliesdata"
         Capacities = @{
             Special = @(
                     "Trial*", 
@@ -49,6 +55,10 @@
                 "Microsoft Fabric Chargeback Reporting"
             )
         }
+    }
+
+    $global:ExchangeOnline = @{
+        Tenant = "rhsuppliesdata"
     }
 
     return $global:Product
