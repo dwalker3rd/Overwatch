@@ -13,30 +13,94 @@ function global:Connect-AzureAD {
         throw "Unable to find the MSGraph credentials `"$($global:Azure.$tenantKey.MsGraph.Credentials)`""
     }
 
+    #region HTTP
+
+        $appId = $appCredentials.UserName
+        $appSecret = $appCredentials.GetNetworkCredential().Password
+        $scope = $global:Azure.$tenantKey.MsGraph.Scope
+        $tenantDomain = $global:Azure.$tenantKey.Tenant.Domain
+
+        $uri = "https://login.microsoftonline.com/$tenantDomain/oauth2/v2.0/token"
+
+        # Add-Type -AssemblyName System.Web
+
+        $body = @{
+            client_id = $appId
+            client_secret = $appSecret
+            scope = $scope
+            grant_type = 'client_credentials'
+        }
+
+        $restParams = @{
+            ContentType = 'application/x-www-form-urlencoded'
+            Method = 'POST'
+            Body = $body
+            Uri = $uri
+        }
+
+        # request token
+        $response = Invoke-RestMethod @restParams
+
+        #TODO: try/catch for expired secret with critical messaging
+        
+        # headers
+        $global:Azure.$tenantKey.MsGraph.AccessToken = "$($response.token_type) $($response.access_token)"
+
+    #endregion HTTP
+    #region MGGRAPH
+    
         Connect-MgGraph -NoWelcome -TenantId $global:Azure.$tenantKey.Tenant.Id -ClientSecretCredential $appCredentials
+
         $global:Azure.$tenantKey.MsGraph.Context = Get-MgContext
+
+    #endregion MGGRAPH
 
     return
 
 }
 Set-Alias -Name Connect-MgGraph+ -Value Connect-AzureAD -Scope Global
 
-function global:Get-AzureADApplication {
+function global:Invoke-AzureADRestMethod {
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$false)][string]$ApplicationId,
-        [Parameter(Mandatory=$false)][string]$View
+        [Parameter(Mandatory=$true)][object]$params
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $response = Get-MgApplication -Filter "AppId eq '$ApplicationId'"
+    if ([string]::IsNullOrEmpty($params.Headers.Authorization)) {
+        Connect-AzureAD -tenant $tenantKey
+        $params.Headers.Authorization = $global:Azure.$tenantKey.MsGraph.AccessToken
+    }
+
+    $retry = $false
+    $response = @{ error = @{} }
+    try {
+        $response = Invoke-RestMethod @params
+    }
+    catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+        $response.error = ((get-error).ErrorDetails | ConvertFrom-Json).error
+        if ($response.error.code -eq "InvalidAuthenticationToken") {
+            Connect-AzureAD -tenant $tenantKey
+            $params.Headers.Authorization = $global:Azure.$tenantKey.MsGraph.AccessToken
+            $retry = $true
+        }
+    }
+    if ($retry) {
+        $response = @{ error = @{} }
+        try {
+            $response = Invoke-RestMethod @params
+        }
+        catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+            $response.error = ((get-error).ErrorDetails | ConvertFrom-Json).error
+        }
+    }
 
     return $response
-
+    
 }
 
 function global:Get-AzureADGroup {
@@ -45,15 +109,79 @@ function global:Get-AzureADGroup {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][string]$Id,
-        # [Parameter(Mandatory=$false)][string[]]$Properties,
+        [Parameter(Mandatory=$false)][string[]]$Properties,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "v1.0",
         [Parameter(Mandatory=$false)][string]$View
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $azureADGroup = Get-MgGroup -GroupId $Id
-    $azureADGroup.members = Get-MgGroupMemberAsUser -GroupId $Id -All -ConsistencyLevel Eventual -CountVariable memberCount
+    $AzureADB2C = $global:Azure.$($tenantKey).tenant.type -eq "Azure AD B2C"
+
+    $queryParams = @{
+        default = @{
+            Users = @{
+                property = @("id","userPrincipalName","displayName","mail","accountEnabled","proxyAddresses")
+            }
+        }
+    }
+    $queryParams += @{
+        Users = @{
+            property = $Properties ?? ($AzureADB2C ? @("id","userPrincipalName","userType","displayName","mail","accountEnabled","proxyAddresses","identities") : $queryParams.default.Users.property)
+            select = ""
+            # filter = $Filter
+        }
+        Groups = @{
+            property = $Properties ?? @("id","displayName","groupTypes","securityEnabled","members")
+            select = ""
+            # filter = $Filter
+        }
+    }
+    $queryParams.Users.select = "`$select=$($queryParams.Users.property -join ",")"
+    $queryParams.Groups.select = "`$select=$($queryParams.Groups.property -join ",")"
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/groups/$($Id)?$($queryParams.Groups.select)"
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'GET'
+        Uri = $uri
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+    $azureADGroup = $filter ? $response.value : $response
+    # $azureADGroup = $azureADGroup | Where-Object {((!$_.groupTypes -and $_.securityEnabled) -or ($_.groupTypes -eq "DynamicMembership"))}
+    $azureADGroup | Add-Member -NotePropertyName members -NotePropertyValue @()
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/groups/$Id/members?$($queryParams.Users.select)" 
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'GET'
+        Uri = $uri
+    }   
+
+    do {
+        $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+        $azureADGroup.members += $response.value | Select-Object -ExcludeProperty "@odata.type"
+        # $message = "$($response.value.count)/$($azureADGroup.Members.count)"
+        # Write-Host+ -NoTrace -NoTimestamp -NoNewLine "$($emptyString.PadLeft($messageLength,"`b"))$($emptyString.PadLeft($messageLength," "))$($emptyString.PadLeft($messageLength,"`b"))$message"
+        # $messageLength = $message.Length
+        $restParams.Uri = $response."@odata.nextLink"
+    } until (!$restParams.Uri)
+
+    # Write-Host+
 
     return $azureADGroup
      
@@ -65,7 +193,8 @@ function global:Get-AzureADUser {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
-        # [Parameter(Mandatory=$false)][string[]]$Properties,
+        [Parameter(Mandatory=$false)][string[]]$Properties,
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
 
@@ -90,7 +219,34 @@ function global:Get-AzureADUser {
     $filter += $isMemberUserPrincipalName ? "$($filter ? " or " : $null)userPrincipalName eq '$User'" : $null
     $filter = $isGuestUserPrincipalName ? "userPrincipalName eq '$($User.Replace("#","%23"))'" : $filter
 
-    $azureADUser = Get-MgUser -Filter $filter
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users" 
+    $uri += $filter ? "?`$filter=$filter" : "/$User"
+    $uri += ($Properties ? "&select=$($Properties -join ",")" : "")
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'GET'
+        Uri = $uri
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+    $azureADUser = $filter ? $response.value : $response
+
+    # if $User can't be found in the mail or userPrincipalName properties, check the Identities collection
+    if (!$azureADUser) {
+        $filter = "identities/any(c:c/issuerAssignedId eq '$User' and c/issuer eq '$($global:Azure.$tenantKey.Tenant.Name)')"
+        $restParams.Uri = "https://graph.microsoft.com/$graphApiVersion/users?`$filter=$filter"
+        $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method GET -Headers $headers
+        $azureADUser = $response.value
+        # $azureADB2CUserIdentity = $azureADUser.identities | where-object {$_.issuer -eq $global:Azure.$tenantKey.Tenant.Name -and $_.signInType -eq "emailAddress"}
+        # $azureADUser | Add-Member -NotePropertyName issuer -NotePropertyValue $azureADB2CUserIdentity.issuer
+        # $azureADUser | Add-Member -NotePropertyName issuerAssignedId -NotePropertyValue $azureADB2CUserIdentity.issuerAssignedId
+    }
 
     return $azureADUser | Select-Object -Property $($View ? $AzureADView.User.$($View) : $AzureADView.User.Default)
      
@@ -101,13 +257,25 @@ function global:Remove-AzureADUser {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][string]$Id
+        [Parameter(Mandatory=$true)][string]$Id,
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta"
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $response = Remove-MgUser -UserId $Id
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$Id" 
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'DELETE'
+        Uri = $uri
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
     $response | Out-Null
 
     return
@@ -215,17 +383,32 @@ function global:Update-AzureADUserProperty {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][object]$User,
         [Parameter(Mandatory=$true)][string]$Property,
-        [Parameter(Mandatory=$true)][string]$Value
+        [Parameter(Mandatory=$true)][string]$Value,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $params = @{
-        $Property = $Value
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'PATCH'
+        Uri = $uri
+        body = "{
+            `n    `"$Property`" : $Value
+            `n}"
     }
 
-    return = Update-MgUser -UserId $User.Id @params
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
+    $response | Out-Null
+
+    return
 
 }
 
@@ -263,7 +446,7 @@ function global:Get-AzureADUser+ {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UserId")][string]$User,
-        # [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )
 
@@ -279,13 +462,14 @@ function global:Get-AzureADUser+ {
 
     $getParams = @{
         Tenant = $tenantKey
+        GraphApiVersion = $GraphApiVersion
         User = $User
     }
 
     $azureADUser = Get-AzureADUser @getParams 
 
     if ($azureADUser) {
-        $azureADUserGroupMembership = Get-AzureADUserMembership -Tenant $tenantKey -User $AzureADUser
+        $azureADUserGroupMembership = Get-AzureADUserMembership -Tenant $tenantKey -AzureADUser $AzureADUser
         $azureADUser | Add-Member -NotePropertyName groupMembership -NotePropertyValue $azureADUserGroupMembership
         $azureADUser | Add-Member -NotePropertyName tenant -NotePropertyValue $global:Azure.$tenantKey.Tenant
     }
@@ -302,7 +486,8 @@ function global:IsMember {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$false)][Alias("UserPrincipalName","UPN","Id","UserId","Email","Mail")][string]$User,
-        [Parameter(Mandatory=$false)][Alias("GroupId","GroupDisplayName","GroupName")][string]$Group
+        [Parameter(Mandatory=$false)][Alias("GroupId","GroupDisplayName","GroupName")][string]$Group,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
 
     $tenantKey = $Tenant.split(".")[0].ToLower()
@@ -310,6 +495,7 @@ function global:IsMember {
 
     $getParams = @{
         Tenant = $tenantKey
+        GraphApiVersion = $GraphApiVersion
         User = $User
     }
 
@@ -317,7 +503,7 @@ function global:IsMember {
 
     $isMemberOfGroup = $false
     if ($azureADUser) {
-        $azureADUserGroupMembership = Get-AzureADUserMembership -Tenant $tenantKey -User $AzureADUser
+        $azureADUserGroupMembership = Get-AzureADUserMembership -Tenant $tenantKey -AzureADUser $AzureADUser
         $isMemberOfGroup = $azureADUserGroupMembership.id -contains $Group -or $azureADUserGroupMembership.displayName -contains $Group
     }
 
@@ -344,6 +530,27 @@ function global:Get-AzureADUserMembership {
 
 }
 
+function global:New-AzureADGroupMember {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$false)][string]$UserId,
+        [Parameter(Mandatory=$false)][string]$GroupId,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}   
+
+    $params = @{
+        "@odata.id" = "https://graph.microsoft.com/beta/directoryObjects/$UserId"
+    }
+
+    return New-MgBetaGroupMemberByRef -GroupId $groupId -BodyParameter $params
+
+}
+
 function global:Send-AzureADInvitation {
 
     [CmdletBinding(SupportsShouldProcess=$true)]
@@ -358,7 +565,13 @@ function global:Send-AzureADInvitation {
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $params = @{
+    $uri = "https://graph.microsoft.com/$($graphApiVersion)/invitations"
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $body = @{
         invitedUserDisplayName = $DisplayName
         invitedUserEmailAddress = $Email
         invitedUserMessageInfo = @{
@@ -367,10 +580,19 @@ function global:Send-AzureADInvitation {
         }
         sendInvitationMessage = $true
         inviteRedirectUrl = "https://portal.azure.com" 
+    } | ConvertTo-Json
+
+    $restParams = @{
+        Body = $body
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'POST'
+        Uri = $uri
     }
 
-    if ($PSCmdlet.ShouldProcess($Email, "Send invitation to '{0}'")) {
-        New-MgInvitation -BodyParameter $params
+    if ($PSCmdlet.ShouldProcess($Email, "Send invitation")) {
+        $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams # -Uri $uri -Method POST -Headers $headers -Body $body
+        return $response
     }
     else {
         return
@@ -410,24 +632,37 @@ function global:Update-AzureADUserEmail {
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    try{
-        Update-AzureADUserProperty -Tenant $tenantKey -User $User -Property "mail" -Value $mail
-        Update-AzureADUserProperty -Tenant $tenantKey -User $User -Property "identities" -Value $mailIdentitiesJson
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
 
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'PATCH'
+        Uri = $uri
+        body = "{`"mail`" : `"$mail`", `"identities`" : $mailIdentitiesJson}"
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
+
+    $status = $null
+    $message = $null
+    if ($response.error) { 
+        $status = "Failure"
+        $entryType = "Error"
+        if ($response.error.details.code -contains "ObjectConflict") {
+            $status = "ProxyAddressConflict"
+            $message = ($response.error.details | Where-Object {$_.code -eq "ObjectConflict"}).message
+            $entryType = "Warning"
+        }
+    }
+    else {
         $response = Get-AzureADUser -Tenant $tenantKey -User $User.id
         $status = $response.mail -eq $mail ? "Success" : "Failure"
         $message = "$mailOriginal > $($response.mail)"
         $entryType = $status -eq "Success" ? "Information" : "Error"
-    }
-    catch {
-        $status = "Failure"
-        $entryType = "Error"
-        $responseError = Get-Error
-        if ($responseError.details.code -contains "ObjectConflict") {
-            $status = "ProxyAddressConflict"
-            $message = ($responseError.details | Where-Object {$_.code -eq "ObjectConflict"}).message
-            $entryType = "Warning"
-        }
     }
     Write-Log -Action "UpdateAzureADUserEmail" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
 
@@ -443,8 +678,16 @@ function global:Update-AzureADUserNames{
         [Parameter(Mandatory=$true)][object]$User,
         [Parameter(Mandatory=$false)][Alias("FirstName")][string]$GivenName,
         [Parameter(Mandatory=$false)][Alias("LastName","FamilyName")][string]$SurName,
-        [Parameter(Mandatory=$false)][string]$DisplayName
+        [Parameter(Mandatory=$false)][string]$DisplayName,
+        [Parameter(Mandatory=$false)][ValidateSet("v1.0","beta")][string]$GraphApiVersion = "beta"
     )
+
+    # if ([string]::IsNullOrEmpty($GivenName) -and
+    #     [string]::IsNullOrEmpty($GivenName) -and
+    #     [string]::IsNullOrEmpty($GivenName)) {
+    #         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "No names were specified." -ForegroundColor DarkYellow
+    #         return $User
+    #     }
 
     $givenNameOriginal = $User.givenName ?? "None"
     $surNameOriginal = $User.surName ?? "None"
@@ -453,13 +696,26 @@ function global:Update-AzureADUserNames{
     $tenantKey = $Tenant.split(".")[0].ToLower()
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
-    $params = @{}
-    if (![string]::IsNullOrEmpty($GivenName)) { $params += @{ givenName = $givenName } }
-    if (![string]::IsNullOrEmpty($surName)) { $params += @{ surName = $surName } }
-    if (![string]::IsNullOrEmpty($displayName)) { $params += @{ displayName = $displayName } }
-    $params = $params | ConvertTo-Json
+    $uri = "https://graph.microsoft.com/$graphApiVersion/users/$($User.id)"
 
-    $response = Update-AzureADUserProperty -User $User -Tenant $tenantKey @params
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $body = @{}
+    if (![string]::IsNullOrEmpty($GivenName)) { $body += @{ givenName = $givenName } }
+    if (![string]::IsNullOrEmpty($surName)) { $body += @{ surName = $surName } }
+    if (![string]::IsNullOrEmpty($displayName)) { $body += @{ displayName = $displayName } }
+    $body = $body | ConvertTo-Json
+
+    $restParams = @{
+        Headers = $headers
+        Method = 'PATCH'
+        Uri = $uri
+        body = $body
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams
 
     $status = $null
     $message = $null
@@ -469,8 +725,15 @@ function global:Update-AzureADUserNames{
     }
     else {
         $response = Get-AzureADUser -Tenant $tenantKey -User $User.id
-        $status = $response.givenName -eq $GivenName -and $response.surName -eq $SurName -and $response.displayName -eq $DisplayName ? "Success" : "Failure"
-        $message = "$givenNameOriginal > $($response.givenName), $surNameOriginal > $($response.surName), $displayNameOriginal > $($response.displayName)"
+        $givenNameMatch = ![string]::IsNullOrEmpty($GivenName) ? $response.givenName -eq $GivenName : $true
+        $surNameMatch = ![string]::IsNullOrEmpty($SurName) ? $response.surName -eq $SurName : $true
+        $displayNameMatch = ![string]::IsNullOrEmpty($DisplayName) ? $response.displayName -eq $DisplayName : $true
+        $status = $givenNameMatch -and $surNameMatch -and $displayNameMatch ? "Success" : "Failure"
+        $messageBits = @()
+        if (![string]::IsNullOrEmpty($GivenName)) { $messageBits +=  "$givenNameOriginal > $($response.givenName)"}
+        if (![string]::IsNullOrEmpty($SurName)) { $messageBits +=  "$surNameOriginal > $($response.surName)"}
+        if (![string]::IsNullOrEmpty($DisplayName)) { $messageBits +=  "$displayNameOriginal > $($response.displayName)"}
+        $message = $messageBits -join ", "
         $entryType = $status -eq "Success" ? "Information" : "Error"
     }
     Write-Log -Action "AzureADUserNames" -Target "$tenantKey\Users\$($User.id)" -Message $message -Status $status -EntryType $entryType -Force
@@ -485,11 +748,12 @@ function global:Get-AzureADObjects {
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true)][ValidateSet("Groups","Users")][string]$Type,
-        # [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string[]]$Property,
         [Parameter(Mandatory=$false)][string]$Filter,
         [switch]$Delta,
-        [switch]$NoCache
+        [switch]$NoCache,
+        [switch]$Quiet
     )
 
     if ($NoCache) {$Delta = $false}
@@ -532,7 +796,7 @@ function global:Get-AzureADObjects {
     #region DELTALINK
 
         if ($Delta) {
-            $deltaLink = Get-DeltaLink -Tenant $tenantKey -Type $Type
+            $deltaLink = Get-DeltaLink -Tenant $tenantKey -Type $Type -Quiet:$Quiet.IsPresent
             if (!$deltaLink) {
                 $Delta = $false
             }
@@ -563,7 +827,7 @@ function global:Get-AzureADObjects {
         Set-CursorInvisible
             
         $message = "$($Delta ? "Processing" : "Getting") $typeLowerCaseSingular updates"
-        Write-Host+ -NoTrace -NoNewLine -NoSeparator $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray # -Prefix "`r"
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoNewLine -NoSeparator $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray # -Prefix "`r"
     
         $uri = $Delta ?  $deltaLink : "https://graph.microsoft.com/$($graphApiVersion)/$typeLowerCase$($Filter ? $null : "/delta")?$($queryParams.$Type.select)$($Filter ? "`&$Filter" : $null)"
 
@@ -596,78 +860,86 @@ function global:Get-AzureADObjects {
 
                 $azureADObject = $value | Select-Object -Property *,@{Name="timestamp"; Expression={Get-Date}}
 
-                switch ($Type) {
-
-                    "Users" {
-
-                        if ($azureADObjects.($azureADObject.id)) {
-                            $azureADObjects.($azureADObject.id) = $azureADObject
-                        }
-                        else {
-                            $azureADObjects += @{$azureADObject.id = $azureADObject}
-                        }
-
-                        $updateCount += 1
-
+                if ($azureADObject.'@removed') {
+                    if ($azureADObjects.($azureADObject.id)) {
+                        $azureADObjects.remove($azureADObject.id)
                     }
-                    "Groups" {
+                }
+                else {
 
-                        if ((!$azureADObject.groupTypes -and $azureADObject.securityEnabled) -or 
-                            ($azureADObject.groupTypes -eq "DynamicMembership")) {#} -and $azureADObject.displayName -notin $global:Azure.SpecialGroups)) {
+                    switch ($Type) {
 
-                            $newAzureADObject = @{
-                                id = $azureADObject.id
-                                displayName = $azureADObject.displayName
-                                groupTypes = $azureADObject.groupTypes
-                                securityEnabled = $azureADObject.securityEnabled
-                                timestamp = $azureADObject.timestamp
-                                # nestedGroups = @()
-                                # membersDelta = @()
-                                # membersToRemove = @()
-                                # membersToAdd = @()
-                                members = New-Object System.Collections.ArrayList
-                            }
-                            # $nestedGroups = [array]($azureADObject."members@delta" | Where-Object {$_."@odata.type" -eq "#microsoft.graph.group"})
-                            $membersDelta = [array]($azureADObject."members@delta" | Where-Object {$_."@odata.type" -eq "#microsoft.graph.user"})
-                            $membersToRemove = [array](($membersDelta | Where-Object {$_."@removed"}).id)
-                            $membersToAdd = [array](($membersDelta | Where-Object {!$_."@removed"}).id)
+                        "Users" {
 
-                            if (!$azureADObjects.($azureADObject.id)) {
-                                $newAzureADObject.members = $membersToAdd
-                                $azureADObjects += @{$azureADObject.id = $newAzureADObject}
+                            if ($azureADObjects.($azureADObject.id)) {
+                                $azureADObjects.($azureADObject.id) = $azureADObject
                             }
                             else {
-                                $updatedMembers = New-Object System.Collections.ArrayList
-                                foreach ($member in $azureADObjects.($azureADObject.id).members) {
-                                    $updatedMembers.Add($member) | Out-Null
-                                }
-                                foreach ($member in $membersToAdd) {
-                                    $updatedMembers.Add($member) | Out-Null
-                                }
-                                foreach ($member in $membersToRemove) {
-                                    $updatedMembers.Remove($member) | Out-Null
-                                }
-
-                                # deltas can both add and update a user, so remove dupes
-                                $azureADObjects.($azureADObject.id).members = $updatedMembers | Sort-Object -Unique
-                                
-                                # if ($nestedGroups) {$azureADObjects.($azureADObject.id).nestedGroups += $nestedGroups}
-                                # if ($membersDelta) {$azureADObjects.($azureADObject.id).membersDelta += $membersDelta}
-                                # if ($membersToRemove) {$azureADObjects.($azureADObject.id).membersToRemove += $membersToRemove}
-                                # if ($membersToAdd) {$azureADObjects.($azureADObject.id).membersToAdd += $membersToAdd}
-
-                                $azureADObjects.($azureADObject.id).timestamp = (Get-Date)
+                                $azureADObjects += @{$azureADObject.id = $azureADObject}
                             }
 
                             $updateCount += 1
 
+                        }
+                        "Groups" {
+
+                            if ((!$azureADObject.groupTypes -and $azureADObject.securityEnabled) -or 
+                                ($azureADObject.groupTypes -eq "DynamicMembership")) {   #} -and $azureADObject.displayName -notin $global:Azure.SpecialGroups)) {
+
+                                $newAzureADObject = @{
+                                    id = $azureADObject.id
+                                    displayName = $azureADObject.displayName
+                                    groupTypes = $azureADObject.groupTypes
+                                    securityEnabled = $azureADObject.securityEnabled
+                                    timestamp = $azureADObject.timestamp
+                                    # nestedGroups = @()
+                                    # membersDelta = @()
+                                    # membersToRemove = @()
+                                    # membersToAdd = @()
+                                    members = New-Object System.Collections.ArrayList
+                                }
+                                # $nestedGroups = [array]($azureADObject."members@delta" | Where-Object {$_."@odata.type" -eq "#microsoft.graph.group"})
+                                $membersDelta = [array]($azureADObject."members@delta" | Where-Object {$_."@odata.type" -eq "#microsoft.graph.user"})
+                                $membersToRemove = [array](($membersDelta | Where-Object {$_."@removed"}).id)
+                                $membersToAdd = [array](($membersDelta | Where-Object {!$_."@removed"}).id)
+
+                                if (!$azureADObjects.($azureADObject.id)) {
+                                    $newAzureADObject.members = $membersToAdd
+                                    $azureADObjects += @{$azureADObject.id = $newAzureADObject}
+                                }
+                                else {
+                                    $updatedMembers = New-Object System.Collections.ArrayList
+                                    foreach ($member in $azureADObjects.($azureADObject.id).members) {
+                                        $updatedMembers.Add($member) | Out-Null
+                                    }
+                                    foreach ($member in $membersToAdd) {
+                                        $updatedMembers.Add($member) | Out-Null
+                                    }
+                                    foreach ($member in $membersToRemove) {
+                                        $updatedMembers.Remove($member) | Out-Null
+                                    }
+
+                                    # deltas can both add and update a user, so remove dupes
+                                    $azureADObjects.($azureADObject.id).members = $updatedMembers | Sort-Object -Unique
+                                    
+                                    # if ($nestedGroups) {$azureADObjects.($azureADObject.id).nestedGroups += $nestedGroups}
+                                    # if ($membersDelta) {$azureADObjects.($azureADObject.id).membersDelta += $membersDelta}
+                                    # if ($membersToRemove) {$azureADObjects.($azureADObject.id).membersToRemove += $membersToRemove}
+                                    # if ($membersToAdd) {$azureADObjects.($azureADObject.id).membersToAdd += $membersToAdd}
+
+                                    $azureADObjects.($azureADObject.id).timestamp = (Get-Date)
+                                }
+
+                                $updateCount += 1
+
+                            }
                         }
                     }
                 }
 
             }
 
-            Write-Host+ -NoTrace -NoTimeStamp -NoNewLine " $($emptyString.PadLeft($updateCountLength + $totalCountLength,"`b"))$($updateCount)/$($totalCount)" -ForegroundColor DarkGreen
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoNewLine " $($emptyString.PadLeft($updateCountLength + $totalCountLength,"`b"))$($updateCount)/$($totalCount)" -ForegroundColor DarkGreen
             $updateCountLength = $updateCount.ToString().Length + 1
             $totalCountLength = $totalCount.ToString().Length + 1
 
@@ -677,19 +949,19 @@ function global:Get-AzureADObjects {
 
         $deltaLink = $response."@odata.deltalink" ? $response."@odata.deltaLink" : $null
 
-        Write-Host+
+        Write-Host+ -Iff $(!$Quiet)
 
         Set-CursorVisible
 
         if (!$NoCache -or $AzureADB2C) {
 
             $message = "Writing $tenantKey $typeLowerCase to cache "
-            Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
 
             $azureADObjects | Write-AzureADCache -Tenant $tenantKey -Type $Type
             
             $message = " SUCCESS"
-            Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
 
         }
         
@@ -705,15 +977,88 @@ function global:Get-AzureADObjects {
                 $deltaLink = $response."@odata.deltaLink"
             }
 
-            Set-DeltaLink -Tenant $tenantKey -Type $Type -Value $deltaLink
+            Set-DeltaLink -Tenant $tenantKey -Type $Type -Value $deltaLink -Quiet:$Quiet.IsPresent
 
         }
 
     #region DELTALINKS UPDATES
 
-    Write-Host+
+    Write-Host+ -Iff $(!$Quiet)
 
     return ($NoCache ? $AzureADObjects : $null)
+
+}
+
+function global:Update-AzureADObjects {
+
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$true)][ValidateSet("Groups","Users")][string]$Type,
+        [Parameter(Mandatory=$false)][string]$CacheProductID = "AzureADCache",
+        [Parameter(Mandatory=$false)][int]$Timeout = 60,
+        [switch]$Delta,
+        [switch]$Quiet
+    )
+
+    $typeLowerCaseSingular = $Type.ToLower().Substring(0,$Type.Length-1)
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}   
+    
+    Set-CursorInvisible
+
+    $message = "<Updating $typeLowerCaseSingular cache <.>49> PENDING"
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray, DarkGray, DarkGray   
+
+    $platformTask = Get-PlatformTask -Id $CacheProductID
+    $platformTaskStatusLength = $platformTask.Status.Length
+
+    $message = "<$CacheProductID platform task <.>49> $($platformTask.Status.ToUpper())"
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoNewLine -Parse $message -ForegroundColor Gray, DarkGray, $($platformTask.Status -eq "Ready" ? "DarkGreen" : "DarkYellow")
+
+    # if ($platformTask.Status -eq "Running") {
+    
+        $prevPlatformTaskStatusLength = $platformTaskStatusLength
+
+        $platformTask = Disable-PlatformTask -Id $CacheProductID -OutputType PlatformTask -Timeout (New-TimeSpan -Seconds $Timeout) 
+        $platformTaskStatusLength = $platformTask.Status.Length
+
+        if ($platformTask.Status -eq "Running") {
+            $message = "<$($MyInvocation.MyCommand) <.>49> FAILED"
+            Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray, DarkGray, DarkRed
+            Set-CursorVisible
+            return
+        }        
+    
+        $padStatus = $prevPlatformTaskStatusLength - $platformTaskStatusLength + 1
+        $padStatus = $padStatus -gt 0 ? $padStatus : 0  
+        Write-Host+ -Iff $(!$Quiet) -NoTimestamp -NoTrace -NoNewLine "`e[$($prevPlatformTaskStatusLength)D$($emptyString.PadLeft($padStatus," "))" 
+        Write-Host+ -Iff $(!$Quiet) -NoTimestamp -NoTrace -NoNewLine "$($platformTask.Status.ToUpper())" -ForegroundColor $($platformTask.Status -eq "Ready" ? "DarkGreen" : "DarkRed")
+
+    # }
+
+    # $message = "<Azure AD $Type <.>49> PENDING"
+    # Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray, DarkGray, DarkGray 
+
+    Get-AzureADObjects -Tenant $tenantKey -Type $Type -Delta:$Delta.IsPresent -Quiet
+ 
+    # Write-Host+ -NoTimestamp -NoTrace -NoNewLine "`e[7D$($emptyString.PadLeft(7," "))`e[7D" 
+    # Write-Host+ -NoTimestamp -NoTrace "SUCCESS" -ForegroundColor DarkGreen
+
+    $prevPlatformTaskStatusLength = $platformTaskStatusLength
+    
+    $platformTaskStatus = Enable-PlatformTask -Id $CacheProductID -OutputType "PlatformTask.Status"
+    $platformTaskStatusLength = $platformTaskStatus.Length
+
+    Write-Host+ -Iff $(!$Quiet) -NoTimestamp -NoTrace -NoNewLine "`e[$($prevPlatformTaskStatusLength)D$($emptyString.PadLeft($prevPlatformTaskStatusLength," "))`e[$($prevPlatformTaskStatusLength)D" 
+    Write-Host+ -Iff $(!$Quiet) -NoTimestamp -NoTrace "$($platformTaskStatus.ToUpper())" -ForegroundColor $($platformTaskStatus -eq "Ready" ? "DarkGreen" : "DarkRed")    
+
+    $message = "<Updating $typeLowerCaseSingular cache <.>49> SUCCESS"
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -Parse $message -ForegroundColor Gray, DarkGray, DarkGreen  
+
+    Set-CursorVisible
+    
+    return
 
 }
 
@@ -799,7 +1144,8 @@ function global:Get-DeltaLink {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$Tenant,
-        [Parameter(Mandatory=$true)][ValidateSet("Groups","Users")][string]$Type
+        [Parameter(Mandatory=$true)][ValidateSet("Groups","Users")][string]$Type,
+        [switch]$Quiet
     )
 
     $deltaLinks = @{
@@ -814,18 +1160,18 @@ function global:Get-DeltaLink {
     $cache = "$($tenantLowerCase)-deltaLinks"
 
     $message = "Reading $typeLowerCaseSingular delta link "
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
 
     if ((Get-Cache $cache).Exists) {
         $deltaLinks = read-cache $cache
     }
     if (!$deltaLinks.$Type) {
         $message = " FAILED"
-        Write-Host+ -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimestamp $message -ForegroundColor DarkRed
     }
     else {
         $message = " SUCCESS"
-        Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
+        Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
     }
 
     return $deltaLinks.$Type
@@ -839,7 +1185,8 @@ function global:Set-DeltaLink {
         [Parameter(Mandatory=$true)][string]$Tenant,
         [Parameter(Mandatory=$true,Position=0)][ValidateSet("Groups","Users")][string]$Type,
         [Parameter(Mandatory=$true,Position=1)][string]$Value,
-        [switch]$AllowNull
+        [switch]$AllowNull,
+        [switch]$Quiet
     )
 
     $tenantLowerCase = $Tenant.ToLower()
@@ -851,18 +1198,18 @@ function global:Set-DeltaLink {
     if (!$Value -and !$AllowNull) {throw "AllowNull must be specified when Value is null"}
 
     $deltaLinks = @{
-        Groups = Get-DeltaLink -Tenant $Tenant -Type Groups
-        Users = Get-DeltaLink -Tenant $Tenant -Type Users
+        Groups = Get-DeltaLink -Tenant $Tenant -Type Groups -Quiet:$Quiet.IsPresent
+        Users = Get-DeltaLink -Tenant $Tenant -Type Users -Quiet:$Quiet.IsPresent
     }
     $deltaLinks.$Type = $Value
 
     $message = "Writing $typeLowerCaseSingular delta link "
-    Write-Host+ -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoSeparator -NoNewLine $message,(Format-Leader -Length 48 -Adjust $message.Length) -ForegroundColor Gray,DarkGray
 
     $deltaLinks | Write-Cache $cache
 
     $message = " SUCCESS"
-    Write-Host+ -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
+    Write-Host+ -Iff $(!$Quiet) -NoTrace -NoTimeStamp -NoSeparator $message -ForegroundColor DarkGreen
 
     return
 
@@ -1165,5 +1512,37 @@ function global:Find-AzureADGroup {
     if ($DisplayName) {$findParams += @{DisplayName = $DisplayName}}
     
     return Find-AzureADObject -Tenant $tenantKey -Type "Group" -Groups $Groups @findParams
+
+}
+
+function global:Get-AzureADApplication {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Tenant,
+        [Parameter(Mandatory=$false)][string]$AppId,
+        [Parameter(Mandatory=$false)][ValidateSet("beta")][string]$GraphApiVersion = "beta",
+        [Parameter(Mandatory=$false)][string]$View
+    )
+
+    $tenantKey = $Tenant.split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/applications(appId='{$AppId}')" 
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+    $restParams = @{
+        ContentType = 'application/x-www-form-urlencoded'
+        Headers = $headers
+        Method = 'GET'
+        Uri = $uri
+    }
+
+    $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+
+    return $response
 
 }
