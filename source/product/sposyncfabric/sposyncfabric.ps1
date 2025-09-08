@@ -280,9 +280,9 @@ Write-Host+
                             
                                 # auto-provision groups
                                 $autoProvisionGroups = @()
-                                $autoProvisionGroups += "$($workspace.displayName) - Read Only"
-                                $autoProvisionGroups += "$($workspace.displayName) - Workspace Admin"
-                                $autoProvisionGroups += "$($workspace.displayName) - Data Contributors"
+                                $autoProvisionGroups += @{ displayName = "$($workspace.displayName) - Read Only"; role = "Viewer" }
+                                $autoProvisionGroups += @{ displayName = "$($workspace.displayName) - Workspace Admin"; role = "Admin" }
+                                $autoProvisionGroups += @{ displayName = "$($workspace.displayName) - Data Contributors"; role = "Viewer" }
 
                                 # get sharepoint group list items
                                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.Groups -ForegroundColor DarkGray, DarkBlue
@@ -297,16 +297,17 @@ Write-Host+
 
                                 # create a new sharepoint list item for each auto-provision group in the sharepoint groups list 
                                 # when the groups list is processed in subsequent steps, it will create the groups
+                                $updatedGroupList = $false
                                 foreach ($autoProvisionGroup in $autoProvisionGroups) {
-                                    $groupListItem = $groupListItems | Where-Object { $_.'Group Name' -eq $autoProvisionGroup}
+                                    $groupListItem = $groupListItems | Where-Object { $_.'Group Name' -eq $autoProvisionGroup.displayName}
                                     if (!$groupListItem) {
                                         $body = @{
                                             fields = @{
-                                                $_columnNameGroupGroupName = $autoProvisionGroup
+                                                $_columnNameGroupGroupName = $autoProvisionGroup.displayName
                                                 $_columnNameGroupCommand = "Create"
                                             }
                                         }
-                                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding group ", $autoProvisionGroup, " to SharePoint list ", $groupList.'Group Name' -ForegroundColor DarkGray, DarkBlue
+                                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding group ", $autoProvisionGroup.displayName, " to SharePoint list ", $groupList.'Group Name' -ForegroundColor DarkGray, DarkBlue
                                         $_groupListItem = New-MgBetaSiteListItem -SiteId $Site.Id -ListId $groupList.Id -BodyParameter $body     
                                         $updatedGroupList = $true   
                                     }
@@ -317,6 +318,48 @@ Write-Host+
                                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $global:SharePoint.List.Groups -ForegroundColor DarkGray, DarkBlue
                                     $groupListItems = Get-SharePointSiteListItems -Site $site -List $groupList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
                                     $groupListItems | Format-Table -Property $global:SharePointView.Group.Default
+                                }
+
+                                # get sharepoint workspace role assignment list and its listitems
+                                Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.WorkspaceRoleAssignments -ForegroundColor DarkGray, DarkBlue
+                                $workspaceRoleAssignmentsList = Get-SharePointSiteList -Site $site -Name $global:SharePoint.List.WorkspaceRoleAssignments
+                                $workspaceRoleAssignmentsListItems = Get-SharePointSiteListItems -Site $site -List $workspaceRoleAssignmentsList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns      
+                                
+                                # get sharepoint workspace role assignment list items' [internal] column names
+                                $_columnNamesWorkspaceRoleAssignments = Get-MgBetaSiteListColumn -SiteId $site.Id -ListId $workspaceRoleAssignmentsList.Id
+                                $_workspaceNameWorkspaceRoleAssignmentsListItem = $_columnNamesWorkspaceRoleAssignments | Where-Object { $_.DisplayName -eq 'Workspace Name' }; $_columnNameWorkspaceRoleAssignmentsWorkspaceName = "$($_workspaceNameWorkspaceRoleAssignmentsListItem.Name)LookupId"
+                                $_groupWorkspaceRoleAssignmentsListItem = $_columnNamesWorkspaceRoleAssignments | Where-Object { $_.DisplayName -eq 'Group Name' }; $_columnWorkspaceRoleAssignmentsGroupName = "$($_groupWorkspaceRoleAssignmentsListItem.Name)LookupId"
+                                $_roleWorkspaceRoleAssignmentsListItem = $_columnNamesWorkspaceRoleAssignments | Where-Object { $_.DisplayName -eq 'Role' }; $_columnWorkspaceRoleAssignmentsRole = $_roleWorkspaceRoleAssignmentsListItem.Name
+                                $_commandWorkspaceRoleAssignmentsListItem = $_columnNamesWorkspaceRoleAssignments | Where-Object { $_.DisplayName -eq 'Command' }; $_columnNameWorkspaceRoleAssignmentsCommand = $_commandWorkspaceRoleAssignmentsListItem.Name
+                                
+                                # these two groups need to be added to the workspace role assignments
+                                $autoProvisionGroups += @{ displayName = "Data Curators"; role = "Member" }
+                                $autoProvisionGroups += @{ displayName = "Fabric Admin"; role = "Admin" }
+
+                                # create a new sharepoint list item for each auto-provision group in the sharepoint workspace role assignments list 
+                                # when the workspace role assignments list is processed in subsequent steps, it will create the workspace role assignments
+                                $updatedWorkspaceRoleAssignmentList = $false
+                                foreach ($autoProvisionGroup in $autoProvisionGroups) {
+                                    $workspaceListItem = $workspaceListItems | Where-Object { $_.'Workspace Name' -eq $workspace.displayName}            
+                                    $groupListItem = $groupListItems | Where-Object { $_.'Group Name' -eq $autoProvisionGroup.displayName}  
+                                    $body = @{
+                                        fields = @{
+                                            $_columnNameWorkspaceRoleAssignmentsWorkspaceName = $workspaceListItem.id 
+                                            $_columnWorkspaceRoleAssignmentsGroupName = $groupListItem.id 
+                                            $_columnWorkspaceRoleAssignmentsRole = $workspaceRoleAssignment.role 
+                                            $_columnNameWorkspaceRoleAssignmentsCommand = "Add"
+                                        }
+                                    }
+                                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding role ", $autoProvisionGroup.displayName, " to SharePoint list ", $workspaceRoleAssignmentsList.displayName -ForegroundColor DarkGray, DarkBlue
+                                    $_workspaceRoleAssignmentListItem = New-MgBetaSiteListItem -SiteId $Site.Id -ListId $workspaceRoleAssignmentsList.Id -BodyParameter $body     
+                                    $updatedworkspaceRoleAssignmentList = $true   
+                                }
+                                if ($updatedworkspaceRoleAssignmentList) {
+
+                                    # refresh sharepoint group list items
+                                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $global:SharePoint.List.WorkspaceRoleAssignments -ForegroundColor DarkGray, DarkBlue
+                                    $workspaceRoleAssignmentsListItems = Get-SharePointSiteListItems -Site $site -List $workspaceRoleAssignmentsList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
+                                    $workspaceRoleAssignmentsListItems | Format-Table -Property $global:SharePointView.WorkspaceRoleAssignment.Default
                                 }
 
                             #endregion AUTOPROVISION GROUPS                                
@@ -607,7 +650,7 @@ Write-Host+
 
 #endregion UPDATE SHAREPOINT USER LIST  
 
-#region PROCESS WORKSPACE COMMANDS
+#region PROCESS USER COMMANDS
 
     # get the sharepoint user list items that have a pending command
     $hadCommand = $false
@@ -651,7 +694,7 @@ Write-Host+
 
             # rename azureADuser account when azureADUser.displayName is different from the sharepoint user list item's User Name
             if ($userListItem.Command -eq "Rename" -and $userListItem.'User Name' -ne $azureADUser.displayName) {
-                $azureADUser = Update-AzureADUserNames -Tenant $global:Fabric.Tenant -User $azureADUser -DisplayName $userListItem.'User Name' -FirstName $firstName -LastName $lastName
+                $azureADUser = Update-AzureADUserNames -Tenant $global:Fabric.Tenant -User $azureADUser -DisplayName $userListItem.'User Name'
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Renamed User Name"   
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "Command" -Value " "             
                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Renamed `"User Name`" for use ", $azureADUser.mail, " to ", $azureADUser.displayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue              
@@ -677,7 +720,7 @@ Write-Host+
 
     }
 
-#endregion PROCESS WORKSPACE COMMANDS
+#endregion PROCESS USER COMMANDS
 
 #region REFRESH AZURE AD USER CACHE
 
@@ -685,7 +728,7 @@ Write-Host+
     # regresh the Overwatch Azure AD user cache
     if ($updatedAzureADUsers) {
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", "Update", " Azure AD Users" -ForegroundColor DarkGray, DarkBlue, DarkGray
-        Write-Host+
+        # Write-Host+
         Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Users -Timeout $azureADCacheTimeout -Quiet
     }
 
@@ -785,7 +828,7 @@ Write-Host+
 
 #endregion UPDATE SHAREPOINT GROUP LIST
 
-#region PROCESS WORKSPACE COMMANDS
+#region PROCESS GROUP COMMANDS
 
     # get the sharepoint group list items that have a pending command
     $hadCommand = $false
@@ -815,6 +858,7 @@ Write-Host+
         if ($groupListItem.Command -eq "Create" -and !$azureADGroup) {
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Creating group ", $groupListItem.'Group Name' -ForegroundColor DarkGray, DarkBlue
             $_newMailEnabledSecurityGroup = New-MailEnabledSecurityGroup -Name $groupListItem.'Group Name'
+            Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Groups -Timeout $azureADCacheTimeout -Quiet
             $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupListItem.'Group Name' }
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -ColumnDisplayName "Group ID" -Value $azureADGroup.id
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -Status -Value "Created"   
@@ -829,21 +873,20 @@ Write-Host+
             Remove-MailEnabledSecurityGroup -Group $groupListItem.'Group Name' 
             Remove-SharePointSiteListItem -Site $Site -List $groupList -ListItem $groupListItem
             $updatedAzureADGroups = $true
-        }    
+        } 
+    }   
 
-#endregion PROCESS WORKSPACE COMMANDS
+#endregion PROCESS GROUP COMMANDS
 
-#region REFRESH AZURE AD USER CACHE
+#region REFRESH AZURE AD GROUP CACHE
 
     if ($updatedAzureADGroups) {
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", "Update", " Azure AD Groups" -ForegroundColor DarkGray, DarkBlue, DarkGray
-        Write-Host+
+        # Write-Host+
         Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Groups -Timeout $azureADCacheTimeout -Quiet
     }
 
 #endregion REFRESH AZURE AD USER CACHE
-
-}
 
 # Write-Host+ -Iff $($hadCommand)
 # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
@@ -1104,7 +1147,7 @@ Write-Host+
 
 #endregion UPDATE WORKSPACE ROLE ASSIGNMENTS LIST    
 
-#region PROCESS GROUP MEMBERSHIP COMMANDS
+#region PROCESS WORKSPACE ROLE ASSIGNMENTS COMMANDS
 
     # get the sharepoint workspace role assignment list items that have a pending command
     $hadCommand = $false
@@ -1150,7 +1193,7 @@ Write-Host+
 
     }
 
-#endregion PROCESS GROUP MEMBERSHIP COMMANDS    
+#endregion PROCESS WORKSPACE ROLE ASSIGNMENTS COMMANDS    
 
 # Write-Host+ -Iff $($hadCommand)
 # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
