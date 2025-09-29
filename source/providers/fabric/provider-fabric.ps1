@@ -341,7 +341,7 @@
             -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
             -Body $body
         
-        return $workspaceRoleAssignment
+        return $workspaceRoleAssignment.value
 
     }
 

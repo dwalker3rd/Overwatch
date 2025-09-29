@@ -1164,17 +1164,17 @@ Write-Host+
 
     foreach ($workspaceRoleAssignmentsListItem in $workspaceRoleAssignmentsListItemsWithCommand) {
 
-        if ($null -eq $workspaceRoleAssignmentsListItem.Command -or $workspaceRoleAssignmentsListItem.Command -notin @("Add", "Remove")) { continue }
+        if ($null -eq $workspaceRoleAssignmentsListItem.Command -or $workspaceRoleAssignmentsListItem.Command -notin @("Add", "Remove", "Update")) { continue }
 
         $workspace = Get-Workspace -Tenant $global:Fabric.Tenant -Name $workspaceRoleAssignmentsListItem.'Workspace Name'
         $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $workspaceRoleAssignmentsListItem.'Group Name'}    
 
         # create a piped path string to use for workspace role assignments
         # format:  <workspace> | <group> | <role>
-        $workspaceRoleAssignmentText = "$($workspaceRoleAssignmentsListItem.'Workspace Name') | $($workspaceRoleAssignmentsListItem.'Group Name') | $($workspaceRoleAssignmentsListItem.role)" 
+        $workspaceRoleAssignmentText = "$($workspaceRoleAssignmentsListItem.'Workspace Name') | $($workspaceRoleAssignmentsListItem.'Group Name')" 
         
         # get Azure AD 
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $userListItem.Command, " workspace role assignment ", $workspaceRoleAssignmentText  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $workspaceRoleAssignmentsListItem.Command, " workspace role assignment ", $workspaceRoleAssignmentText  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
 
         if ($workspaceRoleAssignmentsListItem.Command -eq "Add") {
             # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
@@ -1184,15 +1184,38 @@ Write-Host+
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -ColumnDisplayName "Command" -Value " "     
             Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action "Add" -Status "Success" -Message "Added workspace role assignment for $workspaceRoleAssignmentText" -EntryType "Information" -Force     
         }
+        else {
 
-        if ($workspaceRoleAssignmentsListItem.Command -eq "Remove") {
-            # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removing role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
+            # for the Remove and Update commands, verify that the workspace role assignment exists
             $workspaceRoleAssignment = Get-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -PrincipalType "Group" -PrincipalId $azureADGroup.id
-            $response = Remove-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -WorkspaceRoleAssignment $workspaceRoleAssignment
-            Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem
-            Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action "Remove" -Status "Success" -Message "Removed workspace role assignment for $workspaceRoleAssignmentText" -EntryType "Information" -Force 
-        }        
+            if ($workspaceRoleAssignment) {
 
+                if ($workspaceRoleAssignmentsListItem.Command -eq "Remove") {
+                    # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removing role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
+                    # $workspaceRoleAssignment = Get-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -PrincipalType "Group" -PrincipalId $azureADGroup.id
+                    $response = Remove-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -WorkspaceRoleAssignment $workspaceRoleAssignment
+                    Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem
+                    Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action "Remove" -Status "Success" -Message "Removed workspace role assignment for $workspaceRoleAssignmentText" -EntryType "Information" -Force 
+                }
+
+                if ($workspaceRoleAssignmentsListItem.Command -eq "Update") {
+                    # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removing role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
+                    # $workspaceRoleAssignment = Get-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -PrincipalType "Group" -PrincipalId $azureADGroup.id
+                    $response = Update-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -WorkspaceRoleAssignment $workspaceRoleAssignment -Role $workspaceRoleAssignmentsListItem.Role 
+                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Updated"   
+                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -ColumnDisplayName "Command" -Value " "     
+                    Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action "Update" -Status "Success" -Message "Updated workspace role assignment for $workspaceRoleAssignmentText" -EntryType "Information" -Force 
+                } 
+
+            }
+            else {
+
+                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Invalid"   
+                # $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -ColumnDisplayName "Command" -Value " "     
+                Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action $workspaceRoleAssignmentsListItem.Command -Status "Failure" -Message "Unable to find workspace role assignment $workspaceRoleAssignmentText" -EntryType "Error" -Force 
+
+            }
+        }
     }
 
 #endregion PROCESS WORKSPACE ROLE ASSIGNMENTS COMMANDS    
