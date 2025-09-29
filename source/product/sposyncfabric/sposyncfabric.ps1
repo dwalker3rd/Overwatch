@@ -152,7 +152,7 @@ Write-Host+
                 $_columnNameCapacityState = $unlistedCapacity.state
             }
         }
-        $_unlistedCapacityListItem = New-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site.id -List $capacityList.id -ListItemBody $body
+        $_unlistedCapacityListItem = New-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $capacityList -ListItemBody $body
         if ($_unlistedCapacityListItem){  
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $capacityList -ListItem $_unlistedCapacityListItem -Status -Value "Added Capacity from Fabric"               
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Added capacity ", $_unlistedCapacityListItem.displayName, " from Fabric" -ForegroundColor DarkGray, DarkBlue, DarkGray
@@ -267,7 +267,7 @@ Write-Host+
 
         if ($null -eq $workspaceListItemWithCommand.Command -or $workspaceListItemWithCommand.Command -notin @("Create", "Rename")) { continue }
 
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $workspaceListItemWithCommand.command, " workspace ", $workspaceListItemWithCommand.'Workspace Name'  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $workspaceListItemWithCommand.Command, " workspace ", $workspaceListItemWithCommand.'Workspace Name'  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
 
         $workspace = Get-Workspace -Tenant $global:Fabric.Tenant -Name $workspaceListItemWithCommand.'Workspace Name'
         if (!$workspace) {
@@ -685,7 +685,7 @@ Write-Host+
 
         if ($null -eq $userListItem.Command -or $userListItem.Command -notin @("Rename", "Invite", "Enable", "Disable")) { continue }
 
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $userListItem.command, " user ", $userListItem.'User Email'  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $userListItem.Command, " user ", $userListItem.'User Email'  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
 
         # get Azure AD user
         $azureADUser = Get-AzureADUser -Tenant $global:Fabric.Tenant -User $userListItem.'User Email'
@@ -864,7 +864,7 @@ Write-Host+
 
         if ($null -eq $groupListItem.Command -or $groupListItem.Command -notin @("Create", "Delete")) { continue }
     
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $groupListItem.command, " group ", $groupListItem.'Group Name'  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $groupListItem.Command, " group ", $groupListItem.'Group Name'  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
 
         # get Azure AD group
         $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupListItem.'Group Name' }
@@ -971,19 +971,19 @@ Write-Host+
     }
 
     $hadStatus = $false
-    $groupMembershipItemsWithStatus = $groupMembershipItems | Where-Object { ![string]::IsNullOrEmpty($_.Status)}
-    if ($groupMembershipItemsWithStatus.Count -gt 0) {
-        foreach ($groupMembershipItemWithStatus in $groupMembershipItemsWithStatus) {
-            $groupMembershipPath = "$($groupMembershipItemWithStatus.'Group Name')\$($groupMembershipItemWithStatus.'User Email')"
-            if ( $groupMembershipItemWithStatus.Status -notlike "Invalid*" -and $groupMembershipItemWithStatus.Status -notlike "Failed*" ) {
-                $sinceModified = [datetime]::Now - [datetime]$groupMembershipItemWithStatus.Modified
+    $groupMembershipListItemsWithStatus = $groupMembershipListItems | Where-Object { ![string]::IsNullOrEmpty($_.Status)}
+    if ($groupMembershipListItemsWithStatus.Count -gt 0) {
+        foreach ($groupMembershipListItemWithStatus in $groupMembershipListItemsWithStatus) {
+            $groupMembershipPath = "$($groupMembershipListItemWithStatus.'Group Name')\$($groupMembershipListItemWithStatus.'User Email')"
+            if ( $groupMembershipListItemWithStatus.Status -notlike "Invalid*" -and $groupMembershipListItemWithStatus.Status -notlike "Failed*" ) {
+                $sinceModified = [datetime]::Now - [datetime]$groupMembershipListItemWithStatus.Modified
                 if ($sinceModified.TotalSeconds -gt $global:SharePoint.ListItem.StatusExpiry) {
-                    $updatedWorkspaceListItemWithStatus = Update-SharepointListItemHelper -Site $site -List $groupMembership -ListItem $groupMembershipItemWithStatus -Status -Value $null  
-                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared ", $groupMembershipItemWithStatus.Status, " status for group membership ", $groupMembershipPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+                    $updatedWorkspaceListItemWithStatus = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItemWithStatus -Status -Value $null  
+                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared ", $groupMembershipListItemWithStatus.Status, " status for group membership ", $groupMembershipPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
             }
             else {
-                Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Retained ", $groupMembershipItemWithStatus.Status, " status for group membership ", $groupMembershipPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+                Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Retained ", $groupMembershipListItemWithStatus.Status, " status for group membership ", $groupMembershipPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
             }
         }
         $hadStatus = $true
@@ -1010,12 +1010,8 @@ Write-Host+
 
         if ($null -eq $groupMembershipListItem.Command -or $groupMembershipListItem.Command -notin @("Add", "Remove")) { continue }
 
-        # $userListItem = $userListItems | Where-Object { $_.id -eq $groupMembershipListItem.'User Email'}
         $userListItem = $userListItems | Where-Object { $_.'User Email' -eq $groupMembershipListItem.'User Email'}
-
-        # create a piped path string to use for group membership 
-        # format:  <workspace> | <user email>  
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $groupMembershipListItem.command, " user ", $groupMembershipListItem.'User Mail', " to group ", $groupMembershipListItem.'Group Name'  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue, DarkGray, DarkBlue
+        $groupWorkspace = $workspaces | Where-Object {$_.displayName -in ($groupMembershipListItem.'Group Name' -split " - " )[0]}
 
         # get Azure AD user
         $azureADUser = $azureADUsers | Where-Object { $_.mail -eq $groupMembershipListItem.'User Email' }
@@ -1024,6 +1020,10 @@ Write-Host+
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -ColumnDisplayName "Command" -Value " "   
             continue      
         }
+
+        # create a piped path string to use for group membership 
+        # format:  <workspace> | <user email>  
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $groupMembershipListItem.Command, " user ", $groupMembershipListItem.'User Email', " to mail-enabled security group ", $groupMembershipListItem.'Group Name', " in workspace ", $groupWorkspace.displayName  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue, DarkGray, DarkBlue, DarkGray, DarkBlue
 
         # get Azure AD group
         $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupMembershipListItem.'Group Name' }
@@ -1174,7 +1174,7 @@ Write-Host+
         $workspaceRoleAssignmentText = "$($workspaceRoleAssignmentsListItem.'Workspace Name') | $($workspaceRoleAssignmentsListItem.'Group Name') | $($workspaceRoleAssignmentsListItem.role)" 
         
         # get Azure AD 
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $userListItem.command, " workspace role assignment ", $workspaceRoleAssignmentText  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> ", $userListItem.Command, " workspace role assignment ", $workspaceRoleAssignmentText  -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
 
         if ($workspaceRoleAssignmentsListItem.Command -eq "Add") {
             # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
