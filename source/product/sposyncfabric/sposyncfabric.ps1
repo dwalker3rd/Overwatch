@@ -154,7 +154,7 @@ Write-Host+
         }
         $_unlistedCapacityListItem = New-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $capacityList -ListItemBody $body
         if ($_unlistedCapacityListItem){  
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $capacityList -ListItem $_unlistedCapacityListItem -Status -Value "Added Capacity from Fabric"               
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $capacityList -ListItem $_unlistedCapacityListItem -Status -Value "Added capacity"               
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Added capacity ", $_unlistedCapacityListItem.displayName, " from Fabric" -ForegroundColor DarkGray, DarkBlue, DarkGray
             $updatedCapacityList = $true
         }
@@ -202,7 +202,7 @@ Write-Host+
         }
         $_unlistedWorkspaceListItem = New-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $workspaceList -ListItemBody $body
         if ($_unlistedWorkspaceListItem){
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $_unlistedWorkspaceListItem -Status -Value "Added Workspace from Fabric"               
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $_unlistedWorkspaceListItem -Status -Value "Added workspace"               
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Added workspace ", $unlistedWorkspace.displayName, " from Fabric" -ForegroundColor DarkGray, DarkBlue, DarkGray
             $updatedWorkspaceList = $true
         }
@@ -289,7 +289,7 @@ Write-Host+
 
                             # add sharepoint list item Workspace ID
                             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Workspace ID" -Value $workspace.id
-                            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Created Workspace"   
+                            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Created workspace"   
                             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " "   
 
                             #region AUTOPROVISION GROUPS
@@ -298,7 +298,7 @@ Write-Host+
                                 $autoProvisionGroups = @()
                                 $autoProvisionGroups += @{ displayName = "$($workspace.displayName) - Read Only"; role = "Viewer" }
                                 $autoProvisionGroups += @{ displayName = "$($workspace.displayName) - Workspace Admin"; role = "Admin" }
-                                $autoProvisionGroups += @{ displayName = "$($workspace.displayName) - Data Contributors"; role = "Viewer" }
+                                $autoProvisionGroups += @{ displayName = "$($workspace.displayName) - Data Contributors"; role = "Contributor" }
 
                                 # get sharepoint group list items
                                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.Groups -ForegroundColor DarkGray, DarkBlue
@@ -386,7 +386,7 @@ Write-Host+
                         else {
                             
                             # failed to create the workspace
-                            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Failed to Create Workspace"   
+                            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Create workspace failed"   
                             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " "   
                             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Failed to create workpace ", $($workspace.displayName) -ForegroundColor DarkRed, DarkBlue 
                             Write-Log -Context $overwatchProductId -Target "Workspace" -Action "New" -Status "Failure" -Message "Failed to create workspace $($workspaceListItemWithCommand.'Workspace Name')" -EntryType "Error" -Force
@@ -442,7 +442,7 @@ Write-Host+
                             if ($workspace.displayName -eq $newWorkspaceDisplayName) {
 
                                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Renamed workspace from ", $oldWorkspaceDisplayName, " to ", $newWorkspaceDisplayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue  
-                                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Renamed Workspace"   
+                                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Renamed workspace"   
                                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " "  
                                 Write-Log -Context $overwatchProductId -Target "Workspace" -Action "Rename" -Status "Success" -Message "Renamed workspace $($workspaceListItemWithCommand.'Workspace Name')" -EntryType "Information" -Force
 
@@ -450,7 +450,7 @@ Write-Host+
                             else {
 
                                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Failed to rename workspace: ", $workspace.displayName -ForegroundColor DarkRed
-                                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Failed to Rename Workspace"   
+                                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Rename workspace failed"   
                                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " "  
                                 Write-Log -Context $overwatchProductId -Target "Workspace" -Action "Rename" -Status "Failure" -Message "Failed to rename workspace $($workspaceListItemWithCommand.'Workspace Name')" -EntryType "Error" -Force
 
@@ -489,19 +489,20 @@ Write-Host+
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Assigning capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                     $workspace = Set-WorkspaceCapacity -Tenant $global:Fabric.Tenant -Workspace $Workspace -Capacity $Capacity
                     if ($workspace) {
-                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Assigned capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue  
+                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Assigned capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue 
+                        $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Assigned capacity"  
                         Write-Log -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Success" -Message "Assigned capacity $($Capacity.displayName) to workspace $($workspace.displayName)" -EntryType "Information" -Force                  
                     }
                     else {
                         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Failed to assign capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkRed
-                        $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Failed to Assign Capacity" 
+                        $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Assign capacity failed" 
                         Write-Log -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Failure" -Message "Failed to assign capacity $($Capacity.displayName) to workspace $($workspace.displayName)" -EntryType "Error" -Force 
                     }
                 }
                 else {
                     # the capacity name field in the sharepoint list item is NOT valid
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Capacity ", $($capacity.displayName), "NOT FOUND" -ForegroundColor DarkRed
-                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Invalid Capacity Name"   
+                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Invalid capacity"   
                     $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " " 
                     Write-Log -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Error" -Message "Capacity $($Capacity.displayName) was not found" -EntryType "Error" -Force 
                 }
@@ -539,7 +540,7 @@ Write-Host+
         # update Sharepoint list item User Email with User Email (backup) when User Email is blank but User Email (backup) is not blank
         if ([string]::IsNullOrEmpty($userListItem.'User Email') -and ![string]::IsNullOrEmpty($userListItem.'User Email (backup)')) {
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "User Email" -Value $userListItem.'User Email (backup)'
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Restored User Email"
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Restored email"
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "User Email ", $userListItem.'User Email', " restored to ", $userListItem.'User Email (backup)' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue 
         }
 
@@ -548,7 +549,7 @@ Write-Host+
         if (![string]::IsNullOrEmpty($userListItem.'User Email') -and ![string]::IsNullOrEmpty($userListItem.'User Email (backup)') -and 
             $userListItem.'User Email' -ne $userListItem.'User Email (backup)') {
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "User Email" -Value $userListItem.'User Email (backup)'
-                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Restored User Email"
+                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Restored email"
                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "User Email ", $userListItem.'User Email', " restored to ", $userListItem.'User Email (backup)' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue    
                 $updatedUserListItems = $true       
         } 
@@ -629,11 +630,11 @@ Write-Host+
                 $body.fields += @{ $_columnNameExternalUserState = $azureADUser.externalUserState }
                 $unlistedUserListItem = New-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $userList -ListItemBody $body
                 if ($unlistedUserListItem){
-                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $unlistedUserListItem -Status -Value "New User"               
+                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $unlistedUserListItem -Status -Value "Added user"               
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Added user ", $azureADUser.mail.ToLower(), " from Azure AD" -ForegroundColor DarkGray, DarkBlue, DarkGray
                 }
                 else {
-                    # $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Failed" 
+                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Add user failed" 
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Failed to add user ", $azureADUser.mail.ToLower(), " from Azure AD" -ForegroundColor DarkRed            
                 }
                 $updatedUnlistedUserList = $true            
@@ -714,7 +715,7 @@ Write-Host+
                 $currentAzureADUserName = $azureADUser.displayName
                 $userListItemUserName = $userListItem.'User Name'
                 $azureADUser = Update-AzureADUserNames -Tenant $global:Fabric.Tenant -User $azureADUser -DisplayName $userListItemUserName
-                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Renamed User Name"   
+                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Renamed user"   
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "Command" -Value " "             
                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Renamed `"User Name`" from ", $azureADUser.mail, " to ", $azureADUser.displayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue 
                 Write-Log -Context $overwatchProductId -Target "User" -Action "Rename" -Status "Success" -Message "Renamed `"User Name`" from $currentAzureADUserName to $($azureADUser.displayName)" -EntryType "Information" -Force             
@@ -730,7 +731,7 @@ Write-Host+
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName 'User Email (backup)' -Value $azureADUser.mail
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName 'External User State' -Value $azureADUser.externalUserState
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "Account Status" -Value "Enabled"
-                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Invited" 
+                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Invited user" 
                 $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "Command" -Value " " 
                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Invited user ", $azureADUser.mail, " to tenant ", $global:Fabric.Tenant -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue 
                 Write-Log -Context $overwatchProductId -Target "User" -Action "Invite" -Status "Success" -Message "Invited $($azureADUser.displayName) to tenant $($global:Fabric.Tenant)" -EntryType "Information" -Force          
@@ -879,7 +880,7 @@ Write-Host+
             $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupListItem.'Group Name' }
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -ColumnDisplayName "Group Name" -Value $azureADGroup.displayName
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -ColumnDisplayName "Group ID" -Value $azureADGroup.id
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -Status -Value "Created"   
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -Status -Value "Created group"   
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -ColumnDisplayName "Command" -Value " " 
             Write-Log -Context $overwatchProductId -Target "Group" -Action "New" -Status "Success" -Message "Created new mail-enabled security group $($groupListItem.'Group Name')" -EntryType "Information" -Force
             $updatedAzureADGroups = $true
@@ -1016,7 +1017,7 @@ Write-Host+
         # get Azure AD user
         $azureADUser = $azureADUsers | Where-Object { $_.mail -eq $groupMembershipListItem.'User Email' }
         if (!$azureADUser) {
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -Status -Value "Invalid User"   
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -Status -Value "Invalid user"   
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -ColumnDisplayName "Command" -Value " "   
             continue      
         }
@@ -1028,7 +1029,7 @@ Write-Host+
         # get Azure AD group
         $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupMembershipListItem.'Group Name' }
         if (!$azureADGroup) {
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -Status -Value "Invalid Group"   
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -Status -Value "Invalid group"   
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -ColumnDisplayName "Command" -Value " "         
             continue
         }
@@ -1037,7 +1038,7 @@ Write-Host+
         if ($groupMembershipListItem.Command -eq "Add") {
             # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding user ", $groupMembershipListItem.'User Email', " to group ", $($groupMembershipListItem.'Group Name')   -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
             Add-MailEnabledSecurityGroupMember -Group $groupMembershipListItem.'Group Name' -Member $groupMembershipListItem.'User Email'
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -Status -Value "Added"   
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -Status -Value "Added user"   
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem -ColumnDisplayName "Command" -Value " " 
             Write-Log -Context $overwatchProductId -Target "GroupMembership" -Action "Add" -Status "Success" -Message "Added user $($groupMembershipListItem.'User Email') to mail-enabled security group $($groupMembershipListItem.'Group Name')" -EntryType "Information" -Force         
         }
@@ -1180,7 +1181,7 @@ Write-Host+
             # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
             $workspaceRoleAssignment = Add-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -PrincipalType "Group" -PrincipalId $azureADGroup.id -Role $workspaceRoleAssignmentsListItem.Role
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -ColumnDisplayName "Workspace Role Assignment ID" -Value $workspaceRoleAssignment.id 
-            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Added"   
+            $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Added role"   
             $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -ColumnDisplayName "Command" -Value " "     
             Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action "Add" -Status "Success" -Message "Added workspace role assignment for $workspaceRoleAssignmentText" -EntryType "Information" -Force     
         }
@@ -1202,7 +1203,7 @@ Write-Host+
                     # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removing role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
                     # $workspaceRoleAssignment = Get-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -PrincipalType "Group" -PrincipalId $azureADGroup.id
                     $response = Update-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -WorkspaceRoleAssignment $workspaceRoleAssignment -Role $workspaceRoleAssignmentsListItem.Role 
-                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Updated"   
+                    $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Updated role"   
                     $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -ColumnDisplayName "Command" -Value " "     
                     Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action "Update" -Status "Success" -Message "Updated workspace role assignment for $workspaceRoleAssignmentText" -EntryType "Information" -Force 
                 } 
@@ -1210,7 +1211,7 @@ Write-Host+
             }
             else {
 
-                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Invalid"   
+                $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -Status -Value "Invalid role"   
                 # $_updatedSharePointListItem = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem -ColumnDisplayName "Command" -Value " "     
                 Write-Log -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action $workspaceRoleAssignmentsListItem.Command -Status "Failure" -Message "Unable to find workspace role assignment $workspaceRoleAssignmentText" -EntryType "Error" -Force 
 
