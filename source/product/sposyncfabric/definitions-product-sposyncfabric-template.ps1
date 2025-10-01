@@ -36,7 +36,7 @@
             ExcludeColumns = @("Title", "Attachments")        
         }
         ListItem = @{
-            StatusExpiry = 30
+            StatusExpiry = New-Timespan -Minutes 5
         }
     }
 

@@ -652,7 +652,7 @@ Write-Host+
         foreach ($userListItemWithStatus in $userListItemsWithStatus) {
             if ( $userListItemWithStatus.Status -notlike "Invalid*" -and $userListItemWithStatus.Status -notlike "Failed*" ) {
                 $sinceModified = [datetime]::Now - [datetime]$userListItemWithStatus.Modified
-                if ($sinceModified.TotalSeconds -gt $global:SharePoint.ListItem.StatusExpiry) {
+                if ($sinceModified -gt $global:SharePoint.ListItem.StatusExpiry) {
                     $updatedWorkspaceListItemWithStatus = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItemWithStatus -Status -Value $null  
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared ", $userListItemWithStatus.Status, " status for user ", $userListItemWithStatus.'User Email' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
@@ -831,7 +831,7 @@ Write-Host+
         foreach ($groupItemWithStatus in $groupListItemsWithStatus) {
             if ( $groupItemWithStatus.Status -notlike "Invalid*" -and $groupItemWithStatus.Status -notlike "Failed*" ) {
                 $sinceModified = [datetime]::Now - [datetime]$groupItemWithStatus.Modified
-                if ($sinceModified.TotalSeconds -gt $global:SharePoint.ListItem.StatusExpiry) {
+                if ($sinceModified -gt $global:SharePoint.ListItem.StatusExpiry) {
                     $updatedGroupListItemWithStatus = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupItemWithStatus -Status -Value $null  
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared ", $groupItemWithStatus.Status, " status for group ", $groupListItemsWithStatus.'Group Name' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
@@ -978,7 +978,7 @@ Write-Host+
             $groupMembershipPath = "$($groupMembershipListItemWithStatus.'Group Name')\$($groupMembershipListItemWithStatus.'User Email')"
             if ( $groupMembershipListItemWithStatus.Status -notlike "Invalid*" -and $groupMembershipListItemWithStatus.Status -notlike "Failed*" ) {
                 $sinceModified = [datetime]::Now - [datetime]$groupMembershipListItemWithStatus.Modified
-                if ($sinceModified.TotalSeconds -gt $global:SharePoint.ListItem.StatusExpiry) {
+                if ($sinceModified -gt $global:SharePoint.ListItem.StatusExpiry) {
                     $updatedWorkspaceListItemWithStatus = Update-SharepointListItemHelper -Site $site -List $groupMembershipList -ListItem $groupMembershipListItemWithStatus -Status -Value $null  
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared ", $groupMembershipListItemWithStatus.Status, " status for group membership ", $groupMembershipPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
@@ -1134,7 +1134,7 @@ Write-Host+
             $workspaceRoleAssignmentPath = "$($workspaceRoleAssignmentItemWithStatus.'Workspace Name')\$($workspaceRoleAssignmentItemWithStatus.'Group Name')\$($workspaceRoleAssignmentItemWithStatus.role)" 
             if ( $workspaceRoleAssignmentItemWithStatus.Status -notlike "Invalid*" -and $workspaceRoleAssignmentItemWithStatus.Status -notlike "Failed*" ) {
                 $sinceModified = [datetime]::Now - [datetime]$workspaceRoleAssignmentItemWithStatus.Modified
-                if ($sinceModified.TotalSeconds -gt $global:SharePoint.ListItem.StatusExpiry) {
+                if ($sinceModified -gt $global:SharePoint.ListItem.StatusExpiry) {
                     $updatedWorkspaceListItemWithStatus = Update-SharepointListItemHelper -Site $site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentItemWithStatus -Status -Value $null  
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared ", $workspaceRoleAssignmentItemWithStatus.Status, " status for workspace role assignment ", $workspaceRoleAssignmentPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
