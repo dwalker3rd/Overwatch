@@ -600,7 +600,7 @@ Write-Host+
         }
 
         # update sharepoint list item when $azureADUser.externalUserState does not match the Azure AD user's externalUserState propery
-        if ((![string]::IsNullOrEmpty($userListItem.'External User State') -and ![string]::IsNullOrEmpty($azureADUser.externalUserState) -and $userListItem.'External User State' -ne $azureADUser.externalUserState) -or [string]::IsNullOrEmpty($userListItem.'External User State')) {
+        # if ((![string]::IsNullOrEmpty($userListItem.'External User State') -and ![string]::IsNullOrEmpty($azureADUser.externalUserState) -and $userListItem.'External User State' -ne $azureADUser.externalUserState) -or [string]::IsNullOrEmpty($userListItem.'External User State')) {
             # if ($azureADUser.userType -eq "Guest") {
                 $externalUserState = $azureADUser.userPrincipalName -match "#EXT#@" ? $azureADUser.externalUserState : "Internal"
                 if ($userListItem.'External User State' -ne $externalUserState) {
@@ -609,7 +609,7 @@ Write-Host+
                     $updatedUserList = $true
                 }
             # }       
-        }   
+        # }   
 
     }
 
