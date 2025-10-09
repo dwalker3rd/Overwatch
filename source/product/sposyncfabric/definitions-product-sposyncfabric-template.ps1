@@ -26,12 +26,25 @@
         Tenant = "pathseattle"
         Site = "rhsupplies"
         List = @{
-            Workspaces = "Fabric Workspaces"
-            Capacities = "Fabric Capacities"
-            Users = "Fabric Users"
-            Groups = "Fabric Groups"
-            GroupMembership = "Fabric Group Membership"
-            WorkspaceRoleAssignments = "Fabric Workspace Role Assignments"
+            Workspaces = @{
+                Name = "Fabric Workspaces"
+            }
+            Capacities = @{
+                Name = "Fabric Capacities"
+            }
+            Users = @{
+                Name = "Fabric Users"
+                ShowAcceptedExpiry = New-TimeSpan -Days 3
+            }
+            Groups = @{
+                Name = "Fabric Groups"
+            }
+            GroupMembership = @{
+                Name = "Fabric Group Membership"
+            }
+            WorkspaceRoleAssignments = @{
+                Name = "Fabric Workspace Role Assignments"
+            }
             IncludeColumns = @("Created", "Modified")
             ExcludeColumns = @("Title", "Attachments")        
         }
