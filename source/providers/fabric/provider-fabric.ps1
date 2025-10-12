@@ -269,12 +269,12 @@
         [CmdletBinding()]
         param(
             [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByPrincipal")]
-            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceId")][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByRoleAssignment")][string]$Tenant,
             [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByPrincipal")]
-            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][object]$Workspace,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByRoleAssignment")][object]$Workspace,
             [Parameter(Mandatory=$true,Position=2,ParameterSetName="ByPrincipal")][ValidateSet("User","Group")][string]$PrincipalType,
             [Parameter(Mandatory=$true,Position=3,ParameterSetName="ByPrincipal")][Alias("PrincipalName")][string]$PrincipalId,
-            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][string]$Id
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByRoleAssignment")][string]$Id
         )
 
         $tenantKey = $Tenant.split(".")[0].ToLower()

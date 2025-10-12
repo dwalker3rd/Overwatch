@@ -211,8 +211,8 @@ function global:Get-SharePointSiteListItems {
         [Parameter(Mandatory=$true,Position=1)][object]$Site,
         [Parameter(Mandatory=$true,Position=2)][object]$List,
         [Parameter(Mandatory=$false)][string[]]$Column,        
-        [Parameter(Mandatory=$false)][string[]]$IncludeColumn = @(),
-        [Parameter(Mandatory=$false)][string[]]$ExcludeColumn = @("Title", "Attachments"),
+        [Parameter(Mandatory=$false)][string[]]$IncludeColumn,
+        [Parameter(Mandatory=$false)][string[]]$ExcludeColumn,
         [Parameter(Mandatory=$false)][ValidateSet("beta","v1.0")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     )   
