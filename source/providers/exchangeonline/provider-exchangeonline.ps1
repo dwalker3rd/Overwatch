@@ -17,6 +17,17 @@ function global:Connect-ExchangeOnline+ {
     
 }
 
+function global:Get-MailEnabledSecurityGroup {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Identity
+    )
+
+    return Get-DistributionGroup -Identity $Identity
+
+}
+
 function global:New-MailEnabledSecurityGroup {
 
     [CmdletBinding()]
@@ -26,6 +37,18 @@ function global:New-MailEnabledSecurityGroup {
     )
 
     return New-DistributionGroup -Name $Name -Type $Type
+
+}
+
+function global:Rename-MailEnabledSecurityGroup {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Identity,
+        [Parameter(Mandatory=$false,Position=1)][string]$DisplayName
+    )
+
+    return Set-DistributionGroup -Identity $Identity -DisplayName $DisplayName
 
 }
 
