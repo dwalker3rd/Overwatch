@@ -45,11 +45,19 @@
             WorkspaceRoleAssignments = @{
                 Name = "Fabric Workspace Role Assignments"
             }
+            Log = @{
+                Name = "Fabric Automation Log"
+            }   
+            AutoProvisioning = @{
+                GroupsAndRoles = @{
+                    Name = "Auto-Provisioning Template for Groups and Roles"
+                }
+            }                      
             IncludeColumns = @("Created", "Modified")
             ExcludeColumns = @("Title", "Attachments")        
         }
         ListItem = @{
-            StatusExpiry = New-Timespan -Minutes 5
+            StatusExpiry = New-Timespan -Minutes 65
         }
     }
 
