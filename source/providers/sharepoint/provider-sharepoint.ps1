@@ -210,12 +210,13 @@ function global:Get-SharePointSiteListItems {
         [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
         [Parameter(Mandatory=$true,Position=1)][object]$Site,
         [Parameter(Mandatory=$true,Position=2)][object]$List,
-        [Parameter(Mandatory=$false)][string[]]$Column,        
+        [Parameter(Mandatory=$false)][string[]]$Column,
         [Parameter(Mandatory=$false)][string[]]$IncludeColumn,
         [Parameter(Mandatory=$false)][string[]]$ExcludeColumn,
+        [Parameter(Mandatory=$false)][string[]]$Filter,
         [Parameter(Mandatory=$false)][ValidateSet("beta","v1.0")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
-    )   
+    )
 
     if ($Column -and $ExcludeColumn) {
         throw "The parameters -Column and -ExcludeColumn cannot be used together."
@@ -224,79 +225,251 @@ function global:Get-SharePointSiteListItems {
         throw "The parameters -Column and -IncludeColumn cannot be used together."
     }
 
-    $tenantKey = $Tenant.split(".")[0].ToLower()
-    if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."} 
+    $tenantKey = $Tenant.Split(".")[0].ToLower()
+    if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }
 
-    # $_site = Get-SharePointSite -Tenant $tenantKey -Site $Site
-    # $_list = Get-SharePointSiteList -Tenant $tenantKey -Site $Site -List $List    
-
-    $columnsUri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/columns"
-    
-    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-    $headers.Add("Content-Type", "application/json")
-    $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
-
-    $restParams = @{
-        ContentType = 'application/json'
-        Headers = $headers
-        Method = 'GET'
-        Uri = $columnsUri
-    }    
-
-    $_columns = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
-    $columns = $_columns.Value
-    $selectColumns = $columns | 
-        Where-Object {-not $_.readonly -and -not $_.hidden -and $_.columnGroup -ne "_Hidden" -and $_.displayName -notin $ExcludeColumn -or $_displayName -in $IncludeColumn}
-    $columnDisplayNames = $selectColumns.displayName
-    $columnDisplayNames += @("ID", "Created", "Modified")
-    # $columnDisplayNamesString = $columnDisplayNames -join ","
-
-    $listItemsUri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/items?expand=fields" #(select=$($columnDisplayNamesString))"
-    $restParams.uri = $listItemsUri
-
-    $_listItems = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams  
-    $listItems = $_listItems.Value  
-
-    $listItemData = foreach ($listItem in $listItems) {
-        $_listItemData = [ordered]@{}
-        foreach ($columnDisplayName in $columnDisplayNames) {
-            # map displayName -> columnName
-            $columnName = ($columns | Where-Object { $_.DisplayName -eq $columnDisplayName }).Name            
-            if ($listItem.fields.$columnName) {
-                if ($columnDisplayName -in @("ID")) {
-                    $_listItemData[$columnDisplayName] = [int]$listItem.fields.$columnName
-                }
-                elseif ($columnDisplayName -in @("Created", "Modified")) {
-                    $_listItemData[$columnDisplayName] = [datetime]$listItem.fields.$columnName
-                }
-                else {
-                    $_listItemData[$columnDisplayName] = $listItem.fields.$columnName
-                }                
-            }
-            else {
-                if ($listItem.Fields."$($columnName)LookupId") {
-                    $columnLookupListId = ($columns | Where-Object { $_.DisplayName -eq $columnDisplayName }).Lookup.ListId
-                    $columnLookupColumnName = ($columns | Where-Object { $_.DisplayName -eq $columnDisplayName }).Lookup.ColumnName    
-                    $listItemsUri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($columnLookupListId)/items?expand=fields(select=$columnLookupColumnName)"
-                    $restParams.uri = $listItemsUri
-                    $lookupValueListItem = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
-                    $lookupValueListItem = $lookupValueListItem.Value 
-                    $lookupValueListItem = $lookupValueListItem | Where-Object { $_.id -eq $listItem.Fields."$($columnName)LookupId"}
-                    $lookupValue = $lookupValueListItem.Fields.$columnLookupColumnName
-                    $_listItemData[$columnDisplayName] = $lookupValue
-                    # $_listItemData["$($columnName)LookupId"] = [int]$listItem.Fields.AdditionalProperties["$($columnName)LookupId"]
-                }
-                else {
-                    $_listItemData[$columnDisplayName] = $listItem.Fields.$columnName
-                }
-            }
-        }
-        [pscustomobject]$_listItemData
+    $headers = @{
+        "Content-Type"  = "application/json"
+        "Authorization" = $global:Azure.$tenantKey.MsGraph.AccessToken
     }
 
-    return $listItemData
+    # get column metadata once
+    $columnsUri = "https://graph.microsoft.com/$GraphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/columns"
+    $restParams = @{
+        ContentType = 'application/json'
+        Headers     = $headers
+        Method      = 'GET'
+        Uri         = $columnsUri
+    }
 
+    $_columns  = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
+    $columns   = $_columns.Value
+
+    # figure out which columns we actually care about
+    $selectColumns = $columns |
+        Where-Object {
+            (-not $_.readOnly) -and
+            (-not $_.hidden) -and
+            ($_.columnGroup -ne "_Hidden") -and
+            (
+                ($ExcludeColumn -and ($_.displayName -notin $ExcludeColumn)) -or
+                ($IncludeColumn -and ($_.displayName -in $IncludeColumn)) -or
+                (-not $ExcludeColumn -and -not $IncludeColumn)
+            )
+        }
+
+    # always include ID/Created/Modified
+    $alwaysCols = @("ID","Created","Modified")
+    $columnDisplayNames = ($selectColumns.displayName + $alwaysCols) | Select-Object -Unique
+
+    # build fast lookup maps
+    #    displayName -> internal column name
+    #    displayName -> lookup metadata (if lookup)
+    $displayToColumnName = @{}
+    $lookupColumnsInfo   = @{} 
+
+    foreach ($col in $columns) {
+        $displayToColumnName[$col.displayName] = $col.name
+
+        if ($col.lookup -and $col.lookup.listId -and $col.lookup.columnName) {
+            $lookupColumnsInfo[$col.displayName] = @{
+                ListId     = $col.lookup.listId
+                ColumnName = $col.lookup.columnName
+            }
+        }
+    }
+
+    # preload lookup lists ONCE per lookup column
+    #   $lookupCache[displayName][lookupId] = "Actual Text Value"
+    $lookupCache = @{}
+
+    foreach ($dispName in $columnDisplayNames) {
+
+        if ($lookupColumnsInfo.ContainsKey($dispName)) {
+
+            $listIdForLookup   = $lookupColumnsInfo[$dispName].ListId
+            $colNameForLookup  = $lookupColumnsInfo[$dispName].ColumnName
+
+            # Pull all rows from that lookup list once
+            $lookupUri = "https://graph.microsoft.com/$GraphApiVersion/sites/$($Site.Id)/lists/$listIdForLookup/items?expand=fields(select=$colNameForLookup)"
+            $restParams.Uri = $lookupUri
+            $_lookupItems = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
+            $allLookupItems = $_lookupItems.Value
+
+            $map = @{}
+            foreach ($li in $allLookupItems) {
+                $map[$li.id] = $li.fields.$colNameForLookup
+            }
+
+            $lookupCache[$dispName] = $map
+        }
+    }
+
+    # query graph for list items
+    #    - the internal columnName for each display column
+    #    - plus the "*LookupId" variants, because we might need to resolve them
+    $internalFieldNames = @()
+
+    foreach ($dispName in $columnDisplayNames) {
+        if ($displayToColumnName.ContainsKey($dispName)) {
+            $internalName = $displayToColumnName[$dispName]
+            $internalFieldNames += $internalName
+            $internalFieldNames += ($internalName + 'LookupId')
+        }
+    }
+
+    $internalFieldNames = $internalFieldNames | Select-Object -Unique
+    $internalFieldSelect = $internalFieldNames -join ","
+
+    $listItemsUri = "https://graph.microsoft.com/$GraphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/items?expand=fields(select=$internalFieldSelect)"
+
+    if ($Filter) {
+        $listItemsUri += "&filter=$Filter"
+    }
+
+    $restParams.Uri = $listItemsUri
+    $_listItems = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
+    $listItems  = $_listItems.Value
+
+    # build output object
+    $result = foreach ($listItem in $listItems) {
+
+        $row = [ordered]@{}
+
+        foreach ($dispName in $columnDisplayNames) {
+
+            $internalName = $displayToColumnName[$dispName]
+
+            $rawValue     = $listItem.fields.$internalName
+            $lookupIdVal  = $listItem.fields."$($internalName)LookupId"
+
+            if ($null -ne $rawValue -and $rawValue -ne "") {
+
+                if ($dispName -eq 'ID') {
+                    $row[$dispName] = [int]$rawValue
+                }
+                elseif ($dispName -in @('Created','Modified')) {
+                    $row[$dispName] = [datetime]$rawValue
+                }
+                else {
+                    $row[$dispName] = $rawValue
+                }
+
+            } elseif ($lookupIdVal -and $lookupCache.ContainsKey($dispName)) {
+                # Resolve lookup using the cache
+                $resolved = $lookupCache[$dispName][$lookupIdVal]
+                $row[$dispName] = $resolved
+            }
+            else {
+                $row[$dispName] = $null
+            }
+        }
+
+        [pscustomobject]$row
+    }
+
+    return $result
 }
+
+
+# function global:Get-SharePointSiteListItems {
+
+#     [CmdletBinding()]
+#     param(
+#         [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+#         [Parameter(Mandatory=$true,Position=1)][object]$Site,
+#         [Parameter(Mandatory=$true,Position=2)][object]$List,
+#         [Parameter(Mandatory=$false)][string[]]$Column,        
+#         [Parameter(Mandatory=$false)][string[]]$IncludeColumn,
+#         [Parameter(Mandatory=$false)][string[]]$ExcludeColumn,
+#         [Parameter(Mandatory=$false)][string[]]$Filter,
+#         [Parameter(Mandatory=$false)][ValidateSet("beta","v1.0")][string]$GraphApiVersion = "beta",
+#         [Parameter(Mandatory=$false)][string]$View
+#     )   
+
+#     if ($Column -and $ExcludeColumn) {
+#         throw "The parameters -Column and -ExcludeColumn cannot be used together."
+#     }
+#     if ($Column -and $IncludeColumn) {
+#         throw "The parameters -Column and -IncludeColumn cannot be used together."
+#     }
+
+#     $tenantKey = $Tenant.split(".")[0].ToLower()
+#     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."} 
+
+#     # $_site = Get-SharePointSite -Tenant $tenantKey -Site $Site
+#     # $_list = Get-SharePointSiteList -Tenant $tenantKey -Site $Site -List $List    
+
+#     $columnsUri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/columns"
+    
+#     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+#     $headers.Add("Content-Type", "application/json")
+#     $headers.Add("Authorization", $global:Azure.$tenantKey.MsGraph.AccessToken)
+
+#     $restParams = @{
+#         ContentType = 'application/json'
+#         Headers = $headers
+#         Method = 'GET'
+#         Uri = $columnsUri
+#     }    
+
+#     $_columns = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
+#     $columns = $_columns.Value
+#     $selectColumns = $columns | 
+#         Where-Object {-not $_.readonly -and -not $_.hidden -and $_.columnGroup -ne "_Hidden" -and $_.displayName -notin $ExcludeColumn -or $_displayName -in $IncludeColumn}
+#     $columnDisplayNames = $selectColumns.displayName
+#     $columnDisplayNames += @("ID", "Created", "Modified")
+#     # $columnDisplayNamesString = $columnDisplayNames -join ","
+
+#     $listItemsUri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/items?expand=fields"
+#     if (![string]::IsNullOrEmpty($Filter)) {
+#         $listItemsUri += "?filter=$Filter"
+#     }
+#     $restParams.uri = $listItemsUri
+
+#     $_listItems = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams  
+#     $listItems = $_listItems.Value  
+
+#     $listItemData = foreach ($listItem in $listItems) {
+#         $_listItemData = [ordered]@{}
+#         foreach ($columnDisplayName in $columnDisplayNames) {
+#             # map displayName -> columnName
+#             $columnName = ($columns | Where-Object { $_.DisplayName -eq $columnDisplayName }).Name            
+#             if ($listItem.fields.$columnName) {
+#                 if ($columnDisplayName -in @("ID")) {
+#                     $_listItemData[$columnDisplayName] = [int]$listItem.fields.$columnName
+#                 }
+#                 elseif ($columnDisplayName -in @("Created", "Modified")) {
+#                     $_listItemData[$columnDisplayName] = [datetime]$listItem.fields.$columnName
+#                 }
+#                 else {
+#                     $_listItemData[$columnDisplayName] = $listItem.fields.$columnName
+#                 }                
+#             }
+#             else {
+#                 if ($listItem.Fields."$($columnName)LookupId") {
+#                     $columnLookupListId = ($columns | Where-Object { $_.DisplayName -eq $columnDisplayName }).Lookup.ListId
+#                     $columnLookupColumnName = ($columns | Where-Object { $_.DisplayName -eq $columnDisplayName }).Lookup.ColumnName    
+#                     $listItemsUri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($columnLookupListId)/items?expand=fields(select=$columnLookupColumnName)"
+#                     $restParams.uri = $listItemsUri
+#                     $lookupValueListItem = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
+#                     $lookupValueListItem = $lookupValueListItem.Value 
+#                     $lookupValueListItem = $lookupValueListItem | Where-Object { $_.id -eq $listItem.Fields."$($columnName)LookupId"}
+#                     $lookupValue = $lookupValueListItem.Fields.$columnLookupColumnName
+#                     $_listItemData[$columnDisplayName] = $lookupValue
+#                     # $_listItemData["$($columnName)LookupId"] = [int]$listItem.Fields.AdditionalProperties["$($columnName)LookupId"]
+#                 }
+#                 else {
+#                     $_listItemData[$columnDisplayName] = $listItem.Fields.$columnName
+#                 }
+#             }
+#         }
+#         [pscustomobject]$_listItemData
+#     }
+
+#     return $listItemData
+
+# }
 
 function global:New-SharePointSiteListItem {
 
@@ -344,6 +517,7 @@ function global:Remove-SharePointSiteListItem {
         [Parameter(Mandatory=$true,Position=1)][object]$Site,
         [Parameter(Mandatory=$true,Position=2)][object]$List,
         [Parameter(Mandatory=$true,Position=3)][object]$ListItem,
+        [Parameter(Mandatory=$false)][string[]]$Filter,
         [Parameter(Mandatory=$false)][ValidateSet("beta","v1.0")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     ) 
@@ -355,6 +529,9 @@ function global:Remove-SharePointSiteListItem {
     # $_list = Get-SharePointSiteList -Tenant $tenantKey -Site $Site -List $List    
 
     $uri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/items/$($ListItem.Id)"
+    if (![string]::IsNullOrEmpty($Filter)) {
+        $uri += "?filter=$Filter"
+    }    
     
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
@@ -367,10 +544,9 @@ function global:Remove-SharePointSiteListItem {
         Uri = $uri
     }    
 
-    $_noListItem = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams   
-    $_noListItem | Out-Null 
+    $response = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams   
 
-    return
+    return $response
 
 }
 
