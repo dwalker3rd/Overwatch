@@ -293,7 +293,7 @@ Write-Host+
     # remove the sharepoint workspace list item
     $removeWorkspaceItems = $workspaceListItems | Where-Object {$_.'Workspace Name' -notin $workspaces.displayName -and [string]::IsNullOrEmpty($_.Command) }
     foreach ($removeWorkspaceItem in $removeWorkspaceItems) {
-        Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $workspaceList -ListItem $removeWorkspaceItem  
+        $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $workspaceList -ListItem $removeWorkspaceItem  
         $message = "Removed workspace $($removeWorkspaceItem.'Workspace Name') from SharePoint list $($workspaceList.DisplayName)"
         Write-Log+ -Context $overwatchProductId -Target "WorkspaceSiteListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force   
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed workspace item ", $removeWorkspaceItem.'Workspace Name', " from SharePoint list ", $workspaceList.DisplayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue     
@@ -551,24 +551,44 @@ Write-Host+
 
 #region UPDATE SHAREPOINT USER LIST
 
-    # update Sharepoint list item User ID when blank
-    # this is done here b/c later updates rely on list item User ID
-    # lookup azure AD user with list item User Email
-    # no action if both list item User ID and User Email are blank
     $hadUpdate = $false
     foreach ($userListItem in $userListItems) {
+
+        $azureADUser = $azureADUsers | Where-Object { $_.mail -eq $userListItem.'User Email'}
+
+        # update Sharepoint list item User ID when blank
+        # this is done here b/c later updates rely on list item User ID
+        # lookup azure AD user with list item User Email
+        # no action if both list item User ID and User Email are blank
         if ([string]::IsNullOrEmpty($userListItem.'User ID') -and ![string]::IsNullOrEmpty($userListItem.'User Email')) {
-            $azureADUser = $azureADUsers | Where-Object { $_.mail -eq $userListItem.'User Email'}
             $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -ColumnDisplayName "User ID" -Value $azureADUser.id
             $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $userList -ListItem $userListItem -Status -Value "Updated user"
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Update ", "User ID", " for user ", $userListItem.'User Email' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
             $hadUpdate = $true
         }
-    }
+
+        # if listed user isn't in Azure AD, remove it from the list
+        if (!$azureADUser) {
+            $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $userList -ListItem $userListItem  
+            if ($removeResponse.error) {            
+                Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Unable to remove non-existent user ", $userListItem.'User Email', " from SharePoint list ", $userList.DisplayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+                Write-Host+ -NoTimestamp -NoTrace $removeResponse.error.message -ForegroundColor DarkGray
+                $message = "Unable to remove non-existent user $($userListItem.'User Email') from SharePoint list $($userList.DisplayName)"
+                Write-Log+ -Context $overwatchProductId -Target "UserListItem" -Action "Remove" -Status "Failure" -Message $message -EntryType "Error" -Force  
+                Write-Log+ -Context $overwatchProductId -Target "UserListItem" -Action "Remove" -Status "Failure" -Message $removeResponse.error.message -EntryType "Error" -Force 
+            }
+            else {
+                Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed non-existent user ", $userListItem.'User Email', " from SharePoint list ", $userList.DisplayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+                $message = "Removed non-existent user $($userListItem.'User Email') from SharePoint list $($userList.DisplayName)"
+                Write-Log+ -Context $overwatchProductId -Target "UserListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force        
+                $hadUpdate = $true     
+            }           
+        }
+    } 
 
     # refresh sharepoint user list items
     if ($hadUpdate) {
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $userList -ForegroundColor DarkGray, DarkBlue
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $global:SharePoint.List.Users.Name -ForegroundColor DarkGray, DarkBlue
         $userListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $userList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
         $userListItems | Format-Table -Property $global:SharePointView.User.Default
     }
@@ -613,7 +633,7 @@ Write-Host+
             # this is a proxy for checking the account types
             # if $azureADUser.mail is null, this isn't an account to be tracking
             if ([string]::IsNullOrEmpty($azureADUser.mail)) {
-                Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $userList -ListItem $userListItem              
+                $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $userList -ListItem $userListItem              
                 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed user item ", $userListItem.'User Name', " from SharePoint list ", $userList.DisplayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 $message = "Removed user $($userListItem.'User Name') from SharePoint list $($userList.DisplayName)"
                 Write-Log+ -Context $overwatchProductId -Target "UserListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force        
@@ -711,7 +731,7 @@ Write-Host+
 
     # refresh sharepoint user list items
     if ($hadUpdate) {
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $userList.name -ForegroundColor DarkGray, DarkBlue
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $global:SharePoint.List.Users.Name -ForegroundColor DarkGray, DarkBlue
         $userListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $userList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
         $userListItems | Format-Table -Property $global:SharePointView.User.Default
     }    
@@ -924,7 +944,7 @@ Write-Host+
     $removeGroupListItems = $groupListItems | Where-Object {$_.'Group ID' -notin $azureADGroups.id -and [string]::IsNullOrEmpty($_.Command) }
     foreach ($removeGroupListItem in $removeGroupListItems) {
         $removedGroupName = ![string]::IsNullOrEmpty($removeGroupListItem.'Group Name') ? $removeGroupListItem.'Group Name' : "<group name is blank>"
-        Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ListItem $removeGroupListItem         
+        $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ListItem $removeGroupListItem         
         $message = "Removed group $($removedGroupName) from SharePoint list $($groupList.name)"
         Write-Log+ -Context $overwatchProductId -Target "GroupListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force               
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed group ", $removedGroupName, " from SharePoint list ", $groupList.name -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
@@ -1073,7 +1093,7 @@ Write-Host+
                 continue            
             }
             Remove-MailEnabledSecurityGroup -Group $groupListItem.'Group ID' 
-            Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $groupList -ListItem $groupListItem
+            $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $groupList -ListItem $groupListItem
             $message = "Deleted group $($groupListItem.'Group Name')"
             Write-Log+ -Context $overwatchProductId -Target "Group" -Action "Delete" -Status "Success" -Message $message -EntryType "Information" -Force
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Deleted group ", $groupListItem.'Group Name' -ForegroundColor DarkGray, DarkBlue
@@ -1151,6 +1171,18 @@ Write-Host+
             }
         }
     }
+
+    # if the user listed in the group membership list item isn't in Azure AD, remove the row from the group membership list
+    foreach ($groupMembershipListItem in $groupMembershipListItems) {
+        $azureADUser = $azureADUsers | Where-Object { $_.mail -eq $groupMembershipListItem.'User Email' }
+        if (!$azureADUser) {
+            $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $groupMembershipList -ListItem $groupMembershipListItem              
+            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed non-existent member ", $groupMembershipListItem.'User Email', " from group ", $groupMembershipListItem.'Group Name', " in Sharepoint list ", $groupMembershipList.displayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue, DarkGray, DarkBlue
+            $message = "Removed non-existent user $($groupMembershipListItem.'User Email') from group $($groupMembershipListItem.'Group Name') in SharePoint list $($groupMembershipList.DisplayName)"
+            Write-Log+ -Context $overwatchProductId -Target "UserListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force        
+            $hadUpdate = $true                
+        } 
+    }   
     
     if ($hadUpdate) {
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $global:SharePoint.List.GroupMembership.Name -ForegroundColor DarkGray, DarkBlue
@@ -1239,7 +1271,7 @@ Write-Host+
         if ($groupMembershipListItem.Command -eq "Remove") {
             # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removing user ", $groupMembershipListItem.'User Email', " from group ", $($groupMembershipListItem.'Group Name')   -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
             Remove-MailEnabledSecurityGroupMember -Group $groupMembershipListItem.'Group Name' -Member $groupMembershipListItem.'User Email'
-            Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $groupMembershipList -ListItem $groupMembershipListItem
+            $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $groupMembershipList -ListItem $groupMembershipListItem
             $message = "Removed user $($groupMembershipListItem.'User Email') from group $($groupMembershipListItem.'Group Name')"
             Write-Log+ -Context $overwatchProductId -Target "GroupMembership" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force 
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed user ", $($groupMembershipListItem.'User Email'), " from group ", $($groupMembershipListItem.'Group Name') -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
@@ -1327,22 +1359,7 @@ Write-Host+
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Workspace Role Assignments" -ForegroundColor DarkGray, DarkBlue
             $workspaceRoleAssignmentsListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $workspaceRoleAssignmentsList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
             $hadUpdate = $false
-        }
-
-        # for each sharepoint workspace role assignment list item that is not in fabric, 
-        # remove the sharepoint workspace role assignment list item
-        # $removeWorkspaceRoleAssignmentsListItems = $workspaceRoleAssignmentsListItems | Where-Object { $_.'Workspace Role Assignment ID' -notin $workspaceRoleAssignments.id -and [string]::IsNullOrEmpty($_.Command) }
-        # foreach ($removeWorkspaceRoleAssignmentsListItem in $removeWorkspaceRoleAssignmentsListItems) {
-        #     Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $workspaceRoleAssignmentsList -ListItem $removeWorkspaceRoleAssignmentsListItem             
-        #     $workspaceRoleAssignmentText = "$($removeWorkspaceRoleAssignmentsListItem.'Workspace Name') | $($removeWorkspaceRoleAssignmentsListItem.'Group Name') | $($removeWorkspaceRoleAssignmentsListItem.Role)" 
-        #     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed workspace role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
-        #     $hadUpdate = $true
-        # }         
-        # if ($hadUpdate) {
-        #     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Workspace Role Assignments" -ForegroundColor DarkGray, DarkBlue
-        #     $workspaceRoleAssignmentsListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $workspaceRoleAssignmentsList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
-        #     $hadUpdate = $false
-        # }               
+        }          
 
         # workspace name is missing from workspace role assignment sharepoint list
         $__workspaceRoleAssignmentsListItems = $_workspaceRoleAssignmentsListItems | Where-Object { [string]::IsNullOrEmpty($_.'Workspace Name') -and [string]::IsNullOrEmpty($_.Command) }
@@ -1510,7 +1527,7 @@ Write-Host+
                     # Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removing role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
                     # $workspaceRoleAssignment = Get-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -PrincipalType "Group" -PrincipalId $azureADGroup.id
                     $response = Remove-WorkspaceRoleAssignment -Tenant $global:Fabric.Tenant -Workspace $workspace -WorkspaceRoleAssignment $workspaceRoleAssignment
-                    Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem
+                    $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $workspaceRoleAssignmentsList -ListItem $workspaceRoleAssignmentsListItem
                     $message = "Removed workspace role assignment for $workspaceRoleAssignmentText"
                     Write-Log+ -Context $overwatchProductId -Target "WorkspaceRoleAssignment" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force 
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed workspace role assignment for ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue  
