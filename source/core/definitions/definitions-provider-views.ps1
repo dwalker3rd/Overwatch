@@ -316,7 +316,7 @@ $global:SharePointView = @{
         Default = @("ID", "Workspace Name", "Capacity Name", "Command", "Status", "Workspace ID")
         }
     User = @{
-        Default = @("ID", "User Name", "User Email", "Account Status", "External User State", "Command", "Status", "User Email (backup)")
+        Default = @("ID", "User Name", "User Email", "Account Status", "External User State", "User ID", "Command", "Status")
     }
     Group = @{
         Default = @("ID", "Group Name", "Group ID", "Command", "Status")
