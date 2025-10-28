@@ -18,105 +18,203 @@ $global:Product = @{Id = "SPOSyncFabric"}
 $overwatchProductId = $global:Product.Id
 . $PSScriptRoot\definitions.ps1  
 
-function Update-SharepointListItemHelper {
+#region LOCAL FUNCTIONS
 
-    param(
-        [Parameter(Mandatory=$true,Position=0)][object]$Site,
-        [Parameter(Mandatory=$true,Position=1)][object]$List,
-        [Parameter(Mandatory=$true,Position=2)][object]$ListItem,
-        [Parameter(Mandatory=$false)][string]$ColumnDisplayName,
-        [Parameter(Mandatory=$false)][object]$Value,
-        [Parameter(Mandatory=$false)][switch]$Status
-    )                   
+    function Update-SharepointListItemHelper {
 
-    if ($Status) {
-        $ColumnDisplayName = "Status"
-    }
+        param(
+            [Parameter(Mandatory=$true,Position=0)][object]$Site,
+            [Parameter(Mandatory=$true,Position=1)][object]$List,
+            [Parameter(Mandatory=$true,Position=2)][object]$ListItem,
+            [Parameter(Mandatory=$false)][string]$ColumnDisplayName,
+            [Parameter(Mandatory=$false)][object]$Value,
+            [Parameter(Mandatory=$false)][switch]$Status
+        )                   
 
-    # get column data
-    $_columns = Get-SharePointSiteListColumns -Tenant $global:SharePoint.Tenant -Site $Site -List $List
-    $_column = $_columns | Where-Object { $_.DisplayName -eq $ColumnDisplayName }
-    $columnName = $_column.Name
-    $columnDisplayName = $_column.displayName
-
-    # if the column is a lookup column
-    # get the id from the source column
-    if ($_column.lookup) {
-        $sourceListId = $_column.lookup.ListId
-        $sourceList = Get-SharePointSiteList -Tenant $global:SharePoint.Tenant -Site $Site -List $sourceListId 
-        $sourceColumns = Get-SharePointSiteListColumns -Tenant $global:SharePoint.Tenant -Site $Site -List $sourceList
-        $sourceColumn = $sourceColumns | Where-Object { $_.name -eq $_column.lookup.columnName}
-        $sourceColumnName = $sourceColumn.displayName
-        $sourceListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $Site -List $sourceList
-        $sourceListItem = $sourceListItems | Where-Object { $_."$sourceColumnName" -eq $Value }
-        $columnName += "LookupId"
-        $Value = $sourceListItem.Id
-    }
-    $listItemValue = "`"$Value`""
-
-    $fieldvalueset = @{ $columnName = $Value }
-    if ($null -eq [object]$Value) {
-        $fieldvalueset = @{ $columnName = " " }
-        $listItemValue = "an empty string"
-    }
-    $fieldvaluesetSerialized = $fieldvalueset | ConvertTo-Json -Compress
-
-    try{
-        $_listItem = Update-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $List -ListItem $ListItem -FieldValueSet $fieldvalueset
-    }
-    catch {
-        Write-Log -Context $overwatchProductId -Target "ListItem $($ListItem.Id)" -Action "Update" -Status "Error" -Message "Attempted to update column `"$columnDisplayName`" with $listItemValue" -EntryType "Error" -Force
-        Write-Log -Context $overwatchProductId -Target "ListItem $($ListItem.Id)" -Action "Update" -Status "Error" -Message $error[-1] -EntryType "Error" -Force
-        return $_listItem
-    }
-
-
-    # Write-Log -Context $overwatchProductId -Target "ListItem $($ListItem.Id)" -Action "Update" -Status "Success" -Message "Updated column `"$columnDisplayName`" with $listItemValue" -EntryType "Information" -Force
-    return $_listItem
-
-}
-
-# helper function for writing to a sharepoint list "log"
-function Write-Log+ {
-
-    param (
-        [Parameter(Mandatory=$false)][string]$Context = $($global:Product.Id),
-        [Parameter(Mandatory=$false)][string]$Message,
-        [Parameter(Mandatory=$false)][ValidateSet("Information","Warning","Error","Verbose","Debug","Event")][string]$EntryType = 'Information',
-        [Parameter(Mandatory=$false)][string]$Action="Log",
-        [Parameter(Mandatory=$false)][string]$Status,
-        [Parameter(Mandatory=$false)][string]$Target,
-        [switch]$Force
-    )
-
-    $params = @{
-        Context = $Context
-        Target = $Target
-        Action = $Action
-        Status = $Status
-        Message = $Message
-        EntryType = $EntryType
-        Force = $Force.IsPresent
-    }
-
-    Write-Log @params  
-    
-    $body = @{ 
-        fields = @{ 
-            $_columnNameLogEntryType = $EntryType
-            $_columnNameLogAction = $Action
-            $_columnNameLogTarget = $Target
-            $_columnNameLogStatus = $Status
-            $_columnNameLogMessage = $Message                    
+        if ($Status) {
+            $ColumnDisplayName = "Status"
         }
+
+        # get column data
+        $_columns = Get-SharePointSiteListColumns -Tenant $global:SharePoint.Tenant -Site $Site -List $List
+        $_column = $_columns | Where-Object { $_.DisplayName -eq $ColumnDisplayName }
+        $columnName = $_column.Name
+        $columnDisplayName = $_column.displayName
+
+        # if the column is a lookup column
+        # get the id from the source column
+        if ($_column.lookup) {
+            $sourceListId = $_column.lookup.ListId
+            $sourceList = Get-SharePointSiteList -Tenant $global:SharePoint.Tenant -Site $Site -List $sourceListId 
+            $sourceColumns = Get-SharePointSiteListColumns -Tenant $global:SharePoint.Tenant -Site $Site -List $sourceList
+            $sourceColumn = $sourceColumns | Where-Object { $_.name -eq $_column.lookup.columnName}
+            $sourceColumnName = $sourceColumn.displayName
+            $sourceListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $Site -List $sourceList
+            $sourceListItem = $sourceListItems | Where-Object { $_."$sourceColumnName" -eq $Value }
+            $columnName += "LookupId"
+            $Value = $sourceListItem.Id
+        }
+        $listItemValue = "`"$Value`""
+
+        $fieldvalueset = @{ $columnName = $Value }
+        if ($null -eq [object]$Value) {
+            $fieldvalueset = @{ $columnName = " " }
+            $listItemValue = "an empty string"
+        }
+        $fieldvaluesetSerialized = $fieldvalueset | ConvertTo-Json -Compress
+
+        try{
+            $_listItem = Update-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $List -ListItem $ListItem -FieldValueSet $fieldvalueset
+        }
+        catch {
+            Write-Log -Context $overwatchProductId -Target "ListItem $($ListItem.Id)" -Action "Update" -Status "Error" -Message "Attempted to update column `"$columnDisplayName`" with $listItemValue" -EntryType "Error" -Force
+            Write-Log -Context $overwatchProductId -Target "ListItem $($ListItem.Id)" -Action "Update" -Status "Error" -Message $error[-1] -EntryType "Error" -Force
+            return $_listItem
+        }
+
+
+        # Write-Log -Context $overwatchProductId -Target "ListItem $($ListItem.Id)" -Action "Update" -Status "Success" -Message "Updated column `"$columnDisplayName`" with $listItemValue" -EntryType "Information" -Force
+        return $_listItem
+
     }
-    $_updatedListItem = New-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $logList -ListItemBody $body 
 
-    return
+    # helper function for writing to a sharepoint list "log"
+    function Write-Log+ {
 
+        param (
+            [Parameter(Mandatory=$false)][string]$Context = $($global:Product.Id),
+            [Parameter(Mandatory=$false)][string]$Message,
+            [Parameter(Mandatory=$false)][ValidateSet("Information","Warning","Error","Verbose","Debug","Event")][string]$EntryType = 'Information',
+            [Parameter(Mandatory=$false)][string]$Action="Log",
+            [Parameter(Mandatory=$false)][string]$Status,
+            [Parameter(Mandatory=$false)][string]$Target,
+            [switch]$Force
+        )
+
+        $params = @{
+            Context = $Context
+            Target = $Target
+            Action = $Action
+            Status = $Status
+            Message = $Message
+            EntryType = $EntryType
+            Force = $Force.IsPresent
+        }
+
+        Write-Log @params  
+        
+        $body = @{ 
+            fields = @{ 
+                $_columnNameLogEntryType = $EntryType
+                $_columnNameLogAction = $Action
+                $_columnNameLogTarget = $Target
+                $_columnNameLogStatus = $Status
+                $_columnNameLogMessage = $Message                    
+            }
+        }
+        $_updatedListItem = New-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $logList -ListItemBody $body 
+
+        return
+
+    }
+    
+    function Approve-InteractiveExecution {
+
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$ProductId,
+            [switch]$Quiet
+        )    
+
+        # initialize the return object
+        $_decision = @{
+            isExecutionInteractive = $false     # is this execution interactive?
+            productId = $ProductId              # id of product being executed
+            originalPlatformTaskStatus = $null  # the platform task status upon entering this function
+            wasPlatformTaskDisabled = $false    # set when this function disables the platform task
+            continue = $true                    # indicates whether the interactive execution should continue
+            decisionCode = $null                # the code of the decision made by this function
+            decisionText = $null                # the text of the decision made by this function
+            quiet = $Quiet.IsPresent            # indicates whether this function was run with -Quiet
+            messageWritten = $false             # indicates whether this function wrote anything to the console
+        }   
+        
+        $platformTask = $null
+        $isExecutionInteractive = [System.Environment]::UserInteractive
+        $_decision.isExecutionInteractive = $isExecutionInteractive
+
+        # if this is an interactive execution
+        if ($isExecutionInteractive) {
+        
+            $platformTask = Get-PlatformTask -Id $ProductId
+            $_decision.originalPlatformTaskStatus = $platformTask.Status
+            $platformTaskStatusColor = $platformTask.Status -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.$($platformTask.Status) : "DarkGray"        
+
+            # deal with potential return possibilities from get-platformtask
+            if (!$platformTask -or $platformTask.count -gt 1 -or $platformTask.ProductID -ne $ProductId) {
+                $_decision.continue = $true
+                $_decision.decisionCode = "NOTFOUND"
+                $_decision.decisionText = "Platform task not found"
+            }
+            else {               
+            
+                # platform task is already disabled
+                if ($platformTask.Status -eq "Disabled") {
+                    $_decision.continue = $true
+                }
+
+                # platform task is running or queued to run
+                elseif ($platformTask.Status -in @("Queued", "Running")) {
+                    $_decision.continue = $false
+                    $_decision.decisionCode = "NOTALLOWED"
+                    $_decision.decisionText = "Platform task status precludes execution"
+                }
+
+                # platform task is enabled but not running (or queued to run)
+                else {
+
+                    $_decision.messageWritten = $true
+                    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "Disabling platform task during interactive execution"  -ForegroundColor DarkGray 
+
+                    # disable the platform task
+                    $platformTask = Disable-PlatformTask -Id $ProductId -OutputType PlatformTask
+                    $_decision.currentPlatformTaskStatus = $platformTask.Status
+                    $platformTaskStatusColor = $platformTask.Status -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.$($platformTask.Status) : "DarkGray"
+                    
+                    $message = "<$($platformTask.displayName) <.>48> $($platformTask.Status.ToUpper())"
+                    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,$platformTaskStatusColor           
+                    
+                    # confirm that the platform task was disabled
+                    if ($platformTask.Status -ne "Disabled") {
+                        $_decision.continue = $false
+                        $_decision.decisionCode = "NOTALLOWED"
+                        $_decision.decisionText = "Platform task status precludes execution"  
+                    }
+                    else {
+                        $_decision.wasPlatformTaskDisabled = $true
+                        $_decision.continue = $true
+                    }
+
+                }
+
+            }
+        
+        }
+
+        return $_decision
+    }
+
+#endregion LOCAL FUNCTIONS   
+
+# if this is an interactive execution, determine if it can continue
+# this product should not be run if its platform task is running or queued to run
+# if the interactive execution can continue, the platform task is temporarily disabled
+$decision = Approve-InteractiveExecution -ProductId $overwatchProductId
+if (!$decision.continue) { 
+    Write-Host+ -NoTrace -NoSeparator $decision.decisionCode, ": ", $decision.decisionText -ForegroundColor DarkRed, DarkGray, DarkGray
+    Write-Host+
+    return 
 }
-
-# Write-Host+
+Write-Host+ -Iff $(!$decision.quiet -and $decision.messageWritten)  
 
 Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
 Connect-Fabric -Tenant $global:Fabric.Tenant
@@ -166,6 +264,8 @@ $azureADGroups = $azureADGroups | Where-Object { ![string]::IsNullOrEmpty($_.dis
 Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
 Write-Host+
+
+Test-CtrlC -Decision $decision
 
 #region SHAREPOINT LOG
 
@@ -1562,3 +1662,12 @@ Write-Host+
 Write-Host+; Write-Host+
 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
 Write-Host+
+
+if ($decision.wasPlatformTaskDisabled) {  
+    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "Re-enabling platform task"  -ForegroundColor DarkGray   
+    $platformTaskEnabled = Enable-PlatformTask -Id $Decision.productId -OutputType PlatformTask
+    $platformTaskStatusColor = $platformTaskEnabled.Status -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.$($platformTaskEnabled.Status) : "DarkGray"    
+    $message = "<$($platformTaskEnabled.displayName) <.>48> $($platformTaskEnabled.Status.ToUpper())"
+    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,$platformTaskStatusColor 
+    Write-Host+
+}
