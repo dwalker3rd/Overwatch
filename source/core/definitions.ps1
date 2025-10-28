@@ -184,7 +184,7 @@ function Close-Definitions {
 #region INTRO
 
     if (!$Quiet) {
-        $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
+        $message = "<$($Product.Id) <.>48> PENDING"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
         Write-Host+
         Write-Host+ -NoTrace "  Control","$($global:Overwatch.DisplayName) $($global:Overwatch.Release)" -ForegroundColor Gray,DarkBlue -Separator ":    "
@@ -250,7 +250,7 @@ function Close-Definitions {
 
     if (!$Quiet) {
         Write-Host+ #-Iff (!$_warnings)
-        $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
+        $message = "<$($Product.Id) <.>48> READY"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
         Write-Host+
     }
