@@ -3,7 +3,9 @@
 
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
 
-param()
+param(
+    [switch]$Debug
+)
 
 $global:DebugPreference = "SilentlyContinue"
 $global:InformationPreference = "SilentlyContinue"
@@ -72,8 +74,6 @@ $overwatchProductId = $global:Product.Id
             return $_listItem
         }
 
-
-        # Write-Log -Context $overwatchProductId -Target "ListItem $($ListItem.Id)" -Action "Update" -Status "Success" -Message "Updated column `"$columnDisplayName`" with $listItemValue" -EntryType "Information" -Force
         return $_listItem
 
     }
@@ -129,13 +129,11 @@ $overwatchProductId = $global:Product.Id
         $_decision = @{
             isExecutionInteractive = $false     # is this execution interactive?
             productId = $ProductId              # id of product being executed
-            originalPlatformTaskStatus = $null  # the platform task status upon entering this function
-            wasPlatformTaskDisabled = $false    # set when this function disables the platform task
+            platformTask = $null                # the platform task status upon entering this function
             continue = $true                    # indicates whether the interactive execution should continue
-            decisionCode = $null                # the code of the decision made by this function
-            decisionText = $null                # the text of the decision made by this function
-            quiet = $Quiet.IsPresent            # indicates whether this function was run with -Quiet
-            messageWritten = $false             # indicates whether this function wrote anything to the console
+            decisionCode = $null                # the code of the decision
+            decisionText1 = $null               # line 1 of the decision text
+            decisionText2 = $null               # line 2 of the decision text
         }   
         
         $platformTask = $null
@@ -146,126 +144,137 @@ $overwatchProductId = $global:Product.Id
         if ($isExecutionInteractive) {
         
             $platformTask = Get-PlatformTask -Id $ProductId
-            $_decision.originalPlatformTaskStatus = $platformTask.Status
+            $_decision.platformTask = $platformTask
             $platformTaskStatusColor = $platformTask.Status -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.$($platformTask.Status) : "DarkGray"        
 
-            # deal with potential return possibilities from get-platformtask
+            # deal with return possibilities from get-platformtask
             if (!$platformTask -or $platformTask.count -gt 1 -or $platformTask.ProductID -ne $ProductId) {
                 $_decision.continue = $true
                 $_decision.decisionCode = "NOTFOUND"
-                $_decision.decisionText = "Platform task not found"
+                $_decision.decisionText1 = "Platform task not found"
             }
             else {               
             
                 # platform task is already disabled
                 if ($platformTask.Status -eq "Disabled") {
                     $_decision.continue = $true
+                    $_decision.decisionCode = "DISABLED"
+                    $_decision.decisionText1 = "Platform task status is disabled"
                 }
 
                 # platform task is running or queued to run
                 elseif ($platformTask.Status -in @("Queued", "Running")) {
                     $_decision.continue = $false
                     $_decision.decisionCode = "NOTALLOWED"
-                    $_decision.decisionText = "Platform task status precludes execution"
+                    $_decision.decisionText1 = "Platform task Status precludes execution"
+                    $_decision.decisionText2 = "Platform task is $($global:ConsoleSequence.ForegroundGreen)$($platformTask.Status.ToUpper())$($global:consoleSequence.Default)"
+                }
+
+                elseif (($platformTask.ScheduledTaskInfo.NextRunTime - [datetime]::Now) -le $global:Product.Config.AverageRunTime ) {
+                    $_decision.continue = $false
+                    $_decision.decisionCode = "NOTALLOWED"
+                    $_decision.decisionText1 = "Platform task NextRunTime precludes execution"
+                    $_decision.decisionText2 = "Next run time is $($platformTask.ScheduledTaskInfo.NextRunTime.ToString('u'))"
                 }
 
                 # platform task is enabled but not running (or queued to run)
                 else {
-
-                    $_decision.messageWritten = $true
-                    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "Disabling platform task during interactive execution"  -ForegroundColor DarkGray 
-
-                    # disable the platform task
-                    $platformTask = Disable-PlatformTask -Id $ProductId -OutputType PlatformTask
-                    $_decision.currentPlatformTaskStatus = $platformTask.Status
-                    $platformTaskStatusColor = $platformTask.Status -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.$($platformTask.Status) : "DarkGray"
-                    
-                    $message = "<$($platformTask.displayName) <.>48> $($platformTask.Status.ToUpper())"
-                    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,$platformTaskStatusColor           
-                    
-                    # confirm that the platform task was disabled
-                    if ($platformTask.Status -ne "Disabled") {
-                        $_decision.continue = $false
-                        $_decision.decisionCode = "NOTALLOWED"
-                        $_decision.decisionText = "Platform task status precludes execution"  
-                    }
-                    else {
-                        $_decision.wasPlatformTaskDisabled = $true
-                        $_decision.continue = $true
-                    }
-
+                    $_decision.continue = $true
+                    $_decision.decisionCode = "CONTINUE"
+                    $_decision.decisionText1 = "Platform task status acceptable"                      
                 }
 
             }
-        
         }
 
         return $_decision
+
     }
 
 #endregion LOCAL FUNCTIONS   
 
-# if this is an interactive execution, determine if it can continue
-# this product should not be run if its platform task is running or queued to run
-# if the interactive execution can continue, the platform task is temporarily disabled
-$decision = Approve-InteractiveExecution -ProductId $overwatchProductId
-if (!$decision.continue) { 
-    Write-Host+ -NoTrace -NoSeparator $decision.decisionCode, ": ", $decision.decisionText -ForegroundColor DarkRed, DarkGray, DarkGray
+#region INTERACTIVE EXECUTION DECISION
+
+    $productStartTime = [datetime]::Now
+
+    # if this is an interactive execution, determine if it can continue
+    # conditions:
+    #   - platform task is not running or queued to run
+    #   - platform task is not about to run ($global:Product.Config.AverageRuntime)
+
+    $decision = Approve-InteractiveExecution -ProductId $overwatchProductId
+
+    if (!$decision.continue) {
+        $platformTask = $decision.platformTask
+        $platformTaskStatusColor = $platformTask.Status -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.$($platformTask.Status) : "DarkGray"
+        $message = "<$($platformTask.displayName) <.>48> $($platformTask.Status.ToUpper())"
+        Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,$platformTaskStatusColor       
+        Write-Host+ -NoTrace -NoSeparator $decision.decisionCode, ": ", $decision.decisionText1 -ForegroundColor DarkRed, DarkGray, DarkGray
+        if (![string]::IsNullOrEmpty($decision.decisionText2)) {
+            Write-Host+ -NoTrace -NoSeparator $decision.decisionCode, ": ", $decision.decisionText2 -ForegroundColor DarkRed, DarkGray, DarkGray
+        }
+        Write-Host+
+        return 
+    } 
+
+#endregion INTERACTIVE EXECUTION DECISION    
+
+#region CONNECTIONS
+
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    Connect-Fabric -Tenant $global:Fabric.Tenant
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to Exchange Online for tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    Connect-ExchangeOnline+ -Tenant $global:Fabric.Tenant 
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to tenant ", $global:SharePoint.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    Connect-MgGraph+ -Tenant $global:SharePoint.Tenant
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to SharePoint site ", $global:SharePoint.Site, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    $site = Get-SharePointSite -Tenant $global:SharePoint.Tenant -Site $global:SharePoint.Site
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+
     Write-Host+
-    return 
-}
-Write-Host+ -Iff $(!$decision.quiet -and $decision.messageWritten)  
 
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-Connect-Fabric -Tenant $global:Fabric.Tenant
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+#endregion CONNECTIONS
 
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to Exchange Online for tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-Connect-ExchangeOnline+ -Tenant $global:Fabric.Tenant 
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+#region CACHE    
 
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to tenant ", $global:SharePoint.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-Connect-MgGraph+ -Tenant $global:SharePoint.Tenant
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+    # cache capacities to improve performance
+    # ignore Trial and PPU capacities
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching capacities from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    $_capacities = Get-Capacities -Tenant $global:Fabric.Tenant
+    $capacities = $_capacities | Where-Object {
+        $capacityDisplayName = $_.DisplayName
+        -not ($global:Fabric.Capacities.Special | Where-Object { $capacityDisplayName -like $_ })
+    }
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Connecting to SharePoint site ", $global:SharePoint.Site, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$site = Get-SharePointSite -Tenant $global:SharePoint.Tenant -Site $global:SharePoint.Site
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+    # cache workspaces to improve performance
+    # ignore personal and app workspaces
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching workspaces from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    $workspaces = Get-Workspaces -Tenant $global:Fabric.Tenant | Where-Object { $_.type -eq "Workspace" -and $_.displayName -notin $global:Fabric.Workspaces.Applications }
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
-Write-Host+
+    # cache users to improve performance
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Refreshing and caching users from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Users -Quiet
+    $azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
-# cache capacities to improve performance
-# ignore Trial and PPU capacities
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching capacities from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$_capacities = Get-Capacities -Tenant $global:Fabric.Tenant
-$capacities = $_capacities | Where-Object {
-    $capacityDisplayName = $_.DisplayName
-    -not ($global:Fabric.Capacities.Special | Where-Object { $capacityDisplayName -like $_ })
-}
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+    # cache groups to improve performance
+    Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Refreshing and caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
+    Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Groups -Quiet
+    $azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
+    $azureADGroups = $azureADGroups | Where-Object { ![string]::IsNullOrEmpty($_.displayName) }
+    Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
 
-# cache workspaces to improve performance
-# ignore personal and app workspaces
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Caching workspaces from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-$workspaces = Get-Workspaces -Tenant $global:Fabric.Tenant | Where-Object { $_.type -eq "Workspace" -and $_.displayName -notin $global:Fabric.Workspaces.Applications }
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
+    Write-Host+
 
-# cache users to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Refreshing and caching users from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Users -Quiet
-$azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
-
-# cache groups to improve performance
-Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Refreshing and caching groups from tenant ", $global:Fabric.Tenant, " ... " -ForegroundColor DarkGray, DarkBlue, DarkGray
-Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Groups -Quiet
-$azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
-$azureADGroups = $azureADGroups | Where-Object { ![string]::IsNullOrEmpty($_.displayName) }
-Write-Host+ -NoTimestamp -NoTrace "`e[5D    "
-
-Write-Host+
-
-Test-CtrlC -Decision $decision
+#endregion CACHE
 
 #region SHAREPOINT LOG
 
@@ -282,7 +291,7 @@ Test-CtrlC -Decision $decision
 
 #endretion SHAREPOINT LOG
 
-#region SHAREPOINT AUTO-PROVISIONING TEMPLATES
+#region AUTO-PROVISIONING TEMPLATES
 
     $autoProvisionGroupsList = Get-SharePointSiteList -Tenant $global:SharePoint.Tenant -Site $site -List $global:SharePoint.List.AutoProvisioning.GroupsandRoles.Name
     $autoProvisionGroupsListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $autoProvisionGroupsList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
@@ -292,9 +301,9 @@ Test-CtrlC -Decision $decision
         $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $autoProvisionGroupsList -ListItem $autoProvisionGroupsListItem -Status -Value ($_isValid ? "Valid" : "Invalid")
     }
 
-#endretion SHAREPOINT AUTO-PROVISIONING TEMPLATES
+#endretion AUTO-PROVISIONING TEMPLATES
 
-#region GET SHAREPOINT LISTS
+#region GET CAPACITY LIST
 
     # get sharepoint capacity list items
     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.Capacities.Name -ForegroundColor DarkGray, DarkBlue
@@ -304,9 +313,9 @@ Test-CtrlC -Decision $decision
     # show the sharepoint capacity list items
     $capacityListItems | Format-Table -Property @("ID", "Capacity Name", "SKU", "Region", "State", "Capacity ID")
 
-#endregion GET SHAREPOINT LISTS
+#endregion GET CAPACITY LIST
 
-#region UPDATE SHAREPOINT CAPACITY LIST    
+#region UPDATE CAPACITY LIST    
 
     # get sharepoint capacity list items' [internal] column names
     $_columnNamesCapacity = Get-SharePointSiteListColumns -Tenant $global:SharePoint.Tenant -Site $site -List $capacityList
@@ -350,9 +359,9 @@ Test-CtrlC -Decision $decision
         $capacityListItems | Format-Table -Property $global:SharePointView.Capacity.Default 
     }
 
-#endregion UPDATE SHAREPOINT CAPACITY LIST
+#endregion UPDATE CAPACITY LIST
 
-#region UPDATE SHAREPOINT WORKSPACE LIST
+#region GET WORKSPACE LIST
 
     # get sharepoint workspace list items
     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.Workspaces.Name -ForegroundColor DarkGray, DarkBlue
@@ -367,6 +376,10 @@ Test-CtrlC -Decision $decision
     $_workspaceNameWorkspaceColumn = $_columnNamesWorkspace | Where-Object { $_.DisplayName -eq 'Workspace Name' }; $_columnNameWorkspaceWorkspaceName = $_workspaceNameWorkspaceColumn.Name
     $_workspaceIdWorkspaceColumn = $_columnNamesWorkspace | Where-Object { $_.DisplayName -eq 'Workspace ID' }; $_columnNameWorkspaceWorkspaceId = $_workspaceIdWorkspaceColumn.Name
     $_workspaceCapacityNameWorkspaceColumn = $_columnNamesWorkspace | Where-Object { $_.DisplayName -eq 'Capacity Name' }; $_columnNameWorkspaceCapacityName = "$($_workspaceCapacityNameWorkspaceColumn.Name)LookupId"
+
+#endregion GET WORKSPACE LIST
+
+#region UPDATE WORKSPACE LIST
 
     # for each fabric workspace that is not in the sharepoint workspace list, 
     # create a new sharepoint workspace list item
@@ -428,7 +441,7 @@ Test-CtrlC -Decision $decision
         $hadUpdate = $true
     }
 
-#endregion UPDATE SHAREPOINT WORKSPACE LIST   
+#endregion UPDATE WORKSPACE LIST   
 
 #region PROCESS WORKSPACE COMMANDS
 
@@ -575,69 +588,67 @@ Test-CtrlC -Decision $decision
 
             }
         }
-
-    #region UPDATE SHAREPOINT WORKSPACE LIST
     
-    #region ASSIGN CAPACITY
+        #region ASSIGN CAPACITY
 
-        if ($workspace -and $workspaceListItemWithCommand.Command -in ("Create", "Assign")) {
-            # workspace has a capacity id assigned in fabric
-            if ($workspace.capacityId) {
-                $capacity = Get-Capacity -Tenant $global:Fabric.Tenant -Id $workspace.capacityId -Capacities $capacities
-                if ($capacity) {
-                    if ([string]::IsNullOrEmpty($workspaceListItemWithCommand.'Capacity Name')) { 
-                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Capacity Name not specified"  -ForegroundColor DarkYellow
-                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Using capacity ", $($capacity.displayName), " assigned to workpace" -ForegroundColor DarkGray, DarkBlue, DarkGray
-                        # update the capacity name field in the sharepoint list item
-                        $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Capacity Name" -Value $capacity.displayName                          
-                    }    
-                } 
-            }
-            # workspace has not been assigned a capacity
-            else {
-                # validate the capacity name field from the sharepoint list item
-                $capacity = Get-Capacity -Tenant $global:Fabric.Tenant -Name $workspaceListItemWithCommand.'Capacity Name' -Capacities $capacities
-                if ($capacity) {
-                    # assign capacity to workspace
-                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Assigning capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
-                    $workspace = Set-WorkspaceCapacity -Tenant $global:Fabric.Tenant -Workspace $Workspace -Capacity $Capacity
-                    if ($workspace) {
-                        if ($workspaceListItemWithCommand.Command -eq "Assign") {
-                            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Assigned capacity"  
-                            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " " 
+            if ($workspace -and $workspaceListItemWithCommand.Command -in ("Create", "Assign")) {
+                # workspace has a capacity id assigned in fabric
+                if ($workspace.capacityId) {
+                    $capacity = Get-Capacity -Tenant $global:Fabric.Tenant -Id $workspace.capacityId -Capacities $capacities
+                    if ($capacity) {
+                        if ([string]::IsNullOrEmpty($workspaceListItemWithCommand.'Capacity Name')) { 
+                            Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "Capacity Name not specified"  -ForegroundColor DarkYellow
+                            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Using capacity ", $($capacity.displayName), " assigned to workpace" -ForegroundColor DarkGray, DarkBlue, DarkGray
+                            # update the capacity name field in the sharepoint list item
+                            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Capacity Name" -Value $capacity.displayName                          
+                        }    
+                    } 
+                }
+                # workspace has not been assigned a capacity
+                else {
+                    # validate the capacity name field from the sharepoint list item
+                    $capacity = Get-Capacity -Tenant $global:Fabric.Tenant -Name $workspaceListItemWithCommand.'Capacity Name' -Capacities $capacities
+                    if ($capacity) {
+                        # assign capacity to workspace
+                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Assigning capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+                        $workspace = Set-WorkspaceCapacity -Tenant $global:Fabric.Tenant -Workspace $Workspace -Capacity $Capacity
+                        if ($workspace) {
+                            if ($workspaceListItemWithCommand.Command -eq "Assign") {
+                                $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Assigned capacity"  
+                                $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " " 
+                            }
+                            $message = "Assigned capacity $($Capacity.displayName) to workspace $($workspace.displayName)"
+                            Write-Log+ -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Success" -Message $message -EntryType "Information" -Force  
+                            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Assigned capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue                 
                         }
-                        $message = "Assigned capacity $($Capacity.displayName) to workspace $($workspace.displayName)"
-                        Write-Log+ -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Success" -Message $message -EntryType "Information" -Force  
-                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Assigned capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue                 
+                        else {
+                            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Assign capacity failed" 
+                            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " " 
+                            $message = "Failed to assign capacity $($Capacity.displayName) to workspace $($workspace.displayName)"
+                            Write-Log+ -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Failure" -Message $message -EntryType "Error" -Force 
+                            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Failed to assign capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkRed
+                        }
                     }
                     else {
-                        $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Assign capacity failed" 
+                        # the capacity name field in the sharepoint list item is NOT valid
+                        $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Invalid capacity"   
                         $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " " 
-                        $message = "Failed to assign capacity $($Capacity.displayName) to workspace $($workspace.displayName)"
-                        Write-Log+ -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Failure" -Message $message -EntryType "Error" -Force 
-                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Failed to assign capacity ", $($Capacity.displayName), " to workspace ", $($workspace.displayName) -ForegroundColor DarkRed
+                        $message = "Capacity $($Capacity.displayName) was not found"
+                        Write-Log+ -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Error" -Message $message -EntryType "Error" -Force 
+                        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Capacity ", $($capacity.displayName), "NOT FOUND" -ForegroundColor DarkRed                    
                     }
                 }
-                else {
-                    # the capacity name field in the sharepoint list item is NOT valid
-                    $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -Status -Value "Invalid capacity"   
-                    $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $workspaceList -ListItem $workspaceListItemWithCommand -ColumnDisplayName "Command" -Value " " 
-                    $message = "Capacity $($Capacity.displayName) was not found"
-                    Write-Log+ -Context $overwatchProductId -Target "Workspace" -Action "AssignCapacity" -Status "Error" -Message $message -EntryType "Error" -Force 
-                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Capacity ", $($capacity.displayName), "NOT FOUND" -ForegroundColor DarkRed                    
-                }
             }
-        }
 
-    #endregion ASSIGN CAPACITY
+        #endregion ASSIGN CAPACITY
 
-}
+    }
+
+    Write-Host+
 
 #endregion PROCESS WORKSPACE COMMANDS
 
-Write-Host+
-
-#region GET SHAREPOINT LISTS
+#region GET USER LIST
 
     # get sharepoint user list items
     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.Users.Name -ForegroundColor DarkGray, DarkBlue
@@ -647,9 +658,9 @@ Write-Host+
     # show sharepoint user list items
     $userListItems | Format-Table -Property $global:SharePointView.User.Default
 
-#endregion GET SHAREPOINT LISTS    
+#endregion GET USER LIST   
 
-#region UPDATE SHAREPOINT USER LIST
+#region UPDATE USER LIST
 
     $hadUpdate = $false
     foreach ($userListItem in $userListItems) {
@@ -836,7 +847,7 @@ Write-Host+
         $userListItems | Format-Table -Property $global:SharePointView.User.Default
     }    
 
-#endregion UPDATE SHAREPOINT USER LIST  
+#endregion UPDATE USER LIST  
 
 #region PROCESS USER COMMANDS
 
@@ -924,10 +935,6 @@ Write-Host+
 
     }
 
-#endregion PROCESS USER COMMANDS
-
-#region REFRESH AZURE AD USER CACHE
-
     # if any Azure AD user was created/updated/removed,
     # regresh the Overwatch Azure AD user cache
     if ($updatedAzureADUsers) {
@@ -935,13 +942,13 @@ Write-Host+
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing ", "Azure AD Users" -ForegroundColor DarkGray, DarkBlue
         Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Users -Quiet
         $azureADUsers, $cacheError = Get-AzureAdUsers -Tenant $global:Fabric.Tenant -AsArray
-    }
+    }  
+    
+    Write-Host+
 
-#region REFRESH AZURE AD USER CACHE
+#endregion PROCESS USER COMMANDS
 
-Write-Host+
-
-#region GET SHAREPOINT LISTS
+#region GET GROUP LISTS
 
     # get sharepoint user list items
     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.Users.Name -ForegroundColor DarkGray, DarkBlue
@@ -962,10 +969,9 @@ Write-Host+
     $_groupIdGroupColumn = $_columnNamesGroup | Where-Object { $_.DisplayName -eq 'Group ID' }; $_columnNameGroupGroupId = $_groupIdGroupColumn.Name
     $_statusGroupColumn = $_columnNamesGroup | Where-Object { $_.DisplayName -eq 'Status' }; $_columnNameGroupStatus = $_statusGroupColumn.Name
 
-#endregion GET SHAREPOINT LISTS
+#endregion GET GROUP LISTS
 
-#region UPDATE SHAREPOINT GROUP LIST    
-
+#region UPDATE GROUP LIST    
 
     $hadUpdate = $false
     
@@ -1083,7 +1089,7 @@ Write-Host+
         $groupListItems | Format-Table -Property $global:SharePointView.Group.Default
     }    
 
-#endregion UPDATE SHAREPOINT GROUP LIST
+#endregion UPDATE GROUP LIST
 
 #region PROCESS GROUP COMMANDS
 
@@ -1202,10 +1208,7 @@ Write-Host+
 
     }   
 
-#endregion PROCESS GROUP COMMANDS
-
-#region REFRESH AZURE AD GROUP CACHE
-
+    # refresh Azure AD Group cache
     if ($updatedAzureADGroups) {
         Write-Host+
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing ", "Azure AD Groups" -ForegroundColor DarkGray, DarkBlue
@@ -1213,12 +1216,12 @@ Write-Host+
         Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Groups -Quiet
         $azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
     }
+    
+    Write-Host+    
 
-#endregion REFRESH AZURE AD USER CACHE
+#endregion PROCESS GROUP COMMANDS
 
-Write-Host+
-
-#region GET SHAREPOINT LISTS
+#region GET GROUP MEMBERSHIP LISTS
 
     # get sharepoint user list and list items
     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Getting data from SharePoint list ", $global:SharePoint.List.Users.Name -ForegroundColor DarkGray, DarkBlue
@@ -1243,9 +1246,9 @@ Write-Host+
     $_groupNameGroupMembershipColumn = $_columnNamesGroupMembership | Where-Object { $_.DisplayName -eq 'Group Name' }; $_columnNameGroupMembershipGroupName = "$($_groupNameGroupMembershipColumn.Name)LookupId"
     $_userEmailGroupMembershipColumn = $_columnNamesGroupMembership | Where-Object { $_.DisplayName -eq 'User Email' }; $_userEmailGroupMembershipGroupName = "$($_userEmailGroupMembershipColumn.Name)LookupId"
 
-#endregion GET SHAREPOINT LISTS   
+#endregion GET GROUP MEMBERSHIP LISTS   
 
-#region UPDATE GROUP MEMBERSHIP SHAREPOINT LIST
+#region UPDATE GROUP MEMBERSHIP LIST
 
     # create a new sharepoint list item for any Azure AD group member not in the Fabric Group Membership sharepoint list 
     $unlistedMembers = @()
@@ -1309,7 +1312,7 @@ Write-Host+
         $hadUpdate = $true
     }
 
-#endregion UPDATE GROUP MEMBERSHIP SHAREPOINT LIST  
+#endregion UPDATE GROUP MEMBERSHIP LIST  
 
 #region PROCESS GROUP MEMBERSHIP COMMANDS
 
@@ -1380,21 +1383,18 @@ Write-Host+
 
     }
 
-#endregion PROCESS GROUP MEMBERSHIP COMMANDS
-
-#region REFRESH AZURE AD GROUP CACHE
-
+    # refresh Azure AD Group cache
     if ($updatedAzureADGroups) {
         Write-Host+
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing ", "Azure AD Groups" -ForegroundColor DarkGray, DarkBlue
         Start-Sleep -Seconds 15
         Update-AzureADObjects -Tenant $global:Fabric.Tenant -Type Groups -Quiet
         $azureADGroups, $cacheError = Get-AzureAdGroups -Tenant $global:Fabric.Tenant -AsArray
-    }
+    }    
 
-#endregion REFRESH AZURE AD USER CACHE
+    Write-Host+
 
-Write-Host+
+#endregion PROCESS GROUP MEMBERSHIP COMMANDS
 
 #region GET WORKSPACE ROLE ASSIGNMENTS LISTS
 
@@ -1657,17 +1657,21 @@ Write-Host+
         }
     }
 
-#endregion PROCESS WORKSPACE ROLE ASSIGNMENTS COMMANDS    
+#endregion PROCESS WORKSPACE ROLE ASSIGNMENTS COMMANDS   
+
+#region LOG DIAGNOSTICS
+
+    $productEndTime = [datetime]::Now
+    $productRunTime = $productStartTime - $productEndTime
+
+    if ($Debug) {
+        Write-Log -Context $overwatchProductId -Target "Diagnostics" -Action "StartTime" -Status "Success" -Message $productStartTime.ToString('u')  -EntryType Information -Force
+        Write-Log -Context $overwatchProductId -Target "Diagnostics" -Action "EndTime" -Status "Success" -Message $productEndTime.ToString('u')  -EntryType Information -Force
+        Write-Log -Context $overwatchProductId -Target "Diagnostics" -Action "RunTime" -Status "Success" -Message $productRunTime.TotalSeconds  -EntryType Information -Force
+    }
+
+#endregion LOG DIAGNOSTICS    
 
 Write-Host+; Write-Host+
 Write-Host+ -NoTimestamp -NoTrace -NoSeparator "> end of line" -ForegroundColor DarkGray
 Write-Host+
-
-if ($decision.wasPlatformTaskDisabled) {  
-    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace "Re-enabling platform task"  -ForegroundColor DarkGray   
-    $platformTaskEnabled = Enable-PlatformTask -Id $Decision.productId -OutputType PlatformTask
-    $platformTaskStatusColor = $platformTaskEnabled.Status -in $global:PlatformStatusColor.Keys ? $global:PlatformStatusColor.$($platformTaskEnabled.Status) : "DarkGray"    
-    $message = "<$($platformTaskEnabled.displayName) <.>48> $($platformTaskEnabled.Status.ToUpper())"
-    Write-Host+ -Iff $(!$Quiet.IsPresent) -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,$platformTaskStatusColor 
-    Write-Host+
-}

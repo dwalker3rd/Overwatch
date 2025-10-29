@@ -20,7 +20,9 @@
     $global:Product.Description = "Syncs SharePoint lists to Microsoft Fabric objects."
     $global:Product.HasTask = $true
 
-    $global:Product.Config = @{}
+    $global:Product.Config = @{
+        AverageRunTime = New-Timespan -Minutes 5
+    }
 
     $global:SharePoint = @{
         Tenant = "pathseattle"
