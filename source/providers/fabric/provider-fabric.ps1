@@ -616,4 +616,107 @@
 
     }
 
+    function global:Export-TenantSettings {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$false)]$BaselineTenantSettings,
+            [switch]$Clobber
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."} 
+        
+        if ([string]::IsNullOrEmpty($BaselinePath)) {
+            $BaselineTenantSettings = "$($global:Location.Data)\$($global:Environ.Cloud)\$tenantKey-tenantSettings.json"
+        }        
+
+        $tenantSettings = Get-TenantSettings -Tenant $tenantKey 
+
+        try{
+            $tenantSettings | ConvertTo-Json -Depth 10 | Out-File $BaselineTenantSettings -NoClobber:$(!$Clobber.IsPresent)
+            Write-Host+ -NoTimestamp -NoTrace "    Tenant settings exported to", $BaselineTenantSettings -ForegroundColor DarkGray, DarkBlue
+        }
+        catch {
+            Write-Host+ -NoTimestamp -NoTrace "    The file '$($BaselineTenantSettings)' already exists." -ForegroundColor DarkRed
+            Write-Host+ -NoTimestamp -NoTrace "    Specify -Clobber to overwrite the file." -ForegroundColor DarkGray
+        }
+        
+        
+        return  
+
+    }    
+
+    function global:Import-TenantSettings {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$false,Position=1)][string]$BaselineTenantSettings
+        )        
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}  
+
+        if ([string]::IsNullOrEmpty($BaselinePath)) {
+            $BaselineTenantSettings = "$($global:Location.Data)\$($global:Environ.Cloud)\$tenantKey-tenantSettings.json"
+        }
+
+        $tenantSettings = Get-Content -Raw -Path $BaselineTenantSettings | ConvertFrom-Json
+
+        foreach ($tenantSetting in $tenantSettings) {
+            
+            $body = [ordered]@{
+                enabled = [bool]$tenantSetting.enabled
+            }
+
+            if ($null -ne $tenantSetting.delegateToCapacity)  { $body.delegateToCapacity  = [bool]$tenantSetting.delegateToCapacity }
+            if ($null -ne $tenantSetting.delegateToWorkspace) { $body.delegateToWorkspace = [bool]$tenantSetting.delegateToWorkspace }
+            if ($null -ne $tenantSetting.delegateToDomain)    { $body.delegateToDomain    = [bool]$tenantSetting.delegateToDomain }
+
+            if ($tenantSetting.enabledSecurityGroups) {
+                $body.enabledSecurityGroups = @(
+                    $tenantSetting.enabledSecurityGroups | ForEach-Object {
+                        @{ graphId = $_.graphId; name = $_.name }
+                    }
+                )
+            }
+
+            if ($tenantSetting.excludedSecurityGroups) {
+                $body.excludedSecurityGroups = @(
+                    $tenantSetting.excludedSecurityGroups | ForEach-Object {
+                        @{ graphId = $_.graphId; name = $_.name }
+                    }
+                )
+            }
+
+            if ($tenantSetting.properties) {
+                $body.properties = @(
+                    $tenantSetting.properties | ForEach-Object {
+                        [ordered]@{
+                            name  = $_.name
+                            value = $_.value
+                            type  = $_.type
+                        }
+                    }
+                )
+            }
+
+            $jsonBody = $body | ConvertTo-Json -Depth 10
+
+            Write-Host+ -IfDebug -NoTimestamp -NoTrace "$($tenantSetting.settingName): $($body | ConvertTo-Json -Depth 10 -Compress)"
+
+            $response = Invoke-RestMethod -Method POST `
+                -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/admin/tenantsettings/$($tenantSetting.name)/update" `
+                -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
+                -Body $jsonBody
+            $tenantSettings = $response.value
+
+            Start-Sleep -Milliseconds 750
+        }
+
+    }
+
+
 #endregion ADMIN
