@@ -389,6 +389,176 @@
 
     }
 
+    function New-WorkspaceIdentity {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
+
+        # get workspace again in case object is stale
+        $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+
+        # the workspace identity has already been provisioned
+        if ($_workspace.workspaceIdentity) {
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityAlreadyExists"
+                    message = "Workspace identity already provisioned"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # make initial request
+        $response = Invoke-WebRequest -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($_workspace.Id)/provisionIdentity" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers  
+
+        # request completed immediately (200 or 201)
+        if ($response.StatusCode -eq 200 -or $response.StatusCode -eq 201) {
+            if ($response.Content) {
+                return ($response.Content | ConvertFrom-Json)
+            }
+            # response indicates completion, but there's no Content
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityRequestCompletedNoContent"
+                    message = "Workspace identity request completed but did not return any content"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # request is a long-running operation (LRO)
+        # poll $response.Headers["Location"] for completion notification
+        elseif ($response.StatusCode -eq 202) {
+
+            # ensure Headers properties are the right type for use
+            $_statusUri  = $response.Headers["Location"]
+            $_retryAfter = $response.Headers["Retry-After"]
+            $statusUri = if ($_statusUri -is [array]) { $_statusUri[0] } else { $_statusUri }
+            $retryAfter = if ($_retryAfter -is [array]) { $_retryAfter[0] } else { $_retryAfter }
+            
+            # poll for completion of LRO
+            $status = "InProgress"
+            while ($status -in @('Running','InProgress')) {
+                Start-Sleep -Seconds ([int]$retryAfter)
+                $lroResponse = Invoke-RestMethod `
+                    -Uri $statusUri `
+                    -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+                $status = $lroResponse.status
+            }
+
+            # LRO status indicates success
+            if ($status -eq 'Succeeded') {
+                $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+                return $_workspace.workspaceIdentity
+            }
+
+            # LRO status indicates failure
+            else {                    
+                $_errorResponse = [PSCustomObject]@{
+                    error = [PSCustomObject]@{
+                        errorCode = "WorkspaceIdentityRequestFailed"
+                        message = "Workspace identity request status: $($status.ToUpper())"
+                    }
+                }
+                return $_errorResponse                
+            } 
+
+        }
+    }
+
+    function Remove-WorkspaceIdentity {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
+
+        # get workspace again in case object is stale
+        $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+
+        # the workspace has no workspace identity provisioned
+        if (!$_workspace.workspaceIdentity) {
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityNotProvisioned"
+                    message = "Workspace identity not provisioned"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # make initial request
+        $response = Invoke-WebRequest -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($_workspace.Id)/deprovisionIdentity" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers  
+
+        # request completed immediately (200 or 201)
+        if ($response.StatusCode -eq 200 -or $response.StatusCode -eq 201) {
+            if ($response.Content) {
+                return ($response.Content | ConvertFrom-Json)
+            }
+            # response indicates completion, but there's no Content
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityRequestCompletedNoContent"
+                    message = "Workspace identity request completed but did not return any content"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # request is a long-running operation (LRO)
+        # poll $response.Headers["Location"] for completion notification
+        elseif ($response.StatusCode -eq 202) {
+
+            # ensure Headers properties are the right type for use
+            $_statusUri  = $response.Headers["Location"]
+            $_retryAfter = $response.Headers["Retry-After"]
+            $statusUri = if ($_statusUri -is [array]) { $_statusUri[0] } else { $_statusUri }
+            $retryAfter = if ($_retryAfter -is [array]) { $_retryAfter[0] } else { $_retryAfter }
+            
+            # poll for completion of LRO
+            $status = "InProgress"
+            while ($status -in @('Running','InProgress')) {
+                Start-Sleep -Seconds ([int]$retryAfter)
+                $lroResponse = Invoke-RestMethod `
+                    -Uri $statusUri `
+                    -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+                $status = $lroResponse.status
+            }
+
+            # LRO status indicates success
+            if ($status -eq 'Succeeded') {
+                $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+                return $_workspace.workspaceIdentity
+            }
+
+            # LRO status indicates failure
+            else {                    
+                $_errorResponse = [PSCustomObject]@{
+                    error = [PSCustomObject]@{
+                        errorCode = "WorkspaceIdentityRequestFailed"
+                        message = "Workspace identity request status: $($status.ToUpper())"
+                    }
+                }
+                return $_errorResponse                
+            } 
+
+        }
+    }    
+
 #endregion WORKSPACES    
 
 #region ADMIN

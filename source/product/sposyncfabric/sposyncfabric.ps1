@@ -506,8 +506,23 @@ $overwatchProductId = $global:Product.Id
                                 # $autoProvisionGroups += [PSCustomObject]@{ workspaceName = $workspace.displayName; groupName = "Data Curators"; role = "Member" }
                                 # $autoProvisionGroups += [PSCustomObject]@{ workspaceName = $workspace.displayName; groupName = "Fabric Admin"; role = "Admin" }                                
 
-                            #endregion AUTOPROVISION GROUPS                                
+                            #endregion AUTOPROVISION GROUPS 
                             
+                            #region PROVISION WORKSPACE IDENTITY
+
+                                $workspaceIdentity = New-WorkspaceIdentity -Tenant $tenantkey -Workspace $workspace
+                                if ($workspaceIdentity.error) {
+                                    $message = @($workspaceIdentity.error.errorCode, ": ", $workspaceIdentity.error.message, " for workspace ", $workspace.displayName)
+                                    Write-Log -Context $overwatchProductId -Target "WorkspaceIdentity" -Action "Provision" -Status "Failure" -Message ($message -join "") -EntryType "Error" -Force 
+                                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator $message -ForegroundColor DarkRed, DarkGray, DarkGray, DarkGray, DarkBlue
+                                }
+                                else {
+                                    $message = $workspaceIdentity | ConvertTo-Json -Compress
+                                    Write-Log -Context $overwatchProductId -Target "WorkspaceIdentity" -Action "Provision" -Status "Success" -Message $message -EntryType "Information" -Force 
+                                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Provisioned workspace identity ", $message, " for workspace ", $workspace.displayName -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+                                }    
+
+                            #endregion PROVISION WORKSPACE IDENTITY
                         }
                         else {
                             
