@@ -71,7 +71,7 @@ function global:Invoke-SharePointRestMethod {
     if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
 
     if ([string]::IsNullOrEmpty($params.Headers.Authorization)) {
-        Connect-AzureAD -tenant $tenantKey
+        Connect-MgGraph+ -tenant $tenantKey
         $params.Headers.Authorization = $global:Azure.$tenantKey.MsGraph.AccessToken
     }
 
@@ -83,7 +83,7 @@ function global:Invoke-SharePointRestMethod {
     catch [Microsoft.PowerShell.Commands.HttpResponseException] {
         $response.error = ((get-error).ErrorDetails | ConvertFrom-Json).error
         if ($response.error.code -eq "InvalidAuthenticationToken") {
-            Connect-AzureAD -tenant $tenantKey
+            Connect-MgGraph+ -tenant $tenantKey
             $params.Headers.Authorization = $global:Azure.$tenantKey.MsGraph.AccessToken
             $retry = $true
         }
@@ -213,9 +213,10 @@ function global:Get-SharePointSiteListItems {
         [Parameter(Mandatory=$false)][string[]]$Column,
         [Parameter(Mandatory=$false)][string[]]$IncludeColumn,
         [Parameter(Mandatory=$false)][string[]]$ExcludeColumn,
-        [Parameter(Mandatory=$false)][string[]]$Filter,
+        # [Parameter(Mandatory=$false)][string[]]$Filter,
         [Parameter(Mandatory=$false)][ValidateSet("beta","v1.0")][string]$GraphApiVersion = "beta",
-        [Parameter(Mandatory=$false)][string]$View
+        [Parameter(Mandatory=$false)][string]$View,
+        [Parameter(Mandatory=$false)][int]$PageSize = 200
     )
 
     if ($Column -and $ExcludeColumn) {
@@ -289,7 +290,7 @@ function global:Get-SharePointSiteListItems {
             $listIdForLookup   = $lookupColumnsInfo[$dispName].ListId
             $colNameForLookup  = $lookupColumnsInfo[$dispName].ColumnName
 
-            $lookupUri = "https://graph.microsoft.com/$GraphApiVersion/sites/$($Site.Id)/lists/$listIdForLookup/items?expand=fields(select=$colNameForLookup)"
+            $lookupUri = "https://graph.microsoft.com/$GraphApiVersion/sites/$($Site.Id)/lists/$listIdForLookup/items?$top=5000&expand=fields(select=$colNameForLookup)"
             $restParams.Uri = $lookupUri
             $_lookupItems = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
             $allLookupItems = $_lookupItems.Value
@@ -319,15 +320,18 @@ function global:Get-SharePointSiteListItems {
     $internalFieldNames = $internalFieldNames | Select-Object -Unique
     $internalFieldSelect = $internalFieldNames -join ","
 
-    $listItemsUri = "https://graph.microsoft.com/$GraphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/items?expand=fields(select=$internalFieldSelect)"
-
-    if ($Filter) {
-        $listItemsUri += "&filter=$Filter"
-    }
+    $listItemsUri = "https://graph.microsoft.com/$GraphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/items?expand=fields(select=$internalFieldSelect)&`$top=$PageSize"
+    # if ($Filter) { $listItemsUri += "&`$filter=$Filter" }
 
     $restParams.Uri = $listItemsUri
-    $_listItems = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams
-    $listItems  = $_listItems.Value
+
+    # loop on #odata.nextLink to get all listItems
+    $listItems = @()
+    do {
+        $response = Invoke-AzureADRestMethod -tenant $tenantKey -params $restParams 
+        $listItems += $response.value | Select-Object -ExcludeProperty "@odata.type"
+        $restParams.Uri = $response."@odata.nextLink"
+    } until (!$restParams.Uri)
 
     # build output object
     $result = foreach ($listItem in $listItems) {
@@ -415,7 +419,7 @@ function global:Remove-SharePointSiteListItem {
         [Parameter(Mandatory=$true,Position=1)][object]$Site,
         [Parameter(Mandatory=$true,Position=2)][object]$List,
         [Parameter(Mandatory=$true,Position=3)][object]$ListItem,
-        [Parameter(Mandatory=$false)][string[]]$Filter,
+        # [Parameter(Mandatory=$false)][string[]]$Filter,
         [Parameter(Mandatory=$false)][ValidateSet("beta","v1.0")][string]$GraphApiVersion = "beta",
         [Parameter(Mandatory=$false)][string]$View
     ) 
@@ -427,9 +431,9 @@ function global:Remove-SharePointSiteListItem {
     # $_list = Get-SharePointSiteList -Tenant $tenantKey -Site $Site -List $List    
 
     $uri = "https://graph.microsoft.com/$graphApiVersion/sites/$($Site.Id)/lists/$($List.Id)/items/$($ListItem.Id)"
-    if (![string]::IsNullOrEmpty($Filter)) {
-        $uri += "?filter=$Filter"
-    }    
+    # if (![string]::IsNullOrEmpty($Filter)) {
+    #     $uri += "?filter=$Filter"
+    # }    
     
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
@@ -445,6 +449,70 @@ function global:Remove-SharePointSiteListItem {
     $response = Invoke-SharePointRestMethod -tenant $tenantKey -params $restParams   
 
     return $response
+
+}
+
+function global:Remove-SharepointSiteListItems {
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseDeclaredVarsMoreThanAssignments", "")]
+
+    [CmdletBinding(
+        SupportsShouldProcess,
+        ConfirmImpact = 'High'        
+    )]
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+        [Parameter(Mandatory=$true,Position=1)][object]$Site,
+        [Parameter(Mandatory=$true,Position=2)][object]$List,
+        [Parameter(Mandatory=$false,Position=3)][object]$ListItems,
+        [switch]$ShowProgress
+    )     
+
+    if (!$ListItems) {
+        $ListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $List
+    }
+
+    if ($ListItems.count -eq 0) {
+        return
+    }
+
+    if ($PSCmdlet.ShouldProcess("$($List.Name)", "Remove $($ListItems.count) list items")) {
+
+        Write-Host+ -Iff $($ShowProgress.IsPresent -and $ConfirmPreference -notin ("None", "SilentlyContinue"))
+
+        $i = $ListItems.count 
+        $iStr = $i.ToString()  
+        $iLen = $iStr.Length 
+        $iMax = $iLen + 1
+        $iStr = "$($emptyString.PadLeft($iMax - $iLen, " "))$iStr" 
+
+        Set-CursorInvisible
+
+        $message = "List items remaining to be deleted:"
+        Write-Host+ -Iff $($ShowProgress.IsPresent) -NoTimestamp -NoTrace -NoNewLine -NoSeparator $message, $iStr -ForegroundColor DarkGray, DarkBlue
+     
+        foreach ($listItem in $ListItems) {        
+            $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $list -ListItem $listItem
+            if ($i % 10 -eq 0) {
+                $iStr = $i.ToString()  
+                $iLen = $iStr.Length 
+                $iStr = "$($emptyString.PadLeft($iMax - $iLen, " "))$iStr"                 
+                Write-Host+ -Iff $($ShowProgress.IsPresent) -NoTimestamp -NoTrace -NoNewLine -NoSeparator "`e[$($iMax)D$iStr" -ForegroundColor DarkBlue
+            }  
+            $i--
+        } 
+
+        $iStr = $i.ToString()  
+        $iLen = $iStr.Length 
+        $iStr = "$($emptyString.PadLeft($iMax - $iLen, " "))$iStr"  
+        Write-Host+ -Iff $($ShowProgress.IsPresent) -NoTimestamp -NoTrace -NoSeparator -NoNewLine "`e[$($iMax)D$iStr" -ForegroundColor DarkBlue
+        Write-Host+ -Iff $($ShowProgress.IsPresent)
+
+        Set-CursorVisible
+
+    }
+
+    return
 
 }
 

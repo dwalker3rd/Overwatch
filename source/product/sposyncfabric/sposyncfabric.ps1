@@ -191,6 +191,65 @@ $overwatchProductId = $global:Product.Id
 
     }
 
+    function Debug-SharePointLogListPurge {
+
+        param()           
+
+        # initialize loop and count variables
+        $logListItemsCountOriginal = $logListItems.count
+        $logListMaxRecordsToAdd = 25
+        $i = $logListMaxRecordsToAdd 
+        $iStr = $i.ToString()  
+        $iLen = $iStr.Length 
+        $iMax = $iLen + 1
+        $iStr = "$($emptyString.PadLeft($iMax - $iLen, " "))$iStr"
+
+        Set-CursorInvisible
+        
+        # write the text portion of the message (-NoNewLine)
+        $initialMessage = "Adding $logListMaxRecordsToAdd list items to $($logList.Name) ..."
+        $initialMessageLen = $initialMessage.Length
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Adding ", $logListMaxRecordsToAdd, " list items to ", $logList.Name, " ..." -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue    
+        $message = "Adding log list item #$($emptyString.PadLeft($iMax, " "))"
+        Write-Host+ -NoTimestamp -NoTrace -NoNewLine -NoSeparator $message -ForegroundColor DarkGray   
+
+        # generate simple rows for debugging
+        for ($i = 1; $i -le $logListMaxRecordsToAdd; $i++) {
+
+            Write-Log+ -Context $overwatchProductId -Target "Log" -Action "Add" -Status "Success" -Message "Added record #$i" -EntryType "Information" -Force
+            
+            $iStr = $i.ToString()  
+            $iLen = $iStr.Length 
+            $iStr = "$($emptyString.PadLeft($iMax - $iLen, " "))$iStr"                 
+            
+            # update only the count in the text message using virtual console sequences
+            # `e[<n>D moves the cursor backward (Left) by <n>
+            Write-Host+ -NoTimestamp -NoTrace -NoNewLine -NoSeparator "`e[$($iMax)D$iStr" -ForegroundColor DarkBlue
+
+        }
+
+        # refresh the log list items
+        $logListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $logList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns 
+        
+        # calculate added count
+        $logListItemsAddedCount = $logListItems.count - $logListItemsCountOriginal
+        
+        # $iStr = $i.ToString()  
+        # $iLen = $iStr.Length  
+        # $messageLen = $message.Length + $iMax
+        # Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine "`e[$($messageLen)D$($emptyString.PadLeft($messageLen," "))`e[$($messageLen)D" -ForegroundColor DarkBlue
+        
+        # erase the initial message
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine -ReverseLineFeed 1 "`e[$($initialMessageLen)D$($emptyString.PadLeft($initialMessageLen," "))`e[$($initialMessageLen)D" -ForegroundColor DarkBlue    
+        # post the final message
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Added ", $logListItemsAddedCount, " list items to ", $logList.Name -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+        
+        Set-CursorVisible
+
+        return
+
+    }
+
 #endregion LOCAL FUNCTIONS   
 
 #region INTERACTIVE EXECUTION DECISION
@@ -287,7 +346,29 @@ $overwatchProductId = $global:Product.Id
     $_logNameEntryTypeColumn = $_columnNamesLog | Where-Object { $_.DisplayName -eq 'EntryType' }; $_columnNameLogEntryType = $_logNameEntryTypeColumn.Name
     $_logNameActionColumn = $_columnNamesLog | Where-Object { $_.DisplayName -eq 'Action' }; $_columnNameLogAction = $_logNameActionColumn.Name
     $_logNameTargetColumn = $_columnNamesLog | Where-Object { $_.DisplayName -eq 'Target' }; $_columnNameLogTarget = $_logNameTargetColumn.Name
-    $_logNameStatusColumn = $_columnNamesLog | Where-Object { $_.DisplayName -eq 'Status' }; $_columnNameLogStatus = $_logNameStatusColumn.Name
+    $_logNameStatusColumn = $_columnNamesLog | Where-Object { $_.DisplayName -eq 'Status' }; $_columnNameLogStatus = $_logNameStatusColumn.Name  
+
+    # purge log list items
+    $logListRetentionCount = 100
+    if ($logListItems.count -gt $logListRetentionCount) {
+
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator $logList.Name, " contains ", $logListItems.count, " list items" -ForegroundColor DarkBlue, DarkGray, DarkBlue, DarkGray
+
+        $logListIndexMax = $logListItems.Length - $logListRetentionCount
+        $logListItemsToPurge = ($logListItems | Sort-Object -Property Created)[0..$logListIndexMax]
+        
+        $message = "Purging $($logListItemsToPurge.count) list items from $($logList.Name) ..."
+        $messageLen = $message.Length
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Purging ", $logListItemsToPurge.count, " list items from ", $logList.Name, " ..." -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue, DarkGray
+        
+        $removeResponse = Remove-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $Site -List $logList -ListItems $logListItemsToPurge -ShowProgress -Confirm:$false
+        
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator -NoNewLine -ReverseLineFeed 1 "`e[$($messageLen)D$($emptyString.PadLeft($messageLen," "))`e[$($messageLen)" -ForegroundColor DarkBlue    
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator " Deleted ", $logListItemsToPurge.count, " list items from ", $logList.Name -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+
+        $logListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $logList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
+
+    }
 
 #endretion SHAREPOINT LOG
 
@@ -350,12 +431,10 @@ $overwatchProductId = $global:Product.Id
         }
     }
 
-    # if the sharepoint capacity list was updated ...
+    # if the sharepoint capacity list was updated, refresh the sharepoint capacity list items cache
     if ($updatedCapacityList) {
-        # refresh the sharepoint capacity list items cache
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $global:SharePoint.List.Capacities.Name -ForegroundColor DarkGray, DarkBlue
         $capacityListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $capacityList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
-        # show the updated sharepoint capacity list items
         $capacityListItems | Format-Table -Property $global:SharePointView.Capacity.Default 
     }
 
@@ -678,7 +757,7 @@ $overwatchProductId = $global:Product.Id
 #region UPDATE USER LIST
 
     $hadUpdate = $false
-    foreach ($userListItem in $userListItems) {
+    foreach ($userListItem in $userListItems | Where-Object { [string]::IsNullOrEmpty($_.Command) }) {
 
         $azureADUser = $azureADUsers | Where-Object { $_.mail -eq $userListItem.'User Email'}
 
@@ -990,6 +1069,56 @@ $overwatchProductId = $global:Product.Id
 
     $hadUpdate = $false
     
+    # for each sharepoint group list item,
+    # if the group name is missing/blank or it doesn't match what's in Azure AD, repair the name
+    # lookup group with list item Group ID
+    foreach ($groupListItem in $groupListItems) {
+        $azureADGroupById = $azureADGroups | Where-Object { $_.id -eq $groupListItem.'Group ID' }
+        $azureADGroupByName = $azureADGroups | Where-Object { $_.displayName -eq $groupListItem.'Group Name' }        
+        if ($azureADGroupById) {
+            if ([string]::IsNullOrEmpty($groupListItem.'Group Name') -or $groupListItem.'Group Name' -cne $azureADGroupById.displayName) {
+                $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -ColumnDisplayName "Group Name" -Value $azureADGroupById.displayName
+                $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -Status -Value "Repaired group name"
+                $message = "Repaired $($azureADGroupById.displayName) group name"
+                Write-Log+ -Context $overwatchProductId -Target "GroupListItem" -Action "Repair" -Status "Success" -Message $message -EntryType "Information" -Force
+                Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Repaired ", $azureADGroupById.displayName, " group name" -ForegroundColor DarkGray, DarkBlue, DarkGray
+                $hadUpdate = $true
+            }
+        }
+        if ($azureADGroupByName) {
+            if ([string]::IsNullOrEmpty($groupListItem.'Group Id') -or $groupListItem.'Group Id' -cne $azureADGroupByName.id) {
+                $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -ColumnDisplayName "Group ID" -Value $azureADGroupByName.id
+                $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItem -Status -Value "Repaired group id"
+                $message = "Repaired $($groupListItem.'Group Name') group id" 
+                Write-Log+ -Context $overwatchProductId -Target "GroupListItem" -Action "Repair" -Status "Success" -Message $message -EntryType "Information" -Force            
+                Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Repaired ", $groupListItem.'Group Name', " group id" -ForegroundColor DarkGray, DarkBlue, DarkGray
+                $hadUpdate = $true
+            }
+        }        
+    }
+    if ($hadUpdate) {
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Groups" -ForegroundColor DarkGray, DarkBlue
+        $groupListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
+        $hadUpdate = $false
+    }    
+    
+    # for each sharepoint group list item that is not in fabric, 
+    # remove the sharepoint group list item
+    $removeGroupListItems = $groupListItems | Where-Object {$_.'Group ID' -notin $azureADGroups.id -and [string]::IsNullOrEmpty($_.Command) }
+    foreach ($removeGroupListItem in $removeGroupListItems) {
+        $removedGroupName = ![string]::IsNullOrEmpty($removeGroupListItem.'Group Name') ? $removeGroupListItem.'Group Name' : "<group name is blank>"
+        $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ListItem $removeGroupListItem         
+        $message = "Removed group $($removedGroupName) from SharePoint list $($groupList.name)"
+        Write-Log+ -Context $overwatchProductId -Target "GroupListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force               
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed group ", $removedGroupName, " from SharePoint list ", $groupList.name -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+        $hadUpdate = $true
+    }
+    if ($hadUpdate) {
+        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Groups" -ForegroundColor DarkGray, DarkBlue
+        $groupListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
+        $hadUpdate = $false
+    }        
+    
     # for each Azure AD group not in the sharepoint group list 
     # create a new sharepoint group list item 
     foreach ($_azureADGroup in $azureADGroups) {
@@ -1016,83 +1145,21 @@ $overwatchProductId = $global:Product.Id
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Groups" -ForegroundColor DarkGray, DarkBlue
         $groupListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
         $hadUpdate = $false
-    }  
-
-    # for each sharepoint group list item,
-    # if the group name is missing, add it
-    # lookup group with list item Group ID
-    $groupListItemsWithMissingName = $groupListItems | Where-Object { [string]::IsNullOrEmpty($_.'Group ID') -and [string]::IsNullOrEmpty($_.Command) }
-    if ($groupListItemsWithMissingName.Count -gt 0) {
-        foreach ($groupListItemWithMissingName in $groupListItemsWithMissingName) {
-            $azureADGroup = $azureADGroups | Where-Object { $_.id -eq $groupListItemWithMissingName.'Group ID' }
-            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItemWithMissingName -ColumnDisplayName "Group Name" -Value $azureADGroup.displayName
-            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItemWithMissingName -Status -Value "Repaired group name"
-            $message = "Repaired $($groupListItemWithMissingName.'Group Name') group name"
-            Write-Log+ -Context $overwatchProductId -Target "GroupListItem" -Action "Repair" -Status "Success" -Message $message -EntryType "Information" -Force
-            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Repaired ", $groupListItemWithMissingName.'Group Name', " group name" -ForegroundColor DarkGray, DarkBlue, DarkGray
-            }
-        $hadUpdate = $true
-    }    
-    if ($hadUpdate) {
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Groups" -ForegroundColor DarkGray, DarkBlue
-        $groupListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
-        $hadUpdate = $false
-    }         
-
-    # for each sharepoint group list item,
-    # if the group id is missing, add it
-    # lookup group with list item Group Name
-    $groupListItemsWithMissingId = $groupListItems | Where-Object { [string]::IsNullOrEmpty($_.'Group ID') -and [string]::IsNullOrEmpty($_.Command)}
-    if ($groupListItemsWithMissingId.Count -gt 0) {
-        foreach ($groupListItemWithMissingId in $groupListItemsWithMissingId) {
-            $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupListItemWithMissingId.'Group Name' }
-            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItemWithMissingId -ColumnDisplayName "Group ID" -Value $azureADGroup.id
-            $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItemWithMissingId -Status -Value "Repaired group id"
-            $message = "Repaired $($groupListItemWithMissingId.'Group Name') group id" 
-            Write-Log+ -Context $overwatchProductId -Target "GroupListItem" -Action "Repair" -Status "Success" -Message $message -EntryType "Information" -Force            
-            Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Repaired ", $groupListItemWithMissingId.'Group Name', " group id" -ForegroundColor DarkGray, DarkBlue, DarkGray
-            }
-        $hadUpdate = $true
-    }   
-    if ($hadUpdate) {
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Groups" -ForegroundColor DarkGray, DarkBlue
-        $groupListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
-        $hadUpdate = $false
     }          
-
-    # for each sharepoint group list item that is not in fabric, 
-    # remove the sharepoint group list item
-    $removeGroupListItems = $groupListItems | Where-Object {$_.'Group ID' -notin $azureADGroups.id -and [string]::IsNullOrEmpty($_.Command) }
-    foreach ($removeGroupListItem in $removeGroupListItems) {
-        $removedGroupName = ![string]::IsNullOrEmpty($removeGroupListItem.'Group Name') ? $removeGroupListItem.'Group Name' : "<group name is blank>"
-        $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ListItem $removeGroupListItem         
-        $message = "Removed group $($removedGroupName) from SharePoint list $($groupList.name)"
-        Write-Log+ -Context $overwatchProductId -Target "GroupListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force               
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Removed group ", $removedGroupName, " from SharePoint list ", $groupList.name -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
-        $hadUpdate = $true
-    }
-    if ($hadUpdate) {
-        Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Groups" -ForegroundColor DarkGray, DarkBlue
-        $groupListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $groupList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
-        $hadUpdate = $false
-    }         
 
     # for each sharepoint group list item, 
     # if the time when its status was updated is greater than $statusTimeToLiveInSeconds,
     # clear the sharepoint group list item's status    
     $groupListItemsWithStatus = $groupListItems | Where-Object { ![string]::IsNullOrEmpty($_.Status)}
     if ($groupListItemsWithStatus.Count -gt 0) {
-        foreach ($groupItemWithStatus in $groupListItemsWithStatus) {
-            if ( $groupItemWithStatus.Status -notlike "*invalid*" -and $groupItemWithStatus.Status -notlike "*failed*" -and $groupItemWithStatus.Status -notlike "*dependency*" ) {
-                $sinceModified = [datetime]::Now - [datetime]$groupItemWithStatus.Modified
+        foreach ($groupListItemWithStatus in $groupListItemsWithStatus) {
+            if ( $groupListItemWithStatus.Status -notlike "*invalid*" -and $groupListItemWithStatus.Status -notlike "*failed*" -and $groupListItemWithStatus.Status -notlike "*dependency*" ) {
+                $sinceModified = [datetime]::Now - [datetime]$groupListItemWithStatus.Modified
                 if ($sinceModified -gt $global:SharePoint.ListItem.StatusExpiry) {
-                    $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupItemWithStatus -Status -Value $null  
-                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared status for group ", $groupListItemsWithStatus.'Group Name' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
+                    $_updatedListItem = Update-SharepointListItemHelper -Site $site -List $groupList -ListItem $groupListItemWithStatus -Status -Value $null  
+                    Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared status for group ", $groupListItemWithStatus.'Group Name' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
             }
-            # else {
-            #     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Retained ", $groupItemWithStatus.Status, " status for group ", $groupListItemsWithStatus.'Group Name' -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
-            # }
         }
         $hadUpdate = $true
     }
@@ -1139,7 +1206,7 @@ $overwatchProductId = $global:Product.Id
         }
 
         # get Azure AD group
-        $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupListItem.'Group Name' }
+        $azureADGroup = $azureADGroups | Where-Object { $_.displayName -eq $groupListItem.'Group Name' }  
 
         # create a new mail-enabled security group
         # update the sharepoint group list item
@@ -1265,6 +1332,10 @@ $overwatchProductId = $global:Product.Id
 
 #region UPDATE GROUP MEMBERSHIP LIST
 
+    # delete the list item if the group name is missing
+    # $_groupMembershipListItems = $groupMembershipListItems | Where-Object { [string]::IsNullOrEmpty($_.'Group Name') }
+    # $removeResponse = Remove-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $Site -List $groupMembershipList -ListItems $_groupMembershipListItems
+
     # create a new sharepoint list item for any Azure AD group member not in the Fabric Group Membership sharepoint list 
     $unlistedMembers = @()
     $hadUpdate = $false
@@ -1300,8 +1371,8 @@ $overwatchProductId = $global:Product.Id
             Write-Log+ -Context $overwatchProductId -Target "UserListItem" -Action "Remove" -Status "Success" -Message $message -EntryType "Information" -Force        
             $hadUpdate = $true                
         } 
-    }   
-    
+    }     
+
     if ($hadUpdate) {
         Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing data from SharePoint list ", $global:SharePoint.List.GroupMembership.Name -ForegroundColor DarkGray, DarkBlue
         $groupMembershipListItems = Get-SharePointSiteListItems -Tenant $global:SharePoint.Tenant -Site $site -List $groupMembershipList -ExcludeColumn $global:SharePoint.List.ExcludeColumns -IncludeColumn $global:SharePoint.List.IncludeColumns
@@ -1320,9 +1391,6 @@ $overwatchProductId = $global:Product.Id
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared status for group membership ", $groupMembershipPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
             }
-            # else {
-            #     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Retained ", $groupMembershipListItemWithStatus.Status, " status for group membership ", $groupMembershipPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
-            # }
         }
         $hadUpdate = $true
     }
@@ -1444,11 +1512,20 @@ $overwatchProductId = $global:Product.Id
 #region UPDATE WORKSPACE ROLE ASSIGNMENTS LISTS
  
     $hadUpdate = $false
+    $showUpdatedListItems = $false
 
     foreach ($workspace in $workspaces) {
 
         $workspaceRoleAssignments = Get-WorkspaceRoleAssignments -Tenant $global:Fabric.Tenant -Workspace $workspace | Where-Object { $_.principal.type -eq "Group"}
         $_workspaceRoleAssignmentsListItems = $workspaceRoleAssignmentsListItems | Where-Object { $_.'Workspace Name' -eq $workspace.displayName }
+
+        # # delete the list item if the workspace role assignment id is missing
+        # $__workspaceRoleAssignmentsListItems = $_workspaceRoleAssignmentsListItems | Where-Object { [string]::IsNullOrEmpty($_.'Workspace Role Assignment ID') }
+        # foreach ($_workspaceRoleAssignmentsListItem in $__workspaceRoleAssignmentsListItems) {           
+        #     $removeResponse = Remove-SharePointSiteListItem -Tenant $global:SharePoint.Tenant -Site $Site -List $workspaceRoleAssignmentsList -ListItem $_workspaceRoleAssignmentsListItem
+        #     $workspaceRoleAssignmentText = "$($workspace.displayName) | $($_workspaceRoleAssignmentsListItem.'Group Name') | $($_workspaceRoleAssignmentsListItem.Role)" 
+        #     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Deleted SharePoint list item ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue  
+        # }                
 
         # create a new sharepoint list item for any role assignments not in the Fabric Workspace Role Assignments sharepoint list
         $_workspaceRoleAssignments = $workspaceRoleAssignments | Where-Object { $_.id -notin $_workspaceRoleAssignmentsListItems.'Workspace Role Assignment ID'}
@@ -1468,7 +1545,7 @@ $overwatchProductId = $global:Product.Id
             $message = "Added role assignment $($workspaceRoleAssignmentText) to SharePoint list $($workspaceRoleAssignmentsList.displayName) from Fabric"
             Write-Log+ -Context $overwatchProductId -Target "WorkspaceRoleAssignmentListItem" -Action "Add" -Status "Success" -Message $message -EntryType "Information" -Force                 
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Added role assignment ", $workspaceRoleAssignmentText, " to SharePoint list ", $($workspaceRoleAssignmentsList.displayName), " from Fabric" -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue, DarkGray
-            $hadUpdate = $true               
+            $hadUpdate = $showUpdatedListItems = $true               
         }
         if ($hadUpdate) {
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Workspace Role Assignments" -ForegroundColor DarkGray, DarkBlue
@@ -1485,7 +1562,7 @@ $overwatchProductId = $global:Product.Id
             $message = "Repaired workspace name in workspace role assignment $($workspaceRoleAssignmentText)"
             Write-Log+ -Context $overwatchProductId -Target "WorkspaceRoleAssignmentListItem" -Action "Repair" -Status "Success" -Message $message -EntryType "Information" -Force    
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Updated workspace role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
-            $hadUpdate = $true 
+            $hadUpdate = $showUpdatedListItems = $true 
         }  
         if ($hadUpdate) {
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Workspace Role Assignments" -ForegroundColor DarkGray, DarkBlue
@@ -1505,7 +1582,7 @@ $overwatchProductId = $global:Product.Id
             $message = "Repaired group name in workspace role assignment $($workspaceRoleAssignmentText)"
             Write-Log+ -Context $overwatchProductId -Target "WorkspaceRoleAssignmentListItem" -Action "Repair" -Status "Success" -Message $message -EntryType "Information" -Force              
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Updated workspace role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
-            $hadUpdate = $true 
+            $hadUpdate = $showUpdatedListItems = $true 
         } 
         if ($hadUpdate) {
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Workspace Role Assignments" -ForegroundColor DarkGray, DarkBlue
@@ -1523,7 +1600,7 @@ $overwatchProductId = $global:Product.Id
             $message = "Repaired role in workspace role assignment $($workspaceRoleAssignmentText)"
             Write-Log+ -Context $overwatchProductId -Target "WorkspaceRoleAssignmentListItem" -Action "Repair" -Status "Success" -Message $message -EntryType "Information" -Force            
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Updated workspace role assignment ", $workspaceRoleAssignmentText -ForegroundColor DarkGray, DarkBlue
-            $hadUpdate = $true 
+            $hadUpdate = $showUpdatedListItems = $true 
         }
         if ($hadUpdate) {
             Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Refreshing SharePoint list ", "Workspace Role Assignments" -ForegroundColor DarkGray, DarkBlue
@@ -1531,6 +1608,10 @@ $overwatchProductId = $global:Product.Id
             $hadUpdate = $false
         }
 
+    }
+
+    if ($showUpdatedListItems) {
+        $workspaceRoleAssignmentsListItems | Format-Table -Property $global:SharePointView.WorkspaceRoleAssignment.Default
     }
 
     $hadUpdate = $false
@@ -1545,9 +1626,6 @@ $overwatchProductId = $global:Product.Id
                     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Cleared status for workspace role assignment ", $workspaceRoleAssignmentPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
                 }
             }
-            # else {
-            #     Write-Host+ -NoTimestamp -NoTrace -NoSeparator "Retained ", $workspaceRoleAssignmentItemWithStatus.Status, " status for workspace role assignment ", $workspaceRoleAssignmentPath -ForegroundColor DarkGray, DarkBlue, DarkGray, DarkBlue
-            # }
         }
         $hadUpdate = $true
     }
