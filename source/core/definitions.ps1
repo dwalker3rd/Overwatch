@@ -123,7 +123,7 @@ function Close-Definitions {
 #region MINIMUM DEFINITIONS RETURN
 
     if ($MinimumDefinitions) { 
-        $providers = Get-Provider -ResetCache | Where-Object {$_.Installed -and $_.Installation.Flag -contains "AlwaysLoad"}
+        $providers = Get-Provider -ResetCache | Where-Object {$_.Installed -and $_.Installation.Flags -contains "AlwaysLoad"}
         if ($providers) {
             $providers.Id | ForEach-Object {
                 if ((Test-Prerequisites -Uid "Provider.$($_)" -PrerequisiteType Installation -Quiet).Pass) {                    
@@ -184,7 +184,7 @@ function Close-Definitions {
 #region INTRO
 
     if (!$Quiet) {
-        $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> PENDING"
+        $message = "<$($Product.Id) <.>48> PENDING"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGray
         Write-Host+
         Write-Host+ -NoTrace "  Control","$($global:Overwatch.DisplayName) $($global:Overwatch.Release)" -ForegroundColor Gray,DarkBlue -Separator ":    "
@@ -250,7 +250,7 @@ function Close-Definitions {
 
     if (!$Quiet) {
         Write-Host+ #-Iff (!$_warnings)
-        $message = "<$($Overwatch.DisplayName) $($Product.Id) <.>48> READY"
+        $message = "<$($Product.Id) <.>48> READY"
         Write-Host+ -NoTrace -Parse $message -ForegroundColor DarkBlue,DarkGray,DarkGreen
         Write-Host+
     }

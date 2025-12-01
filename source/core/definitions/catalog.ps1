@@ -47,7 +47,7 @@ $global:Catalog.OS += @{ Windows11 =
 }
 
 $_cloudAzurePowershellModules = @(
-    @{ Name = "Az"; MinimumVersion = "12.0.0"; Repository = "PSGallery"; DoNotImport = $true }
+    @{ Name = "Az"; MinimumVersion = "12.0.0"; Repository = "PSGallery"; DoNotImport = $true },
     @{ Name = "Az.Accounts"; MinimumVersion = "3.0.0"},
     @{ Name = "Az.Compute"; MinimumVersion = "8.0.0" },
     @{ Name = "Az.Resources"; MinimumVersion = "7.1.0" },
@@ -103,7 +103,7 @@ $global:Catalog.Platform += @{ None =
         Description = "Ov"
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Flag = @("UnInstallable")
+            Flags = @("UnInstallable", "NoPlatformInstanceUri")
             PlatformInstanceId = @{
                 Input = "None"
                 Pattern = ""
@@ -152,7 +152,7 @@ $global:Catalog.Platform += @{ TableauCloud =
                 @{ Type = "Provider"; Provider = "TableauServerRestApi"},
                 @{ Type = "Provider"; Provider = "TableauServerTabCmd"}
             )
-            Flag = @("UnInstallable")
+            Flags = @("UnInstallable", "NoPlatformInstanceUri")
             PlatformInstanceId = @{
                 Input = "`$global:Platform.Uri.Host"
                 Pattern = "\."
@@ -339,7 +339,7 @@ $global:Catalog.Product += @{ Command =
         Publisher = "Walker Analytics Consulting"
         Log = "Command"
         Installation = @{
-            Flag = @("AlwaysInstall","UninstallProtected")
+            Flags = @("AlwaysInstall","UninstallProtected")
         }
     }
 }
@@ -404,7 +404,7 @@ $global:Catalog.Product += @{ AzureADCache =
         Log = "AzureADSync"
         HasTask = $true
         Installation = @{
-            Flag = @("NoPrompt")
+            # Flags = @("NoPrompt")
             Prerequisites = @(
                 @{ Type = "Cloud"; Cloud = "Azure"},
                 @{ Type = "Provider"; Provider = "AzureAD"}
@@ -557,7 +557,7 @@ $global:Catalog.Product += @{ AzureDownload =
         Log = "AzureDownload"
         HasTask = $true
         Installation = @{
-            Flag = @("NoPrompt")
+            Flags = @("NoPrompt")
             Prerequisites = @(
                 @{ Type = "Cloud"; Cloud = "Azure"}
             )
@@ -575,9 +575,32 @@ $global:Catalog.Product += @{ MailMerge =
         Log = "MailMerge"
         HasTask = $true
         Installation = @{
-            Flag = @("NoPrompt")
+            Flags = @("NoPrompt")
             Prerequisites = @(
                 @{ Type = "Provider"; Provider = "SMTP"}
+            )
+        }
+    }
+}
+
+$global:Catalog.Product += @{ SPOSyncFabric = 
+    [Product]@{
+        Suite = "SPOSyncFabric"
+        Id = "SPOSyncFabric"
+        Name = "SPOSyncFabric"
+        DisplayName = "SPOSyncFabric"
+        Description = "Syncs SharePoint lists to Microsoft Fabric objects."
+        Publisher = "Walker Analytics Consulting"
+        Log = "SPOSyncFabric"
+        HasTask = $true
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Product"; Product = "AzureADCache"}
+                @{ Type = "Cloud"; Cloud = "Azure"}
+                @{ Type = "Provider"; Provider = "AzureAD"}
+                @{ Type = "Provider"; Provider = "Fabric"}
+                @{ Type = "Provider"; Provider = "SharePoint"}                               
+                @{ Type = "Provider"; Provider = "ExchangeOnline"}                 
             )
         }
     }
@@ -605,7 +628,7 @@ $global:Catalog.Provider += @{ "OnePassword" =
             Prerequisites = @(
                 @{ Type = "CLI"; CLI = "OnePasswordCLI" }
             )
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -697,7 +720,7 @@ $global:Catalog.Provider += @{ SMTP =
                     }
                 }
             )
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -712,7 +735,7 @@ $global:Catalog.Provider += @{ TwilioSMS =
         Publisher = "Walker Analytics Consulting"
         Log = "TwilioSMS"
         Installation = @{
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -727,7 +750,7 @@ $global:Catalog.Provider += @{ MicrosoftTeams =
         Publisher = "Walker Analytics Consulting"
         Log = "MicrosoftTeams"
         Installation = @{
-            Flag = @("AlwaysLoad")
+            Flags = @("AlwaysLoad")
         }
     }
 }
@@ -741,7 +764,7 @@ $global:Catalog.Provider += @{ Views =
         Description = "Property views for Overwatch objects."
         Publisher = "Walker Analytics Consulting"
         Installation = @{
-            Flag = @("AlwaysInstall","UninstallProtected")
+            Flags = @("AlwaysInstall","UninstallProtected")
         }
     }
 }
@@ -898,7 +921,9 @@ $global:Catalog.Provider += @{ AzureAD =
                     Type = "PowerShell"
                     PowerShell = @{
                         Modules = @(
-                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
                         )
                     }
                 }
@@ -911,11 +936,128 @@ $global:Catalog.Provider += @{ AzureAD =
                     Type = "PowerShell"
                     PowerShell = @{
                         Modules = @(
-                            @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
                         )
                     }
                 }
                 @{ Type = "Cloud"; Cloud = "Azure"}
+            )
+        }
+    }
+}
+
+$global:Catalog.Provider += @{ Fabric = 
+    [Provider]@{
+        Id = "Fabric"
+        Name = "Fabric"
+        DisplayName = "Fabric"
+        Category = "Analytics"
+        Description = "Overwatch Provider for Fabric"
+        Publisher = "Walker Analytics Consulting"
+        Log = "Fabric"
+        Installation = @{
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"}
+                @{ Type = "Provider"; Provider = "AzureAD"}                
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "Az.Accounts"; MinimumVersion = "3.0.0"}
+                        )
+                    }
+                }
+            )
+        }
+        Initialization = @{
+            Prerequisites = @(
+                @{ Type = "Cloud"; Cloud = "Azure"}
+                @{ Type = "Provider"; Provider = "AzureAD"}
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "Az.Accounts"; MinimumVersion = "3.0.0"}
+                        )
+                    }
+                }
+            )
+        }        
+    }
+}
+
+$global:Catalog.Provider += @{ SharePoint = 
+    [Provider]@{
+        Id = "SharePoint"
+        Name = "SharePoint"
+        DisplayName = "SharePoint"
+        Category = "Collaboration"
+        Description = "Overwatch Provider for SharePoint"
+        Publisher = "Walker Analytics Consulting"
+        Log = "SharePoint"
+        Installation = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
+                        )
+                    }
+                }                
+            )
+        }     
+        Initialization = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            # @{ Name = "MSAL.PS"; MinimumVersion = "4.37.0.0" }
+                            @{ Name = "Microsoft.Graph"; UseLatestVersion = $true; DoNotImport = $true }
+                            @{ Name = "Microsoft.Graph.Beta"; UseLatestVersion = $true; DoNotImport = $true }
+                        )
+                    }
+                }                
+            )
+        }           
+    }
+}
+
+$global:Catalog.Provider += @{ ExchangeOnline =
+    [Provider]@{
+        Id = "ExchangeOnline"
+        Name = "ExchangeOnline"
+        DisplayName = "Exchange Online"
+        Description = "Overwatch Provider for Exchange Online."
+        Category = "Mail"
+        Publisher = "Walker Analytics Consulting"
+        Installation = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "ExchangeOnlineManagement"}
+                        )
+                    }
+                }
+            )
+        }
+        Initialization = @{
+            Prerequisites = @(
+                @{
+                    Type = "PowerShell"
+                    PowerShell = @{
+                        Modules = @(
+                            @{ Name = "ExchangeOnlineManagement"}
+                        )
+                    }
+                }
             )
         }
     }

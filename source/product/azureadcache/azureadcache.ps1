@@ -139,26 +139,28 @@ foreach ($tenantKey in $tenantKeys) {
 }
 
 # set params for uploading files to Azure Storage
-$resourceGroup = "apps-gen-rg"
-$storageAccountName = "pathaiforhealthadmin"
-$containerName = "fabric"
-$storageAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $resourceGroup -Name $storageAccountName)[0].Value
-$storageContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey 
+$resourceGroup = ""
+if (![string]::IsNullOrEmpty($resourceGroup)) {
+    $storageAccountName = ""
+    $containerName = ""
+    $storageAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $resourceGroup -Name $storageAccountName)[0].Value
+    $storageContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey 
 
-$message = "<Exporting cache to Azure Storage <.>48> PENDING"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray  
+    $message = "<Exporting cache to Azure Storage <.>48> PENDING"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGray  
 
-foreach ($tenantKey in $tenantKeys) {
+    foreach ($tenantKey in $tenantKeys) {
 
-    Set-AzStorageBlobContent -File "$($global:Location.Data)\$tenantKey-users.cache" -Container $containerName -Blob "azuread\$tenantKey-users.json" -Context $storageContext -Force 
-    Set-AzStorageBlobContent -File "$($global:Location.Data)\$tenantKey-groups.cache" -Container $containerName -Blob "azuread\$tenantKey-groups.json" -Context $storageContext -Force
-    Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-users.csv" -Container $containerName -Blob "azuread\$tenantKey-users.csv" -Context $storageContext -Force 
-    Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groups.csv" -Container $containerName -Blob "azuread\$tenantKey-groups.csv" -Context $storageContext -Force
-    Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -Container $containerName -Blob "azuread\$tenantKey-groupMembership.csv" -Context $storageContext -Force    
-            
+        Set-AzStorageBlobContent -File "$($global:Location.Data)\$tenantKey-users.cache" -Container $containerName -Blob "azuread\$tenantKey-users.json" -Context $storageContext -Force 
+        Set-AzStorageBlobContent -File "$($global:Location.Data)\$tenantKey-groups.cache" -Container $containerName -Blob "azuread\$tenantKey-groups.json" -Context $storageContext -Force
+        Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-users.csv" -Container $containerName -Blob "azuread\$tenantKey-users.csv" -Context $storageContext -Force 
+        Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groups.csv" -Container $containerName -Blob "azuread\$tenantKey-groups.csv" -Context $storageContext -Force
+        Set-AzStorageBlobContent -File "$($global:Azure.Location.Data)\$tenantKey-groupMembership.csv" -Container $containerName -Blob "azuread\$tenantKey-groupMembership.csv" -Context $storageContext -Force    
+                
+    }
+
+    write-Host+
+    $message = "<Exporting cache to Azure Storage <.>48> SUCCESS"
+    Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
+    Write-Host+
 }
-
-write-Host+
-$message = "<Exporting cache to Azure Storage <.>48> SUCCESS"
-Write-Host+ -NoTrace -Parse $message -ForegroundColor Gray,DarkGray,DarkGreen
-Write-Host+

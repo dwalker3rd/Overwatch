@@ -2,6 +2,30 @@ param (
     [switch]$UseDefaultResponses
 )
 
+    # Local version for installation only
+    # The global Provider version isn't yet installed
+    function Connect-AzureAD {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}
+
+        $appCredentials = Get-Credentials $global:Azure.$tenantKey.MsGraph.Credentials
+        if (!$appCredentials) {
+            throw "Unable to find the MSGraph credentials `"$($global:Azure.$tenantKey.MsGraph.Credentials)`""
+        }
+        
+        Connect-MgGraph -NoWelcome -TenantId $global:Azure.$tenantKey.Tenant.Id -ClientSecretCredential $appCredentials
+        $global:Azure.$tenantKey.MsGraph.Context = Get-MgContext
+
+        return
+
+    }
+
 $_provider = Get-Catalog -Type $_provider -Id AzureAD
 $_provider | Out-Null
 
@@ -56,12 +80,12 @@ $_provider | Out-Null
         }
         catch {}
 
-        if ([string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.AccessToken)) {
+        if ([string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.Context)) {
             Write-Host+ -NoTrace -NoTimestamp "    Invalid MSGraph App Id or Secret." -ForegroundColor Red
             $creds = $null
         }
 
-    } until (![string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.AccessToken))
+    } until (![string]::IsNullOrEmpty($global:Azure.$tenantKey.MsGraph.Context))
 
 
 #endregion MSGRAPH CREDENTIALS

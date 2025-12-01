@@ -93,40 +93,50 @@ $global:WarningPreference = "SilentlyContinue"
             $ignoreOutput = Set-NetFirewallRule -name "WINRM-HTTP-In-TCP-PUBLIC" -RemoteAddress Any
         }
 
-        # enable WSMan Credssp for both Server and Client (for this node)
-        $ignoreOutput = Enable-WSManCredSSP -Role Server -Force
-        $ignoreOutput = Enable-WSManCredSSP -Role Client -DelegateComputer $thisNode -Force
+        $windowsServerYear = $null
+        $installedOperatingSystem = ((Get-CimInstance -ClassName Win32_OperatingSystem).Name -split '\|')[0]
+        if ($installedOperatingSystem -match 'Windows Server (\d{4})') {
+            $windowsServerYear = $matches[1]
+        }
+        
+        $supportedWindowsServerYears = 2012,2016,2019,2022
+        if ($windowsServerYear -in $supportedWindowsServerYears) {            
 
-        # configure local group credssp policy (for this node)
-        if (!(Get-Item -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials)) {
-            $ignoreOutput = New-Item -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation -Name AllowFreshCredentials -Force
-        }
-        $allowFreshCredentials = Get-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials
-        if (!$allowFreshCredentials) {
-            $ignoreOutput = New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials -Name 1 -Value * -PropertyType String
-        }
-        if ($allowFreshCredentials.1 -ne "*") {
-            $ignoreOutput = Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials -Name 1 -Value *
-        }
-        $AllowFreshCredentialsWhenNTLMOnly = Get-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly
-        if (!$AllowFreshCredentialsWhenNTLMOnly) {
-            $ignoreOutput = New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly -Name 1 -Value * -PropertyType String
-        }
-        if ($AllowFreshCredentialsWhenNTLMOnly.1 -ne "*") {
-            $ignoreOutput = Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly -Name 1 -Value *
-        }
+            # enable WSMan Credssp for both Server and Client (for this node)
+            $ignoreOutput = Enable-WSManCredSSP -Role Server -Force
+            $ignoreOutput = Enable-WSManCredSSP -Role Client -DelegateComputer $thisNode -Force  
 
-        # configure trusted hosts (for this node)
-        Add-WSManTrustedHosts -ComputerName $TrustedHosts | Out-Null
+            # configure local group credssp policy (for this node)
+            if (!(Get-Item -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials)) {
+                $ignoreOutput = New-Item -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation -Name AllowFreshCredentials -Force
+            }
+            $allowFreshCredentials = Get-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials
+            if (!$allowFreshCredentials) {
+                $ignoreOutput = New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials -Name 1 -Value * -PropertyType String
+            }
+            if ($allowFreshCredentials.1 -ne "*") {
+                $ignoreOutput = Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentials -Name 1 -Value *
+            }
+            $AllowFreshCredentialsWhenNTLMOnly = Get-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly
+            if (!$AllowFreshCredentialsWhenNTLMOnly) {
+                $ignoreOutput = New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly -Name 1 -Value * -PropertyType String
+            }
+            if ($AllowFreshCredentialsWhenNTLMOnly.1 -ne "*") {
+                $ignoreOutput = Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation\AllowFreshCredentialsWhenNTLMOnly -Name 1 -Value *
+            }
 
-        # enable WSMan Credssp for Server (for remote nodes)
-        $nodes = @()
-        $nodes += $ComputerName | Where-Object {$_ -ne $thisNode}
-        if ($nodes) {
-            $psSession = New-PsSession+ -ComputerName $nodes
-            if ($null -ne $psSession) {
-                $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
-                $ignoreOutput = Remove-PSSession+ -Session $psSession
+            # configure trusted hosts (for this node)
+            Add-WSManTrustedHosts -ComputerName $TrustedHosts | Out-Null
+
+            # enable WSMan Credssp for Server (for remote nodes)
+            $nodes = @()
+            $nodes += $ComputerName | Where-Object {$_ -ne $thisNode}
+            if ($nodes) {
+                $psSession = New-PsSession+ -ComputerName $nodes
+                if ($null -ne $psSession) {
+                    $ignoreOutput = Invoke-Command -ScriptBlock {Enable-WSManCredSSP -Role Server -Force} -Session $psSession
+                    $ignoreOutput = Remove-PSSession+ -Session $psSession
+                }
             }
         }
 

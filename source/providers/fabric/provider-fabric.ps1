@@ -1,0 +1,722 @@
+#region AUTHENTICATION
+
+    function global:Connect-Fabric {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}    
+
+        $tokenType = "Bearer"
+        $accessToken += (Get-AzAccessToken -ResourceUrl "https://api.fabric.microsoft.com").Token | ConvertFrom-SecureString -AsPlainText
+        $global:Azure.$tenantKey.Fabric.RestAPI.AccessToken = "$tokenType $accessToken"
+        $global:Azure.$tenantKey.Fabric.RestAPI.Headers = @{ Authorization = $global:Azure.$tenantKey.Fabric.RestAPI.AccessToken; "Content-Type" = "application/json" }
+
+    }
+
+#enregion AUTHENTICATION
+
+#region CAPACITIES
+
+    function global:Get-Capacities {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}       
+
+        $response = Invoke-RestMethod -Method GET `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/capacities" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers 
+        $capacities = $response.value
+        return $capacities 
+
+    }
+
+    function global:Get-Capacity {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceName")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceId")][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceName")][string]$Name,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][string]$Id,
+            [Parameter(Mandatory=$false)][object[]]$Capacities
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }       
+
+        $_capacities = $Capacities
+        if (!$Capacities) {
+            $_capacities = Get-Capacities -Tenant $Tenant
+        }
+
+        if ($Name) {
+            $capacity = $_capacities | Where-Object { $_.displayName -eq $Name }
+        }
+        else {
+            $capacity = $_capacities | Where-Object { $_.id -eq $Id }
+        }
+        return $capacity
+
+    }
+
+#endregion CAPACITIES
+
+#region WORKSPACES
+
+    function global:Get-Workspaces {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}  
+
+        $response = Invoke-RestMethod -Method GET `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers 
+        $workspaces = $response.value
+
+        return $workspaces
+
+    }
+
+    function global:Get-Workspace {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceName")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByWorkspaceId")][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceName")][string]$Name,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByWorkspaceId")][string]$Id
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}  
+
+        $workspaceId = $Id
+        if ($Name) {
+            $_workspaces = Get-Workspaces -Tenant $Tenant
+            $_workspace = $_workspaces | Where-Object { $_.displayName -eq $Name }
+            $workspaceId = $_workspace.Id
+        }
+
+        $workspace = Invoke-RestMethod -Method GET `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$workspaceId" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers     
+
+        if (![string]::IsNullOrEmpty($workspace.id)) {
+            return $workspace
+        }
+        else {
+            return
+        }
+
+    }
+
+    function global:New-Workspace {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][string]$Name,
+            [Parameter(Mandatory=$false)][string]$Description
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}       
+
+        $body = @{ displayName = $Name } | ConvertTo-Json
+        if ($Description) { $_body += @{ description = $Description } }
+        $workspace = Invoke-RestMethod -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
+            -Body $body
+        return $workspace
+
+    }
+
+    function global:Update-Workspace {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace,
+            [Parameter(Mandatory=$false)][string]$Name,
+            [Parameter(Mandatory=$false)][string]$Description
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }  
+
+        # if (!$Name -and !$Description) {
+        #     throw "At least one of the following is required: -Name or -Description "
+        # }
+
+        $_body = @{}
+        if ($Name) { $_body += @{ displayName = $Name } }
+        if ($Description) { $_body += @{ description = $Description } }
+        $body = $_body | ConvertTo-Json
+        $workspace = Invoke-RestMethod -Method PATCH `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
+            -Body $body
+
+        return $Workspace
+
+    }
+
+    function global:Set-WorkspaceCapacity {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace,
+            [Parameter(Mandatory=$true,Position=2)][object]$Capacity
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }         
+
+        $body = @{ capacityId = $Capacity.Id } | ConvertTo-Json
+        $response = Invoke-RestMethod -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/assignToCapacity" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
+            -Body $body
+        $response | Out-Null
+
+        return Get-Workspace -Tenant $tenantKey -Id $Workspace.Id
+
+    }
+
+    function global:Remove-WorkspaceCapacity {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }      
+
+        $response = Invoke-RestMethod -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/unassignFromCapacity" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+        $response | Out-Null
+
+        return Get-Workspace -Tenant $tenantKey -Id $Workspace.Id
+
+    }
+
+    function global:Remove-Workspace {
+
+        [CmdletBinding(
+            SupportsShouldProcess,
+            ConfirmImpact = 'High'        
+        )]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }  
+
+        $response = $null
+        if ($PSCmdlet.ShouldProcess($Workspace.displayName, "Delete workspace")) {
+            $response = Invoke-RestMethod -Method DELETE `
+                -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)" `
+                -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+        }
+
+        return $response
+
+    }
+
+    function global:Get-WorkspaceRoleAssignments {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." }  
+
+        $response = Invoke-RestMethod -Method GET `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/roleAssignments" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+        $workspaceRoleAssignments = $response.value
+        
+        return $workspaceRoleAssignments
+
+    }
+
+    function global:Get-WorkspaceRoleAssignment {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByPrincipal")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByRoleAssignment")][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByPrincipal")]
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByRoleAssignment")][object]$Workspace,
+            [Parameter(Mandatory=$true,Position=2,ParameterSetName="ByPrincipal")][ValidateSet("User","Group")][string]$PrincipalType,
+            [Parameter(Mandatory=$true,Position=3,ParameterSetName="ByPrincipal")][Alias("PrincipalName")][string]$PrincipalId,
+            [Parameter(Mandatory=$true,Position=1,ParameterSetName="ByRoleAssignment")][string]$Id
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}  
+
+        $workspaceRoleAssignmentId = $Id
+        if ($PrincipalType){
+            $_workspaceRoleAssignments = Get-WorkspaceRoleAssignments -Tenant $Tenant -Workspace $Workspace
+            switch ($PrincipalType) {
+                "User" {
+                    $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.userDetails.userPrincipalName -eq $PrincipalId }
+                }
+                "Group" {
+                    $_workspaceRoleAssignment = $_workspaceRoleAssignments | Where-Object { $_.principal.id -eq $PrincipalId }
+                }
+            }
+            $workspaceRoleAssignmentId = $_workspaceRoleAssignment.Id
+        }
+
+        $workspaceRoleAssignment = Invoke-RestMethod -Method GET `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/roleAssignments/$workspaceRoleAssignmentId" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+
+        return $workspaceRoleAssignment
+
+    }
+
+    function global:Add-WorkspaceRoleAssignment {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace,
+            [Parameter(Mandatory=$true,Position=2)][ValidateSet("User","Group")][string]$PrincipalType,
+            [Parameter(Mandatory=$true,Position=2)][Alias("PrincipalName")][string]$PrincipalId,
+            [Parameter(Mandatory=$true,Position=3)][ValidateSet("Admin","Contributor","Member","Viewer")][string]$Role
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
+
+        $isGuid =  $PrincipalId -match $global:RegexPattern.Guid
+        # $isUPN = $PrincipalId -match $global:RegexPattern.Username.AzureAD
+
+        $azureADPrincipal = $null
+        switch ($PrincipalType) {
+            "User" {
+                if (!$isGuid) {
+                    $azureADPrincipal = Find-AzureADUser -Tenant $Tenant -UserPrincipalName $PrincipalId
+                }
+                $azureADPrincipal = Get-AzureADUser -Tenant $Tenant -Id $PrincipalId
+            }
+            "Group" {
+                if (!$isGuid) {
+                    $azureADPrincipal = Find-AzureADGroup -Tenant $Tenant -DisplayName $PrincipalId
+                }
+                $azureADPrincipal = Get-AzureADGroup -Tenant $Tenant -Id $PrincipalId                
+            }
+        }
+
+        $body = @{ principal = @{ type = $PrincipalType; id = $azureADPrincipal.id}; role = $Role } | ConvertTo-Json
+        $workspaceRoleAssignment = Invoke-RestMethod -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/roleAssignments" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
+            -Body $body
+        
+        return $workspaceRoleAssignment
+
+    }
+
+    function global:Update-WorkspaceRoleAssignment {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace,
+            [Parameter(Mandatory=$true,Position=2)][object]$WorkspaceRoleAssignment,
+            [Parameter(Mandatory=$true,Position=3)][ValidateSet("Admin","Contributor","Member","Viewer")][string]$Role
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
+
+        $body = @{ role = $Role } | ConvertTo-Json
+        $workspaceRoleAssignment = Invoke-RestMethod -Method PATCH `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/roleAssignments/$($WorkspaceRoleAssignment.id)" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
+            -Body $body
+        
+        return $workspaceRoleAssignment
+
+    }
+
+    function global:Remove-WorkspaceRoleAssignment {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace,
+            [Parameter(Mandatory=$true,Position=2)][object]$WorkspaceRoleAssignment
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
+
+
+        $response = Invoke-RestMethod -Method DELETE `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($Workspace.Id)/roleAssignments/$($WorkspaceRoleAssignment.Id)" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+
+        return $response
+
+    }
+
+    function New-WorkspaceIdentity {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
+
+        # get workspace again in case object is stale
+        $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+
+        # the workspace identity has already been provisioned
+        if ($_workspace.workspaceIdentity) {
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityAlreadyExists"
+                    message = "Workspace identity already provisioned"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # make initial request
+        $response = Invoke-WebRequest -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($_workspace.Id)/provisionIdentity" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers  
+
+        # request completed immediately (200 or 201)
+        if ($response.StatusCode -eq 200 -or $response.StatusCode -eq 201) {
+            if ($response.Content) {
+                return ($response.Content | ConvertFrom-Json)
+            }
+            # response indicates completion, but there's no Content
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityRequestCompletedNoContent"
+                    message = "Workspace identity request completed but did not return any content"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # request is a long-running operation (LRO)
+        # poll $response.Headers["Location"] for completion notification
+        elseif ($response.StatusCode -eq 202) {
+
+            # ensure Headers properties are the right type for use
+            $_statusUri  = $response.Headers["Location"]
+            $_retryAfter = $response.Headers["Retry-After"]
+            $statusUri = if ($_statusUri -is [array]) { $_statusUri[0] } else { $_statusUri }
+            $retryAfter = if ($_retryAfter -is [array]) { $_retryAfter[0] } else { $_retryAfter }
+            
+            # poll for completion of LRO
+            $status = "InProgress"
+            while ($status -in @('Running','InProgress')) {
+                Start-Sleep -Seconds ([int]$retryAfter)
+                $lroResponse = Invoke-RestMethod `
+                    -Uri $statusUri `
+                    -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+                $status = $lroResponse.status
+            }
+
+            # LRO status indicates success
+            if ($status -eq 'Succeeded') {
+                $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+                return $_workspace.workspaceIdentity
+            }
+
+            # LRO status indicates failure
+            else {                    
+                $_errorResponse = [PSCustomObject]@{
+                    error = [PSCustomObject]@{
+                        errorCode = "WorkspaceIdentityRequestFailed"
+                        message = "Workspace identity request status: $($status.ToUpper())"
+                    }
+                }
+                return $_errorResponse                
+            } 
+
+        }
+    }
+
+    function Remove-WorkspaceIdentity {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$true,Position=1)][object]$Workspace
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) { throw "$tenantKey is not a valid/configured AzureAD tenant." } 
+
+        # get workspace again in case object is stale
+        $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+
+        # the workspace has no workspace identity provisioned
+        if (!$_workspace.workspaceIdentity) {
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityNotProvisioned"
+                    message = "Workspace identity not provisioned"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # make initial request
+        $response = Invoke-WebRequest -Method POST `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/workspaces/$($_workspace.Id)/deprovisionIdentity" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers  
+
+        # request completed immediately (200 or 201)
+        if ($response.StatusCode -eq 200 -or $response.StatusCode -eq 201) {
+            if ($response.Content) {
+                return ($response.Content | ConvertFrom-Json)
+            }
+            # response indicates completion, but there's no Content
+            $_errorResponse = [PSCustomObject]@{
+                error = [PSCustomObject]@{
+                    errorCode = "WorkspaceIdentityRequestCompletedNoContent"
+                    message = "Workspace identity request completed but did not return any content"
+                }
+            }
+            return $_errorResponse
+        }
+
+        # request is a long-running operation (LRO)
+        # poll $response.Headers["Location"] for completion notification
+        elseif ($response.StatusCode -eq 202) {
+
+            # ensure Headers properties are the right type for use
+            $_statusUri  = $response.Headers["Location"]
+            $_retryAfter = $response.Headers["Retry-After"]
+            $statusUri = if ($_statusUri -is [array]) { $_statusUri[0] } else { $_statusUri }
+            $retryAfter = if ($_retryAfter -is [array]) { $_retryAfter[0] } else { $_retryAfter }
+            
+            # poll for completion of LRO
+            $status = "InProgress"
+            while ($status -in @('Running','InProgress')) {
+                Start-Sleep -Seconds ([int]$retryAfter)
+                $lroResponse = Invoke-RestMethod `
+                    -Uri $statusUri `
+                    -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers
+                $status = $lroResponse.status
+            }
+
+            # LRO status indicates success
+            if ($status -eq 'Succeeded') {
+                $_workspace = Get-Workspace -Tenant $tenantKey -Name $Workspace.displayName
+                return $_workspace.workspaceIdentity
+            }
+
+            # LRO status indicates failure
+            else {                    
+                $_errorResponse = [PSCustomObject]@{
+                    error = [PSCustomObject]@{
+                        errorCode = "WorkspaceIdentityRequestFailed"
+                        message = "Workspace identity request status: $($status.ToUpper())"
+                    }
+                }
+                return $_errorResponse                
+            } 
+
+        }
+    }    
+
+#endregion WORKSPACES    
+
+#region ADMIN
+
+    function global:Get-TenantSettings {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}       
+
+        $response = Invoke-RestMethod -Method GET `
+            -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/admin/tenantsettings" `
+            -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers 
+        $tenantSettings = $response.value
+        
+        return $tenantSettings 
+
+    }
+
+    function global:Find-TenantSetting {
+
+    [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="BySettingName")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByTitle")]
+            [Parameter(Mandatory=$true,Position=0,ParameterSetName="ByTenantSettingGroup")][string]$Tenant,
+            [Parameter(Mandatory=$false,Position=1,ParameterSetName="BySettingName")][Alias("Name")][string]$SettingName,
+            [Parameter(Mandatory=$false,Position=1,ParameterSetName="ByTitle")][string]$Title,
+            [Parameter(Mandatory=$false,Position=1,ParameterSetName="ByTenantSettingGroup")][Alias("Group")][string]$TenantSettingGroup
+
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}  
+        
+        $_tenantSettings = Get-TenantSettings -Tenant $tenantKey
+
+        $tenantSettings = $null
+        if ($SettingName) {
+            $tenantSettings = $_tenantSettings | Where-Object { $_.settingName -like "$SettingName"}
+        }
+        elseif ($Title) {
+            $tenantSettings = $_tenantSettings | Where-Object { $_.title -like "$Title"}
+        }
+        elseif ($TenantSettingGroup) {
+            $tenantSettings = $_tenantSettings | Where-Object { $_.tenantSettingGroup -like "$TenantSettingGroup"}            
+        }
+    
+
+        return $tenantSettings
+
+    }
+
+    function global:Export-TenantSettings {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$false)]$BaselineTenantSettings,
+            [switch]$Clobber
+        )
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."} 
+        
+        if ([string]::IsNullOrEmpty($BaselinePath)) {
+            $BaselineTenantSettings = "$($global:Location.Data)\$($global:Environ.Cloud)\$tenantKey-tenantSettings.json"
+        }        
+
+        $tenantSettings = Get-TenantSettings -Tenant $tenantKey 
+
+        try{
+            $tenantSettings | ConvertTo-Json -Depth 10 | Out-File $BaselineTenantSettings -NoClobber:$(!$Clobber.IsPresent)
+            Write-Host+ -NoTimestamp -NoTrace "    Tenant settings exported to", $BaselineTenantSettings -ForegroundColor DarkGray, DarkBlue
+        }
+        catch {
+            Write-Host+ -NoTimestamp -NoTrace "    The file '$($BaselineTenantSettings)' already exists." -ForegroundColor DarkRed
+            Write-Host+ -NoTimestamp -NoTrace "    Specify -Clobber to overwrite the file." -ForegroundColor DarkGray
+        }
+        
+        
+        return  
+
+    }    
+
+    function global:Import-TenantSettings {
+
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true,Position=0)][string]$Tenant,
+            [Parameter(Mandatory=$false,Position=1)][string]$BaselineTenantSettings
+        )        
+
+        $tenantKey = $Tenant.split(".")[0].ToLower()
+        if (!$global:Azure.$tenantKey) {throw "$tenantKey is not a valid/configured AzureAD tenant."}  
+
+        if ([string]::IsNullOrEmpty($BaselinePath)) {
+            $BaselineTenantSettings = "$($global:Location.Data)\$($global:Environ.Cloud)\$tenantKey-tenantSettings.json"
+        }
+
+        $tenantSettings = Get-Content -Raw -Path $BaselineTenantSettings | ConvertFrom-Json
+
+        foreach ($tenantSetting in $tenantSettings) {
+            
+            $body = [ordered]@{
+                enabled = [bool]$tenantSetting.enabled
+            }
+
+            if ($null -ne $tenantSetting.delegateToCapacity)  { $body.delegateToCapacity  = [bool]$tenantSetting.delegateToCapacity }
+            if ($null -ne $tenantSetting.delegateToWorkspace) { $body.delegateToWorkspace = [bool]$tenantSetting.delegateToWorkspace }
+            if ($null -ne $tenantSetting.delegateToDomain)    { $body.delegateToDomain    = [bool]$tenantSetting.delegateToDomain }
+
+            if ($tenantSetting.enabledSecurityGroups) {
+                $body.enabledSecurityGroups = @(
+                    $tenantSetting.enabledSecurityGroups | ForEach-Object {
+                        @{ graphId = $_.graphId; name = $_.name }
+                    }
+                )
+            }
+
+            if ($tenantSetting.excludedSecurityGroups) {
+                $body.excludedSecurityGroups = @(
+                    $tenantSetting.excludedSecurityGroups | ForEach-Object {
+                        @{ graphId = $_.graphId; name = $_.name }
+                    }
+                )
+            }
+
+            if ($tenantSetting.properties) {
+                $body.properties = @(
+                    $tenantSetting.properties | ForEach-Object {
+                        [ordered]@{
+                            name  = $_.name
+                            value = $_.value
+                            type  = $_.type
+                        }
+                    }
+                )
+            }
+
+            $jsonBody = $body | ConvertTo-Json -Depth 10
+
+            Write-Host+ -IfDebug -NoTimestamp -NoTrace "$($tenantSetting.settingName): $($body | ConvertTo-Json -Depth 10 -Compress)"
+
+            $response = Invoke-RestMethod -Method POST `
+                -Uri "$($global:Azure.$tenantKey.Fabric.RestAPI.BaseUri)/admin/tenantsettings/$($tenantSetting.name)/update" `
+                -Headers $global:Azure.$tenantKey.Fabric.RestAPI.Headers `
+                -Body $jsonBody
+            $tenantSettings = $response.value
+
+            Start-Sleep -Milliseconds 750
+        }
+
+    }
+
+
+#endregion ADMIN

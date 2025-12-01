@@ -618,7 +618,7 @@ function script:Uninstall-CatalogObject {
     $Id = $global:Catalog.$Type.$Id.Id
     $catalogObject = Get-Catalog -Type $Type -Id $Id
 
-    if (!$Force -and $catalogObject.Installation.Flag -eq "UninstallProtected") { return }
+    if (!$Force -and $catalogObject.Installation.Flags -eq "UninstallProtected") { return }
 
     $customUninstallScript = "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"
     $hasCustomUninstallScript = Test-Path -Path $customUninstallScript
@@ -706,7 +706,7 @@ function script:Remove-CatalogObjectFiles {
 
     if ($DeleteAllData) {
         New-Item -ItemType Directory "$archivePath\data" -ErrorAction SilentlyContinue | Out-Null
-        Move-Files -Path "$($global:Location.Data)\$($Id.ToLower())\*.*" -Destination "$archivePath\data" -Recurse -Overwrite
+        # Move-Files -Path "$($global:Location.Data)\$($Id.ToLower())\*.*" -Destination "$archivePath\data" -Recurse -Overwrite
     }
 
     # copy to archive folder (don't delete in case the catalog object is reinstalled)
@@ -718,8 +718,10 @@ function script:Remove-CatalogObjectFiles {
     Remove-Files "$($global:Location.Scripts)\initialize\initialize-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\install\install-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\install\uninstall-$($Type.ToLower())-$($Id.ToLower()).ps1"
-    Remove-Files "$($global:Location.Scripts)\preflight\preflight*-$($Type.ToLower())-$($Id.ToLower()).ps1"
-    Remove-Files "$($global:Location.Scripts)\postflight\postflight*-$($Type.ToLower())-$($Id.ToLower()).ps1"
+    Remove-Files "$($global:Location.Scripts)\preflight\preflightchecks-$($Type.ToLower())-$($Id.ToLower()).ps1"
+    Remove-Files "$($global:Location.Scripts)\preflight\preflightupdates-$($Type.ToLower())-$($Id.ToLower()).ps1"
+    Remove-Files "$($global:Location.Scripts)\postflight\postflightchecks-$($Type.ToLower())-$($Id.ToLower()).ps1"
+    Remove-Files "$($global:Location.Scripts)\postflight\postflightupdates-$($Type.ToLower())-$($Id.ToLower()).ps1"
     Remove-Files "$($global:Location.Scripts)\services\services-$($Type.ToLower())-$($Id.ToLower()).ps1"
 
     if (![string]::IsNullOrEmpty($global:Catalog.$Type.$Id.Log)) {
