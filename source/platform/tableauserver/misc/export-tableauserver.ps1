@@ -16,6 +16,8 @@
     $script:typesRequiringProjects = @("projectDefaultPermissions","workbooks","views","datasources","flows")
     $script:downloadTypes = @("workbooks","datasources","flows")
     $script:showProgressTypes = @("users","groups","projects","workbooks","views","datasources","flows")
+
+    $global:Sites = Get-TsSites
     
     function Write-Start {
 
